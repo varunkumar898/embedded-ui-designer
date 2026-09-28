@@ -14,9 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: windows-2022
             build_type: Release
-            generator: "Visual Studio 17 2022"
+            generator: ""
             exe_path: "build/Release/EmbeddedUIDesigner.exe"
           - os: ubuntu-22.04
             build_type: Release
@@ -35,7 +35,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
-          arch: ${{ matrix.os == 'windows-latest' && 'win64_msvc2019_64' || '' }}
+          arch: ${{ startsWith(matrix.os, 'windows') && 'win64_msvc2019_64' || '' }}
           modules: 'qtserialport'
           cache: true
 
@@ -54,7 +54,7 @@ jobs:
           cmake -B build
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
-          -G "${{ matrix.generator }}"
+          ${{ matrix.generator != '' && format('-G "{0}"', matrix.generator) || '' }}
 
       - name: Build Designer Executable
         run: cmake --build build --config ${{ matrix.build_type }} --parallel 4

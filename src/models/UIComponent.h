@@ -84,7 +84,7 @@ protected:
     qreal m_height = 40.0;
 
     bool m_resizing = false;
-    ResizeHandle m_activeHandle = ResizeHandle.None;
+    ResizeHandle m_activeHandle = ResizeHandle::None;
     QPointF m_dragStartPos;
     QRectF m_initialGeom;
 };
