@@ -342,18 +342,19 @@ void DocumentModel::hookActiveScreenSignals() {
         emit dataChanged(topLeft, bottomRight, roles);
     });
 
-    connect(scr, &ScreenModel::rowsInserted, this, [this](const QModelIndex& parent, int first, int last) {
-        emit rowsInserted(parent, first, last);
+    connect(scr, &ScreenModel::rowsInserted, this, [this]() {
+        emit layoutChanged();
         emit countChanged(count());
     });
 
-    connect(scr, &ScreenModel::rowsRemoved, this, [this](const QModelIndex& parent, int first, int last) {
-        emit rowsRemoved(parent, first, last);
+    connect(scr, &ScreenModel::rowsRemoved, this, [this]() {
+        emit layoutChanged();
         emit countChanged(count());
     });
 
     connect(scr, &ScreenModel::modelReset, this, [this]() {
-        emit modelReset();
+        beginResetModel();
+        endResetModel();
         emit countChanged(count());
     });
 }
