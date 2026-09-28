@@ -5,6 +5,7 @@
 #include <QDoubleSpinBox>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
 #include <QGroupBox>
