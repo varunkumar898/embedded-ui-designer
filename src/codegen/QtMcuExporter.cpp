@@ -18,7 +18,8 @@ bool QtMcuExporter::exportProject(const DocumentModel* doc, const QString& outDi
     QString name = doc->projectName().isEmpty() ? "MyUI" : doc->projectName();
 
     if (!writeTextFile(dir.filePath("CMakeLists.txt"), generateCMakeLists(doc), &m_lastError)) return false;
-    if (!writeTextFile(dir.filePath(name + ".qmlproject"), generateQmlProject(doc), &m_lastError)) return false;
+    if (!writeTextFile(dir.filePath("project.qmlproject"), generateQmlProject(doc), &m_lastError)) return false;
+    if (!writeTextFile(dir.filePath("design.qml"), generateMainScreenQml(doc), &m_lastError)) return false;
 
     // Export each screen as an individual QML component file
     for (ScreenModel* screen : doc->screens()) {
@@ -102,7 +103,6 @@ bool QtMcuExporter::exportProject(const DocumentModel* doc, const QString& outDi
         if (!writeTextFile(dir.filePath(screenFilename), qmlContent, &m_lastError)) return false;
     }
 
-    if (!writeTextFile(dir.filePath("MainScreen.qml"), generateMainScreenQml(doc), &m_lastError)) return false;
     if (!writeTextFile(dir.filePath("README.md"), generateReadme(doc), &m_lastError)) return false;
 
     dir.mkdir("build");
@@ -117,7 +117,7 @@ QString QtMcuExporter::generateCMakeLists(const DocumentModel* doc) {
     cmake += "set(CMAKE_CXX_STANDARD 17)\n";
     cmake += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n";
     cmake += "find_package(Qul REQUIRED)\n\n";
-    cmake += QString("qul_add_target(%1 QML_PROJECT %1.qmlproject)\n\n").arg(name);
+    cmake += QString("qul_add_target(%1 QML_PROJECT project.qmlproject)\n\n").arg(name);
     cmake += QString("app_target_setup_os(%1)\n").arg(name);
     return cmake;
 }
@@ -127,11 +127,11 @@ QString QtMcuExporter::generateQmlProject(const DocumentModel* doc) {
     QString code;
     code += "import QmlProject\n\n";
     code += "Project {\n";
-    code += "    mainFile: \"MainScreen.qml\"\n\n";
+    code += "    mainFile: \"design.qml\"\n\n";
     code += "    Module {\n";
     code += QString("        name: \"%1\"\n").arg(name);
     code += "        qmlFiles: [\n";
-    code += "            \"MainScreen.qml\"";
+    code += "            \"design.qml\"";
     for (ScreenModel* screen : doc->screens()) {
         if (!screen || screen->id() == "MainScreen") continue;
         code += QString(",\n            \"%1.qml\"").arg(screen->id());

@@ -131,9 +131,9 @@ int main(int argc, char *argv[])
             }
         } else if (target == "qul") {
             std::cout << "Generating Qt for MCUs (QUL) project in: " << outDir.toStdString() << std::endl;
-            auto exporter = std::make_unique<QtMcuExporter>();
-            if (!exporter->exportProject(&docModel, outDir)) {
-                std::cerr << "Export Error: " << exporter->lastError().toStdString() << std::endl;
+            QtMcuGenerator generator(projectPath);
+            if (!generator.generate(outDir)) {
+                std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
             }
         }
