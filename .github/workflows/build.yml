@@ -81,7 +81,8 @@ jobs:
         shell: bash
         run: |
           echo "=== Configuring Exported µGFX Build ==="
-          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$GITHUB_WORKSPACE/ugfx_lib"
+          UGFX_DIR="${GITHUB_WORKSPACE//\\//}/ugfx_lib"
+          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$UGFX_DIR"
           echo "=== Compiling Exported µGFX Binary ==="
           cmake --build build/ugfx_out/build --config Release
 

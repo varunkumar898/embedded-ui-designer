@@ -85,9 +85,9 @@ QString UgfxGenerator::generateCMakeLists() {
 
     code += "# Locate or fetch µGFX library\n";
     code += "if(DEFINED UGFX_PATH)\n";
-    code += "    set(UGFX_DIR \"${UGFX_PATH}\")\n";
+    code += "    file(TO_CMAKE_PATH \"${UGFX_PATH}\" UGFX_DIR)\n";
     code += "elseif(DEFINED ENV{UGFX_PATH})\n";
-    code += "    set(UGFX_DIR \"$ENV{UGFX_PATH}\")\n";
+    code += "    file(TO_CMAKE_PATH \"$ENV{UGFX_PATH}\" UGFX_DIR)\n";
     code += "elseif(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/ugfx\")\n";
     code += "    set(UGFX_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/ugfx\")\n";
     code += "elseif(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/../ugfx\")\n";
@@ -109,24 +109,24 @@ QString UgfxGenerator::generateCMakeLists() {
     code += "set(APP_SOURCES\n";
     code += "    main.c\n";
     code += "    ui.c\n";
-    code += "    ${UGFX_DIR}/src/gfx_mk.c\n";
+    code += "    \"${UGFX_DIR}/src/gfx_mk.c\"\n";
     code += ")\n\n";
 
     code += QString("add_executable(%1 ${APP_SOURCES})\n\n").arg(name);
 
     code += QString("target_include_directories(%1 PRIVATE\n").arg(name);
-    code += "    ${CMAKE_CURRENT_SOURCE_DIR}\n";
-    code += "    ${UGFX_DIR}\n";
-    code += "    ${UGFX_DIR}/src\n";
+    code += "    \"${CMAKE_CURRENT_SOURCE_DIR}\"\n";
+    code += "    \"${UGFX_DIR}\"\n";
+    code += "    \"${UGFX_DIR}/src\"\n";
     code += ")\n\n";
 
     code += "if(WIN32)\n";
-    code += QString("    target_include_directories(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/Win32)\n").arg(name);
-    code += QString("    target_sources(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/Win32/gdisp_lld_Win32.c)\n").arg(name);
+    code += QString("    target_include_directories(%1 PRIVATE \"${UGFX_DIR}/drivers/multiple/Win32\")\n").arg(name);
+    code += QString("    target_sources(%1 PRIVATE \"${UGFX_DIR}/drivers/multiple/Win32/gdisp_lld_Win32.c\")\n").arg(name);
     code += QString("    target_link_libraries(%1 PRIVATE gdi32 user32)\n").arg(name);
     code += "elseif(UNIX AND NOT APPLE)\n";
-    code += QString("    target_include_directories(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/X)\n").arg(name);
-    code += QString("    target_sources(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/X/gdisp_lld_X.c)\n").arg(name);
+    code += QString("    target_include_directories(%1 PRIVATE \"${UGFX_DIR}/drivers/multiple/X\")\n").arg(name);
+    code += QString("    target_sources(%1 PRIVATE \"${UGFX_DIR}/drivers/multiple/X/gdisp_lld_X.c\")\n").arg(name);
     code += QString("    target_link_libraries(%1 PRIVATE pthread X11)\n").arg(name);
     code += "endif()\n";
 
