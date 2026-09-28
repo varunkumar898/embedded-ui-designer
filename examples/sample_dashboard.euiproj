@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "name": "STM32Thermostat",
+  "target": "qt-for-mcus",
+  "display": {
+    "width": 320,
+    "height": 240,
+    "colorDepth": 16,
+    "type": "LCD",
+    "dpi": 96
+  },
+  "pages": [
+    {
+      "id": "MainScreen",
+      "width": 320,
+      "height": 240,
+      "backgroundColor": "#1e222b",
+      "components": [
+        {
+          "id": "panel_background",
+          "type": "Rectangle",
+          "x": 10,
+          "y": 10,
+          "width": 300,
+          "height": 220,
+          "fillColor": "#292d39",
+          "strokeColor": "#3f4657",
+          "strokeWidth": 1,
+          "cornerRadius": 8
+        },
+        {
+          "id": "label_header",
+          "type": "Text",
+          "x": 25,
+          "y": 20,
+          "width": 270,
+          "height": 30,
+          "text": "Living Room Climate",
+          "color": "#ffffff",
+          "font": {
+            "family": "Roboto",
+            "pixelSize": 18,
+            "bold": true,
+            "italic": false
+          }
+        },
+        {
+          "id": "label_temp",
+          "type": "Text",
+          "x": 25,
+          "y": 60,
+          "width": 140,
+          "height": 45,
+          "text": "22.5 °C",
+          "color": "#4caf50",
+          "font": {
+            "family": "Roboto",
+            "pixelSize": 28,
+            "bold": true,
+            "italic": false
+          }
+        },
+        {
+          "id": "progress_humidity",
+          "type": "ProgressBar",
+          "x": 25,
+          "y": 115,
+          "width": 270,
+          "height": 16,
+          "value": 0.65,
+          "barColor": "#2196f3",
+          "trackColor": "#1a1c23",
+          "cornerRadius": 4
+        },
+        {
+          "id": "button_cool",
+          "type": "Button",
+          "x": 25,
+          "y": 150,
+          "width": 125,
+          "height": 42,
+          "text": "COOL",
+          "backgroundColor": "#0288d1",
+          "textColor": "#ffffff",
+          "cornerRadius": 6,
+          "onClicked": "toggleCooling"
+        },
+        {
+          "id": "button_heat",
+          "type": "Button",
+          "x": 170,
+          "y": 150,
+          "width": 125,
+          "height": 42,
+          "text": "HEAT",
+          "backgroundColor": "#f4511e",
+          "textColor": "#ffffff",
+          "cornerRadius": 6,
+          "onClicked": "toggleHeating"
+        }
+      ]
+    }
+  ],
+  "assets": []
+}

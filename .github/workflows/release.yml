@@ -1,0 +1,150 @@
+# Builds Embedded UI Designer as a double-click app and attaches the
+# downloads to a GitHub Release.
+#
+# Where to put it:   .github/workflows/release.yml
+# How to start it:   git tag v0.1.0 && git push origin v0.1.0
+#                    (or run it by hand from the repo's Actions tab; then the
+#                     files appear under "Artifacts" on the run page)
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: EmbeddedUIDesigner
+  QT_VERSION: "6.5.3"
+
+jobs:
+  windows:
+    # Pinned to VS 2022 so it matches the msvc2019_64 Qt build below.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2019_64
+          modules: qtserialport
+          cache: true
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel
+
+      - name: Bundle Qt libraries and zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "build/Release/${env:APP_NAME}.exe" dist/
+          windeployqt --release --no-translations "dist/${env:APP_NAME}.exe"
+          Compress-Archive -Path dist/* -DestinationPath "${env:APP_NAME}-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: ${{ env.APP_NAME }}-windows-x64.zip
+
+  linux:
+    # Older Ubuntu on purpose: an AppImage built here runs on newer distros.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build imagemagick libgl1-mesa-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: qtserialport
+          cache: true
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Package as AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          [ -f packaging/embedded-ui-designer.png ] || \
+            convert -size 256x256 xc:'#2563eb' packaging/embedded-ui-designer.png
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+          export QMAKE="$(which qmake)"
+          export OUTPUT="${APP_NAME}-linux-x86_64.AppImage"
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt \
+            --executable "build/${APP_NAME}" \
+            --desktop-file packaging/embedded-ui-designer.desktop \
+            --icon-file packaging/embedded-ui-designer.png \
+            --output appimage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: ${{ env.APP_NAME }}-linux-x86_64.AppImage
+
+  macos:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14          # Apple Silicon (M1/M2/M3/M4)
+            label: macos-apple-silicon
+          - runner: macos-15-intel    # Intel Macs
+            label: macos-intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: qtserialport
+          cache: true
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Bundle Qt libraries and make DMG
+        run: |
+          macdeployqt "build/${APP_NAME}.app" -dmg
+          mv "build/${APP_NAME}.dmg" "${APP_NAME}-${{ matrix.label }}.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: ${{ env.APP_NAME }}-${{ matrix.label }}.dmg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloads
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: downloads/*
+          generate_release_notes: true

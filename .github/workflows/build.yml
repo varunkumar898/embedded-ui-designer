@@ -1,0 +1,89 @@
+name: Embedded UI Designer CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Verify Output (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build_type: Release
+            generator: "Visual Studio 17 2022"
+            exe_path: "build/Release/EmbeddedUIDesigner.exe"
+          - os: ubuntu-22.04
+            build_type: Release
+            generator: "Ninja"
+            exe_path: "./build/EmbeddedUIDesigner"
+          - os: macos-13
+            build_type: Release
+            generator: "Ninja"
+            exe_path: "./build/EmbeddedUIDesigner"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt 6.5 LTS
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          arch: ${{ matrix.os == 'windows-latest' && 'win64_msvc2019_64' || '' }}
+          modules: 'qtquickcontrols2 qtserialport'
+
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev libx11-dev xvfb
+
+      - name: Install macOS Dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Configure Designer CMake
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -G "${{ matrix.generator }}"
+
+      - name: Build Designer Executable
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
+
+      - name: Test Headless Code Generation (CLI Mode)
+        shell: bash
+        run: |
+          echo "=== Exporting µGFX Project ==="
+          ${{ matrix.exe_path }} --export ugfx --project examples/simple.euiproj --out build/ugfx_out
+          
+          echo "=== Exporting Qt for MCUs (QUL) Project ==="
+          ${{ matrix.exe_path }} --export qul --project examples/simple.euiproj --out build/qul_out
+
+      - name: Clone µGFX for Export Build Verification
+        run: |
+          git clone --depth 1 https://git.ugfx.io/uGFX/ugfx.git ugfx_lib
+
+      - name: Compile Exported µGFX Project (Guarantees Working Output)
+        shell: bash
+        run: |
+          echo "=== Configuring Exported µGFX Build ==="
+          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$GITHUB_WORKSPACE/ugfx_lib"
+          echo "=== Compiling Exported µGFX Binary ==="
+          cmake --build build/ugfx_out/build --config Release
+
+      - name: Run CPack Packaging
+        working-directory: build
+        run: cpack -C ${{ matrix.build_type }}
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmbeddedUIDesigner-${{ runner.os }}
+          path: build/EmbeddedUIDesigner-*.*

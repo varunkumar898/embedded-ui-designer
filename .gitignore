@@ -1,0 +1,64 @@
+# Build and binary directories
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+lib/
+output_ugfx/
+output_qul/
+
+# CMake temporary files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_*
+
+# Qt build artifacts & generated files
+*.moc
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.qmlc
+*.jsc
+Makefile*
+*.prl
+.qmake.stash
+
+# Object files & archives
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+*.a
+*.lib
+*.pdb
+*.idb
+*.ilk
+*.exp
+
+# IDE and Editor configurations
+.vscode/
+.idea/
+*.user
+*.user.*
+*.suo
+*.sln.docstates
+*.opensdf
+*.sdf
+.vs/
+*.autosave
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Output dumps and logs
+*.log
+*.tmp

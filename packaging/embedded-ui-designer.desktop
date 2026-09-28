@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Embedded UI Designer
+GenericName=Embedded GUI Designer
+Comment=Visual UI designer and code generator for microcontrollers (µGFX and Qt for MCUs)
+Exec=EmbeddedUIDesigner %F
+Icon=embedded-ui-designer
+Terminal=false
+Categories=Development;GUIDesigner;IDE;
+MimeType=application/x-embedded-ui-project;
+Keywords=Embedded;MCU;Qt;uGFX;QUL;STM32;ESP32;
+StartupNotify=true

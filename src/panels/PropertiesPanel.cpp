@@ -1,0 +1,318 @@
+#include "PropertiesPanel.h"
+#include "ButtonComponent.h"
+#include "LabelComponent.h"
+#include "RectangleComponent.h"
+#include "ProgressBarComponent.h"
+#include <QFormLayout>
+#include <QHBoxLayout>
+#include <QColorDialog>
+#include <QScrollArea>
+
+PropertiesPanel::PropertiesPanel(QWidget* parent)
+    : QWidget(parent)
+{
+    setupUi();
+    setTargetComponent(nullptr);
+}
+
+void PropertiesPanel::setupUi() {
+    QVBoxLayout* rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+
+    // Empty state
+    m_emptyWidget = new QWidget(this);
+    QVBoxLayout* emptyLayout = new QVBoxLayout(m_emptyWidget);
+    emptyLayout->setContentsMargins(20, 40, 20, 20);
+    QLabel* emptyLabel = new QLabel("No Component Selected\n\nClick an element on the canvas to inspect and edit its properties.", m_emptyWidget);
+    emptyLabel->setWordWrap(true);
+    emptyLabel->setAlignment(Qt::AlignCenter);
+    emptyLabel->setStyleSheet("color: #717C8F; font-size: 13px; line-height: 1.4;");
+    emptyLayout->addWidget(emptyLabel);
+    rootLayout->addWidget(m_emptyWidget);
+
+    // Content container inside scroll area
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setStyleSheet("background-color: transparent;");
+
+    m_contentWidget = new QWidget(scrollArea);
+    QVBoxLayout* mainLayout = new QVBoxLayout(m_contentWidget);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(12);
+
+    // Header: Type badge & ID
+    QHBoxLayout* headerLayout = new QHBoxLayout();
+    m_typeBadge = new QLabel("COMPONENT", m_contentWidget);
+    m_typeBadge->setStyleSheet("background-color: #2196F3; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;");
+    m_idEdit = new QLineEdit(m_contentWidget);
+    m_idEdit->setStyleSheet("background-color: #252830; color: #FFFFFF; border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; font-weight: bold;");
+    headerLayout->addWidget(m_typeBadge);
+    headerLayout->addWidget(m_idEdit, 1);
+    mainLayout->addLayout(headerLayout);
+
+    connect(m_idEdit, &QLineEdit::textChanged, this, &PropertiesPanel::onIdChanged);
+
+    // Geometry Group
+    QGroupBox* geomGroup = new QGroupBox("Transform & Geometry", m_contentWidget);
+    geomGroup->setStyleSheet("QGroupBox { color: #9AA5B8; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 6px; margin-top: 10px; padding-top: 14px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }");
+    QGridLayout* geomLayout = new QGridLayout(geomGroup);
+    geomLayout->setSpacing(8);
+
+    auto makeSpin = [this](int minVal, int maxVal) {
+        QSpinBox* spin = new QSpinBox(m_contentWidget);
+        spin->setRange(minVal, maxVal);
+        spin->setStyleSheet("QSpinBox { background-color: #252830; color: #FFFFFF; border: 1px solid #3B404E; border-radius: 4px; padding: 2px 4px; }");
+        return spin;
+    };
+
+    m_spinX = makeSpin(-2000, 2000);
+    m_spinY = makeSpin(-2000, 2000);
+    m_spinW = makeSpin(10, 2000);
+    m_spinH = makeSpin(10, 2000);
+
+    geomLayout->addWidget(new QLabel("X:", geomGroup), 0, 0);
+    geomLayout->addWidget(m_spinX, 0, 1);
+    geomLayout->addWidget(new QLabel("Y:", geomGroup), 0, 2);
+    geomLayout->addWidget(m_spinY, 0, 3);
+    geomLayout->addWidget(new QLabel("W:", geomGroup), 1, 0);
+    geomLayout->addWidget(m_spinW, 1, 1);
+    geomLayout->addWidget(new QLabel("H:", geomGroup), 1, 2);
+    geomLayout->addWidget(m_spinH, 1, 3);
+
+    mainLayout->addWidget(geomGroup);
+
+    connect(m_spinX, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
+    connect(m_spinY, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
+    connect(m_spinW, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
+    connect(m_spinH, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
+
+    // Specific Properties Group
+    m_specificGroup = new QGroupBox("Component Properties", m_contentWidget);
+    m_specificGroup->setStyleSheet("QGroupBox { color: #9AA5B8; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 6px; margin-top: 10px; padding-top: 14px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }");
+    m_specificLayout = new QVBoxLayout(m_specificGroup);
+    m_specificLayout->setSpacing(8);
+    mainLayout->addWidget(m_specificGroup);
+
+    mainLayout->addStretch(1);
+    scrollArea->setWidget(m_contentWidget);
+    rootLayout->addWidget(scrollArea);
+}
+
+void PropertiesPanel::setTargetComponent(UIComponent* comp) {
+    m_targetComponent = comp;
+    if (!m_targetComponent) {
+        m_emptyWidget->setVisible(true);
+        m_contentWidget->setVisible(false);
+        return;
+    }
+
+    m_emptyWidget->setVisible(false);
+    m_contentWidget->setVisible(true);
+
+    m_typeBadge->setText(m_targetComponent->componentType().toUpper());
+    rebuildSpecificEditors();
+    refreshValues();
+}
+
+void PropertiesPanel::refreshValues() {
+    if (!m_targetComponent) return;
+
+    m_updatingFromComponent = true;
+
+    m_idEdit->setText(m_targetComponent->componentId());
+    m_spinX->setValue(static_cast<int>(m_targetComponent->compX()));
+    m_spinY->setValue(static_cast<int>(m_targetComponent->compY()));
+    m_spinW->setValue(static_cast<int>(m_targetComponent->compWidth()));
+    m_spinH->setValue(static_cast<int>(m_targetComponent->compHeight()));
+
+    if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
+        if (m_textEdit) m_textEdit->setText(btn->text());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, btn->backgroundColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->textColor());
+        if (m_spinRadius) m_spinRadius->setValue(btn->cornerRadius());
+        if (m_handlerEdit) m_handlerEdit->setText(btn->onClickedHandler());
+    } else if (auto lbl = dynamic_cast<LabelComponent*>(m_targetComponent)) {
+        if (m_textEdit) m_textEdit->setText(lbl->text());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, lbl->color());
+        if (m_spinPixelSize) m_spinPixelSize->setValue(lbl->pixelSize());
+        if (m_chkBold) m_chkBold->setChecked(lbl->bold());
+        if (m_chkItalic) m_chkItalic->setChecked(lbl->italic());
+    } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, rect->fillColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, rect->strokeColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(rect->strokeWidth());
+        if (m_spinRadius) m_spinRadius->setValue(rect->cornerRadius());
+    } else if (auto prog = dynamic_cast<ProgressBarComponent*>(m_targetComponent)) {
+        if (m_spinProgressValue) m_spinProgressValue->setValue(prog->value());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, prog->barColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, prog->trackColor());
+        if (m_spinRadius) m_spinRadius->setValue(prog->cornerRadius());
+    }
+
+    m_updatingFromComponent = false;
+}
+
+void PropertiesPanel::updateColorButton(QPushButton* btn, const QColor& color) {
+    if (!btn) return;
+    btn->setText(color.name().toUpper());
+    btn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; font-weight: bold; border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; }"
+    ).arg(color.name(), (color.lightness() > 140 ? "#000000" : "#FFFFFF")));
+}
+
+void PropertiesPanel::rebuildSpecificEditors() {
+    QLayoutItem* item;
+    while ((item = m_specificLayout->takeAt(0)) != nullptr) {
+        if (item->widget()) delete item->widget();
+        delete item;
+    }
+
+    m_textEdit = nullptr;
+    m_colorBtn1 = nullptr;
+    m_colorBtn2 = nullptr;
+    m_spinRadius = nullptr;
+    m_spinStrokeW = nullptr;
+    m_spinPixelSize = nullptr;
+    m_chkBold = nullptr;
+    m_chkItalic = nullptr;
+    m_handlerEdit = nullptr;
+    m_spinProgressValue = nullptr;
+
+    if (!m_targetComponent) return;
+
+    QFormLayout* form = new QFormLayout();
+    form->setSpacing(8);
+
+    auto addColorRow = [this, form](const QString& label, const QColor& initialColor, auto setter) {
+        QPushButton* btn = new QPushButton(this);
+        updateColorButton(btn, initialColor);
+        connect(btn, &QPushButton::clicked, this, [this, btn, setter]() {
+            if (!m_targetComponent) return;
+            QColor current(btn->text());
+            QColor picked = QColorDialog::getColor(current, this, "Choose Color");
+            if (picked.isValid()) {
+                updateColorButton(btn, picked);
+                setter(picked);
+            }
+        });
+        form->addRow(label, btn);
+        return btn;
+    };
+
+    if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
+        m_textEdit = new QLineEdit(btn->text(), this);
+        connect(m_textEdit, &QLineEdit::textChanged, this, [this, btn](const QString& t) {
+            if (!m_updatingFromComponent) btn->setText(t);
+        });
+        form->addRow("Text:", m_textEdit);
+
+        m_colorBtn1 = addColorRow("Background:", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); });
+        m_colorBtn2 = addColorRow("Text Color:", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); });
+
+        m_spinRadius = new QSpinBox(this);
+        m_spinRadius->setRange(0, 50);
+        m_spinRadius->setValue(btn->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, btn](int v) {
+            if (!m_updatingFromComponent) btn->setCornerRadius(v);
+        });
+        form->addRow("Radius:", m_spinRadius);
+
+        m_handlerEdit = new QLineEdit(btn->onClickedHandler(), this);
+        connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, btn](const QString& h) {
+            if (!m_updatingFromComponent) btn->setOnClickedHandler(h);
+        });
+        form->addRow("OnClicked:", m_handlerEdit);
+
+    } else if (auto lbl = dynamic_cast<LabelComponent*>(m_targetComponent)) {
+        m_textEdit = new QLineEdit(lbl->text(), this);
+        connect(m_textEdit, &QLineEdit::textChanged, this, [this, lbl](const QString& t) {
+            if (!m_updatingFromComponent) lbl->setText(t);
+        });
+        form->addRow("Text:", m_textEdit);
+
+        m_colorBtn1 = addColorRow("Color:", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); });
+
+        m_spinPixelSize = new QSpinBox(this);
+        m_spinPixelSize->setRange(6, 96);
+        m_spinPixelSize->setValue(lbl->pixelSize());
+        connect(m_spinPixelSize, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, lbl](int v) {
+            if (!m_updatingFromComponent) lbl->setPixelSize(v);
+        });
+        form->addRow("Font Size:", m_spinPixelSize);
+
+        QHBoxLayout* fontStyles = new QHBoxLayout();
+        m_chkBold = new QCheckBox("Bold", this);
+        m_chkBold->setChecked(lbl->bold());
+        connect(m_chkBold, &QCheckBox::toggled, this, [this, lbl](bool b) {
+            if (!m_updatingFromComponent) lbl->setBold(b);
+        });
+        m_chkItalic = new QCheckBox("Italic", this);
+        m_chkItalic->setChecked(lbl->italic());
+        connect(m_chkItalic, &QCheckBox::toggled, this, [this, lbl](bool i) {
+            if (!m_updatingFromComponent) lbl->setItalic(i);
+        });
+        fontStyles->addWidget(m_chkBold);
+        fontStyles->addWidget(m_chkItalic);
+        form->addRow("Style:", fontStyles);
+
+    } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
+        m_colorBtn1 = addColorRow("Fill Color:", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); });
+        m_colorBtn2 = addColorRow("Stroke Color:", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); });
+
+        m_spinStrokeW = new QSpinBox(this);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(rect->strokeWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, rect](int v) {
+            if (!m_updatingFromComponent) rect->setStrokeWidth(v);
+        });
+        form->addRow("Stroke Width:", m_spinStrokeW);
+
+        m_spinRadius = new QSpinBox(this);
+        m_spinRadius->setRange(0, 50);
+        m_spinRadius->setValue(rect->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, rect](int v) {
+            if (!m_updatingFromComponent) rect->setCornerRadius(v);
+        });
+        form->addRow("Corner Radius:", m_spinRadius);
+
+    } else if (auto prog = dynamic_cast<ProgressBarComponent*>(m_targetComponent)) {
+        m_spinProgressValue = new QDoubleSpinBox(this);
+        m_spinProgressValue->setRange(0.0, 1.0);
+        m_spinProgressValue->setSingleStep(0.05);
+        m_spinProgressValue->setValue(prog->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, prog](double v) {
+            if (!m_updatingFromComponent) prog->setValue(v);
+        });
+        form->addRow("Progress (0-1):", m_spinProgressValue);
+
+        m_colorBtn1 = addColorRow("Bar Color:", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); });
+        m_colorBtn2 = addColorRow("Track Color:", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); });
+
+        m_spinRadius = new QSpinBox(this);
+        m_spinRadius->setRange(0, 20);
+        m_spinRadius->setValue(prog->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, prog](int v) {
+            if (!m_updatingFromComponent) prog->setCornerRadius(v);
+        });
+        form->addRow("Radius:", m_spinRadius);
+    }
+
+    m_specificLayout->addLayout(form);
+}
+
+void PropertiesPanel::onGeometryChanged() {
+    if (m_updatingFromComponent || !m_targetComponent) return;
+    m_targetComponent->setCompPos(m_spinX->value(), m_spinY->value());
+    m_targetComponent->setCompSize(m_spinW->value(), m_spinH->value());
+}
+
+void PropertiesPanel::onIdChanged(const QString& newId) {
+    if (m_updatingFromComponent || !m_targetComponent || newId.trimmed().isEmpty()) return;
+    m_targetComponent->setComponentId(newId.trimmed());
+}
+
+void PropertiesPanel::onSpecificPropertyChanged() {
+    if (m_updatingFromComponent || !m_targetComponent) return;
+    m_targetComponent->update();
+}

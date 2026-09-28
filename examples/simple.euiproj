@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "name": "SimpleApp",
+  "target": "ugfx",
+  "display": {
+    "width": 320,
+    "height": 240,
+    "colorDepth": 16,
+    "type": "LCD",
+    "dpi": 96
+  },
+  "pages": [
+    {
+      "id": "MainScreen",
+      "width": 320,
+      "height": 240,
+      "backgroundColor": "#1e1e24",
+      "components": [
+        {
+          "id": "rect_panel",
+          "type": "Rectangle",
+          "x": 10,
+          "y": 10,
+          "width": 300,
+          "height": 220,
+          "fillColor": "#292b36",
+          "strokeColor": "#3f4354",
+          "strokeWidth": 1,
+          "cornerRadius": 6
+        },
+        {
+          "id": "label_title",
+          "type": "Text",
+          "x": 20,
+          "y": 25,
+          "width": 280,
+          "height": 30,
+          "text": "µGFX Embedded Demo",
+          "color": "#ffffff",
+          "font": {
+            "family": "DejaVuSans",
+            "pixelSize": 16,
+            "bold": true,
+            "italic": false
+          }
+        },
+        {
+          "id": "btn_press",
+          "type": "Button",
+          "x": 20,
+          "y": 80,
+          "width": 140,
+          "height": 40,
+          "text": "Press Me",
+          "backgroundColor": "#2196f3",
+          "textColor": "#ffffff",
+          "cornerRadius": 4,
+          "onClicked": "onPressMe"
+        },
+        {
+          "id": "prog_level",
+          "type": "ProgressBar",
+          "x": 20,
+          "y": 140,
+          "width": 280,
+          "height": 18,
+          "value": 0.5,
+          "barColor": "#4caf50",
+          "trackColor": "#15161c",
+          "cornerRadius": 3
+        }
+      ]
+    }
+  ],
+  "assets": []
+}

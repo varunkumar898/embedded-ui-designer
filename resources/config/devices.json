@@ -1,0 +1,68 @@
+{
+  "devices": [
+    {
+      "name": "STM32H747I-DISCO",
+      "manufacturer": "STMicroelectronics",
+      "architecture": "ARM Cortex-M7 + M4",
+      "cores": 2,
+      "ram_kb": 1024,
+      "flash_kb": 2048,
+      "display": {
+        "width": 800,
+        "height": 480,
+        "type": "TFT LCD",
+        "interface": "LTDC / MIPI-DSI"
+      },
+      "ports": ["USART1", "USART2", "SPI1", "I2C1", "USB_OTG_FS"],
+      "flash_command": "STM32_Programmer_CLI -c port=SWD -w {BINARY} 0x08000000 -v -rst"
+    },
+    {
+      "name": "STM32F469I-DISCO",
+      "manufacturer": "STMicroelectronics",
+      "architecture": "ARM Cortex-M4",
+      "cores": 1,
+      "ram_kb": 384,
+      "flash_kb": 2048,
+      "display": {
+        "width": 800,
+        "height": 480,
+        "type": "Capacitive Touch LCD",
+        "interface": "MIPI-DSI"
+      },
+      "ports": ["USART3", "SPI2", "I2C1"],
+      "flash_command": "STM32_Programmer_CLI -c port=SWD -w {BINARY} 0x08000000 -v -rst"
+    },
+    {
+      "name": "ESP32-S3-BOX",
+      "manufacturer": "Espressif",
+      "architecture": "Xtensa LX7 Dual-Core",
+      "cores": 2,
+      "ram_kb": 512,
+      "flash_kb": 16384,
+      "display": {
+        "width": 320,
+        "height": 240,
+        "type": "IPS LCD",
+        "interface": "SPI"
+      },
+      "ports": ["UART0", "SPI2", "I2C0", "USB-JTAG"],
+      "flash_command": "esptool.py --chip esp32s3 -p {PORT} write_flash 0x0 {BINARY}"
+    },
+    {
+      "name": "NXP i.MX RT1060-EVK",
+      "manufacturer": "NXP",
+      "architecture": "ARM Cortex-M7",
+      "cores": 1,
+      "ram_kb": 1024,
+      "flash_kb": 8192,
+      "display": {
+        "width": 480,
+        "height": 272,
+        "type": "TFT LCD",
+        "interface": "eLCDIF"
+      },
+      "ports": ["LPUART1", "LPSPI1", "LPI2C1"],
+      "flash_command": "blhost -u -- write-memory 0x60000000 {BINARY}"
+    }
+  ]
+}

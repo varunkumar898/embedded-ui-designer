@@ -1,0 +1,190 @@
+cmake_minimum_required(VERSION 3.20)
+project(EmbeddedUIDesigner 
+    VERSION 1.0.0 
+    DESCRIPTION "Desktop UI Designer & Code Generator for Embedded Microcontrollers"
+    LANGUAGES CXX
+)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable Qt-specific CMake automatic tools
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+# Find Required Qt6 packages for MVVM, QML, and Hardware SerialPort
+find_package(Qt6 6.5 REQUIRED COMPONENTS
+    Core
+    Gui
+    Widgets
+    Qml
+    Quick
+    SerialPort
+)
+
+# Source files
+set(SOURCES
+    # Core Entry
+    src/main.cpp
+    src/MainWindow.cpp
+    src/MainWindow.h
+
+    # Core Data Model (DOM & MVVM ViewModel)
+    src/models/WidgetModel.cpp
+    src/models/WidgetModel.h
+    src/models/ScreenModel.cpp
+    src/models/ScreenModel.h
+    src/models/DocumentModel.cpp
+    src/models/DocumentModel.h
+    src/models/DisplayConfig.h
+
+    # Asset Compilation Pipeline
+    src/assets/ImageAssetProcessor.cpp
+    src/assets/ImageAssetProcessor.h
+
+    # Legacy Canvas QGraphicsItem Component Models
+    src/models/UIComponent.cpp
+    src/models/UIComponent.h
+    src/models/ButtonComponent.cpp
+    src/models/ButtonComponent.h
+    src/models/LabelComponent.cpp
+    src/models/LabelComponent.h
+    src/models/RectangleComponent.cpp
+    src/models/RectangleComponent.h
+    src/models/ProgressBarComponent.cpp
+    src/models/ProgressBarComponent.h
+    src/models/ImageComponent.cpp
+    src/models/ImageComponent.h
+
+    # Command Pattern (Undo/Redo System)
+    src/commands/AddWidgetCommand.cpp
+    src/commands/AddWidgetCommand.h
+    src/commands/MoveWidgetCommand.cpp
+    src/commands/MoveWidgetCommand.h
+
+    # Exporter Interfaces & Code Generators
+    src/codegen/IExporter.h
+    src/codegen/UgfxExporter.cpp
+    src/codegen/UgfxExporter.h
+    src/codegen/QtMcuExporter.cpp
+    src/codegen/QtMcuExporter.h
+    src/codegen/CodeGenerator.cpp
+    src/codegen/CodeGenerator.h
+    src/codegen/QtMcuGenerator.cpp
+    src/codegen/QtMcuGenerator.h
+    src/codegen/UgfxGenerator.cpp
+    src/codegen/UgfxGenerator.h
+
+    # Hardware Bridge & Flashing Subsystem
+    src/hardware/DeviceManager.cpp
+    src/hardware/DeviceManager.h
+    src/hardware/FlashController.cpp
+    src/hardware/FlashController.h
+
+    # Panels & Visual Views
+    src/canvas/CanvasView.cpp
+    src/canvas/CanvasView.h
+    src/canvas/CanvasScene.cpp
+    src/canvas/CanvasScene.h
+    src/panels/ComponentPalette.cpp
+    src/panels/ComponentPalette.h
+    src/panels/PropertiesPanel.cpp
+    src/panels/PropertiesPanel.h
+    src/panels/LayerPanel.cpp
+    src/panels/LayerPanel.h
+    src/project/Project.cpp
+    src/project/Project.h
+)
+
+# Qt Resource manifests (.qrc)
+set(RESOURCES
+    resources/app.qrc
+    src/qml/qml.qrc
+)
+
+# Platform-specific icon resources
+if(WIN32)
+    set(PLATFORM_SOURCES packaging/app.rc)
+elseif(APPLE)
+    set(MACOSX_BUNDLE_ICON_FILE embedded-ui-designer.icns)
+    set(PLATFORM_SOURCES packaging/embedded-ui-designer.icns)
+    set_source_files_properties(packaging/embedded-ui-designer.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources")
+endif()
+
+# Define double-click desktop app (WIN32 hides console on Windows, MACOSX_BUNDLE builds .app on macOS)
+if(COMMAND qt_add_executable)
+    qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
+        ${SOURCES}
+        ${RESOURCES}
+        ${PLATFORM_SOURCES}
+    )
+else()
+    add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
+        ${SOURCES}
+        ${RESOURCES}
+        ${PLATFORM_SOURCES}
+    )
+endif()
+
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME "EmbeddedUIDesigner"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.embeddeddev.embeddeduidesigner"
+    MACOSX_BUNDLE_BUNDLE_NAME "EmbeddedUIDesigner"
+    MACOSX_BUNDLE_DISPLAY_NAME "Embedded UI Designer"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
+)
+
+# Target Include Directories
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+)
+
+# Target Link Libraries
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::SerialPort
+)
+
+# Compiler warnings and options
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# CPack Packaging Configuration
+include(InstallRequiredSystemLibraries)
+set(CPACK_PACKAGE_NAME "EmbeddedUIDesigner")
+set(CPACK_PACKAGE_VENDOR "Embedded UI Development Team")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Visual UI Designer for Microcontrollers (µGFX & Qt for MCUs)")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS;ZIP")
+elseif(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+else()
+    set(CPACK_GENERATOR "DEB;TGZ")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Embedded UI Team <support@example.com>")
+endif()
+
+include(CPack)
