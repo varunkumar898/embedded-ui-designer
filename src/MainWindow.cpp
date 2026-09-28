@@ -1,6 +1,11 @@
 #include "MainWindow.h"
 #include "QtMcuGenerator.h"
 #include "UgfxGenerator.h"
+#include "ButtonComponent.h"
+#include "LabelComponent.h"
+#include "RectangleComponent.h"
+#include "ProgressBarComponent.h"
+#include "ImageComponent.h"
 #include <QMenuBar>
 #include <QToolBar>
 #include <QStatusBar>

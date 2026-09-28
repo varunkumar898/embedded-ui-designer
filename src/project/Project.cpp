@@ -4,6 +4,7 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include <QFile>
+#include <QDir>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QDebug>
