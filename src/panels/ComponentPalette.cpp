@@ -83,6 +83,7 @@ void ComponentPalette::setupUi() {
     addItem("Text / Label", "Text", "T", QColor(156, 39, 176));
     addItem("Rectangle", "Rectangle", "R", QColor(255, 152, 0));
     addItem("Progress Bar", "ProgressBar", "%", QColor(76, 175, 80));
+    addItem("Slider", "Slider", "—", QColor(0, 150, 136));
 
     layout->addWidget(m_listWidget);
 

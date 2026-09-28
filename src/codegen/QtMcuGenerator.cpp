@@ -4,6 +4,7 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "SliderComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -235,6 +236,36 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(img->compWidth()))
                     .arg(static_cast<int>(img->compHeight()));
                 qml += QString("        source: \"%1\"\n").arg(img->imagePath().isEmpty() ? "asset.png" : img->imagePath());
+                qml += "    }\n\n";
+            } else if (auto slider = dynamic_cast<SliderComponent*>(comp)) {
+                // In QUL, Slider is built using pure supported primitives: Item + track/fill Rectangles + thumb
+                qml += "    Item {\n";
+                qml += QString("        id: %1\n").arg(slider->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(slider->pos().x()))
+                    .arg(static_cast<int>(slider->pos().y()))
+                    .arg(static_cast<int>(slider->compWidth()))
+                    .arg(static_cast<int>(slider->compHeight()));
+                qml += QString("        property int value: %1\n").arg(slider->value());
+                qml += QString("        property int minimum: %1\n").arg(slider->minimum());
+                qml += QString("        property int maximum: %1\n").arg(slider->maximum());
+                qml += "        Rectangle {\n";
+                qml += "            anchors.verticalCenter: parent.verticalCenter\n";
+                qml += "            x: 10; width: parent.width - 20; height: 6; radius: 3\n";
+                qml += QString("            color: \"%1\"\n").arg(slider->trackColor().name());
+                qml += "            Rectangle {\n";
+                qml += "                height: parent.height; radius: 3\n";
+                qml += QString("                width: parent.width * %1\n").arg((slider->maximum() > slider->minimum()) ? static_cast<double>(slider->value() - slider->minimum()) / (slider->maximum() - slider->minimum()) : 0.0, 0, 'f', 2);
+                qml += QString("                color: \"%1\"\n").arg(slider->fillColor().name());
+                qml += "            }\n";
+                qml += "        }\n";
+                qml += "        Rectangle {\n";
+                qml += "            width: 14; height: 14; radius: 7\n";
+                qml += QString("            x: 10 + (parent.width - 20) * %1 - 7\n").arg((slider->maximum() > slider->minimum()) ? static_cast<double>(slider->value() - slider->minimum()) / (slider->maximum() - slider->minimum()) : 0.0, 0, 'f', 2);
+                qml += "            anchors.verticalCenter: parent.verticalCenter\n";
+                qml += QString("            color: \"%1\"\n").arg(slider->handleColor().name());
+                qml += QString("            border.color: \"%1\"; border.width: 1\n").arg(slider->fillColor().name());
+                qml += "        }\n";
                 qml += "    }\n\n";
             } else if (comp) {
                 // Fallback for unsupported / unrecognized types

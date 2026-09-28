@@ -4,6 +4,7 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "SliderComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -51,6 +52,14 @@ bool UgfxGenerator::hasProgressBars() const {
     if (!m_scene) return false;
     for (auto comp : m_scene->uiComponents()) {
         if (dynamic_cast<ProgressBarComponent*>(comp)) return true;
+    }
+    return false;
+}
+
+bool UgfxGenerator::hasSliders() const {
+    if (!m_scene) return false;
+    for (auto comp : m_scene->uiComponents()) {
+        if (dynamic_cast<SliderComponent*>(comp)) return true;
     }
     return false;
 }
@@ -183,13 +192,14 @@ QString UgfxGenerator::generateGfxConf() {
     bool bButtons = hasButtons();
     bool bLabels = hasLabels();
     bool bProgress = hasProgressBars();
+    bool bSliders = hasSliders();
     bool bImages = hasImages();
     bool bRounded = hasRoundedCorners();
 
-    bool bWidgets = bButtons || bLabels || bProgress;
+    bool bWidgets = bButtons || bLabels || bProgress || bSliders;
     bool bNeedText = bButtons || bLabels;
-    bool bNeedMouse = bButtons;
-    bool bNeedEvents = bButtons;
+    bool bNeedMouse = bButtons || bSliders;
+    bool bNeedEvents = bButtons || bSliders;
 
     QString code;
     code += "/**\n";
@@ -250,7 +260,8 @@ QString UgfxGenerator::generateGfxConf() {
 
     code += QString("#define GWIN_NEED_BUTTON                        %1\n").arg(bButtons ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_LABEL                         %1\n").arg(bLabels ? "GFXON" : "GFXOFF");
-    code += QString("#define GWIN_NEED_PROGRESSBAR                   %1\n\n").arg(bProgress ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_PROGRESSBAR                   %1\n").arg(bProgress ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_SLIDER                        %1\n\n").arg(bSliders ? "GFXON" : "GFXOFF");
 
     code += "/* =============================================================== */\n";
     code += "/* GEVENT & GINPUT - Event & Input Drivers (Mouse/Touch/Buttons)   */\n";
@@ -283,6 +294,8 @@ QString UgfxGenerator::generateUiHeader() {
                 code += QString("extern GHandle ghLbl_%1;\n").arg(id);
             } else if (dynamic_cast<ProgressBarComponent*>(comp)) {
                 code += QString("extern GHandle ghProg_%1;\n").arg(id);
+            } else if (dynamic_cast<SliderComponent*>(comp)) {
+                code += QString("extern GHandle ghSlider_%1;\n").arg(id);
             }
         }
     }
@@ -301,7 +314,8 @@ QString UgfxGenerator::generateUiSource() {
     bool bButtons = hasButtons();
     bool bLabels = hasLabels();
     bool bProgress = hasProgressBars();
-    bool bWidgets = bButtons || bLabels || bProgress;
+    bool bSliders = hasSliders();
+    bool bWidgets = bButtons || bLabels || bProgress || bSliders;
     bool bNeedText = bButtons || bLabels;
 
     QString code;
@@ -318,6 +332,8 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("GHandle ghLbl_%1 = 0;\n").arg(id);
             } else if (dynamic_cast<ProgressBarComponent*>(comp)) {
                 code += QString("GHandle ghProg_%1 = 0;\n").arg(id);
+            } else if (dynamic_cast<SliderComponent*>(comp)) {
+                code += QString("GHandle ghSlider_%1 = 0;\n").arg(id);
             }
         }
     }
@@ -377,6 +393,21 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(prog->compWidth())).arg(static_cast<int>(prog->compHeight()));
                 code += QString("    ghProg_%1 = gwinProgressbarCreate(0, &wi);\n").arg(id);
                 code += QString("    gwinProgressbarSetPosition(ghProg_%1, %2);\n\n").arg(id).arg(static_cast<int>(prog->value() * 100));
+            }
+        }
+
+        // Sliders
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto slider = dynamic_cast<SliderComponent*>(comp)) {
+                QString id = slider->componentId();
+                code += QString("    // Slider: %1\n").arg(id);
+                code += "    gwinWidgetClearInit(&wi);\n";
+                code += "    wi.g.show = gTrue;\n";
+                code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(slider->pos().x())).arg(static_cast<int>(slider->pos().y()));
+                code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(slider->compWidth())).arg(static_cast<int>(slider->compHeight()));
+                code += QString("    ghSlider_%1 = gwinSliderCreate(0, &wi);\n").arg(id);
+                code += QString("    gwinSliderSetRange(ghSlider_%1, %2, %3);\n").arg(id).arg(slider->minimum()).arg(slider->maximum());
+                code += QString("    gwinSliderSetPosition(ghSlider_%1, %2);\n\n").arg(id).arg(slider->value());
             }
         }
 

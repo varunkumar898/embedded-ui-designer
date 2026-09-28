@@ -4,6 +4,7 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "SliderComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -230,6 +231,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new ProgressBarComponent(id);
     } else if (type == "Image") {
         return new ImageComponent(id);
+    } else if (type == "Slider") {
+        return new SliderComponent(id);
     }
     return nullptr;
 }

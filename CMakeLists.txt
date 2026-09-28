@@ -57,6 +57,8 @@ set(SOURCES
     src/models/ProgressBarComponent.h
     src/models/ImageComponent.cpp
     src/models/ImageComponent.h
+    src/models/SliderComponent.cpp
+    src/models/SliderComponent.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddWidgetCommand.cpp

@@ -4,6 +4,7 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "SliderComponent.h"
 #include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QFormLayout>
@@ -398,6 +399,43 @@ void PropertiesPanel::rebuildSpecificEditors() {
             }
         });
         form->addRow("Color Format:", m_comboImageFormat);
+    } else if (auto slider = dynamic_cast<SliderComponent*>(m_targetComponent)) {
+        QSpinBox* spinVal = new QSpinBox(this);
+        spinVal->setRange(slider->minimum(), slider->maximum());
+        spinVal->setValue(slider->value());
+        connect(spinVal, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+            if (!m_updatingFromComponent) slider->setValue(v);
+        });
+        connect(spinVal, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Slider Value");
+        });
+        form->addRow("Value:", spinVal);
+
+        QSpinBox* spinMin = new QSpinBox(this);
+        spinMin->setRange(-10000, 10000);
+        spinMin->setValue(slider->minimum());
+        connect(spinMin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+            if (!m_updatingFromComponent) slider->setMinimum(v);
+        });
+        connect(spinMin, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Slider Minimum");
+        });
+        form->addRow("Minimum:", spinMin);
+
+        QSpinBox* spinMax = new QSpinBox(this);
+        spinMax->setRange(-10000, 10000);
+        spinMax->setValue(slider->maximum());
+        connect(spinMax, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+            if (!m_updatingFromComponent) slider->setMaximum(v);
+        });
+        connect(spinMax, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Slider Maximum");
+        });
+        form->addRow("Maximum:", spinMax);
+
+        m_colorBtn1 = addColorRow("Track Color:", slider->trackColor(), [slider](const QColor& c) { slider->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn2 = addColorRow("Fill Color:", slider->fillColor(), [slider](const QColor& c) { slider->setFillColor(c); }, "Change Fill Color");
+        addColorRow("Handle Color:", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
     }
 
     m_specificLayout->addLayout(form);
