@@ -54,8 +54,7 @@ jobs:
           path: ${{ env.APP_NAME }}-windows-x64.zip
 
   linux:
-    # Older Ubuntu on purpose: an AppImage built here runs on newer distros.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -104,7 +103,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-14          # Apple Silicon (M1/M2/M3/M4)
+          - runner: macos-15          # Apple Silicon (M1/M2/M3/M4)
             label: macos-apple-silicon
           - runner: macos-15-intel    # Intel Macs
             label: macos-intel
@@ -137,7 +136,7 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [windows, linux, macos]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with:

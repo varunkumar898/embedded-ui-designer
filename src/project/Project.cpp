@@ -67,7 +67,10 @@ bool Project::autoSave() {
 }
 
 bool Project::loadSampleProject() {
-    return loadFromFile(":/examples/sample_dashboard.euiproj");
+    if (loadFromFile(":/examples/sample_dashboard.euiproj")) {
+        return true;
+    }
+    return loadFromFile(":/examples/simple.euiproj");
 }
 
 void Project::newProject(const QString& name, int width, int height) {
@@ -186,8 +189,18 @@ bool Project::saveToFile(const QString& filePath) {
 bool Project::loadFromFile(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open file for reading:" << filePath;
-        return false;
+        // Fallback: check if the file is embedded in QRC resources
+        QString qrcPath = filePath.startsWith(":/") ? filePath : (":/" + filePath);
+        if (QFile::exists(qrcPath)) {
+            file.setFileName(qrcPath);
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                qWarning() << "Failed to open file for reading:" << filePath;
+                return false;
+            }
+        } else {
+            qWarning() << "Failed to open file for reading:" << filePath;
+            return false;
+        }
     }
 
     QByteArray data = file.readAll();
