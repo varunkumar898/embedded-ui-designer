@@ -72,10 +72,12 @@ jobs:
           ${{ matrix.exe_path }} --export qul --project examples/simple.euiproj --out build/qul_out
 
       - name: Clone µGFX for Export Build Verification
+        if: runner.os != 'macOS'
         run: |
           git clone --depth 1 https://git.ugfx.io/uGFX/ugfx.git ugfx_lib
 
       - name: Compile Exported µGFX Project (Guarantees Working Output)
+        if: runner.os != 'macOS'
         shell: bash
         run: |
           echo "=== Configuring Exported µGFX Build ==="

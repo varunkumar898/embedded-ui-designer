@@ -121,8 +121,12 @@ QString UgfxGenerator::generateCMakeLists() {
     code += ")\n\n";
 
     code += "if(WIN32)\n";
+    code += QString("    target_include_directories(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/Win32)\n").arg(name);
+    code += QString("    target_sources(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/Win32/gdisp_lld_Win32.c ${UGFX_DIR}/drivers/multiple/Win32/ginput_lld_mouse_Win32.c)\n").arg(name);
     code += QString("    target_link_libraries(%1 PRIVATE gdi32 user32)\n").arg(name);
     code += "elseif(UNIX AND NOT APPLE)\n";
+    code += QString("    target_include_directories(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/X)\n").arg(name);
+    code += QString("    target_sources(%1 PRIVATE ${UGFX_DIR}/drivers/multiple/X/gdisp_lld_X.c ${UGFX_DIR}/drivers/multiple/X/ginput_lld_mouse_X.c)\n").arg(name);
     code += QString("    target_link_libraries(%1 PRIVATE pthread X11)\n").arg(name);
     code += "endif()\n";
 
