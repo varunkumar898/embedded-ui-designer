@@ -63,6 +63,16 @@ set(SOURCES
     src/commands/AddWidgetCommand.h
     src/commands/MoveWidgetCommand.cpp
     src/commands/MoveWidgetCommand.h
+    src/commands/AddComponentCommand.cpp
+    src/commands/AddComponentCommand.h
+    src/commands/DeleteComponentCommand.cpp
+    src/commands/DeleteComponentCommand.h
+    src/commands/MoveComponentCommand.cpp
+    src/commands/MoveComponentCommand.h
+    src/commands/ResizeComponentCommand.cpp
+    src/commands/ResizeComponentCommand.h
+    src/commands/PropertyChangeCommand.cpp
+    src/commands/PropertyChangeCommand.h
 
     # Exporter Interfaces & Code Generators
     src/codegen/IExporter.h

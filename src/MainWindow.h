@@ -47,6 +47,7 @@ private:
     CanvasScene* m_scene = nullptr;
     CanvasView* m_view = nullptr;
     Project* m_project = nullptr;
+    class QUndoStack* m_undoStack = nullptr;
 
     // Dock Panels
     ComponentPalette* m_palette = nullptr;

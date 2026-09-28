@@ -3,10 +3,14 @@
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
+#include "ImageComponent.h"
+#include "PropertyChangeCommand.h"
+#include <QUndoStack>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QColorDialog>
 #include <QScrollArea>
+#include <QFileDialog>
 
 PropertiesPanel::PropertiesPanel(QWidget* parent)
     : QWidget(parent)
@@ -52,6 +56,9 @@ void PropertiesPanel::setupUi() {
     mainLayout->addLayout(headerLayout);
 
     connect(m_idEdit, &QLineEdit::textChanged, this, &PropertiesPanel::onIdChanged);
+    connect(m_idEdit, &QLineEdit::editingFinished, this, [this]() {
+        commitPropertyChange("Rename Component ID");
+    });
 
     // Geometry Group
     QGroupBox* geomGroup = new QGroupBox("Transform & Geometry", m_contentWidget);
@@ -87,6 +94,11 @@ void PropertiesPanel::setupUi() {
     connect(m_spinW, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
     connect(m_spinH, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
 
+    connect(m_spinX, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Position X"); });
+    connect(m_spinY, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Position Y"); });
+    connect(m_spinW, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Width"); });
+    connect(m_spinH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Height"); });
+
     // Specific Properties Group
     m_specificGroup = new QGroupBox("Component Properties", m_contentWidget);
     m_specificGroup->setStyleSheet("QGroupBox { color: #9AA5B8; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 6px; margin-top: 10px; padding-top: 14px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }");
@@ -101,6 +113,8 @@ void PropertiesPanel::setupUi() {
 
 void PropertiesPanel::setTargetComponent(UIComponent* comp) {
     m_targetComponent = comp;
+    m_lastSavedState = comp ? comp->toJson() : QJsonObject();
+
     if (!m_targetComponent) {
         m_emptyWidget->setVisible(true);
         m_contentWidget->setVisible(false);
@@ -113,6 +127,17 @@ void PropertiesPanel::setTargetComponent(UIComponent* comp) {
     m_typeBadge->setText(m_targetComponent->componentType().toUpper());
     rebuildSpecificEditors();
     refreshValues();
+}
+
+void PropertiesPanel::commitPropertyChange(const QString& desc) {
+    if (!m_targetComponent || m_updatingFromComponent) return;
+    QJsonObject currentState = m_targetComponent->toJson();
+    if (currentState != m_lastSavedState) {
+        if (m_undoStack) {
+            m_undoStack->push(new PropertyChangeCommand(m_targetComponent, m_lastSavedState, currentState, desc));
+        }
+        m_lastSavedState = currentState;
+    }
 }
 
 void PropertiesPanel::refreshValues() {
@@ -148,8 +173,12 @@ void PropertiesPanel::refreshValues() {
         if (m_colorBtn1) updateColorButton(m_colorBtn1, prog->barColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, prog->trackColor());
         if (m_spinRadius) m_spinRadius->setValue(prog->cornerRadius());
+    } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
+        if (m_imagePathEdit) m_imagePathEdit->setText(img->imagePath());
+        if (m_comboImageFormat) m_comboImageFormat->setCurrentText(img->format());
     }
 
+    m_lastSavedState = m_targetComponent->toJson();
     m_updatingFromComponent = false;
 }
 
@@ -178,22 +207,26 @@ void PropertiesPanel::rebuildSpecificEditors() {
     m_chkItalic = nullptr;
     m_handlerEdit = nullptr;
     m_spinProgressValue = nullptr;
+    m_imagePathEdit = nullptr;
+    m_browseImageBtn = nullptr;
+    m_comboImageFormat = nullptr;
 
     if (!m_targetComponent) return;
 
     QFormLayout* form = new QFormLayout();
     form->setSpacing(8);
 
-    auto addColorRow = [this, form](const QString& label, const QColor& initialColor, auto setter) {
+    auto addColorRow = [this, form](const QString& label, const QColor& initialColor, auto setter, const QString& desc) {
         QPushButton* btn = new QPushButton(this);
         updateColorButton(btn, initialColor);
-        connect(btn, &QPushButton::clicked, this, [this, btn, setter]() {
+        connect(btn, &QPushButton::clicked, this, [this, btn, setter, desc]() {
             if (!m_targetComponent) return;
             QColor current(btn->text());
             QColor picked = QColorDialog::getColor(current, this, "Choose Color");
             if (picked.isValid()) {
                 updateColorButton(btn, picked);
                 setter(picked);
+                commitPropertyChange(desc);
             }
         });
         form->addRow(label, btn);
@@ -205,10 +238,13 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_textEdit, &QLineEdit::textChanged, this, [this, btn](const QString& t) {
             if (!m_updatingFromComponent) btn->setText(t);
         });
+        connect(m_textEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Button Text");
+        });
         form->addRow("Text:", m_textEdit);
 
-        m_colorBtn1 = addColorRow("Background:", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); });
-        m_colorBtn2 = addColorRow("Text Color:", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); });
+        m_colorBtn1 = addColorRow("Background:", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); }, "Change Background Color");
+        m_colorBtn2 = addColorRow("Text Color:", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); }, "Change Text Color");
 
         m_spinRadius = new QSpinBox(this);
         m_spinRadius->setRange(0, 50);
@@ -216,11 +252,17 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, btn](int v) {
             if (!m_updatingFromComponent) btn->setCornerRadius(v);
         });
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
+        });
         form->addRow("Radius:", m_spinRadius);
 
         m_handlerEdit = new QLineEdit(btn->onClickedHandler(), this);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, btn](const QString& h) {
             if (!m_updatingFromComponent) btn->setOnClickedHandler(h);
+        });
+        connect(m_handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Click Handler");
         });
         form->addRow("OnClicked:", m_handlerEdit);
 
@@ -229,9 +271,12 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_textEdit, &QLineEdit::textChanged, this, [this, lbl](const QString& t) {
             if (!m_updatingFromComponent) lbl->setText(t);
         });
+        connect(m_textEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Label Text");
+        });
         form->addRow("Text:", m_textEdit);
 
-        m_colorBtn1 = addColorRow("Color:", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); });
+        m_colorBtn1 = addColorRow("Color:", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); }, "Change Label Color");
 
         m_spinPixelSize = new QSpinBox(this);
         m_spinPixelSize->setRange(6, 96);
@@ -239,32 +284,44 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_spinPixelSize, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, lbl](int v) {
             if (!m_updatingFromComponent) lbl->setPixelSize(v);
         });
+        connect(m_spinPixelSize, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Font Size");
+        });
         form->addRow("Font Size:", m_spinPixelSize);
 
         QHBoxLayout* fontStyles = new QHBoxLayout();
         m_chkBold = new QCheckBox("Bold", this);
         m_chkBold->setChecked(lbl->bold());
         connect(m_chkBold, &QCheckBox::toggled, this, [this, lbl](bool b) {
-            if (!m_updatingFromComponent) lbl->setBold(b);
+            if (!m_updatingFromComponent) {
+                lbl->setBold(b);
+                commitPropertyChange("Toggle Bold");
+            }
         });
         m_chkItalic = new QCheckBox("Italic", this);
         m_chkItalic->setChecked(lbl->italic());
         connect(m_chkItalic, &QCheckBox::toggled, this, [this, lbl](bool i) {
-            if (!m_updatingFromComponent) lbl->setItalic(i);
+            if (!m_updatingFromComponent) {
+                lbl->setItalic(i);
+                commitPropertyChange("Toggle Italic");
+            }
         });
         fontStyles->addWidget(m_chkBold);
         fontStyles->addWidget(m_chkItalic);
         form->addRow("Style:", fontStyles);
 
     } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
-        m_colorBtn1 = addColorRow("Fill Color:", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); });
-        m_colorBtn2 = addColorRow("Stroke Color:", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); });
+        m_colorBtn1 = addColorRow("Fill Color:", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); }, "Change Fill Color");
+        m_colorBtn2 = addColorRow("Stroke Color:", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); }, "Change Stroke Color");
 
         m_spinStrokeW = new QSpinBox(this);
         m_spinStrokeW->setRange(0, 20);
         m_spinStrokeW->setValue(rect->strokeWidth());
         connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, rect](int v) {
             if (!m_updatingFromComponent) rect->setStrokeWidth(v);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Stroke Width");
         });
         form->addRow("Stroke Width:", m_spinStrokeW);
 
@@ -273,6 +330,9 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_spinRadius->setValue(rect->cornerRadius());
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, rect](int v) {
             if (!m_updatingFromComponent) rect->setCornerRadius(v);
+        });
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
         });
         form->addRow("Corner Radius:", m_spinRadius);
 
@@ -284,10 +344,13 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, prog](double v) {
             if (!m_updatingFromComponent) prog->setValue(v);
         });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Progress Value");
+        });
         form->addRow("Progress (0-1):", m_spinProgressValue);
 
-        m_colorBtn1 = addColorRow("Bar Color:", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); });
-        m_colorBtn2 = addColorRow("Track Color:", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); });
+        m_colorBtn1 = addColorRow("Bar Color:", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); }, "Change Bar Color");
+        m_colorBtn2 = addColorRow("Track Color:", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); }, "Change Track Color");
 
         m_spinRadius = new QSpinBox(this);
         m_spinRadius->setRange(0, 20);
@@ -295,7 +358,46 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, prog](int v) {
             if (!m_updatingFromComponent) prog->setCornerRadius(v);
         });
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
+        });
         form->addRow("Radius:", m_spinRadius);
+
+    } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
+        QHBoxLayout* pathLayout = new QHBoxLayout();
+        m_imagePathEdit = new QLineEdit(img->imagePath(), this);
+        m_browseImageBtn = new QPushButton("Browse...", this);
+        pathLayout->addWidget(m_imagePathEdit, 1);
+        pathLayout->addWidget(m_browseImageBtn);
+
+        connect(m_imagePathEdit, &QLineEdit::textChanged, this, [this, img](const QString& p) {
+            if (!m_updatingFromComponent) img->setImagePath(p);
+        });
+        connect(m_imagePathEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Image Path");
+        });
+
+        connect(m_browseImageBtn, &QPushButton::clicked, this, [this, img]() {
+            QString path = QFileDialog::getOpenFileName(this, "Select Image", "", "Images (*.png *.jpg *.bmp);;All Files (*)");
+            if (!path.isEmpty()) {
+                m_imagePathEdit->setText(path);
+                img->setImagePath(path);
+                commitPropertyChange("Change Image Path");
+            }
+        });
+        form->addRow("Image File:", pathLayout);
+
+        m_comboImageFormat = new QComboBox(this);
+        m_comboImageFormat->addItem("RGB565");
+        m_comboImageFormat->addItem("Monochrome");
+        m_comboImageFormat->setCurrentText(img->format());
+        connect(m_comboImageFormat, &QComboBox::currentTextChanged, this, [this, img](const QString& fmt) {
+            if (!m_updatingFromComponent) {
+                img->setFormat(fmt);
+                commitPropertyChange("Change Image Format");
+            }
+        });
+        form->addRow("Color Format:", m_comboImageFormat);
     }
 
     m_specificLayout->addLayout(form);

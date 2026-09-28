@@ -45,6 +45,10 @@ public:
     void setCompPos(qreal x, qreal y);
     void setCompSize(qreal w, qreal h);
 
+    void recordInitialPosition() { m_initialGeom = QRectF(pos().x(), pos().y(), m_width, m_height); }
+    QPointF initialPos() const { return m_initialGeom.topLeft(); }
+    QRectF initialGeom() const { return m_initialGeom; }
+
     // QGraphicsItem Overrides
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;

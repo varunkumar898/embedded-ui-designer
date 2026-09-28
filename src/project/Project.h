@@ -40,6 +40,9 @@ public:
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject& root);
 
+    // Component Factory
+    static UIComponent* createComponentInstance(const QString& type, const QString& id);
+
 signals:
     void projectModified();
     void projectLoaded();
@@ -52,6 +55,4 @@ private:
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
     DisplayConfig m_displayConfig;
     bool m_dirty = false;
-
-    UIComponent* createComponentInstance(const QString& type, const QString& id);
 };

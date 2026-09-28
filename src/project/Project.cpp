@@ -3,6 +3,7 @@
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
+#include "ImageComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -61,7 +62,7 @@ QString Project::appDataDirectory() {
 }
 
 bool Project::autoSave() {
-    QString autoSavePath = QDir(appDataDirectory()).filePath("autosave.euiproj");
+    QString autoSavePath = QDir(appDataDirectory()).filePath("recovery.euiproj");
     return saveToFile(autoSavePath);
 }
 
@@ -214,6 +215,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new RectangleComponent(id);
     } else if (type == "ProgressBar") {
         return new ProgressBarComponent(id);
+    } else if (type == "Image") {
+        return new ImageComponent(id);
     }
     return nullptr;
 }

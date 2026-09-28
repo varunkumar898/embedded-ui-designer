@@ -3,6 +3,11 @@
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
+#include "ImageComponent.h"
+#include "AddComponentCommand.h"
+#include "DeleteComponentCommand.h"
+#include "MoveComponentCommand.h"
+#include <QUndoStack>
 #include <QMenu>
 #include <QMimeData>
 #include <QScrollBar>
@@ -101,16 +106,62 @@ void CanvasView::mouseReleaseEvent(QMouseEvent* event) {
 
 void CanvasView::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
-        QList<QGraphicsItem*> sel = scene()->selectedItems();
-        for (QGraphicsItem* item : sel) {
+        QList<UIComponent*> selComps;
+        for (QGraphicsItem* item : scene()->selectedItems()) {
             if (auto comp = dynamic_cast<UIComponent*>(item)) {
-                m_canvasScene->removeUIComponent(comp);
-                delete comp;
+                selComps.append(comp);
             }
         }
-        event->accept();
-        return;
+        if (!selComps.isEmpty()) {
+            if (m_undoStack) {
+                m_undoStack->push(new DeleteComponentCommand(m_canvasScene, selComps));
+            } else {
+                for (UIComponent* comp : selComps) {
+                    m_canvasScene->removeUIComponent(comp);
+                    delete comp;
+                }
+            }
+            event->accept();
+            return;
+        }
     }
+
+    // Arrow keys nudge: 1px default, 10px with Shift
+    if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right ||
+        event->key() == Qt::Key_Up || event->key() == Qt::Key_Down) {
+        qreal step = (event->modifiers() & Qt::ShiftModifier) ? 10.0 : 1.0;
+        qreal dx = 0.0, dy = 0.0;
+        if (event->key() == Qt::Key_Left) dx = -step;
+        else if (event->key() == Qt::Key_Right) dx = step;
+        else if (event->key() == Qt::Key_Up) dy = -step;
+        else if (event->key() == Qt::Key_Down) dy = step;
+
+        QList<UIComponent*> selComps;
+        for (QGraphicsItem* item : scene()->selectedItems()) {
+            if (auto comp = dynamic_cast<UIComponent*>(item)) {
+                selComps.append(comp);
+            }
+        }
+
+        if (!selComps.isEmpty()) {
+            QList<MoveComponentCommand::MoveEntry> moves;
+            for (UIComponent* comp : selComps) {
+                QPointF oldPos = comp->pos();
+                QPointF newPos = oldPos + QPointF(dx, dy);
+                moves.append({comp, oldPos, newPos});
+            }
+            if (m_undoStack) {
+                m_undoStack->push(new MoveComponentCommand(moves));
+            } else {
+                for (const auto& m : moves) {
+                    m.comp->setCompPos(m.newPos.x(), m.newPos.y());
+                }
+            }
+            event->accept();
+            return;
+        }
+    }
+
     QGraphicsView::keyPressEvent(event);
 }
 
@@ -139,6 +190,11 @@ void CanvasView::dropEvent(QDropEvent* event) {
         UIComponent* comp = createComponentByType(compType, snapped);
         if (comp) {
             scene()->clearSelection();
+            if (m_undoStack) {
+                m_undoStack->push(new AddComponentCommand(m_canvasScene, comp));
+            } else {
+                m_canvasScene->addUIComponent(comp);
+            }
             comp->setSelected(true);
             emit statusMessageRequested(QString("Added %1 component (%2)").arg(compType, comp->componentId()));
         }
@@ -163,8 +219,12 @@ void CanvasView::contextMenuEvent(QContextMenuEvent* event) {
 
         QAction* selected = menu.exec(event->globalPos());
         if (selected == actDelete) {
-            m_canvasScene->removeUIComponent(comp);
-            delete comp;
+            if (m_undoStack) {
+                m_undoStack->push(new DeleteComponentCommand(m_canvasScene, {comp}));
+            } else {
+                m_canvasScene->removeUIComponent(comp);
+                delete comp;
+            }
         } else if (selected == actDuplicate) {
             QJsonObject json = comp->toJson();
             UIComponent* dup = createComponentByType(comp->componentType(), comp->pos() + QPointF(20, 20));
@@ -172,6 +232,11 @@ void CanvasView::contextMenuEvent(QContextMenuEvent* event) {
                 dup->fromJson(json);
                 dup->setComponentId(comp->componentId() + "_copy");
                 dup->setCompPos(comp->pos().x() + 20, comp->pos().y() + 20);
+                if (m_undoStack) {
+                    m_undoStack->push(new AddComponentCommand(m_canvasScene, dup));
+                } else {
+                    m_canvasScene->addUIComponent(dup);
+                }
                 scene()->clearSelection();
                 dup->setSelected(true);
             }
@@ -210,11 +275,12 @@ UIComponent* CanvasView::createComponentByType(const QString& compType, const QP
         comp = new RectangleComponent(id);
     } else if (compType == "ProgressBar") {
         comp = new ProgressBarComponent(id);
+    } else if (compType == "Image") {
+        comp = new ImageComponent(id);
     }
 
     if (comp) {
         comp->setPos(pos);
-        m_canvasScene->addUIComponent(comp);
     }
     return comp;
 }

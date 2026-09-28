@@ -81,9 +81,9 @@ int main(int argc, char *argv[])
 
     QCommandLineOption uiOption(
         QStringList() << "ui",
-        "Select UI frontend ('qml' or 'widgets', default: 'qml')",
+        "Select UI frontend ('widgets' or 'qml', default: 'widgets')",
         "frontend",
-        "qml"
+        "widgets"
     );
     parser.addOption(uiOption);
 

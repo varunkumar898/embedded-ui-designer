@@ -1,4 +1,8 @@
 #include "UIComponent.h"
+#include "CanvasScene.h"
+#include "MoveComponentCommand.h"
+#include "ResizeComponentCommand.h"
+#include <QUndoStack>
 #include <QPen>
 #include <QBrush>
 #include <QGraphicsScene>
@@ -156,17 +160,24 @@ void UIComponent::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
 }
 
 void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+    m_initialGeom = QRectF(pos().x(), pos().y(), m_width, m_height);
     if (event->button() == Qt::LeftButton && isSelected()) {
         m_activeHandle = handleAt(event->pos());
         if (m_activeHandle != ResizeHandle::None) {
             m_resizing = true;
             m_dragStartPos = event->scenePos();
-            m_initialGeom = QRectF(pos().x(), pos().y(), m_width, m_height);
             event->accept();
             return;
         }
     }
     m_resizing = false;
+    if (scene()) {
+        for (QGraphicsItem* it : scene()->selectedItems()) {
+            if (auto comp = dynamic_cast<UIComponent*>(it)) {
+                comp->recordInitialPosition();
+            }
+        }
+    }
     QGraphicsObject::mousePressEvent(event);
     emit geometryChangedSignal(this);
 }
@@ -250,11 +261,39 @@ void UIComponent::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
         m_resizing = false;
         m_activeHandle = ResizeHandle::None;
         setCursor(Qt::ArrowCursor);
+        QRectF finalGeom(pos().x(), pos().y(), m_width, m_height);
+        if (finalGeom != m_initialGeom) {
+            if (auto cs = dynamic_cast<CanvasScene*>(scene())) {
+                if (cs->undoStack()) {
+                    cs->undoStack()->push(new ResizeComponentCommand(this, m_initialGeom, finalGeom));
+                }
+            }
+        }
         event->accept();
         emit geometryChangedSignal(this);
         return;
     }
     QGraphicsObject::mouseReleaseEvent(event);
+    if (auto cs = dynamic_cast<CanvasScene*>(scene())) {
+        if (cs->undoStack()) {
+            QList<MoveComponentCommand::MoveEntry> moves;
+            if (scene()) {
+                for (QGraphicsItem* it : scene()->selectedItems()) {
+                    if (auto comp = dynamic_cast<UIComponent*>(it)) {
+                        if (comp->pos() != comp->initialPos()) {
+                            moves.append({comp, comp->initialPos(), comp->pos()});
+                        }
+                    }
+                }
+            }
+            if (moves.isEmpty() && pos() != m_initialGeom.topLeft()) {
+                moves.append({this, m_initialGeom.topLeft(), pos()});
+            }
+            if (!moves.isEmpty()) {
+                cs->undoStack()->push(new MoveComponentCommand(moves));
+            }
+        }
+    }
     emit geometryChangedSignal(this);
 }
 

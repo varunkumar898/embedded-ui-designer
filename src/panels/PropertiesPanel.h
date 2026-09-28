@@ -5,10 +5,11 @@
 #include <QDoubleSpinBox>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QCheckBox>
+#include <QComboBox>
 #include <QLabel>
 #include <QGroupBox>
 #include <QVBoxLayout>
+#include <QJsonObject>
 #include "UIComponent.h"
 
 class PropertiesPanel : public QWidget {
@@ -21,6 +22,11 @@ public:
     UIComponent* targetComponent() const { return m_targetComponent; }
     void refreshValues();
 
+    void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
+    class QUndoStack* undoStack() const { return m_undoStack; }
+
+    void commitPropertyChange(const QString& desc);
+
 private slots:
     void onGeometryChanged();
     void onIdChanged(const QString& newId);
@@ -29,6 +35,7 @@ private slots:
 private:
     UIComponent* m_targetComponent = nullptr;
     bool m_updatingFromComponent = false;
+    QJsonObject m_lastSavedState;
 
     // UI Widgets
     QWidget* m_emptyWidget = nullptr;
@@ -58,6 +65,10 @@ private:
     QCheckBox* m_chkItalic = nullptr;
     QLineEdit* m_handlerEdit = nullptr;
     QDoubleSpinBox* m_spinProgressValue = nullptr;
+    QLineEdit* m_imagePathEdit = nullptr;
+    QPushButton* m_browseImageBtn = nullptr;
+    QComboBox* m_comboImageFormat = nullptr;
+    class QUndoStack* m_undoStack = nullptr;
 
     void setupUi();
     void rebuildSpecificEditors();

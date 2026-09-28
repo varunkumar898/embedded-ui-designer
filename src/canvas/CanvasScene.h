@@ -36,6 +36,9 @@ public:
 
     QPointF snapPoint(const QPointF& pt) const;
 
+    void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
+    class QUndoStack* undoStack() const { return m_undoStack; }
+
 signals:
     void componentSelected(UIComponent* comp);
     void componentAdded(UIComponent* comp);
@@ -56,4 +59,5 @@ private:
     bool m_gridVisible = true;
     bool m_snapToGrid = true;
     int m_gridSize = 10;
+    class QUndoStack* m_undoStack = nullptr;
 };

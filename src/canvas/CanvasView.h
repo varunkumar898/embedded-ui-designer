@@ -19,6 +19,9 @@ public:
     void setZoomFactor(qreal factor);
     qreal zoomFactor() const { return m_zoomFactor; }
 
+    void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
+    class QUndoStack* undoStack() const { return m_undoStack; }
+
 signals:
     void zoomChanged(qreal factor);
     void statusMessageRequested(const QString& msg);
@@ -43,4 +46,5 @@ private:
 
     void applyZoom(qreal factor);
     UIComponent* createComponentByType(const QString& compType, const QPointF& pos);
+    class QUndoStack* m_undoStack = nullptr;
 };
