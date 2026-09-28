@@ -22,21 +22,22 @@ jobs:
             build_type: Release
             generator: "Ninja"
             exe_path: "./build/EmbeddedUIDesigner"
-          - os: macos-13
+          - os: macos-14
             build_type: Release
             generator: "Ninja"
-            exe_path: "./build/EmbeddedUIDesigner"
+            exe_path: "./build/EmbeddedUIDesigner.app/Contents/MacOS/EmbeddedUIDesigner"
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Qt 6.5 LTS
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
           arch: ${{ matrix.os == 'windows-latest' && 'win64_msvc2019_64' || '' }}
-          modules: 'qtquickcontrols2 qtserialport'
+          modules: 'qtserialport'
+          cache: true
 
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
@@ -52,6 +53,7 @@ jobs:
         run: >
           cmake -B build
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
           -G "${{ matrix.generator }}"
 
       - name: Build Designer Executable
@@ -60,6 +62,9 @@ jobs:
       - name: Test Headless Code Generation (CLI Mode)
         shell: bash
         run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
+          fi
           echo "=== Exporting µGFX Project ==="
           ${{ matrix.exe_path }} --export ugfx --project examples/simple.euiproj --out build/ugfx_out
           
@@ -87,3 +92,4 @@ jobs:
         with:
           name: EmbeddedUIDesigner-${{ runner.os }}
           path: build/EmbeddedUIDesigner-*.*
+          if-no-files-found: warn

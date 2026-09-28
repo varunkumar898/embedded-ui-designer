@@ -168,6 +168,14 @@ else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Installation targets for packaging
+install(TARGETS ${PROJECT_NAME}
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
+
 # CPack Packaging Configuration
 include(InstallRequiredSystemLibraries)
 set(CPACK_PACKAGE_NAME "EmbeddedUIDesigner")
@@ -179,11 +187,11 @@ set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
 
 if(WIN32)
-    set(CPACK_GENERATOR "NSIS;ZIP")
+    set(CPACK_GENERATOR "ZIP")
 elseif(APPLE)
-    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_GENERATOR "ZIP;TGZ")
 else()
-    set(CPACK_GENERATOR "DEB;TGZ")
+    set(CPACK_GENERATOR "TGZ;DEB")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Embedded UI Team <support@example.com>")
 endif()
 
