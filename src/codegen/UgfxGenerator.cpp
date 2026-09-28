@@ -173,7 +173,7 @@ QString UgfxGenerator::generateCMakeLists() {
     code += "elseif(UNIX AND NOT APPLE)\n";
     code += QString("    target_include_directories(%1 PRIVATE \"${UGFX_DIR}/drivers/multiple/X\")\n").arg(name);
     code += QString("    target_sources(%1 PRIVATE \"${UGFX_DIR}/drivers/multiple/X/gdisp_lld_X.c\")\n").arg(name);
-    code += QString("    target_link_libraries(%1 PRIVATE pthread X11)\n").arg(name);
+    code += QString("    target_link_libraries(%1 PRIVATE pthread X11 m)\n").arg(name);
     code += "endif()\n";
 
     return code;
@@ -226,8 +226,11 @@ QString UgfxGenerator::generateGfxConf() {
 
     code += QString("#define GDISP_NEED_TEXT                         %1\n").arg(bNeedText ? "GFXON" : "GFXOFF");
     code += QString("#define GDISP_NEED_CIRCLE                       %1\n").arg(bRounded ? "GFXON" : "GFXOFF");
+    code += QString("#define GDISP_NEED_ARC                          %1\n").arg(bRounded ? "GFXON" : "GFXOFF");
+    code += QString("#define GDISP_NEED_ARCSECTORS                   %1\n").arg(bRounded ? "GFXON" : "GFXOFF");
     code += QString("#define GDISP_NEED_IMAGE                        %1\n").arg(bImages ? "GFXON" : "GFXOFF");
-    code += QString("#define GDISP_NEED_IMAGE_BMP                    %1\n\n").arg(bImages ? "GFXON" : "GFXOFF");
+    code += QString("#define GDISP_NEED_IMAGE_BMP                    %1\n").arg(bImages ? "GFXON" : "GFXOFF");
+    code += QString("#define GDISP_NEED_MULTITHREAD                  %1\n\n").arg(bWidgets ? "GFXON" : "GFXOFF");
 
     code += "/* Fonts required for labels and widgets */\n";
     code += QString("#define GDISP_INCLUDE_FONT_DEJAVUSANS12         %1\n").arg(bNeedText ? "GFXON" : "GFXOFF");
@@ -240,7 +243,10 @@ QString UgfxGenerator::generateGfxConf() {
     code += QString("#define GFX_USE_GWIN                            %1\n").arg(bWidgets ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_WINDOWMANAGER                 %1\n").arg(bWidgets ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_WIDGET                        %1\n").arg(bWidgets ? "GFXON" : "GFXOFF");
-    code += QString("#define GWIN_FLAT_STYLING                       %1\n\n").arg(bWidgets ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_FLAT_STYLING                       %1\n").arg(bWidgets ? "GFXON" : "GFXOFF");
+    code += QString("#define GFX_USE_GQUEUE                          %1\n").arg(bWidgets ? "GFXON" : "GFXOFF");
+    code += QString("#define GQUEUE_NEED_ASYNC                       %1\n").arg(bWidgets ? "GFXON" : "GFXOFF");
+    code += QString("#define GFX_USE_GTIMER                          %1\n\n").arg(bWidgets ? "GFXON" : "GFXOFF");
 
     code += QString("#define GWIN_NEED_BUTTON                        %1\n").arg(bButtons ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_LABEL                         %1\n").arg(bLabels ? "GFXON" : "GFXOFF");

@@ -6,7 +6,7 @@
 ![Framework](https://img.shields.io/badge/Qt-6.5%20LTS%20(LGPLv3)-green.svg)
 ![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Build](https://img.shields.io/badge/Build-CMake-orange.svg)
-![CI/CD](https://img.shields.io/badge/CI-Export%20Compile%20Verified-brightgreen.svg)
+[![Embedded UI Designer CI/CD](https://github.com/varunkumar898/embedded-ui-designer/actions/workflows/build.yml/badge.svg)](https://github.com/varunkumar898/embedded-ui-designer/actions/workflows/build.yml)
 
 ---
 

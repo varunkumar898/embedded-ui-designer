@@ -18,7 +18,7 @@ jobs:
             build_type: Release
             generator: ""
             exe_path: "build/Release/EmbeddedUIDesigner.exe"
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             build_type: Release
             generator: "Ninja"
             exe_path: "./build/EmbeddedUIDesigner"
@@ -59,17 +59,30 @@ jobs:
       - name: Build Designer Executable
         run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
 
+      - name: Prepare Designer Binary in Root
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp build/Release/EmbeddedUIDesigner.exe ./EmbeddedUIDesigner.exe
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            cp build/EmbeddedUIDesigner.app/Contents/MacOS/EmbeddedUIDesigner ./EmbeddedUIDesigner
+          else
+            cp build/EmbeddedUIDesigner ./EmbeddedUIDesigner
+          fi
+          chmod +x ./EmbeddedUIDesigner 2>/dev/null || true
+
       - name: Test Headless Code Generation (CLI Mode)
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
             export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
           fi
-          echo "=== Exporting µGFX Project ==="
-          ${{ matrix.exe_path }} --export ugfx --project examples/simple.euiproj --out build/ugfx_out
+          mkdir -p /tmp/out
+          echo "=== Exporting µGFX Project to /tmp/out ==="
+          ./EmbeddedUIDesigner --export ugfx --project examples/simple.euiproj --out /tmp/out
           
           echo "=== Exporting Qt for MCUs (QUL) Project ==="
-          ${{ matrix.exe_path }} --export qul --project examples/simple.euiproj --out build/qul_out
+          ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out build/qul_out
 
       - name: Clone µGFX for Export Build Verification
         if: runner.os != 'macOS'
@@ -82,9 +95,9 @@ jobs:
         run: |
           echo "=== Configuring Exported µGFX Build ==="
           UGFX_DIR="${GITHUB_WORKSPACE//\\//}/ugfx_lib"
-          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$UGFX_DIR"
+          cmake -S /tmp/out -B /tmp/out/build -DUGFX_PATH="$UGFX_DIR"
           echo "=== Compiling Exported µGFX Binary ==="
-          cmake --build build/ugfx_out/build --config Release
+          cmake --build /tmp/out/build --config Release
 
       - name: Run CPack Packaging
         working-directory: build
