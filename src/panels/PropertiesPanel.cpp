@@ -5,6 +5,7 @@
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
 #include "SliderComponent.h"
+#include "SwitchComponent.h"
 #include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QFormLayout>
@@ -436,6 +437,29 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn1 = addColorRow("Track Color:", slider->trackColor(), [slider](const QColor& c) { slider->setTrackColor(c); }, "Change Track Color");
         m_colorBtn2 = addColorRow("Fill Color:", slider->fillColor(), [slider](const QColor& c) { slider->setFillColor(c); }, "Change Fill Color");
         addColorRow("Handle Color:", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
+    } else if (auto sw = dynamic_cast<SwitchComponent*>(m_targetComponent)) {
+        QCheckBox* chkState = new QCheckBox("Checked", this);
+        chkState->setChecked(sw->isChecked());
+        connect(chkState, &QCheckBox::toggled, this, [this, sw](bool b) {
+            if (!m_updatingFromComponent) {
+                sw->setChecked(b);
+                commitPropertyChange("Toggle Switch");
+            }
+        });
+        form->addRow("State:", chkState);
+
+        addColorRow("On Color:", sw->onColor(), [sw](const QColor& c) { sw->setOnColor(c); }, "Change On Color");
+        addColorRow("Off Color:", sw->offColor(), [sw](const QColor& c) { sw->setOffColor(c); }, "Change Off Color");
+        addColorRow("Thumb Color:", sw->thumbColor(), [sw](const QColor& c) { sw->setThumbColor(c); }, "Change Thumb Color");
+
+        QLineEdit* handlerEdit = new QLineEdit(sw->onToggledHandler(), this);
+        connect(handlerEdit, &QLineEdit::textChanged, this, [this, sw](const QString& h) {
+            if (!m_updatingFromComponent) sw->setOnToggledHandler(h);
+        });
+        connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Toggled Handler");
+        });
+        form->addRow("OnToggled:", handlerEdit);
     }
 
     m_specificLayout->addLayout(form);

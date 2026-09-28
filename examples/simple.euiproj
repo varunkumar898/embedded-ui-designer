@@ -61,13 +61,40 @@
           "id": "prog_level",
           "type": "ProgressBar",
           "x": 20,
-          "y": 140,
+          "y": 115,
           "width": 280,
           "height": 18,
           "value": 0.5,
           "barColor": "#4caf50",
           "trackColor": "#15161c",
           "cornerRadius": 3
+        },
+        {
+          "id": "slider_volume",
+          "type": "Slider",
+          "x": 20,
+          "y": 150,
+          "width": 180,
+          "height": 26,
+          "value": 45,
+          "minimum": 0,
+          "maximum": 100,
+          "trackColor": "#292b36",
+          "fillColor": "#009688",
+          "handleColor": "#ffffff"
+        },
+        {
+          "id": "switch_toggle",
+          "type": "Switch",
+          "x": 220,
+          "y": 150,
+          "width": 50,
+          "height": 26,
+          "checked": true,
+          "onColor": "#4caf50",
+          "offColor": "#3f4354",
+          "thumbColor": "#ffffff",
+          "onToggled": "onTogglePower"
         }
       ]
     }

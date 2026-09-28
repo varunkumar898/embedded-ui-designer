@@ -5,6 +5,7 @@
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
 #include "SliderComponent.h"
+#include "SwitchComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -129,6 +130,12 @@ QString QtMcuGenerator::generateDesignQml() {
                 if (!handler.isEmpty() && !handlers.contains(handler)) {
                     handlers.insert(handler);
                     qml += QString("    signal %1()\n").arg(handler);
+                }
+            } else if (auto sw = dynamic_cast<SwitchComponent*>(comp)) {
+                QString handler = sw->onToggledHandler().trimmed();
+                if (!handler.isEmpty() && !handlers.contains(handler)) {
+                    handlers.insert(handler);
+                    qml += QString("    signal %1(bool checked)\n").arg(handler);
                 }
             }
         }
@@ -265,6 +272,35 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "            anchors.verticalCenter: parent.verticalCenter\n";
                 qml += QString("            color: \"%1\"\n").arg(slider->handleColor().name());
                 qml += QString("            border.color: \"%1\"; border.width: 1\n").arg(slider->fillColor().name());
+                qml += "        }\n";
+                qml += "    }\n\n";
+            } else if (auto sw = dynamic_cast<SwitchComponent*>(comp)) {
+                // In QUL, Switch is built using pure supported primitives: Rectangle pill + circular thumb + MouseArea
+                qml += "    Rectangle {\n";
+                qml += QString("        id: %1\n").arg(sw->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(sw->pos().x()))
+                    .arg(static_cast<int>(sw->pos().y()))
+                    .arg(static_cast<int>(sw->compWidth()))
+                    .arg(static_cast<int>(sw->compHeight()));
+                qml += QString("        property bool checked: %1\n").arg(sw->isChecked() ? "true" : "false");
+                qml += "        radius: height / 2\n";
+                qml += QString("        color: checked ? \"%1\" : \"%2\"\n")
+                    .arg(sw->onColor().name()).arg(sw->offColor().name());
+                qml += "        Rectangle {\n";
+                qml += "            width: parent.height - 6; height: width; radius: width / 2\n";
+                qml += "            anchors.verticalCenter: parent.verticalCenter\n";
+                qml += "            x: parent.checked ? parent.width - width - 3 : 3\n";
+                qml += QString("            color: \"%1\"\n").arg(sw->thumbColor().name());
+                qml += "        }\n";
+                qml += "        MouseArea {\n";
+                qml += "            anchors.fill: parent\n";
+                qml += "            onClicked: {\n";
+                qml += "                parent.checked = !parent.checked;\n";
+                if (!sw->onToggledHandler().isEmpty()) {
+                    qml += QString("                root.%1(parent.checked);\n").arg(sw->onToggledHandler());
+                }
+                qml += "            }\n";
                 qml += "        }\n";
                 qml += "    }\n\n";
             } else if (comp) {

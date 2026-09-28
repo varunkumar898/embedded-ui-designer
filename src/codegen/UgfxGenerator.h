@@ -27,6 +27,7 @@ private:
     bool hasLabels() const;
     bool hasProgressBars() const;
     bool hasSliders() const;
+    bool hasSwitches() const;
     bool hasRectangles() const;
     bool hasImages() const;
     bool hasRoundedCorners() const;

@@ -5,6 +5,7 @@
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
 #include "SliderComponent.h"
+#include "SwitchComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -60,6 +61,14 @@ bool UgfxGenerator::hasSliders() const {
     if (!m_scene) return false;
     for (auto comp : m_scene->uiComponents()) {
         if (dynamic_cast<SliderComponent*>(comp)) return true;
+    }
+    return false;
+}
+
+bool UgfxGenerator::hasSwitches() const {
+    if (!m_scene) return false;
+    for (auto comp : m_scene->uiComponents()) {
+        if (dynamic_cast<SwitchComponent*>(comp)) return true;
     }
     return false;
 }
@@ -193,13 +202,14 @@ QString UgfxGenerator::generateGfxConf() {
     bool bLabels = hasLabels();
     bool bProgress = hasProgressBars();
     bool bSliders = hasSliders();
+    bool bSwitches = hasSwitches();
     bool bImages = hasImages();
     bool bRounded = hasRoundedCorners();
 
-    bool bWidgets = bButtons || bLabels || bProgress || bSliders;
+    bool bWidgets = bButtons || bLabels || bProgress || bSliders || bSwitches;
     bool bNeedText = bButtons || bLabels;
-    bool bNeedMouse = bButtons || bSliders;
-    bool bNeedEvents = bButtons || bSliders;
+    bool bNeedMouse = bButtons || bSliders || bSwitches;
+    bool bNeedEvents = bButtons || bSliders || bSwitches;
 
     QString code;
     code += "/**\n";
@@ -261,7 +271,8 @@ QString UgfxGenerator::generateGfxConf() {
     code += QString("#define GWIN_NEED_BUTTON                        %1\n").arg(bButtons ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_LABEL                         %1\n").arg(bLabels ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_PROGRESSBAR                   %1\n").arg(bProgress ? "GFXON" : "GFXOFF");
-    code += QString("#define GWIN_NEED_SLIDER                        %1\n\n").arg(bSliders ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_SLIDER                        %1\n").arg(bSliders ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_CHECKBOX                      %1\n\n").arg(bSwitches ? "GFXON" : "GFXOFF");
 
     code += "/* =============================================================== */\n";
     code += "/* GEVENT & GINPUT - Event & Input Drivers (Mouse/Touch/Buttons)   */\n";
@@ -296,6 +307,8 @@ QString UgfxGenerator::generateUiHeader() {
                 code += QString("extern GHandle ghProg_%1;\n").arg(id);
             } else if (dynamic_cast<SliderComponent*>(comp)) {
                 code += QString("extern GHandle ghSlider_%1;\n").arg(id);
+            } else if (dynamic_cast<SwitchComponent*>(comp)) {
+                code += QString("extern GHandle ghSwitch_%1;\n").arg(id);
             }
         }
     }
@@ -334,6 +347,8 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("GHandle ghProg_%1 = 0;\n").arg(id);
             } else if (dynamic_cast<SliderComponent*>(comp)) {
                 code += QString("GHandle ghSlider_%1 = 0;\n").arg(id);
+            } else if (dynamic_cast<SwitchComponent*>(comp)) {
+                code += QString("GHandle ghSwitch_%1 = 0;\n").arg(id);
             }
         }
     }
@@ -411,6 +426,20 @@ QString UgfxGenerator::generateUiSource() {
             }
         }
 
+        // Switches
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto sw = dynamic_cast<SwitchComponent*>(comp)) {
+                QString id = sw->componentId();
+                code += QString("    // Switch: %1\n").arg(id);
+                code += "    gwinWidgetClearInit(&wi);\n";
+                code += "    wi.g.show = gTrue;\n";
+                code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(sw->pos().x())).arg(static_cast<int>(sw->pos().y()));
+                code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(sw->compWidth())).arg(static_cast<int>(sw->compHeight()));
+                code += QString("    ghSwitch_%1 = gwinCheckboxCreate(0, &wi);\n").arg(id);
+                code += QString("    gwinCheckboxCheck(ghSwitch_%1, %2);\n\n").arg(id).arg(sw->isChecked() ? "gTrue" : "gFalse");
+            }
+        }
+
         // Labels
         for (auto comp : m_scene->uiComponents()) {
             if (auto lbl = dynamic_cast<LabelComponent*>(comp)) {
@@ -461,6 +490,9 @@ QString UgfxGenerator::generateUiSource() {
 
 QString UgfxGenerator::generateMainSource() {
     bool bButtons = hasButtons();
+    bool bSwitches = hasSwitches();
+    bool bSliders = hasSliders();
+    bool bNeedEvents = bButtons || bSwitches || bSliders;
 
     QString code;
     code += "#include \"gfx.h\"\n";
@@ -478,8 +510,8 @@ QString UgfxGenerator::generateMainSource() {
     code += "    // 3. Create visual UI hierarchy\n";
     code += "    ui_init();\n\n";
 
-    if (bButtons) {
-        code += "    // 4. Attach event listener for buttons and touch input (PushButton pattern)\n";
+    if (bNeedEvents) {
+        code += "    // 4. Attach event listener for widgets and touch input (PushButton pattern)\n";
         code += "    GListener gl;\n";
         code += "    geventListenerInit(&gl);\n";
         code += "    gwinAttachListener(&gl);\n\n";

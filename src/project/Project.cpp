@@ -5,6 +5,7 @@
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
 #include "SliderComponent.h"
+#include "SwitchComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -233,6 +234,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new ImageComponent(id);
     } else if (type == "Slider") {
         return new SliderComponent(id);
+    } else if (type == "Switch") {
+        return new SwitchComponent(id);
     }
     return nullptr;
 }
