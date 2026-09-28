@@ -122,18 +122,20 @@ int main(int argc, char *argv[])
         std::cout << "Loaded project: " << docModel.projectName().toStdString() 
                   << " (" << docModel.screenWidth() << "x" << docModel.screenHeight() << ")" << std::endl;
 
-        std::unique_ptr<IExporter> exporter;
         if (target == "ugfx") {
             std::cout << "Generating µGFX C project in: " << outDir.toStdString() << std::endl;
-            exporter = std::make_unique<UgfxExporter>();
+            UgfxGenerator generator(projectPath);
+            if (!generator.generate(outDir)) {
+                std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
+                return 1;
+            }
         } else if (target == "qul") {
             std::cout << "Generating Qt for MCUs (QUL) project in: " << outDir.toStdString() << std::endl;
-            exporter = std::make_unique<QtMcuExporter>();
-        }
-
-        if (!exporter->exportProject(&docModel, outDir)) {
-            std::cerr << "Export Error: " << exporter->lastError().toStdString() << std::endl;
-            return 1;
+            auto exporter = std::make_unique<QtMcuExporter>();
+            if (!exporter->exportProject(&docModel, outDir)) {
+                std::cerr << "Export Error: " << exporter->lastError().toStdString() << std::endl;
+                return 1;
+            }
         }
 
         std::cout << "Successfully exported " << target.toStdString() << " project to: " 

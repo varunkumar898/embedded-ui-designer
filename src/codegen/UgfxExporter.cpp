@@ -75,34 +75,45 @@ QString UgfxExporter::generateGfxConf(const DocumentModel* doc) {
         }
     }
 
+    bool hasWidgets = hasButtons || hasLabels || hasProgressBars;
+    bool needText = hasButtons || hasLabels;
+    bool needEvents = hasButtons;
+
     QString code;
     code += "#ifndef _GFXCONF_H\n#define _GFXCONF_H\n\n";
+    code += "/* Operating System Selection - Exactly one GFX_USE_OS_* is defined as GFXON */\n";
     code += "#if defined(_WIN32) || defined(__WIN32__)\n";
     code += "    #define GFX_USE_OS_WIN32 GFXON\n";
+    code += "    #define GFX_USE_OS_LINUX GFXOFF\n";
+    code += "    #define GFX_USE_OS_RAW32 GFXOFF\n";
     code += "#elif defined(__linux__) || defined(__unix__)\n";
+    code += "    #define GFX_USE_OS_WIN32 GFXOFF\n";
     code += "    #define GFX_USE_OS_LINUX GFXON\n";
+    code += "    #define GFX_USE_OS_RAW32 GFXOFF\n";
     code += "#else\n";
+    code += "    #define GFX_USE_OS_WIN32 GFXOFF\n";
+    code += "    #define GFX_USE_OS_LINUX GFXOFF\n";
     code += "    #define GFX_USE_OS_RAW32 GFXON\n";
     code += "#endif\n\n";
     code += "#define GFX_USE_GDISP GFXON\n";
     code += "#define GDISP_NEED_VALIDATION GFXON\n";
     code += "#define GDISP_NEED_CLIP GFXON\n";
-    code += "#define GDISP_NEED_TEXT GFXON\n";
+    code += QString("#define GDISP_NEED_TEXT %1\n").arg(needText ? "GFXON" : "GFXOFF");
     code += "#define GDISP_NEED_CIRCLE GFXON\n";
     code += QString("#define GDISP_NEED_IMAGE %1\n").arg(hasImages ? "GFXON" : "GFXOFF");
     code += QString("#define GDISP_NEED_BITMAP %1\n").arg(hasImages ? "GFXON" : "GFXOFF");
-    code += "#define GDISP_INCLUDE_FONT_DEJAVUSANS12 GFXON\n";
-    code += "#define GDISP_INCLUDE_FONT_DEJAVUSANS16 GFXON\n";
-    code += "#define GFX_USE_GWIN GFXON\n";
-    code += "#define GWIN_NEED_WINDOWMANAGER GFXON\n";
-    code += "#define GWIN_NEED_WIDGET GFXON\n";
+    code += QString("#define GDISP_INCLUDE_FONT_DEJAVUSANS12 %1\n").arg(needText ? "GFXON" : "GFXOFF");
+    code += QString("#define GDISP_INCLUDE_FONT_DEJAVUSANS16 %1\n").arg(needText ? "GFXON" : "GFXOFF");
+    code += QString("#define GFX_USE_GWIN %1\n").arg(hasWidgets ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_WINDOWMANAGER %1\n").arg(hasWidgets ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_WIDGET %1\n").arg(hasWidgets ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_BUTTON %1\n").arg(hasButtons ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_LABEL %1\n").arg(hasLabels ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_PROGRESSBAR %1\n").arg(hasProgressBars ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_IMAGE %1\n").arg(hasImages ? "GFXON" : "GFXOFF");
-    code += "#define GFX_USE_GEVENT GFXON\n";
-    code += "#define GFX_USE_GINPUT GFXON\n";
-    code += "#define GINPUT_NEED_MOUSE GFXON\n\n";
+    code += QString("#define GFX_USE_GEVENT %1\n").arg(needEvents ? "GFXON" : "GFXOFF");
+    code += QString("#define GFX_USE_GINPUT %1\n").arg(needEvents ? "GFXON" : "GFXOFF");
+    code += QString("#define GINPUT_NEED_MOUSE %1\n\n").arg(needEvents ? "GFXON" : "GFXOFF");
     code += "#endif /* _GFXCONF_H */\n";
     return code;
 }
