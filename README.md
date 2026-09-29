@@ -41,26 +41,54 @@ embedded-ui-designer/
 ├── src/
 │   ├── main.cpp                         # Desktop bootstrap & Headless CLI export engine
 │   ├── MainWindow.h/cpp                 # Window chrome, menus, toolbars, docks, autosave, theme
+│   ├── assets/
+│   │   └── ImageAssetProcessor.h/cpp    # Image converter (RGB565, 1-bit monochrome, RGB888 C arrays)
 │   ├── canvas/
 │   │   ├── CanvasScene.h/cpp            # Target display boundary, grid, snap, component tracking
 │   │   └── CanvasView.h/cpp             # Interactive canvas with zoom (25%-400%), pan, drag & drop
+│   ├── codegen/
+│   │   ├── CodeGenerator.h/cpp          # Code generator abstract base class
+│   │   ├── IExporter.h                  # Exporter base interface
+│   │   ├── UgfxGenerator.h/cpp          # Production µGFX C generator (gfxconf.h, ui.c/h, main.c, CMakeLists.txt)
+│   │   ├── QtMcuGenerator.h/cpp         # Production Qt Quick Ultralite generator (qul_add_target, .qmlproject)
+│   │   ├── UgfxExporter.h/cpp           # µGFX export implementation for DocumentModel
+│   │   └── QtMcuExporter.h/cpp          # QUL export implementation for DocumentModel
+│   ├── commands/
+│   │   ├── AddComponentCommand.h/cpp    # Undo/redo: canvas component addition
+│   │   ├── DeleteComponentCommand.h/cpp # Undo/redo: canvas component deletion
+│   │   ├── MoveComponentCommand.h/cpp   # Undo/redo: canvas component translation & batch move
+│   │   ├── ResizeComponentCommand.h/cpp # Undo/redo: interactive component handle resizing
+│   │   ├── PropertyChangeCommand.h/cpp  # Undo/redo: property inspector JSON state mutation
+│   │   ├── AddWidgetCommand.h/cpp       # Undo/redo: DocumentModel widget addition
+│   │   └── MoveWidgetCommand.h/cpp      # Undo/redo: DocumentModel widget positioning
+│   ├── hardware/
+│   │   ├── DeviceManager.h/cpp          # QSerialPortInfo auto-detection & board profile mapping
+│   │   └── FlashController.h/cpp        # Asynchronous flashing toolchain bridge (OpenOCD, ST-Link, esptool)
 │   ├── models/
 │   │   ├── DisplayConfig.h              # Target display resolution, color depth, type model
 │   │   ├── UIComponent.h/cpp            # Base QGraphicsObject with selection handles & serialization
 │   │   ├── ButtonComponent.h/cpp        # Button (text, background, radius, onClicked stubs)
 │   │   ├── LabelComponent.h/cpp         # Text label (font family, pixel size, bold/italic, color)
 │   │   ├── RectangleComponent.h/cpp     # Shape panel (fill color, stroke color, stroke width, radius)
-│   │   └── ProgressBarComponent.h/cpp   # Progress indicator (0.0–1.0 value, bar/track colors)
+│   │   ├── ProgressBarComponent.h/cpp   # Progress indicator (0.0–1.0 value, bar/track colors)
+│   │   ├── ImageComponent.h/cpp         # Bitmap image component
+│   │   ├── SliderComponent.h/cpp        # Linear slider (orientation, min/max, value, track/thumb colors)
+│   │   ├── SwitchComponent.h/cpp        # Toggle switch (checked state, thumb/track styling)
+│   │   ├── CheckboxComponent.h/cpp      # Checkbox (checked state, box and label rendering)
+│   │   ├── TextInputComponent.h/cpp     # Single-line text input (placeholder, keyboard support)
+│   │   ├── CircleComponent.h/cpp        # Ellipse/circle shape (fill, stroke, radius)
+│   │   ├── DocumentModel.h/cpp          # Multi-screen DOM document model
+│   │   ├── ScreenModel.h/cpp            # Screen model container
+│   │   └── WidgetModel.h/cpp            # Declarative widget model
 │   ├── panels/
 │   │   ├── ComponentPalette.h/cpp       # Left dock toolbox with draggable UI elements
 │   │   ├── PropertiesPanel.h/cpp        # Right dock live bi-directional property inspector
 │   │   └── LayerPanel.h/cpp             # Visual z-order layer tree and management
 │   ├── project/
 │   │   └── Project.h/cpp                # .euiproj JSON serialization & AppDataLocation storage
-│   └── codegen/
-│       ├── CodeGenerator.h/cpp          # Code generator abstract base class
-│       ├── UgfxGenerator.h/cpp          # µGFX C generator (gfxconf.h, ui.c/h, main.c, CMakeLists.txt)
-│       └── QtMcuGenerator.h/cpp         # Qt Quick Ultralite generator (qul_add_target, .qmlproject)
+│   └── qml/
+│       ├── Main.qml                     # Declarative QML designer interface
+│       └── qml.qrc                      # QML resource bundle definition
 ├── resources/
 │   ├── app.qrc                          # Embedded Qt resource file (embedded icons, configs, samples)
 │   └── config/

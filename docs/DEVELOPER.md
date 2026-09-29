@@ -19,13 +19,18 @@ This guide describes the core architecture, the CLI headless pipeline, and how t
          └───────────────► ┌──────┴───────┐ ◄──────────────┘
                            │ CanvasScene  │ (Bi-directional sync)
                            └──────┬───────┘
-                                  │ contains UIComponent*
-                     ┌────────────┴────────────┐
-                     ▼                         ▼
-             ┌───────────────┐         ┌───────────────┐
-             │    Project    │         │ CodeGenerator │
-             │  (.euiproj)   │         │ (µGFX & QUL)  │
-             └───────────────┘         └───────────────┘
+                                  │
+         ┌────────────────────────┼────────────────────────┐
+         ▼                        ▼                        ▼
+ ┌───────────────┐        ┌───────────────┐        ┌───────────────┐
+ │  QUndoStack   │        │    Project    │        │ CodeGenerator │
+ │ (Commands)    │        │  (.euiproj)   │        │ (µGFX & QUL)  │
+ └───────────────┘        └───────┬───────┘        └───────┬───────┘
+                                  │                        │
+                          ┌───────┴───────┐        ┌───────┴───────┐
+                          │ HardwareBridge│        │ AssetPipeline │
+                          │(Device/Flash) │        │ (RGB565/Mono) │
+                          └───────────────┘        └───────────────┘
 ```
 
 ---
@@ -191,3 +196,69 @@ To add a new component (e.g. `CustomSwitchComponent`):
    - In [CanvasView.cpp](file:///c:/Users/varun/Desktop/embedded%20UI%20development/src/canvas/CanvasView.cpp) (`createComponentByType`): instantiate class.
    - In [Project.cpp](file:///c:/Users/varun/Desktop/embedded%20UI%20development/src/project/Project.cpp) (`createComponentInstance`): instantiate class on JSON deserialization.
    - In [PropertiesPanel.cpp](file:///c:/Users/varun/Desktop/embedded%20UI%20development/src/panels/PropertiesPanel.cpp): add inspector widgets.
+
+---
+
+## 5. Command Pattern (Undo / Redo System)
+
+All user mutations on the visual canvas and property inspectors are tracked via Qt's `QUndoStack` and encapsulated inside `QUndoCommand` subclasses located in `src/commands/`:
+
+| Command Class | Target Subsystem | Description |
+| :--- | :--- | :--- |
+| `AddComponentCommand` | Canvas & Project | Adds a newly dropped component to `CanvasScene` and registers it in `Project`. Undoing cleanly detaches and hides the component; redoing re-adds it. |
+| `DeleteComponentCommand` | Canvas & Project | Supports multi-component selection deletion. Preserves references and restores full component states upon undo. |
+| `MoveComponentCommand` | CanvasScene | Records initial and final `(x, y)` positions for single or multi-selected items. Features `mergeWith()` support (`Id = 1002`) to coalesce rapid drag updates into a single undo step. |
+| `ResizeComponentCommand` | CanvasScene | Captures bounding rect transformations (`oldGeom` vs `newGeom`) from interactive resize handles. |
+| `PropertyChangeCommand` | PropertiesPanel | Captures pre- and post-mutation JSON state snapshots (`QJsonObject`) for any edited property (color, font, text, min/max, checked state). |
+
+### Integration with MainWindow & Panels
+`MainWindow` owns the central `QUndoStack`:
+```cpp
+m_undoStack = new QUndoStack(this);
+m_scene->setUndoStack(m_undoStack);
+m_propertiesPanel->setUndoStack(m_undoStack);
+```
+Standard keyboard shortcuts `Ctrl+Z` (Undo) and `Ctrl+Y` / `Ctrl+Shift+Z` (Redo) are connected to `m_undoStack->createUndoAction()` and `m_undoStack->createRedoAction()`.
+
+---
+
+## 6. Hardware Bridge & Flashing Subsystem (`src/hardware/`)
+
+The hardware subsystem facilitates testing directly on physical microcontrollers through automated port detection and external programmer toolchain execution.
+
+### Device Manager (`DeviceManager.h/cpp`)
+- **Port Auto-Detection**: Uses `QSerialPortInfo::availablePorts()` coupled with an active polling timer (`QTimer`) to detect plug-and-play USB device insertions and removals.
+- **Hardware Profile Matching**: Compares detected `vendorId` and `productId` against `resources/config/devices.json` to identify target architectures (STM32, ESP32, Raspberry Pi RP2040, NXP i.MX RT).
+- **Command Synthesis**: Automatically generates platform-appropriate flashing invocations (e.g. `esptool.py --port ... write_flash 0x10000 firmware.bin`).
+
+### Flash Controller (`FlashController.h/cpp`)
+- **Asynchronous Execution**: Wraps external vendor programming CLI tools using `QProcess` so the UI remains responsive during long erase/flash cycles.
+- **Supported Toolchain Backends**:
+  - **STM32**: `STM32_Programmer_CLI` via SWD or USB DFU interfaces (`-c port=SWD mode=UR -w <bin> 0x08000000 -v -rst`).
+  - **ESP32**: `esptool.py` over serial UART (`--chip esp32 --port <port> --baud 921600 write_flash -z 0x10000 <bin>`).
+  - **OpenOCD / RISC-V**: OpenOCD script execution for GDB/SWD probes (J-Link, CMSIS-DAP).
+  - **UF2 Mass Storage**: Direct binary copy to mounted USB mass storage volumes (RP2040 bootloader, SAMD21).
+- **Diagnostics & Signals**: Streams stdout/stderr via `consoleOutputUpdate(QString)`, emits `flashingStarted()`, and delivers final status with `flashingFinished(bool success, int exitCode)`.
+
+---
+
+## 7. Asset Compilation Pipeline (`src/assets/`)
+
+Microcontroller framebuffers require specific memory layouts and color packings that differ from desktop RGBA32 formats. `ImageAssetProcessor` converts standard images (`QImage`) into flash-ready C byte arrays:
+
+### Supported Formats (`ImageFormat`)
+- **`ImageFormat::RGB565`**: 16-bit high color (5-bit red, 6-bit green, 5-bit blue). Packed into little-endian or big-endian 16-bit integers suitable for ST7789, ILI9341, and SSD1351 display controllers.
+- **`ImageFormat::Monochrome`**: 1-bit per pixel thresholded bitmap. 8 horizontal pixels are packed into a single `uint8_t` byte, designed for monochrome OLEDs (SSD1306) and e-Paper displays (UC8151).
+- **`ImageFormat::RGB888`**: 24-bit true color (8-bit red, 8-bit green, 8-bit blue) for 24-bit parallel RGB displays.
+
+### Output Methods
+- **`generateCArray(const QImage& image, ImageFormat format, const QString& arrayName)`**:
+  Generates a formatted C source string ready to be saved into generated projects:
+  ```c
+  // Formatted C array output
+  const uint8_t logo_data[] = {
+      0x1f, 0x00, 0xf8, 0x00, 0x07, 0xe0, ...
+  };
+  ```
+- **`processToBytes(const QImage& image, ImageFormat format)`**:
+  Returns raw binary `QByteArray` for streaming or embedded filesystem packing.
