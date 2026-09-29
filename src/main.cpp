@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
         }
 
         std::cout << "Loaded project: " << project.projectName().toStdString() 
-                  << " (" << project.displayConfig().width() << "x" << project.displayConfig().height() << ")" << std::endl;
+                  << " (" << project.displayConfig().width << "x" << project.displayConfig().height << ")" << std::endl;
 
         if (target == "ugfx") {
             std::cout << "Generating µGFX C project in: " << outDir.toStdString() << std::endl;
