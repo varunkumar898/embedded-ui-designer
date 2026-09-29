@@ -49,6 +49,8 @@ public:
     static QColor getColor(const QColor& initial = QColor("#1ECBE1"), QWidget* parent = nullptr, const QString& title = "Choose Color");
     static QString toRgb565Hex(const QColor& c);
 
+    friend class TestFunctionalRunner;
+
 private slots:
     void onWheelColorChanged(const QColor& color);
     void onHexEdited(const QString& text);

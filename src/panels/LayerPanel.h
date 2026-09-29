@@ -22,6 +22,8 @@ private slots:
     void onMoveDown();
     void onDelete();
 
+    friend class TestFunctionalRunner;
+
 private:
     CanvasScene* m_scene = nullptr;
     QListWidget* m_listWidget = nullptr;

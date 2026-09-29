@@ -256,3 +256,42 @@ endif()
 
 add_test(NAME AllCases COMMAND test_all_cases)
 
+# Functional Validation Runner
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_functional_runner
+        tests/test_functional_runner.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_functional_runner
+        tests/test_functional_runner.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_functional_runner PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+)
+
+target_link_libraries(test_functional_runner PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_functional_runner PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_functional_runner PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+

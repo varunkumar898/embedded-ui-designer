@@ -30,6 +30,8 @@ public:
 
     void commitPropertyChange(const QString& desc);
 
+    friend class TestFunctionalRunner;
+
 private slots:
     void onGeometryChanged();
     void onIdChanged(const QString& newId);

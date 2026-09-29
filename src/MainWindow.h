@@ -43,6 +43,8 @@ private slots:
     void onProjectSettingsDialog();
     void onAbout();
 
+    friend class TestFunctionalRunner;
+
 private:
     // Core Subsystems
     CanvasScene* m_scene = nullptr;
