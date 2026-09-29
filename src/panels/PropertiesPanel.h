@@ -26,6 +26,8 @@ public:
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
 
+    int specificEditorsLayoutCount() const;
+
     void commitPropertyChange(const QString& desc);
 
 private slots:

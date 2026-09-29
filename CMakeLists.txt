@@ -19,15 +19,14 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
+    Test
 )
 find_package(Qt6 6.5 OPTIONAL_COMPONENTS
     SerialPort
 )
 
-# Source files
-set(SOURCES
-    # Core Entry
-    src/main.cpp
+# Common Source files (excluding main.cpp)
+set(COMMON_SOURCES
     src/MainWindow.cpp
     src/MainWindow.h
 
@@ -105,6 +104,11 @@ set(SOURCES
     src/panels/LayerPanel.h
     src/project/Project.cpp
     src/project/Project.h
+)
+
+set(SOURCES
+    src/main.cpp
+    ${COMMON_SOURCES}
 )
 
 # Qt Resource manifests (.qrc)
@@ -206,3 +210,49 @@ else()
 endif()
 
 include(CPack)
+
+# ============================================================================
+# Automated Testing Suite
+# ============================================================================
+enable_testing()
+
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_all_cases
+        tests/test_all_cases.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_all_cases
+        tests/test_all_cases.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_all_cases PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+)
+
+target_link_libraries(test_all_cases PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_all_cases PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_all_cases PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+add_test(NAME AllCases COMMAND test_all_cases)
+

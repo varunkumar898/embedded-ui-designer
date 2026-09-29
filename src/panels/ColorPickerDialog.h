@@ -47,6 +47,7 @@ public:
 
     QColor selectedColor() const;
     static QColor getColor(const QColor& initial = QColor("#1ECBE1"), QWidget* parent = nullptr, const QString& title = "Choose Color");
+    static QString toRgb565Hex(const QColor& c);
 
 private slots:
     void onWheelColorChanged(const QColor& color);
@@ -58,7 +59,6 @@ private:
     void setupUi();
     void updateHarmonySwatches();
     void updateHexAndRgb565();
-    static QString toRgb565Hex(const QColor& c);
 
     QColor m_baseColor;
     QColor m_selectedColor;
