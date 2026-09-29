@@ -213,7 +213,7 @@ QString ColorPickerDialog::toRgb565Hex(const QColor& c) {
     int g = c.green();
     int b = c.blue();
     uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-    return QString("0x%1").arg(rgb565, 4, 16, QChar('0')).toUpper();
+    return QString("0x%1").arg(QString("%1").arg(rgb565, 4, 16, QChar('0')).toUpper());
 }
 
 void ColorPickerDialog::setupUi() {

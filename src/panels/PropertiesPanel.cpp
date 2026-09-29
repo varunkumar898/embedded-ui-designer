@@ -887,3 +887,8 @@ void PropertiesPanel::onSpecificPropertyChanged() {
     if (m_updatingFromComponent || !m_targetComponent) return;
     m_targetComponent->update();
 }
+
+int PropertiesPanel::specificEditorsLayoutCount() const {
+    return m_specificLayout ? m_specificLayout->count() : 0;
+}
+
