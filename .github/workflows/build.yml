@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Qt 6.5 LTS
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v4.4.1
         with:
           version: '6.5.3'
           arch: ${{ startsWith(matrix.os, 'windows') && 'win64_msvc2019_64' || '' }}

@@ -107,7 +107,7 @@ embedded-ui-designer/
 ## 🛠️ Building Locally
 
 ### Prerequisites
-- **Qt 6.5+** (Core, Gui, Widgets)
+- **Qt 6.5+** (Core, Gui, Widgets, Qml, Quick, SerialPort)
 - **CMake 3.20+**
 - **C++17 Compiler** (MSVC 2019/2022 on Windows, GCC 9+ on Linux, Apple Clang on macOS)
 
