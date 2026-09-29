@@ -40,6 +40,27 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release --parallel
 
+      - name: Test Headless Code Generation (CLI Mode)
+        shell: bash
+        run: |
+          export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
+          mkdir -p /tmp/out
+          echo "=== Exporting µGFX Project to /tmp/out ==="
+          ./build/Release/${{ env.APP_NAME }}.exe --export ugfx --project examples/simple.euiproj --out /tmp/out
+          
+          echo "=== Exporting Qt for MCUs (QUL) Project ==="
+          ./build/Release/${{ env.APP_NAME }}.exe --export qul --project examples/simple.euiproj --out build/qul_out
+
+      - name: Clone µGFX for Export Build Verification
+        run: git clone --depth 1 https://git.ugfx.io/uGFX/ugfx.git ugfx_lib
+
+      - name: Compile Exported µGFX Project
+        shell: bash
+        run: |
+          UGFX_DIR="${GITHUB_WORKSPACE//\\//}/ugfx_lib"
+          cmake -S /tmp/out -B /tmp/out/build -DUGFX_PATH="$UGFX_DIR"
+          cmake --build /tmp/out/build --config Release
+
       - name: Bundle Qt libraries and zip
         shell: pwsh
         run: |
@@ -76,6 +97,23 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
+
+      - name: Test Headless Code Generation (CLI Mode)
+        run: |
+          mkdir -p /tmp/out
+          echo "=== Exporting µGFX Project to /tmp/out ==="
+          ./build/${{ env.APP_NAME }} --export ugfx --project examples/simple.euiproj --out /tmp/out
+          
+          echo "=== Exporting Qt for MCUs (QUL) Project ==="
+          ./build/${{ env.APP_NAME }} --export qul --project examples/simple.euiproj --out build/qul_out
+
+      - name: Clone µGFX for Export Build Verification
+        run: git clone --depth 1 https://git.ugfx.io/uGFX/ugfx.git ugfx_lib
+
+      - name: Compile Exported µGFX Project
+        run: |
+          cmake -S /tmp/out -B /tmp/out/build -DUGFX_PATH="$GITHUB_WORKSPACE/ugfx_lib"
+          cmake --build /tmp/out/build
 
       - name: Package as AppImage
         env:
@@ -122,6 +160,15 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
+
+      - name: Test Headless Code Generation (CLI Mode)
+        run: |
+          mkdir -p /tmp/out
+          echo "=== Exporting µGFX Project to /tmp/out ==="
+          ./build/${{ env.APP_NAME }}.app/Contents/MacOS/${{ env.APP_NAME }} --export ugfx --project examples/simple.euiproj --out /tmp/out
+          
+          echo "=== Exporting Qt for MCUs (QUL) Project ==="
+          ./build/${{ env.APP_NAME }}.app/Contents/MacOS/${{ env.APP_NAME }} --export qul --project examples/simple.euiproj --out build/qul_out
 
       - name: Bundle Qt libraries and make DMG
         run: |
