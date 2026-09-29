@@ -3,8 +3,6 @@
 #include <QCommandLineOption>
 #include <QFileInfo>
 #include <QDir>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <iostream>
 
 #include "MainWindow.h"
@@ -12,15 +10,6 @@
 #include "CanvasScene.h"
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
-
-// Core MVVM Scaffolding
-#include "WidgetModel.h"
-#include "ScreenModel.h"
-#include "DocumentModel.h"
-#include "DeviceManager.h"
-#include "FlashController.h"
-#include "UgfxExporter.h"
-#include "QtMcuExporter.h"
 
 int main(int argc, char *argv[])
 {
@@ -45,13 +34,6 @@ int main(int argc, char *argv[])
     app.setOrganizationDomain("embeddeddev.org");
     app.setApplicationVersion("1.0.0");
     app.setWindowIcon(QIcon(":/packaging/embedded-ui-designer.png"));
-
-    // Register C++ MVVM types with QML engine
-    qmlRegisterType<DocumentModel>("EmbeddedUI", 1, 0, "DocumentModel");
-    qmlRegisterUncreatableType<ScreenModel>("EmbeddedUI", 1, 0, "ScreenModel", "ScreenModel is instantiated by DocumentModel");
-    qmlRegisterUncreatableType<WidgetModel>("EmbeddedUI", 1, 0, "WidgetModel", "WidgetModel is instantiated by DocumentModel");
-    qmlRegisterType<DeviceManager>("EmbeddedUI", 1, 0, "DeviceManager");
-    qmlRegisterType<FlashController>("EmbeddedUI", 1, 0, "FlashController");
 
     QCommandLineParser parser;
     parser.setApplicationDescription("Embedded UI Designer - Visual UI Designer and Code Generator for Microcontrollers");
@@ -79,14 +61,6 @@ int main(int argc, char *argv[])
     );
     parser.addOption(outOption);
 
-    QCommandLineOption uiOption(
-        QStringList() << "ui",
-        "Select UI frontend ('widgets' or 'qml', default: 'widgets')",
-        "frontend",
-        "widgets"
-    );
-    parser.addOption(uiOption);
-
     parser.process(app);
 
     // -------------------------------------------------------------------------
@@ -112,15 +86,16 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        // Load project into MVVM DocumentModel DOM
-        DocumentModel docModel;
-        if (!docModel.loadFromFile(projectPath)) {
+        // Validate that the project file exists and is readable
+        CanvasScene scene;
+        Project project(&scene);
+        if (!project.loadFromFile(projectPath)) {
             std::cerr << "Error: Failed to load project from: " << projectPath.toStdString() << std::endl;
             return 1;
         }
 
-        std::cout << "Loaded project: " << docModel.projectName().toStdString() 
-                  << " (" << docModel.screenWidth() << "x" << docModel.screenHeight() << ")" << std::endl;
+        std::cout << "Loaded project: " << project.projectName().toStdString() 
+                  << " (" << project.displayConfig().width() << "x" << project.displayConfig().height() << ")" << std::endl;
 
         if (target == "ugfx") {
             std::cout << "Generating µGFX C project in: " << outDir.toStdString() << std::endl;
@@ -144,43 +119,9 @@ int main(int argc, char *argv[])
     }
 
     // -------------------------------------------------------------------------
-    // 2. Interactive GUI Mode (MVVM QML Frontend with Widgets Fallback)
+    // 2. Interactive GUI Mode (QtWidgets MainWindow)
     // -------------------------------------------------------------------------
-    QString chosenUi = parser.value(uiOption).toLower().trimmed();
-
-    if (chosenUi == "widgets") {
-        MainWindow window;
-        window.show();
-        return app.exec();
-    }
-
-    // Default: Launch modern QML MVVM Interface
-    DocumentModel docModel;
-    docModel.loadSampleProject(); // Initialize with sample embedded dashboard
-
-    DeviceManager deviceManager;
-    FlashController flashController(&deviceManager);
-
-    QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("documentModel", &docModel);
-    engine.rootContext()->setContextProperty("deviceManager", &deviceManager);
-    engine.rootContext()->setContextProperty("flashController", &flashController);
-
-    const QUrl url(QStringLiteral("qrc:/Main.qml"));
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject *obj, const QUrl &objUrl) {
-        if (!obj && url == objUrl)
-            QCoreApplication::exit(-1);
-    }, Qt::QueuedConnection);
-
-    engine.load(url);
-
-    if (engine.rootObjects().isEmpty()) {
-        // Fallback to QtWidgets MainWindow if QML failed to load
-        MainWindow window;
-        window.show();
-        return app.exec();
-    }
-
+    MainWindow window;
+    window.show();
     return app.exec();
 }

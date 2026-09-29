@@ -14,13 +14,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Find Required Qt6 packages for MVVM, QML, and Hardware SerialPort
+# Find Required Qt6 packages
 find_package(Qt6 6.5 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
-    Qml
-    Quick
     SerialPort
 )
 
@@ -31,20 +29,14 @@ set(SOURCES
     src/MainWindow.cpp
     src/MainWindow.h
 
-    # Core Data Model (DOM & MVVM ViewModel)
-    src/models/WidgetModel.cpp
-    src/models/WidgetModel.h
-    src/models/ScreenModel.cpp
-    src/models/ScreenModel.h
-    src/models/DocumentModel.cpp
-    src/models/DocumentModel.h
+    # Display Configuration
     src/models/DisplayConfig.h
 
     # Asset Compilation Pipeline
     src/assets/ImageAssetProcessor.cpp
     src/assets/ImageAssetProcessor.h
 
-    # Legacy Canvas QGraphicsItem Component Models
+    # Canvas UIComponent Hierarchy
     src/models/UIComponent.cpp
     src/models/UIComponent.h
     src/models/ButtonComponent.cpp
@@ -69,10 +61,6 @@ set(SOURCES
     src/models/CircleComponent.h
 
     # Command Pattern (Undo/Redo System)
-    src/commands/AddWidgetCommand.cpp
-    src/commands/AddWidgetCommand.h
-    src/commands/MoveWidgetCommand.cpp
-    src/commands/MoveWidgetCommand.h
     src/commands/AddComponentCommand.cpp
     src/commands/AddComponentCommand.h
     src/commands/DeleteComponentCommand.cpp
@@ -84,12 +72,7 @@ set(SOURCES
     src/commands/PropertyChangeCommand.cpp
     src/commands/PropertyChangeCommand.h
 
-    # Exporter Interfaces & Code Generators
-    src/codegen/IExporter.h
-    src/codegen/UgfxExporter.cpp
-    src/codegen/UgfxExporter.h
-    src/codegen/QtMcuExporter.cpp
-    src/codegen/QtMcuExporter.h
+    # Code Generators
     src/codegen/CodeGenerator.cpp
     src/codegen/CodeGenerator.h
     src/codegen/QtMcuGenerator.cpp
@@ -121,7 +104,6 @@ set(SOURCES
 # Qt Resource manifests (.qrc)
 set(RESOURCES
     resources/app.qrc
-    src/qml/qml.qrc
 )
 
 # Platform-specific icon resources
@@ -176,8 +158,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    Qt6::Qml
-    Qt6::Quick
     Qt6::SerialPort
 )
 

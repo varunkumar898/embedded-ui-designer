@@ -48,19 +48,14 @@ embedded-ui-designer/
 │   │   └── CanvasView.h/cpp             # Interactive canvas with zoom (25%-400%), pan, drag & drop
 │   ├── codegen/
 │   │   ├── CodeGenerator.h/cpp          # Code generator abstract base class
-│   │   ├── IExporter.h                  # Exporter base interface
 │   │   ├── UgfxGenerator.h/cpp          # Production µGFX C generator (gfxconf.h, ui.c/h, main.c, CMakeLists.txt)
-│   │   ├── QtMcuGenerator.h/cpp         # Production Qt Quick Ultralite generator (qul_add_target, .qmlproject)
-│   │   ├── UgfxExporter.h/cpp           # µGFX export implementation for DocumentModel
-│   │   └── QtMcuExporter.h/cpp          # QUL export implementation for DocumentModel
+│   │   └── QtMcuGenerator.h/cpp         # Production Qt Quick Ultralite generator (qul_add_target, .qmlproject)
 │   ├── commands/
 │   │   ├── AddComponentCommand.h/cpp    # Undo/redo: canvas component addition
 │   │   ├── DeleteComponentCommand.h/cpp # Undo/redo: canvas component deletion
 │   │   ├── MoveComponentCommand.h/cpp   # Undo/redo: canvas component translation & batch move
 │   │   ├── ResizeComponentCommand.h/cpp # Undo/redo: interactive component handle resizing
-│   │   ├── PropertyChangeCommand.h/cpp  # Undo/redo: property inspector JSON state mutation
-│   │   ├── AddWidgetCommand.h/cpp       # Undo/redo: DocumentModel widget addition
-│   │   └── MoveWidgetCommand.h/cpp      # Undo/redo: DocumentModel widget positioning
+│   │   └── PropertyChangeCommand.h/cpp  # Undo/redo: property inspector JSON state mutation
 │   ├── hardware/
 │   │   ├── DeviceManager.h/cpp          # QSerialPortInfo auto-detection & board profile mapping
 │   │   └── FlashController.h/cpp        # Asynchronous flashing toolchain bridge (OpenOCD, ST-Link, esptool)
@@ -76,19 +71,13 @@ embedded-ui-designer/
 │   │   ├── SwitchComponent.h/cpp        # Toggle switch (checked state, thumb/track styling)
 │   │   ├── CheckboxComponent.h/cpp      # Checkbox (checked state, box and label rendering)
 │   │   ├── TextInputComponent.h/cpp     # Single-line text input (placeholder, keyboard support)
-│   │   ├── CircleComponent.h/cpp        # Ellipse/circle shape (fill, stroke, radius)
-│   │   ├── DocumentModel.h/cpp          # Multi-screen DOM document model
-│   │   ├── ScreenModel.h/cpp            # Screen model container
-│   │   └── WidgetModel.h/cpp            # Declarative widget model
+│   │   └── CircleComponent.h/cpp        # Ellipse/circle shape (fill, stroke, radius)
 │   ├── panels/
 │   │   ├── ComponentPalette.h/cpp       # Left dock toolbox with draggable UI elements
 │   │   ├── PropertiesPanel.h/cpp        # Right dock live bi-directional property inspector
 │   │   └── LayerPanel.h/cpp             # Visual z-order layer tree and management
-│   ├── project/
-│   │   └── Project.h/cpp                # .euiproj JSON serialization & AppDataLocation storage
-│   └── qml/
-│       ├── Main.qml                     # Declarative QML designer interface
-│       └── qml.qrc                      # QML resource bundle definition
+│   └── project/
+│       └── Project.h/cpp                # .euiproj JSON serialization & AppDataLocation storage
 ├── resources/
 │   ├── app.qrc                          # Embedded Qt resource file (embedded icons, configs, samples)
 │   └── config/
