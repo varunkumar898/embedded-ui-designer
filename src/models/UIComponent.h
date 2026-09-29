@@ -20,6 +20,14 @@ enum class ResizeHandle {
     Right
 };
 
+enum class CornerRadiusHandle {
+    None,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight
+};
+
 class UIComponent : public QGraphicsObject {
     Q_OBJECT
 
@@ -62,6 +70,15 @@ public:
     virtual QString toCppSignalSlotStub() const { return QString(); }
     virtual QString toUgfxSnippet(int indentSpaces = 4) const { Q_UNUSED(indentSpaces); return QString(); }
 
+    // Corner Radius interface
+    virtual bool hasCornerRadius() const { return false; }
+    virtual int cornerRadius() const { return 0; }
+    virtual void setCornerRadius(int r) { Q_UNUSED(r); }
+
+    CornerRadiusHandle cornerRadiusHandleAt(const QPointF& pos) const;
+    QRectF cornerRadiusHandleRect(CornerRadiusHandle handle) const;
+    qreal cornerRadiusHandleOffset() const;
+
     // Selection & Resize Handle helpers
     static constexpr qreal HANDLE_SIZE = 7.0;
 
@@ -91,4 +108,8 @@ protected:
     ResizeHandle m_activeHandle = ResizeHandle::None;
     QPointF m_dragStartPos;
     QRectF m_initialGeom;
+
+    bool m_draggingRadius = false;
+    CornerRadiusHandle m_activeRadiusHandle = CornerRadiusHandle::None;
+    int m_dragStartRadius = 0;
 };

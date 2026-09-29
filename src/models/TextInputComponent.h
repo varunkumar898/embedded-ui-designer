@@ -30,8 +30,9 @@ public:
     int borderWidth() const { return m_borderWidth; }
     void setBorderWidth(int width);
 
-    int cornerRadius() const { return m_cornerRadius; }
-    void setCornerRadius(int radius);
+    bool hasCornerRadius() const override { return true; }
+    int cornerRadius() const override { return m_cornerRadius; }
+    void setCornerRadius(int radius) override;
 
     int pixelSize() const { return m_pixelSize; }
     void setPixelSize(int size);

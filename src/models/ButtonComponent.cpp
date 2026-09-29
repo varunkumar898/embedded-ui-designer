@@ -35,6 +35,8 @@ void ButtonComponent::setTextColor(const QColor& color) {
 }
 
 void ButtonComponent::setCornerRadius(int r) {
+    int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+    r = std::clamp(r, 0, std::max(0, maxR));
     if (m_cornerRadius != r) {
         m_cornerRadius = r;
         update();

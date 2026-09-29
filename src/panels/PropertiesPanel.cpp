@@ -160,7 +160,11 @@ void PropertiesPanel::refreshValues() {
         if (m_textEdit) m_textEdit->setText(btn->text());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, btn->backgroundColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->textColor());
-        if (m_spinRadius) m_spinRadius->setValue(btn->cornerRadius());
+        if (m_spinRadius) {
+            int maxR = static_cast<int>(std::floor(std::min(btn->compWidth(), btn->compHeight()) / 2.0));
+            m_spinRadius->setMaximum(std::max(50, maxR));
+            m_spinRadius->setValue(btn->cornerRadius());
+        }
         if (m_handlerEdit) m_handlerEdit->setText(btn->onClickedHandler());
     } else if (auto lbl = dynamic_cast<LabelComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(lbl->text());
@@ -172,12 +176,20 @@ void PropertiesPanel::refreshValues() {
         if (m_colorBtn1) updateColorButton(m_colorBtn1, rect->fillColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, rect->strokeColor());
         if (m_spinStrokeW) m_spinStrokeW->setValue(rect->strokeWidth());
-        if (m_spinRadius) m_spinRadius->setValue(rect->cornerRadius());
+        if (m_spinRadius) {
+            int maxR = static_cast<int>(std::floor(std::min(rect->compWidth(), rect->compHeight()) / 2.0));
+            m_spinRadius->setMaximum(std::max(50, maxR));
+            m_spinRadius->setValue(rect->cornerRadius());
+        }
     } else if (auto prog = dynamic_cast<ProgressBarComponent*>(m_targetComponent)) {
         if (m_spinProgressValue) m_spinProgressValue->setValue(prog->value());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, prog->barColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, prog->trackColor());
-        if (m_spinRadius) m_spinRadius->setValue(prog->cornerRadius());
+        if (m_spinRadius) {
+            int maxR = static_cast<int>(std::floor(std::min(prog->compWidth(), prog->compHeight()) / 2.0));
+            m_spinRadius->setMaximum(std::max(50, maxR));
+            m_spinRadius->setValue(prog->cornerRadius());
+        }
     } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
         if (m_imagePathEdit) m_imagePathEdit->setText(img->imagePath());
         if (m_comboImageFormat) m_comboImageFormat->setCurrentText(img->format());
@@ -269,8 +281,9 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn1 = addColorRow("Background:", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); }, "Change Background Color");
         m_colorBtn2 = addColorRow("Text Color:", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); }, "Change Text Color");
 
-        m_spinRadius = new QSpinBox(this);
-        m_spinRadius->setRange(0, 50);
+        m_spinRadius = new QSpinBox(m_specificGroup);
+        int maxR = static_cast<int>(std::floor(std::min(btn->compWidth(), btn->compHeight()) / 2.0));
+        m_spinRadius->setRange(0, std::max(50, maxR));
         m_spinRadius->setValue(btn->cornerRadius());
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, btn](int v) {
             if (!m_updatingFromComponent) btn->setCornerRadius(v);
@@ -348,8 +361,9 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Stroke Width:", m_spinStrokeW);
 
-        m_spinRadius = new QSpinBox(this);
-        m_spinRadius->setRange(0, 50);
+        m_spinRadius = new QSpinBox(m_specificGroup);
+        int maxR = static_cast<int>(std::floor(std::min(rect->compWidth(), rect->compHeight()) / 2.0));
+        m_spinRadius->setRange(0, std::max(50, maxR));
         m_spinRadius->setValue(rect->cornerRadius());
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, rect](int v) {
             if (!m_updatingFromComponent) rect->setCornerRadius(v);
@@ -375,8 +389,9 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn1 = addColorRow("Bar Color:", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); }, "Change Bar Color");
         m_colorBtn2 = addColorRow("Track Color:", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); }, "Change Track Color");
 
-        m_spinRadius = new QSpinBox(this);
-        m_spinRadius->setRange(0, 20);
+        m_spinRadius = new QSpinBox(m_specificGroup);
+        int progMaxR = static_cast<int>(std::floor(std::min(prog->compWidth(), prog->compHeight()) / 2.0));
+        m_spinRadius->setRange(0, std::max(20, progMaxR));
         m_spinRadius->setValue(prog->cornerRadius());
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, prog](int v) {
             if (!m_updatingFromComponent) prog->setCornerRadius(v);
@@ -384,7 +399,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Corner Radius");
         });
-        form->addRow("Radius:", m_spinRadius);
+        form->addRow("Corner Radius:", m_spinRadius);
 
     } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
         QHBoxLayout* pathLayout = new QHBoxLayout();

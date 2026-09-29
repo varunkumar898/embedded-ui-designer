@@ -17,8 +17,9 @@ public:
     int strokeWidth() const { return m_strokeWidth; }
     void setStrokeWidth(int w);
 
-    int cornerRadius() const { return m_cornerRadius; }
-    void setCornerRadius(int r);
+    bool hasCornerRadius() const override { return true; }
+    int cornerRadius() const override { return m_cornerRadius; }
+    void setCornerRadius(int r) override;
 
     QJsonObject toJson() const override;
     void fromJson(const QJsonObject& json) override;

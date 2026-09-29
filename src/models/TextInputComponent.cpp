@@ -66,6 +66,8 @@ void TextInputComponent::setBorderWidth(int width) {
 }
 
 void TextInputComponent::setCornerRadius(int radius) {
+    int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+    radius = std::clamp(radius, 0, std::max(0, maxR));
     if (m_cornerRadius != radius) {
         m_cornerRadius = radius;
         update();

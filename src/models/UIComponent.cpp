@@ -2,11 +2,13 @@
 #include "CanvasScene.h"
 #include "MoveComponentCommand.h"
 #include "ResizeComponentCommand.h"
+#include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QPen>
 #include <QBrush>
 #include <QGraphicsScene>
 #include <cmath>
+#include <algorithm>
 
 UIComponent::UIComponent(const QString& id, const QString& compType, QGraphicsItem* parent)
     : QGraphicsObject(parent)
@@ -39,6 +41,12 @@ void UIComponent::setCompSize(qreal w, qreal h) {
         prepareGeometryChange();
         m_width = w;
         m_height = h;
+        if (hasCornerRadius()) {
+            int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+            if (cornerRadius() > maxR) {
+                setCornerRadius(maxR);
+            }
+        }
         update();
         emit geometryChangedSignal(this);
     }
@@ -88,7 +96,79 @@ void UIComponent::paintSelectionHandles(QPainter* painter) {
     drawH(ResizeHandle::Left);
     drawH(ResizeHandle::Right);
 
+    // Draw Corner Radius handles if component supports corner radius
+    if (hasCornerRadius()) {
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        const CornerRadiusHandle crHandles[] = {
+            CornerRadiusHandle::TopLeft,
+            CornerRadiusHandle::TopRight,
+            CornerRadiusHandle::BottomLeft,
+            CornerRadiusHandle::BottomRight
+        };
+
+        for (auto crh : crHandles) {
+            QRectF r = cornerRadiusHandleRect(crh);
+            painter->setPen(QPen(QColor(0, 120, 255), 1.2));
+            if (m_draggingRadius && m_activeRadiusHandle == crh) {
+                painter->setBrush(QBrush(QColor(0, 120, 255)));
+            } else {
+                painter->setBrush(QBrush(Qt::white));
+            }
+            painter->drawEllipse(r);
+        }
+    }
+
     painter->restore();
+}
+
+qreal UIComponent::cornerRadiusHandleOffset() const {
+    qreal maxR = std::floor(std::min(m_width, m_height) / 2.0);
+    if (maxR <= 0.0) return 0.0;
+    qreal h0 = std::min(8.0, std::max(4.0, maxR * 0.4));
+    qreal h1 = std::max(h0, maxR - 3.0);
+    qreal r = std::clamp(static_cast<qreal>(cornerRadius()), 0.0, maxR);
+    return h0 + (h1 - h0) * (r / maxR);
+}
+
+QRectF UIComponent::cornerRadiusHandleRect(CornerRadiusHandle handle) const {
+    qreal offset = cornerRadiusHandleOffset();
+    qreal size = 6.0;
+    qreal hs = size / 2.0;
+
+    switch (handle) {
+        case CornerRadiusHandle::TopLeft:
+            return QRectF(offset - hs, offset - hs, size, size);
+        case CornerRadiusHandle::TopRight:
+            return QRectF(m_width - offset - hs, offset - hs, size, size);
+        case CornerRadiusHandle::BottomLeft:
+            return QRectF(offset - hs, m_height - offset - hs, size, size);
+        case CornerRadiusHandle::BottomRight:
+            return QRectF(m_width - offset - hs, m_height - offset - hs, size, size);
+        default:
+            return QRectF();
+    }
+}
+
+CornerRadiusHandle UIComponent::cornerRadiusHandleAt(const QPointF& pos) const {
+    if (!isSelected() || !hasCornerRadius()) return CornerRadiusHandle::None;
+
+    const CornerRadiusHandle handles[] = {
+        CornerRadiusHandle::TopLeft,
+        CornerRadiusHandle::TopRight,
+        CornerRadiusHandle::BottomLeft,
+        CornerRadiusHandle::BottomRight
+    };
+
+    for (auto h : handles) {
+        QRectF r = cornerRadiusHandleRect(h);
+        QPointF center = r.center();
+        qreal dx = pos.x() - center.x();
+        qreal dy = pos.y() - center.y();
+        if (dx * dx + dy * dy <= 5.0 * 5.0) {
+            return h;
+        }
+    }
+    return CornerRadiusHandle::None;
 }
 
 QRectF UIComponent::handleRect(ResizeHandle handle) const {
@@ -151,8 +231,12 @@ void UIComponent::updateCursorForHandle(ResizeHandle handle) {
 
 void UIComponent::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
     if (isSelected()) {
-        ResizeHandle h = handleAt(event->pos());
-        updateCursorForHandle(h);
+        if (hasCornerRadius() && cornerRadiusHandleAt(event->pos()) != CornerRadiusHandle::None) {
+            setCursor(Qt::PointingHandCursor);
+        } else {
+            ResizeHandle h = handleAt(event->pos());
+            updateCursorForHandle(h);
+        }
     } else {
         setCursor(Qt::ArrowCursor);
     }
@@ -162,6 +246,16 @@ void UIComponent::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
 void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     m_initialGeom = QRectF(pos().x(), pos().y(), m_width, m_height);
     if (event->button() == Qt::LeftButton && isSelected()) {
+        if (hasCornerRadius()) {
+            m_activeRadiusHandle = cornerRadiusHandleAt(event->pos());
+            if (m_activeRadiusHandle != CornerRadiusHandle::None) {
+                m_draggingRadius = true;
+                m_dragStartRadius = cornerRadius();
+                m_dragStartPos = event->scenePos();
+                event->accept();
+                return;
+            }
+        }
         m_activeHandle = handleAt(event->pos());
         if (m_activeHandle != ResizeHandle::None) {
             m_resizing = true;
@@ -171,6 +265,7 @@ void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         }
     }
     m_resizing = false;
+    m_draggingRadius = false;
     if (scene()) {
         for (QGraphicsItem* it : scene()->selectedItems()) {
             if (auto comp = dynamic_cast<UIComponent*>(it)) {
@@ -183,6 +278,43 @@ void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
+    if (m_draggingRadius) {
+        qreal maxR = std::floor(std::min(m_width, m_height) / 2.0);
+        qreal h0 = std::min(8.0, std::max(4.0, maxR * 0.4));
+        qreal h1 = std::max(h0, maxR - 3.0);
+        QPointF p = event->pos();
+        qreal d = h0;
+        switch (m_activeRadiusHandle) {
+            case CornerRadiusHandle::TopLeft:
+                d = (p.x() + p.y()) / 2.0;
+                break;
+            case CornerRadiusHandle::TopRight:
+                d = ((m_width - p.x()) + p.y()) / 2.0;
+                break;
+            case CornerRadiusHandle::BottomLeft:
+                d = (p.x() + (m_height - p.y())) / 2.0;
+                break;
+            case CornerRadiusHandle::BottomRight:
+                d = ((m_width - p.x()) + (m_height - p.y())) / 2.0;
+                break;
+            default:
+                break;
+        }
+
+        qreal ratio = 0.0;
+        if (h1 > h0) {
+            ratio = (d - h0) / (h1 - h0);
+        }
+        int newR = static_cast<int>(std::round(ratio * maxR));
+        int clampedR = std::clamp(newR, 0, static_cast<int>(maxR));
+        if (clampedR != cornerRadius()) {
+            setCornerRadius(clampedR);
+        }
+        setCursor(Qt::PointingHandCursor);
+        event->accept();
+        return;
+    }
+
     if (m_resizing) {
         QPointF delta = event->scenePos() - m_dragStartPos;
         qreal nx = m_initialGeom.x();
@@ -246,6 +378,12 @@ void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
         setPos(nx, ny);
         m_width = nw;
         m_height = nh;
+        if (hasCornerRadius()) {
+            int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+            if (cornerRadius() > maxR) {
+                setCornerRadius(maxR);
+            }
+        }
         update();
         emit geometryChangedSignal(this);
         event->accept();
@@ -257,6 +395,24 @@ void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void UIComponent::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
+    if (m_draggingRadius) {
+        m_draggingRadius = false;
+        m_activeRadiusHandle = CornerRadiusHandle::None;
+        setCursor(Qt::ArrowCursor);
+        if (cornerRadius() != m_dragStartRadius) {
+            if (auto cs = dynamic_cast<CanvasScene*>(scene())) {
+                if (cs->undoStack()) {
+                    QJsonObject oldState = toJson();
+                    oldState["cornerRadius"] = m_dragStartRadius;
+                    QJsonObject newState = toJson();
+                    cs->undoStack()->push(new PropertyChangeCommand(this, oldState, newState, "Change Corner Radius"));
+                }
+            }
+        }
+        event->accept();
+        return;
+    }
+
     if (m_resizing) {
         m_resizing = false;
         m_activeHandle = ResizeHandle::None;

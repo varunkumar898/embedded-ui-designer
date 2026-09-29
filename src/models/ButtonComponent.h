@@ -19,8 +19,9 @@ public:
     QColor textColor() const { return m_textColor; }
     void setTextColor(const QColor& color);
 
-    int cornerRadius() const { return m_cornerRadius; }
-    void setCornerRadius(int r);
+    bool hasCornerRadius() const override { return true; }
+    int cornerRadius() const override { return m_cornerRadius; }
+    void setCornerRadius(int r) override;
 
     QString onClickedHandler() const { return m_onClickedHandler; }
     void setOnClickedHandler(const QString& handler);

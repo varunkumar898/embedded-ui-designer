@@ -35,7 +35,8 @@ void RectangleComponent::setStrokeWidth(int w) {
 }
 
 void RectangleComponent::setCornerRadius(int r) {
-    r = std::max(0, r);
+    int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+    r = std::clamp(r, 0, std::max(0, maxR));
     if (m_cornerRadius != r) {
         m_cornerRadius = r;
         update();
