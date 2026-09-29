@@ -10,6 +10,7 @@
 #include "CanvasScene.h"
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
+#include "LvglGenerator.h"
 
 int main(int argc, char *argv[])
 {
@@ -42,7 +43,7 @@ int main(int argc, char *argv[])
 
     QCommandLineOption exportOption(
         QStringList() << "e" << "export",
-        "Export target framework ('ugfx' or 'qul')",
+        "Export target framework ('ugfx', 'qul', or 'lvgl')",
         "target"
     );
     parser.addOption(exportOption);
@@ -80,9 +81,9 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        if (target != "ugfx" && target != "qul") {
+        if (target != "ugfx" && target != "qul" && target != "lvgl") {
             std::cerr << "Error: Unknown export target '" << target.toStdString() 
-                      << "'. Supported targets: 'ugfx', 'qul'." << std::endl;
+                      << "'. Supported targets: 'ugfx', 'qul', 'lvgl'." << std::endl;
             return 1;
         }
 
@@ -107,6 +108,13 @@ int main(int argc, char *argv[])
         } else if (target == "qul") {
             std::cout << "Generating Qt for MCUs (QUL) project in: " << outDir.toStdString() << std::endl;
             QtMcuGenerator generator(projectPath);
+            if (!generator.generate(outDir)) {
+                std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
+                return 1;
+            }
+        } else if (target == "lvgl") {
+            std::cout << "Generating LVGL C project in: " << outDir.toStdString() << std::endl;
+            LvglGenerator generator(projectPath);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;

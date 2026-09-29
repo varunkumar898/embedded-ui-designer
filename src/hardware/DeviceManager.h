@@ -5,7 +5,9 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
+#ifdef HAVE_QT_SERIALPORT
 #include <QSerialPortInfo>
+#endif
 
 /**
  * @brief Hardware Bridge: Manages connected serial / COM / tty devices.
@@ -56,5 +58,9 @@ private:
     QString m_selectedPort;
     QTimer m_pollTimer;
 
+#ifdef HAVE_QT_SERIALPORT
     void updatePortsList(const QList<QSerialPortInfo>& portList);
+#else
+    void updatePortsList();
+#endif
 };

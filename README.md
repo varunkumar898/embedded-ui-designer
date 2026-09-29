@@ -18,6 +18,7 @@ Embedded UI Designer bridges the gap between hardware engineering and modern gra
 3. **Export ready-to-compile projects**:
    - **µGFX C project**: Royalty-free, single-file compilation (`src/gfx_mk.c`), tested directly on PC (Win32/Linux) or baremetal microcontrollers.
    - **Qt for MCUs project**: Targets Qt Quick Ultralite (QUL 2.x+) using `qul_add_target(...)` and supported primitives (`Rectangle`, `Text`, `MouseArea`).
+   - **LVGL (v8 / v9) project**: Industry-standard C code generation (`ui.c`, `ui.h`, `lv_conf.h`, `main.c`, `idf_component.yml`, `platformio.ini`) with instant support for ESP32 (ESP-IDF / Arduino) and STM32 (STM32CubeIDE).
 4. **Automate in CI/CD**: Headless CLI export mode guarantees your generated projects compile before touching hardware.
 
 ---
@@ -49,7 +50,8 @@ embedded-ui-designer/
 │   ├── codegen/
 │   │   ├── CodeGenerator.h/cpp          # Code generator abstract base class
 │   │   ├── UgfxGenerator.h/cpp          # Production µGFX C generator (gfxconf.h, ui.c/h, main.c, CMakeLists.txt)
-│   │   └── QtMcuGenerator.h/cpp         # Production Qt Quick Ultralite generator (qul_add_target, .qmlproject)
+│   │   ├── QtMcuGenerator.h/cpp         # Production Qt Quick Ultralite generator (qul_add_target, .qmlproject)
+│   │   └── LvglGenerator.h/cpp          # Production LVGL v8/v9 generator (lv_conf.h, ui.c/h, idf_component.yml)
 │   ├── commands/
 │   │   ├── AddComponentCommand.h/cpp    # Undo/redo: canvas component addition
 │   │   ├── DeleteComponentCommand.h/cpp # Undo/redo: canvas component deletion
@@ -134,6 +136,9 @@ cmake --build build/ugfx_out/build
 
 # Export Qt for MCUs (QUL) project
 ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out build/qul_out
+
+# Export LVGL (C/C++) project (ESP32 / STM32)
+./EmbeddedUIDesigner --export lvgl --project examples/simple.euiproj --out build/lvgl_out
 ```
 
 ---
@@ -149,18 +154,21 @@ cmake --build build/ugfx_out/build
 
 ## 🗺️ Development Roadmap
 
-- [x] **Stage 1 (Current)**:
+- [x] **Stage 1 (Foundation & Multi-Generator MVP)**:
   - Drag-and-drop canvas with resolution boundaries, grid, and snap.
-  - Component hierarchy: Button, Label, Rectangle, ProgressBar.
+  - Core component hierarchy: Button, Label, Rectangle, ProgressBar.
   - Properties panel & Layer tree synchronization.
   - `.euiproj` JSON format & `QStandardPaths::AppDataLocation` storage.
   - **µGFX Exporter**: `gfxconf.h` feature flags, `GWidgetInit` pattern, and single-file `src/gfx_mk.c` build.
   - **Qt for MCUs Exporter**: Qt Quick Ultralite (`find_package(Qul)`, `qul_add_target`, `QML_PROJECT`).
   - Headless CLI export mode & automated CI compilation test.
-- [ ] **Stage 2**: Expanded components (Image, Slider, Switch, Checkbox, Text input, Circle, Line, Multi-screen).
-- [ ] **Stage 3**: Advanced editing (Undo/redo stack, copy/paste, multi-select, alignment tools).
-- [ ] **Stage 4**: Embedded hardware toolchain (Asset pipeline PNG->C array, QSerialPortInfo port detection, vendor flash command preview for STM32/ESP32).
-- [ ] **Stage 5**: Template gallery (Thermostat, automotive cluster, calculator, smartwatch).
+- [x] **Stage 2 (Expanded Components & LVGL Exporter)**:
+  - Full component suite: Image, Slider, Switch, Checkbox, Text input, Circle.
+  - **LVGL Exporter (v8 / v9)**: Production C generator with `lv_conf.h`, `ui.c/h`, event callbacks, ESP-IDF manifest (`idf_component.yml`), and PlatformIO configuration (`platformio.ini`).
+  - Undo/redo command pattern (`AddComponentCommand`, `DeleteComponentCommand`, `MoveComponentCommand`, `ResizeComponentCommand`, `PropertyChangeCommand`).
+- [ ] **Stage 3**: Advanced editing (Multi-select, alignment tools: Align Left/Center/Right, Distribute H/V).
+- [ ] **Stage 4**: Embedded hardware toolchain (Hardware Flash & COM Port dialog, vendor flash commands for STM32/ESP32).
+- [ ] **Stage 5**: Template gallery & Multi-screen support (Thermostat, automotive cluster, smartwatch, multi-screen navigation).
 
 ---
 

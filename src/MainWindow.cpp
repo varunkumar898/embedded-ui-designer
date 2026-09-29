@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "QtMcuGenerator.h"
 #include "UgfxGenerator.h"
+#include "LvglGenerator.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
@@ -90,6 +91,7 @@ void MainWindow::setupMenusAndToolbars() {
     fileMenu->addSeparator();
     fileMenu->addAction("Export &µGFX C Project...", this, &MainWindow::onExportUgfx, QKeySequence(Qt::CTRL | Qt::Key_E));
     fileMenu->addAction("Export &Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+    fileMenu->addAction("Export &LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
     fileMenu->addSeparator();
     fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
 
@@ -125,6 +127,7 @@ void MainWindow::setupMenusAndToolbars() {
     projectMenu->addAction("Project &Settings...", this, &MainWindow::onProjectSettingsDialog);
     projectMenu->addAction("Export &µGFX C Project...", this, &MainWindow::onExportUgfx);
     projectMenu->addAction("Export &Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu);
+    projectMenu->addAction("Export &LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl);
 
     QMenu* helpMenu = menuBar()->addMenu("&Help");
     helpMenu->addAction("&About Embedded UI Designer", this, &MainWindow::onAbout);
@@ -145,6 +148,7 @@ void MainWindow::setupMenusAndToolbars() {
 
     toolbar->addAction("Export µGFX", this, &MainWindow::onExportUgfx);
     toolbar->addAction("Export QUL", this, &MainWindow::onExportQtMcu);
+    toolbar->addAction("Export LVGL", this, &MainWindow::onExportLvgl);
     toolbar->addSeparator();
 
     QLabel* resLabel = new QLabel(" Target Display: ", this);
@@ -336,6 +340,23 @@ void MainWindow::onExportQtMcu() {
         statusBar()->showMessage("Qt for MCUs project successfully exported to " + exportDir, 5000);
     } else {
         QMessageBox::critical(this, "Export Failed", "Error exporting QUL project: " + generator.lastError());
+    }
+}
+
+void MainWindow::onExportLvgl() {
+    QString exportDir = QFileDialog::getExistingDirectory(this, "Choose LVGL (C/C++) Export Destination Folder");
+    if (exportDir.isEmpty()) return;
+
+    LvglGenerator generator(m_project, m_scene);
+    if (generator.generate(exportDir)) {
+        QString msg = QString("LVGL C/C++ project successfully exported to:\n\n%1\n\nWould you like to open the export directory?").arg(exportDir);
+        auto res = QMessageBox::information(this, "Export Succeeded", msg, QMessageBox::Open | QMessageBox::Ok);
+        if (res == QMessageBox::Open) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(exportDir));
+        }
+        statusBar()->showMessage("LVGL project successfully exported to " + exportDir, 5000);
+    } else {
+        QMessageBox::critical(this, "Export Failed", "Error exporting LVGL project: " + generator.lastError());
     }
 }
 

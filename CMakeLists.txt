@@ -19,6 +19,8 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
+)
+find_package(Qt6 6.5 OPTIONAL_COMPONENTS
     SerialPort
 )
 
@@ -79,6 +81,8 @@ set(SOURCES
     src/codegen/QtMcuGenerator.h
     src/codegen/UgfxGenerator.cpp
     src/codegen/UgfxGenerator.h
+    src/codegen/LvglGenerator.cpp
+    src/codegen/LvglGenerator.h
 
     # Hardware Bridge & Flashing Subsystem
     src/hardware/DeviceManager.cpp
@@ -158,8 +162,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    Qt6::SerialPort
 )
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::SerialPort)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_QT_SERIALPORT)
+endif()
 
 # Compiler warnings and options
 if(MSVC)

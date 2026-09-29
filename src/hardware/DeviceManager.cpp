@@ -28,6 +28,7 @@ void DeviceManager::setAutoScanning(bool enabled) {
     }
 }
 
+#ifdef HAVE_QT_SERIALPORT
 void DeviceManager::refreshPorts() {
     updatePortsList(QSerialPortInfo::availablePorts());
 }
@@ -73,6 +74,20 @@ void DeviceManager::updatePortsList(const QList<QSerialPortInfo>& portList) {
 
     emit portsChanged();
 }
+#else
+void DeviceManager::refreshPorts() {
+    updatePortsList();
+}
+
+void DeviceManager::onPollTimer() {
+}
+
+void DeviceManager::updatePortsList() {
+    m_portNames.clear();
+    m_ports.clear();
+    emit portsChanged();
+}
+#endif
 
 QVariantMap DeviceManager::getPortDetails(const QString& portName) const {
     for (const QVariant& p : m_ports) {
@@ -85,6 +100,7 @@ QVariantMap DeviceManager::getPortDetails(const QString& portName) const {
 }
 
 QString DeviceManager::detectBoardType(const QString& portName) const {
+#ifdef HAVE_QT_SERIALPORT
     QSerialPortInfo info(portName);
     if (info.isNull()) return "Generic Serial Device";
 
@@ -118,6 +134,10 @@ QString DeviceManager::detectBoardType(const QString& portName) const {
         return info.description();
     }
     return "Generic COM Port";
+#else
+    Q_UNUSED(portName);
+    return "Generic Serial Device";
+#endif
 }
 
 QString DeviceManager::getFlashCommand(const QString& boardType, const QString& binaryPath) const {

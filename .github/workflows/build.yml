@@ -84,6 +84,9 @@ jobs:
           echo "=== Exporting Qt for MCUs (QUL) Project ==="
           ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out build/qul_out
 
+          echo "=== Exporting LVGL (C/C++) Project ==="
+          ./EmbeddedUIDesigner --export lvgl --project examples/simple.euiproj --out build/lvgl_out
+
       - name: Clone µGFX for Export Build Verification
         if: runner.os != 'macOS'
         run: |

@@ -51,6 +51,9 @@ jobs:
           echo "=== Exporting Qt for MCUs (QUL) Project ==="
           ./build/Release/${{ env.APP_NAME }}.exe --export qul --project examples/simple.euiproj --out build/qul_out
 
+          echo "=== Exporting LVGL (C/C++) Project ==="
+          ./build/Release/${{ env.APP_NAME }}.exe --export lvgl --project examples/simple.euiproj --out build/lvgl_out
+
       - name: Clone µGFX for Export Build Verification
         run: git clone --depth 1 https://git.ugfx.io/uGFX/ugfx.git ugfx_lib
 

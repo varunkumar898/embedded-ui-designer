@@ -27,6 +27,7 @@ private slots:
     void onSaveProjectAs();
     void onExportUgfx();
     void onExportQtMcu();
+    void onExportLvgl();
 
     // Edit Actions
     void onDeleteSelected();
