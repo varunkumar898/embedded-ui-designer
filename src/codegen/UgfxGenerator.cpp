@@ -301,6 +301,7 @@ QString UgfxGenerator::generateGfxConf() {
     code += QString("#define GFX_USE_GEVENT                          %1\n").arg(bNeedEvents ? "GFXON" : "GFXOFF");
     code += QString("#define GFX_USE_GINPUT                          %1\n").arg(bNeedMouse ? "GFXON" : "GFXOFF");
     code += QString("#define GINPUT_NEED_MOUSE                       %1\n").arg(bNeedMouse ? "GFXON" : "GFXOFF");
+    code += QString("#define GINPUT_NEED_KEYBOARD                    %1\n").arg(bTextInputs ? "GFXON" : "GFXOFF");
     code += "#define GEVENT_ASSERT_NO_RESOURCE               GFXOFF\n\n";
 
     code += "#endif /* _GFXCONF_H */\n";
