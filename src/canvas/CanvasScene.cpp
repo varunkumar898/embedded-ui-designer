@@ -107,34 +107,60 @@ void CanvasScene::onComponentGeometryChanged(UIComponent* comp) {
 }
 
 void CanvasScene::drawBackground(QPainter* painter, const QRectF& rect) {
-    // Fill outer background with dark workspace canvas color
-    painter->fillRect(rect, QColor(30, 32, 38));
+    // 1. Outer Workbench / Design Mat Background
+    painter->fillRect(rect, QColor(24, 26, 33));
+
+    // Subtle workbench grid dots/lines
+    painter->save();
+    QPen benchPen(QColor(36, 40, 50, 140), 1);
+    painter->setPen(benchPen);
+    qreal startX = std::floor(rect.left() / 20.0) * 20.0;
+    qreal startY = std::floor(rect.top() / 20.0) * 20.0;
+    for (qreal x = startX; x <= rect.right(); x += 40.0) {
+        for (qreal y = startY; y <= rect.bottom(); y += 40.0) {
+            painter->drawPoint(QPointF(x, y));
+        }
+    }
+    painter->restore();
 
     QRectF sRect = displayRect();
 
-    // Screen Drop Shadow
+    // 2. Multi-layer realistic contact & ambient drop shadow
     painter->save();
     painter->setPen(Qt::NoPen);
-    painter->setBrush(QColor(0, 0, 0, 70));
-    painter->drawRoundedRect(sRect.translated(5, 5), 4, 4);
+    for (int i = 1; i <= 6; ++i) {
+        painter->setBrush(QColor(0, 0, 0, 24 - i * 3));
+        painter->drawRoundedRect(sRect.adjusted(-i * 2, -i * 1.5 + i * 2.5, i * 2, i * 3.5 + i * 2.5), 6, 6);
+    }
     painter->restore();
 
-    // Target Screen Surface
+    // 3. Hardware Display Bezel (Chamfered dark metal frame)
+    painter->save();
+    QRectF bezelRect = sRect.adjusted(-4, -4, 4, 4);
+    QLinearGradient bezelGrad(0, bezelRect.top(), 0, bezelRect.bottom());
+    bezelGrad.setColorAt(0.0, QColor(58, 66, 82));
+    bezelGrad.setColorAt(0.08, QColor(44, 50, 62));
+    bezelGrad.setColorAt(0.92, QColor(28, 32, 40));
+    bezelGrad.setColorAt(1.0, QColor(16, 18, 24));
+    painter->setBrush(bezelGrad);
+    painter->setPen(QPen(QColor(72, 82, 102), 1.0));
+    painter->drawRoundedRect(bezelRect, 4, 4);
+
+    // Inner gasket / debossed LCD seal
+    painter->setPen(QPen(QColor(10, 12, 16), 1.2));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(sRect.adjusted(-0.6, -0.6, 0.6, 0.6));
+    painter->restore();
+
+    // 4. Target Screen Surface (Active LCD Panel)
     painter->fillRect(sRect, m_screenBackgroundColor);
 
-    // Screen Border
-    painter->save();
-    painter->setPen(QPen(QColor(100, 110, 130), 1.5));
-    painter->setBrush(Qt::NoBrush);
-    painter->drawRect(sRect);
-    painter->restore();
-
-    // Grid rendering (inside display screen bounds)
+    // 5. Grid rendering (inside display screen bounds)
     if (m_gridVisible && m_gridSize > 0) {
         painter->save();
         painter->setClipRect(sRect);
-        
-        QPen gridPen(QColor(215, 220, 230), 1, Qt::DotLine);
+
+        QPen gridPen(QColor(215, 222, 232), 1, Qt::DotLine);
         painter->setPen(gridPen);
 
         for (qreal x = 0; x <= sRect.width(); x += m_gridSize) {
@@ -151,10 +177,13 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
     Q_UNUSED(rect);
     QRectF sRect = displayRect();
 
-    // Badge showing screen info above target display
+    // Tactile Hardware Nameplate Badge centered above target display
     painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setRenderHint(QPainter::TextAntialiasing);
+
     QFont font = painter->font();
-    font.setPixelSize(11);
+    font.setPixelSize(12);
     font.setBold(true);
     painter->setFont(font);
 
@@ -164,12 +193,43 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
         .arg(m_displayConfig.colorDepth)
         .arg(m_displayConfig.type);
 
-    QRectF badgeRect(0, -26, 280, 20);
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(QColor(45, 52, 65));
-    painter->drawRoundedRect(badgeRect, 4, 4);
+    QFontMetrics fm(font);
+    qreal bw = std::max(330.0, static_cast<double>(fm.horizontalAdvance(label) + 36));
+    qreal bh = 24.0;
+    QRectF badgeRect(sRect.center().x() - bw / 2.0, sRect.top() - bh - 8.0, bw, bh);
 
-    painter->setPen(QColor(220, 230, 245));
+    // Badge drop shadow
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(QColor(0, 0, 0, 75));
+    painter->drawRoundedRect(badgeRect.translated(0, 2), 5, 5);
+
+    // Badge 3D metallic gradient body
+    QLinearGradient badgeGrad(0, badgeRect.top(), 0, badgeRect.bottom());
+    badgeGrad.setColorAt(0.0, QColor(56, 64, 78));
+    badgeGrad.setColorAt(0.08, QColor(46, 52, 64));
+    badgeGrad.setColorAt(0.5, QColor(34, 38, 48));
+    badgeGrad.setColorAt(0.95, QColor(24, 27, 34));
+    badgeGrad.setColorAt(1.0, QColor(16, 18, 23));
+    painter->setBrush(badgeGrad);
+
+    // Bevel rim
+    QLinearGradient rimGrad(0, badgeRect.top(), 0, badgeRect.bottom());
+    rimGrad.setColorAt(0.0, QColor(90, 102, 124));
+    rimGrad.setColorAt(0.5, QColor(50, 58, 72));
+    rimGrad.setColorAt(1.0, QColor(12, 14, 18));
+    painter->setPen(QPen(QBrush(rimGrad), 1.2));
+    painter->drawRoundedRect(badgeRect, 5, 5);
+
+    // Specular top highlight line
+    painter->setPen(QPen(QColor(255, 255, 255, 60), 1.0));
+    painter->drawLine(QPointF(badgeRect.left() + 6, badgeRect.top() + 1.2),
+                      QPointF(badgeRect.right() - 6, badgeRect.top() + 1.2));
+
+    // Embossed text: subtle shadow then crisp front text
+    painter->setPen(QColor(0, 0, 0, 180));
+    painter->drawText(badgeRect.translated(0, 1), Qt::AlignCenter, label);
+
+    painter->setPen(QColor(228, 236, 246));
     painter->drawText(badgeRect, Qt::AlignCenter, label);
     painter->restore();
 }
