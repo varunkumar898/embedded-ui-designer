@@ -71,79 +71,105 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 void MainWindow::setupUi() {
-    m_statusLabel = new QLabel("Ready", this);
-    m_zoomLabel = new QLabel("Zoom: 100%", this);
-    m_zoomLabel->setStyleSheet("padding-right: 12px; color: #9AA5B8; font-weight: bold;");
+    QWidget* statusWidget = new QWidget(this);
+    QHBoxLayout* statusLayout = new QHBoxLayout(statusWidget);
+    statusLayout->setContentsMargins(4, 0, 0, 0);
+    statusLayout->setSpacing(8);
 
-    statusBar()->addWidget(m_statusLabel, 1);
+    QLabel* greenDot = new QLabel(statusWidget);
+    greenDot->setFixedSize(8, 8);
+    greenDot->setStyleSheet("background-color: #10b981; border-radius: 4px;");
+
+    m_statusLabel = new QLabel("Ready", statusWidget);
+    m_statusLabel->setStyleSheet("color: #e2e8f0; font-size: 12px; font-weight: 600;");
+
+    statusLayout->addWidget(greenDot);
+    statusLayout->addWidget(m_statusLabel);
+
+    statusBar()->setSizeGripEnabled(false);
+    m_zoomLabel = new QLabel("Zoom: 100%", this);
+    m_zoomLabel->setStyleSheet("padding-right: 20px; color: #e2e8f0; font-size: 12px; font-weight: 600;");
+
+    statusBar()->addWidget(statusWidget, 1);
     statusBar()->addPermanentWidget(m_zoomLabel);
 }
 
 void MainWindow::setupMenusAndToolbars() {
     // Top Menus
-    QMenu* fileMenu = menuBar()->addMenu("&File");
-    fileMenu->addAction("&New Project", this, &MainWindow::onNewProject, QKeySequence::New);
-    fileMenu->addAction("&Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
-    fileMenu->addAction("Open &Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
+    QMenu* fileMenu = menuBar()->addMenu("File");
+    fileMenu->addAction("New Project", this, &MainWindow::onNewProject, QKeySequence::New);
+    fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
+    fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
     fileMenu->addSeparator();
-    fileMenu->addAction("&Save", this, &MainWindow::onSaveProject, QKeySequence::Save);
-    fileMenu->addAction("Save &As...", this, &MainWindow::onSaveProjectAs, QKeySequence::SaveAs);
+    fileMenu->addAction("Save", this, &MainWindow::onSaveProject, QKeySequence::Save);
+    fileMenu->addAction("Save As...", this, &MainWindow::onSaveProjectAs, QKeySequence::SaveAs);
     fileMenu->addSeparator();
-    fileMenu->addAction("Export &µGFX C Project...", this, &MainWindow::onExportUgfx, QKeySequence(Qt::CTRL | Qt::Key_E));
-    fileMenu->addAction("Export &Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
-    fileMenu->addAction("Export &LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
+    fileMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx, QKeySequence(Qt::CTRL | Qt::Key_E));
+    fileMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+    fileMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
     fileMenu->addSeparator();
-    fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
+    fileMenu->addAction("Exit", this, &QWidget::close, QKeySequence::Quit);
 
-    QMenu* editMenu = menuBar()->addMenu("&Edit");
-    QAction* undoAct = m_undoStack->createUndoAction(this, "&Undo");
+    QMenu* editMenu = menuBar()->addMenu("Edit");
+    QAction* undoAct = m_undoStack->createUndoAction(this, "Undo");
     undoAct->setShortcut(QKeySequence::Undo);
-    QAction* redoAct = m_undoStack->createRedoAction(this, "&Redo");
+    QAction* redoAct = m_undoStack->createRedoAction(this, "Redo");
     redoAct->setShortcut(QKeySequence::Redo);
 
     editMenu->addAction(undoAct);
     editMenu->addAction(redoAct);
     editMenu->addSeparator();
-    editMenu->addAction("&Duplicate", this, &MainWindow::onDuplicateSelected, QKeySequence(Qt::CTRL | Qt::Key_D));
-    editMenu->addAction("&Delete", this, &MainWindow::onDeleteSelected, QKeySequence::Delete);
+    editMenu->addAction("Duplicate", this, &MainWindow::onDuplicateSelected, QKeySequence(Qt::CTRL | Qt::Key_D));
+    editMenu->addAction("Delete", this, &MainWindow::onDeleteSelected, QKeySequence::Delete);
 
-    QMenu* viewMenu = menuBar()->addMenu("&View");
-    QAction* actGrid = viewMenu->addAction("Show &Grid");
+    QMenu* viewMenu = menuBar()->addMenu("View");
+    QAction* actGrid = viewMenu->addAction("Show Grid");
     actGrid->setCheckable(true);
     actGrid->setChecked(true);
     connect(actGrid, &QAction::toggled, this, &MainWindow::onToggleGrid);
 
-    QAction* actSnap = viewMenu->addAction("Snap to &Grid");
+    QAction* actSnap = viewMenu->addAction("Snap to Grid");
     actSnap->setCheckable(true);
     actSnap->setChecked(true);
     connect(actSnap, &QAction::toggled, this, &MainWindow::onToggleSnap);
 
     viewMenu->addSeparator();
-    viewMenu->addAction("Zoom &In", m_view, &CanvasView::zoomIn, QKeySequence::ZoomIn);
-    viewMenu->addAction("Zoom &Out", m_view, &CanvasView::zoomOut, QKeySequence::ZoomOut);
-    viewMenu->addAction("&Reset Zoom (100%)", m_view, &CanvasView::resetZoom);
+    viewMenu->addAction("Zoom In", m_view, &CanvasView::zoomIn, QKeySequence::ZoomIn);
+    viewMenu->addAction("Zoom Out", m_view, &CanvasView::zoomOut, QKeySequence::ZoomOut);
+    viewMenu->addAction("Reset Zoom (100%)", m_view, &CanvasView::resetZoom);
 
-    QMenu* projectMenu = menuBar()->addMenu("&Project");
-    projectMenu->addAction("Project &Settings...", this, &MainWindow::onProjectSettingsDialog);
-    projectMenu->addAction("Export &µGFX C Project...", this, &MainWindow::onExportUgfx);
-    projectMenu->addAction("Export &Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu);
-    projectMenu->addAction("Export &LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl);
+    QMenu* projectMenu = menuBar()->addMenu("Project");
+    projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
+    projectMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx);
+    projectMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu);
+    projectMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl);
 
-    QMenu* helpMenu = menuBar()->addMenu("&Help");
-    helpMenu->addAction("&About Embedded UI Designer", this, &MainWindow::onAbout);
+    QMenu* helpMenu = menuBar()->addMenu("Help");
+    helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
 
     // Toolbar
     QToolBar* toolbar = addToolBar("Main Toolbar");
     toolbar->setMovable(false);
-    toolbar->setStyleSheet("QToolBar { background-color: #21242B; border-bottom: 1px solid #333842; padding: 4px; spacing: 8px; }");
+    toolbar->setStyleSheet(
+        "QToolBar { "
+        "  background: #121316; "
+        "  border-bottom: 1px solid #1c1f26; "
+        "  padding: 6px 12px; "
+        "  spacing: 8px; "
+        "}"
+    );
 
     toolbar->addAction("New", this, &MainWindow::onNewProject);
     toolbar->addAction("Open", this, &MainWindow::onOpenProject);
     toolbar->addAction("Save", this, &MainWindow::onSaveProject);
     toolbar->addSeparator();
 
-    toolbar->addAction(undoAct);
-    toolbar->addAction(redoAct);
+    toolbar->addAction("Undo", this, [this]() {
+        if (m_undoStack && m_undoStack->canUndo()) m_undoStack->undo();
+    });
+    toolbar->addAction("Redo", this, [this]() {
+        if (m_undoStack && m_undoStack->canRedo()) m_undoStack->redo();
+    });
     toolbar->addSeparator();
 
     toolbar->addAction("Export µGFX", this, &MainWindow::onExportUgfx);
@@ -151,8 +177,8 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->addAction("Export LVGL", this, &MainWindow::onExportLvgl);
     toolbar->addSeparator();
 
-    QLabel* resLabel = new QLabel(" Target Display: ", this);
-    resLabel->setStyleSheet("color: #9AA5B8; font-weight: bold; font-size: 11px;");
+    QLabel* resLabel = new QLabel("Target Display:", this);
+    resLabel->setStyleSheet("color: #6a7382; font-size: 11.5px; font-weight: 500; margin-left: 2px; margin-right: 2px;");
     toolbar->addWidget(resLabel);
 
     m_resolutionCombo = new QComboBox(this);
@@ -162,9 +188,35 @@ void MainWindow::setupMenusAndToolbars() {
     m_resolutionCombo->addItem("240 × 240 (Round/Square Display)", QSize(240, 240));
     m_resolutionCombo->addItem("128 × 64 (OLED Monolithic)", QSize(128, 64));
     m_resolutionCombo->setStyleSheet(
-        "QComboBox { background-color: #2F333E; color: #FFFFFF; border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; min-width: 220px; font-weight: bold; }"
-        "QComboBox::drop-down { border: none; }"
-        "QComboBox QAbstractItemView { background-color: #252830; color: #FFFFFF; selection-background-color: #2196F3; }"
+        "QComboBox { "
+        "  background: #1c1f26; "
+        "  color: #ffffff; "
+        "  border: 1px solid #2b2f38; "
+        "  border-radius: 6px; "
+        "  padding: 5px 12px; "
+        "  min-width: 250px; "
+        "  font-weight: bold; "
+        "  font-size: 11px; "
+        "} "
+        "QComboBox::drop-down { "
+        "  subcontrol-origin: padding; "
+        "  subcontrol-position: top right; "
+        "  width: 26px; "
+        "  border: none; "
+        "} "
+        "QComboBox::down-arrow { "
+        "  image: url(:/combo_arrow.png); "
+        "  width: 12px; "
+        "  height: 7px; "
+        "  margin-right: 8px; "
+        "} "
+        "QComboBox QAbstractItemView { "
+        "  background-color: #1a1d24; "
+        "  color: #e0e5ee; "
+        "  border: 1px solid #2c313e; "
+        "  selection-background-color: #1a73e8; "
+        "  selection-color: #ffffff; "
+        "}"
     );
     toolbar->addWidget(m_resolutionCombo);
     connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onResolutionPresetChanged);
@@ -173,6 +225,33 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->addAction("Zoom -", m_view, &CanvasView::zoomOut);
     toolbar->addAction("Zoom +", m_view, &CanvasView::zoomIn);
     toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
+}
+
+static QWidget* createDockTitleBar(const QString& titleText, QDockWidget* dock) {
+    QWidget* bar = new QWidget(dock);
+    bar->setObjectName("customDockTitle");
+    bar->setStyleSheet("background: #1e2025; border: none; padding: 0px;");
+    QHBoxLayout* l = new QHBoxLayout(bar);
+    l->setContentsMargins(14, 10, 14, 8);
+    l->setSpacing(8);
+
+    QLabel* label = new QLabel(titleText, bar);
+    label->setStyleSheet("color: #e2e8f0; font-size: 13px; font-weight: bold; border: none; background: transparent;");
+    l->addWidget(label);
+    l->addStretch(1);
+
+    QPushButton* minBtn = new QPushButton("—", bar);
+    minBtn->setFixedSize(18, 18);
+    minBtn->setStyleSheet("QPushButton { background: transparent; border: none; color: #768090; font-size: 13px; font-weight: bold; padding: 0px; } QPushButton:hover { color: #ffffff; }");
+    l->addWidget(minBtn);
+
+    QPushButton* closeBtn = new QPushButton("✕", bar);
+    closeBtn->setFixedSize(18, 18);
+    closeBtn->setStyleSheet("QPushButton { background: transparent; border: none; color: #768090; font-size: 11px; font-weight: bold; padding: 0px; } QPushButton:hover { color: #ffffff; }");
+    QObject::connect(closeBtn, &QPushButton::clicked, dock, &QDockWidget::close);
+    l->addWidget(closeBtn);
+
+    return bar;
 }
 
 void MainWindow::setupDocks() {
@@ -184,6 +263,7 @@ void MainWindow::setupDocks() {
     // Left Dock: Components Palette
     QDockWidget* paletteDock = new QDockWidget("Components", this);
     paletteDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    paletteDock->setTitleBarWidget(createDockTitleBar("Components", paletteDock));
     m_palette = new ComponentPalette(paletteDock);
     paletteDock->setWidget(m_palette);
     addDockWidget(Qt::LeftDockWidgetArea, paletteDock);
@@ -206,6 +286,7 @@ void MainWindow::setupDocks() {
     // Right Top Dock: Properties Panel
     QDockWidget* propDock = new QDockWidget("Properties", this);
     propDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    propDock->setTitleBarWidget(createDockTitleBar("Properties", propDock));
     m_propertiesPanel = new PropertiesPanel(propDock);
     m_propertiesPanel->setUndoStack(m_undoStack);
     propDock->setWidget(m_propertiesPanel);
@@ -214,24 +295,164 @@ void MainWindow::setupDocks() {
     // Right Bottom Dock: Layer Panel
     QDockWidget* layerDock = new QDockWidget("Layers", this);
     layerDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    layerDock->setTitleBarWidget(createDockTitleBar("Layers", layerDock));
     m_layerPanel = new LayerPanel(m_scene, layerDock);
     layerDock->setWidget(m_layerPanel);
     addDockWidget(Qt::RightDockWidgetArea, layerDock);
+
+    resizeDocks({paletteDock}, {210}, Qt::Horizontal);
+    resizeDocks({propDock, layerDock}, {260, 260}, Qt::Horizontal);
+    resizeDocks({propDock, layerDock}, {550, 330}, Qt::Vertical);
 }
 
 void MainWindow::applyTheme() {
     setStyleSheet(
-        "QMainWindow { background-color: #1A1C22; color: #E0E5EE; }"
-        "QMenuBar { background-color: #21242B; color: #C5CDD9; border-bottom: 1px solid #333842; padding: 2px 4px; }"
-        "QMenuBar::item:selected { background-color: #2F333E; color: #FFFFFF; border-radius: 4px; }"
-        "QMenu { background-color: #252830; color: #E0E5EE; border: 1px solid #3B404E; padding: 4px; }"
-        "QMenu::item:selected { background-color: #2196F3; color: #FFFFFF; border-radius: 4px; }"
-        "QMenu::separator { height: 1px; background-color: #3B404E; margin: 4px 6px; }"
-        "QDockWidget { color: #E0E5EE; font-weight: bold; font-size: 11px; }"
-        "QDockWidget::title { background-color: #21242B; padding: 8px 12px; border-bottom: 1px solid #333842; }"
-        "QStatusBar { background-color: #21242B; color: #9AA5B8; border-top: 1px solid #333842; font-size: 12px; }"
-        "QToolButton { background-color: #2F333E; color: #E0E5EE; border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; font-weight: bold; }"
-        "QToolButton:hover { background-color: #3B404E; color: #FFFFFF; border-color: #2196F3; }"
+        // Main Window & General
+        "QMainWindow { background-color: #121418; color: #E0E5EE; }"
+        
+        // Menu Bar: Elegant Matte Dark
+        "QMenuBar { "
+        "  background: #1e2025; "
+        "  color: #8e96a4; "
+        "  border-bottom: 1px solid #242730; "
+        "  padding: 5px 8px; "
+        "  font-size: 12px; "
+        "  font-weight: 500; "
+        "} "
+        "QMenuBar::item { "
+        "  background: transparent; "
+        "  padding: 4px 12px; "
+        "  margin-right: 4px; "
+        "  border-radius: 4px; "
+        "} "
+        "QMenuBar::item:selected { "
+        "  background: #282c35; "
+        "  color: #ffffff; "
+        "} "
+
+        // Popup Menus
+        "QMenu { "
+        "  background: #1a1d25; "
+        "  color: #e1e7f0; "
+        "  border: 1px solid #2a2f3c; "
+        "  border-radius: 6px; "
+        "  padding: 4px; "
+        "} "
+        "QMenu::item { "
+        "  padding: 6px 24px 6px 20px; "
+        "  border-radius: 4px; "
+        "  font-size: 12px; "
+        "} "
+        "QMenu::item:selected { "
+        "  background: #1a73e8; "
+        "  color: #ffffff; "
+        "  font-weight: 600; "
+        "} "
+        "QMenu::separator { "
+        "  height: 1px; "
+        "  margin: 4px 6px; "
+        "  background: #282c38; "
+        "} "
+
+        // Docks: Dark Graphite Panels with Clean Title Bar
+        "QDockWidget { "
+        "  color: #9da6b5; "
+        "  font-weight: 600; "
+        "  font-size: 12px; "
+        "  background-color: #1e2025; "
+        "  border: none; "
+        "} "
+        "QDockWidget::title { "
+        "  background: #1e2025; "
+        "  border: none; "
+        "  padding: 0px; "
+        "} "
+
+        // Status Bar: Clean Matte Dark Footer
+        "QStatusBar { "
+        "  background: #181a1f; "
+        "  border-top: 1px solid #242831; "
+        "  color: #e2e8f0; "
+        "  font-size: 12px; "
+        "  padding: 2px 8px; "
+        "} "
+        "QStatusBar::item { border: none; } "
+
+        // Buttons: Refined Dark Inset Graphite Cards with Subtle 1px Border
+        "QToolButton, QPushButton { "
+        "  background: #1f2125; "
+        "  color: #ffffff; "
+        "  border: 1px solid #2b2f38; "
+        "  border-radius: 6px; "
+        "  padding: 6px 14px; "
+        "  font-weight: bold; "
+        "  font-size: 11px; "
+        "} "
+        "QToolButton:hover, QPushButton:hover { "
+        "  background: #272a31; "
+        "  color: #ffffff; "
+        "  border-color: #3b4250; "
+        "} "
+        "QToolButton:pressed, QPushButton:pressed { "
+        "  background: #17191d; "
+        "  color: #9aa5b8; "
+        "  border-color: #1e2025; "
+        "} "
+        "QToolButton:disabled, QPushButton:disabled { "
+        "  background: #1f2125; "
+        "  color: #ffffff; "
+        "} "
+
+        // Toolbar Separators: Clean 1px Vertical Line
+        "QToolBar::separator { "
+        "  width: 1px; "
+        "  margin: 5px 8px; "
+        "  background: #232631; "
+        "} "
+
+        // Splitters
+        "QSplitter::handle:horizontal { "
+        "  background: #121419; "
+        "  width: 3px; "
+        "} "
+        "QSplitter::handle:vertical { "
+        "  background: #121419; "
+        "  height: 3px; "
+        "} "
+
+        // Scrollbars
+        "QScrollBar:vertical { "
+        "  background-color: transparent; "
+        "  width: 8px; "
+        "  margin: 0px; "
+        "} "
+        "QScrollBar::handle:vertical { "
+        "  background: #2c313e; "
+        "  border-radius: 4px; "
+        "  min-height: 20px; "
+        "} "
+        "QScrollBar::handle:vertical:hover { "
+        "  background: #3b4254; "
+        "} "
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { "
+        "  height: 0px; "
+        "} "
+        "QScrollBar:horizontal { "
+        "  background-color: transparent; "
+        "  height: 8px; "
+        "  margin: 0px; "
+        "} "
+        "QScrollBar::handle:horizontal { "
+        "  background: #2c313e; "
+        "  border-radius: 4px; "
+        "  min-width: 20px; "
+        "} "
+        "QScrollBar::handle:horizontal:hover { "
+        "  background: #3b4254; "
+        "} "
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { "
+        "  width: 0px; "
+        "}"
     );
 }
 

@@ -57,8 +57,9 @@ private:
 
     // UI Chrome
     QComboBox* m_resolutionCombo = nullptr;
-    QLabel* m_zoomLabel = nullptr;
+    QLabel* m_tipLabel = nullptr;
     QLabel* m_statusLabel = nullptr;
+    QLabel* m_zoomLabel = nullptr;
 
     void setupUi();
     void setupMenusAndToolbars();

@@ -10,10 +10,10 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "PropertyChangeCommand.h"
+#include "ColorPickerDialog.h"
 #include <QUndoStack>
 #include <QFormLayout>
 #include <QHBoxLayout>
-#include <QColorDialog>
 #include <QScrollArea>
 #include <QFileDialog>
 
@@ -31,12 +31,22 @@ void PropertiesPanel::setupUi() {
     // Empty state
     m_emptyWidget = new QWidget(this);
     QVBoxLayout* emptyLayout = new QVBoxLayout(m_emptyWidget);
-    emptyLayout->setContentsMargins(20, 40, 20, 20);
-    QLabel* emptyLabel = new QLabel("No Component Selected\n\nClick an element on the canvas to inspect and edit its properties.", m_emptyWidget);
-    emptyLabel->setWordWrap(true);
+    emptyLayout->setContentsMargins(20, 20, 20, 20);
+    emptyLayout->addStretch(1);
+
+    QLabel* emptyTitle = new QLabel("No Component Selected", m_emptyWidget);
+    emptyTitle->setAlignment(Qt::AlignCenter);
+    emptyTitle->setStyleSheet("color: #d2d9e4; font-size: 13.5px; font-weight: bold; padding-bottom: 2px;");
+    emptyLayout->addWidget(emptyTitle);
+
+    emptyLayout->addSpacing(4);
+
+    QLabel* emptyLabel = new QLabel("Click an element on the canvas to inspect and\nedit its properties.", m_emptyWidget);
     emptyLabel->setAlignment(Qt::AlignCenter);
-    emptyLabel->setStyleSheet("color: #717C8F; font-size: 13px; line-height: 1.4;");
+    emptyLabel->setStyleSheet("color: #5c6676; font-size: 11.5px; line-height: 1.4;");
     emptyLayout->addWidget(emptyLabel);
+
+    emptyLayout->addStretch(1);
     rootLayout->addWidget(m_emptyWidget);
 
     // Content container inside scroll area
@@ -47,15 +57,24 @@ void PropertiesPanel::setupUi() {
 
     m_contentWidget = new QWidget(scrollArea);
     QVBoxLayout* mainLayout = new QVBoxLayout(m_contentWidget);
-    mainLayout->setContentsMargins(12, 12, 12, 12);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(10);
 
     // Header: Type badge & ID
     QHBoxLayout* headerLayout = new QHBoxLayout();
     m_typeBadge = new QLabel("COMPONENT", m_contentWidget);
-    m_typeBadge->setStyleSheet("background-color: #2196F3; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;");
+    m_typeBadge->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a96ff, stop:0.1 #0b82ec, stop:0.85 #0060b8, stop:1 #004485); "
+        "color: white; padding: 5px 10px; border-top: 1px solid #82c6ff; border-bottom: 2px solid #002852; "
+        "border-radius: 4px; font-weight: bold; font-size: 11px;"
+    );
     m_idEdit = new QLineEdit(m_contentWidget);
-    m_idEdit->setStyleSheet("background-color: #252830; color: #FFFFFF; border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; font-weight: bold;");
+    m_idEdit->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #16181f, stop:1 #1e222a); "
+        "color: #FFFFFF; border-top: 1px solid #0f1115; border-left: 1px solid #14161d; "
+        "border-right: 1px solid #2e3544; border-bottom: 1px solid #3c4558; border-radius: 4px; "
+        "padding: 4px 8px; font-weight: bold;"
+    );
     headerLayout->addWidget(m_typeBadge);
     headerLayout->addWidget(m_idEdit, 1);
     mainLayout->addLayout(headerLayout);
@@ -67,14 +86,24 @@ void PropertiesPanel::setupUi() {
 
     // Geometry Group
     QGroupBox* geomGroup = new QGroupBox("Transform & Geometry", m_contentWidget);
-    geomGroup->setStyleSheet("QGroupBox { color: #9AA5B8; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 6px; margin-top: 10px; padding-top: 14px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }");
+    geomGroup->setStyleSheet(
+        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
+        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
+        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+    );
     QGridLayout* geomLayout = new QGridLayout(geomGroup);
     geomLayout->setSpacing(8);
 
     auto makeSpin = [this](int minVal, int maxVal) {
         QSpinBox* spin = new QSpinBox(m_contentWidget);
         spin->setRange(minVal, maxVal);
-        spin->setStyleSheet("QSpinBox { background-color: #252830; color: #FFFFFF; border: 1px solid #3B404E; border-radius: 4px; padding: 2px 4px; }");
+        spin->setStyleSheet(
+            "QSpinBox { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #15171e, stop:1 #1d2129); "
+            "color: #FFFFFF; border-top: 1px solid #0d0f13; border-left: 1px solid #12141a; "
+            "border-right: 1px solid #2c3240; border-bottom: 1px solid #384152; border-radius: 4px; "
+            "padding: 3px 6px; font-weight: bold; }"
+        );
         return spin;
     };
 
@@ -106,7 +135,12 @@ void PropertiesPanel::setupUi() {
 
     // Specific Properties Group
     m_specificGroup = new QGroupBox("Component Properties", m_contentWidget);
-    m_specificGroup->setStyleSheet("QGroupBox { color: #9AA5B8; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 6px; margin-top: 10px; padding-top: 14px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }");
+    m_specificGroup->setStyleSheet(
+        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
+        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
+        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+    );
     m_specificLayout = new QVBoxLayout(m_specificGroup);
     m_specificLayout->setSpacing(8);
     mainLayout->addWidget(m_specificGroup);
@@ -257,7 +291,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(btn, &QPushButton::clicked, this, [this, btn, setter, desc]() {
             if (!m_targetComponent) return;
             QColor current(btn->text());
-            QColor picked = QColorDialog::getColor(current, this, "Choose Color");
+            QColor picked = ColorPickerDialog::getColor(current, this, "Choose Color");
             if (picked.isValid()) {
                 updateColorButton(btn, picked);
                 setter(picked);

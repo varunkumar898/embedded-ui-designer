@@ -99,6 +99,8 @@ set(SOURCES
     src/panels/ComponentPalette.h
     src/panels/PropertiesPanel.cpp
     src/panels/PropertiesPanel.h
+    src/panels/ColorPickerDialog.cpp
+    src/panels/ColorPickerDialog.h
     src/panels/LayerPanel.cpp
     src/panels/LayerPanel.h
     src/project/Project.cpp

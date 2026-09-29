@@ -107,34 +107,51 @@ void CanvasScene::onComponentGeometryChanged(UIComponent* comp) {
 }
 
 void CanvasScene::drawBackground(QPainter* painter, const QRectF& rect) {
-    // Fill outer background with dark workspace canvas color
-    painter->fillRect(rect, QColor(30, 32, 38));
+    // 1. Dark canvas background
+    painter->fillRect(rect, QColor(19, 21, 25));
+
+    // Subtle fine dot matrix grid across canvas
+    painter->save();
+    QPen dotPen(QColor(36, 40, 50), 1.4);
+    painter->setPen(dotPen);
+    const qreal step = 28.0;
+    qreal startX = std::floor(rect.left() / step) * step;
+    qreal startY = std::floor(rect.top() / step) * step;
+    for (qreal x = startX; x <= rect.right(); x += step) {
+        for (qreal y = startY; y <= rect.bottom(); y += step) {
+            painter->drawPoint(QPointF(x, y));
+        }
+    }
+    painter->restore();
 
     QRectF sRect = displayRect();
 
-    // Screen Drop Shadow
+    // 2. Soft realistic drop shadow under artboard
     painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(Qt::NoPen);
-    painter->setBrush(QColor(0, 0, 0, 70));
-    painter->drawRoundedRect(sRect.translated(5, 5), 4, 4);
+    for (int i = 1; i <= 8; ++i) {
+        painter->setBrush(QColor(0, 0, 0, 30 - i * 3));
+        painter->drawRoundedRect(sRect.adjusted(-i * 2.5, -i * 1.5 + i * 2.5, i * 2.5, i * 4.0 + i * 2.5), 8, 8);
+    }
     painter->restore();
 
-    // Target Screen Surface
-    painter->fillRect(sRect, m_screenBackgroundColor);
-
-    // Screen Border
+    // 3. White Target Screen Artboard Surface with rounded corners
     painter->save();
-    painter->setPen(QPen(QColor(100, 110, 130), 1.5));
-    painter->setBrush(Qt::NoBrush);
-    painter->drawRect(sRect);
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setBrush(m_screenBackgroundColor);
+    painter->setPen(QPen(QColor(215, 222, 232), 1.0));
+    painter->drawRoundedRect(sRect, 8, 8);
     painter->restore();
 
-    // Grid rendering (inside display screen bounds)
+    // 4. Subtle grid rendering inside display bounds
     if (m_gridVisible && m_gridSize > 0) {
         painter->save();
-        painter->setClipRect(sRect);
-        
-        QPen gridPen(QColor(215, 220, 230), 1, Qt::DotLine);
+        QPainterPath clip;
+        clip.addRoundedRect(sRect, 8, 8);
+        painter->setClipPath(clip);
+
+        QPen gridPen(QColor(228, 233, 240), 1, Qt::DotLine);
         painter->setPen(gridPen);
 
         for (qreal x = 0; x <= sRect.width(); x += m_gridSize) {
@@ -151,8 +168,11 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
     Q_UNUSED(rect);
     QRectF sRect = displayRect();
 
-    // Badge showing screen info above target display
+    // Nameplate Badge floating and overlapping top edge of target display
     painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setRenderHint(QPainter::TextAntialiasing);
+
     QFont font = painter->font();
     font.setPixelSize(11);
     font.setBold(true);
@@ -164,12 +184,23 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
         .arg(m_displayConfig.colorDepth)
         .arg(m_displayConfig.type);
 
-    QRectF badgeRect(0, -26, 280, 20);
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(QColor(45, 52, 65));
-    painter->drawRoundedRect(badgeRect, 4, 4);
+    QFontMetrics fm(font);
+    qreal bw = std::max(290.0, static_cast<double>(fm.horizontalAdvance(label) + 28));
+    qreal bh = 24.0;
+    QRectF badgeRect(sRect.center().x() - bw / 2.0, sRect.top() - bh + 4.0, bw, bh);
 
-    painter->setPen(QColor(220, 230, 245));
-    painter->drawText(badgeRect, Qt::AlignCenter, label);
+    // Subtle drop shadow under badge
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(QColor(0, 0, 0, 70));
+    painter->drawRoundedRect(badgeRect.translated(0, 2), 8, 8);
+
+    // Badge pill body
+    painter->setBrush(QColor(26, 29, 36));
+    painter->setPen(QPen(QColor(42, 47, 58), 1.0));
+    painter->drawRoundedRect(badgeRect, 8, 8);
+
+    // Crisp text
+    painter->setPen(QColor(220, 228, 238));
+    painter->drawText(badgeRect.adjusted(0, -1, 0, -1), Qt::AlignCenter, label);
     painter->restore();
 }

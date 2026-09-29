@@ -6,6 +6,7 @@
 #include <QMouseEvent>
 #include <QIcon>
 #include <QPainter>
+#include <QPainterPath>
 
 class DraggableListWidget : public QListWidget {
 public:
@@ -15,10 +16,28 @@ public:
         setIconSize(QSize(28, 28));
         setSpacing(4);
         setStyleSheet(
-            "QListWidget { background-color: #252830; color: #E0E5EE; border: none; font-size: 13px; outline: none; }"
-            "QListWidget::item { padding: 8px 12px; border-radius: 6px; margin: 2px 6px; background-color: #2F333E; }"
-            "QListWidget::item:hover { background-color: #3B404E; color: #FFFFFF; }"
-            "QListWidget::item:selected { background-color: #2196F3; color: #FFFFFF; font-weight: bold; }"
+            "QListWidget { background-color: transparent; color: #e4ecf7; border: none; outline: none; padding: 0px; }"
+            "QListWidget::item { "
+            "  background: #1c1f26; "
+            "  color: #e4ecf7; "
+            "  border: 1px solid #252933; "
+            "  border-radius: 10px; "
+            "  padding: 7px 12px; "
+            "  margin: 3px 2px; "
+            "  font-size: 12.5px; "
+            "  font-weight: 500; "
+            "}"
+            "QListWidget::item:hover { "
+            "  background: #232731; "
+            "  border-color: #323746; "
+            "  color: #ffffff; "
+            "}"
+            "QListWidget::item:selected { "
+            "  background: #1a73e8; "
+            "  border-color: #4285f4; "
+            "  color: #ffffff; "
+            "  font-weight: 600; "
+            "}"
         );
     }
 
@@ -44,50 +63,121 @@ ComponentPalette::ComponentPalette(QWidget* parent)
     setupUi();
 }
 
-static QIcon createBadgeIcon(const QString& symbol, const QColor& color) {
-    QPixmap pixmap(32, 32);
+static QIcon createBadgeIcon(const QString& type, const QString& symbol, const QColor& baseColor) {
+    const int size = 28;
+    QPixmap pixmap(size, size);
     pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setBrush(color);
-    painter.setPen(Qt::NoPen);
-    painter.drawRoundedRect(2, 2, 28, 28, 6, 6);
 
-    painter.setPen(Qt::white);
-    QFont font = painter.font();
-    font.setPixelSize(14);
-    font.setBold(true);
-    painter.setFont(font);
-    painter.drawText(QRectF(0, 0, 32, 32), Qt::AlignCenter, symbol);
+    QPainter p(&pixmap);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    p.setRenderHint(QPainter::TextAntialiasing);
+
+    const qreal s = size;
+    const qreal margin = 1.0;
+    const qreal r = 6.0;
+    const QRectF badgeRect(margin, margin, s - margin * 2, s - margin * 2);
+
+    // Subtle base gradient
+    QLinearGradient bodyGrad(0, badgeRect.top(), 0, badgeRect.bottom());
+    bodyGrad.setColorAt(0.0, baseColor.lighter(112));
+    bodyGrad.setColorAt(0.5, baseColor);
+    bodyGrad.setColorAt(1.0, baseColor.darker(120));
+    p.setBrush(bodyGrad);
+    p.setPen(QPen(QColor(255, 255, 255, 30), 0.8));
+    p.drawRoundedRect(badgeRect, r, r);
+
+    // Subtle specular highlight line on top edge
+    p.setPen(QPen(QColor(255, 255, 255, 80), 1.0));
+    p.drawLine(QPointF(badgeRect.left() + 4, badgeRect.top() + 1.0),
+               QPointF(badgeRect.right() - 4, badgeRect.top() + 1.0));
+
+    if (type == "Slider") {
+        // Horizontal bar with vertical tick knob
+        p.setPen(QPen(QColor(255, 255, 255), 1.8, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(QPointF(badgeRect.left() + 5.5, badgeRect.center().y()),
+                   QPointF(badgeRect.right() - 5.5, badgeRect.center().y()));
+        p.setPen(Qt::NoPen);
+        p.setBrush(Qt::white);
+        QRectF knob(badgeRect.center().x() - 2.5, badgeRect.center().y() - 4.5, 5.0, 9.0);
+        p.drawRoundedRect(knob, 1.5, 1.5);
+    } else if (type == "Checkbox") {
+        // Clean checkmark
+        QPainterPath path;
+        path.moveTo(badgeRect.left() + 7, badgeRect.center().y());
+        path.lineTo(badgeRect.left() + 11.5, badgeRect.bottom() - 7.5);
+        path.lineTo(badgeRect.right() - 6.5, badgeRect.top() + 7.5);
+        p.strokePath(path, QPen(Qt::white, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    } else if (type == "Circle") {
+        p.setPen(QPen(Qt::white, 2.4));
+        p.setBrush(Qt::NoBrush);
+        p.drawEllipse(badgeRect.center(), 5.5, 5.5);
+    } else if (type == "TextInput") {
+        // TI with I-beam style
+        QFont font = p.font();
+        font.setPixelSize(11);
+        font.setBold(true);
+        p.setFont(font);
+        p.setPen(QColor(255, 255, 255));
+        p.drawText(badgeRect.translated(-3, 0), Qt::AlignCenter, "T");
+        p.setPen(QPen(Qt::white, 1.8, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(QPointF(badgeRect.center().x() + 4, badgeRect.top() + 8),
+                   QPointF(badgeRect.center().x() + 4, badgeRect.bottom() - 8));
+        p.drawLine(QPointF(badgeRect.left() + 6, badgeRect.bottom() - 5),
+                   QPointF(badgeRect.right() - 6, badgeRect.bottom() - 5));
+    } else if (type == "Switch") {
+        // Power icon
+        p.setPen(QPen(Qt::white, 2.0, Qt::SolidLine, Qt::RoundCap));
+        p.setBrush(Qt::NoBrush);
+        QRectF arcRect(badgeRect.center().x() - 4.5, badgeRect.center().y() - 4.0, 9.0, 9.0);
+        p.drawArc(arcRect, 120 * 16, -240 * 16);
+        p.drawLine(QPointF(badgeRect.center().x(), badgeRect.center().y() - 5.5),
+                   QPointF(badgeRect.center().x(), badgeRect.center().y() - 0.5));
+    } else {
+        // Letter / Symbol
+        p.save();
+        QFont font = p.font();
+        font.setPixelSize(12);
+        font.setBold(true);
+        p.setFont(font);
+
+        p.setPen(QColor(0, 0, 0, 120));
+        p.drawText(badgeRect.translated(0, 1.0), Qt::AlignCenter, symbol);
+
+        p.setPen(QColor(255, 255, 255));
+        p.drawText(badgeRect, Qt::AlignCenter, symbol);
+        p.restore();
+    }
+
     return QIcon(pixmap);
 }
 
 void ComponentPalette::setupUi() {
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(4, 8, 4, 4);
-    layout->setSpacing(6);
+    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setSpacing(4);
 
-    QLabel* title = new QLabel("UI Components", this);
-    title->setStyleSheet("color: #9AA5B8; font-size: 11px; font-weight: bold; text-transform: uppercase; padding-left: 8px;");
+    QLabel* title = new QLabel("UI COMPONENTS", this);
+    title->setStyleSheet("color: #5a6475; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; padding-left: 8px; padding-top: 6px; padding-bottom: 2px;");
     layout->addWidget(title);
 
     m_listWidget = new DraggableListWidget(this);
 
     auto addItem = [this](const QString& name, const QString& type, const QString& symbol, const QColor& color) {
-        QListWidgetItem* item = new QListWidgetItem(createBadgeIcon(symbol, color), name, m_listWidget);
+        QListWidgetItem* item = new QListWidgetItem(createBadgeIcon(type, symbol, color), name, m_listWidget);
         item->setData(Qt::UserRole, type);
         item->setToolTip(QString("Drag onto canvas or double click to insert a %1").arg(name));
     };
 
-    addItem("Button", "Button", "B", QColor(33, 150, 243));
+    addItem("Button", "Button", "B", QColor(26, 115, 232));
     addItem("Text / Label", "Text", "T", QColor(156, 39, 176));
-    addItem("Rectangle", "Rectangle", "R", QColor(255, 152, 0));
-    addItem("Progress Bar", "ProgressBar", "%", QColor(76, 175, 80));
-    addItem("Slider", "Slider", "—", QColor(0, 150, 136));
-    addItem("Switch", "Switch", "⏻", QColor(103, 58, 183));
-    addItem("Checkbox", "Checkbox", "☑", QColor(0, 188, 212));
-    addItem("Text Input", "TextInput", "⌨", QColor(255, 87, 34));
-    addItem("Circle", "Circle", "○", QColor(3, 169, 244));
+    addItem("Rectangle", "Rectangle", "R", QColor(230, 81, 0));
+    addItem("Progress Bar", "ProgressBar", "%", QColor(46, 125, 50));
+    addItem("Slider", "Slider", "—", QColor(0, 137, 123));
+    addItem("Switch", "Switch", "⏻", QColor(123, 31, 162));
+    addItem("Checkbox", "Checkbox", "✓", QColor(0, 168, 120));
+    addItem("Text Input", "TextInput", "TI", QColor(229, 57, 53));
+    addItem("Circle", "Circle", "○", QColor(2, 136, 209));
 
     layout->addWidget(m_listWidget);
 
@@ -98,7 +188,7 @@ void ComponentPalette::setupUi() {
     });
 
     QLabel* hint = new QLabel("Tip: Drag item onto canvas", this);
-    hint->setStyleSheet("color: #717C8F; font-size: 11px; padding: 4px 8px;");
+    hint->setStyleSheet("color: #566070; font-size: 11px; padding: 10px 4px 6px 4px;");
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
 }

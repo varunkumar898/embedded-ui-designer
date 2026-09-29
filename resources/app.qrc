@@ -4,5 +4,6 @@
         <file alias="examples/simple.euiproj">../examples/simple.euiproj</file>
         <file alias="examples/sample_dashboard.euiproj">../examples/sample_dashboard.euiproj</file>
         <file alias="packaging/embedded-ui-designer.png">../packaging/embedded-ui-designer.png</file>
+        <file>combo_arrow.png</file>
     </qresource>
 </RCC>
