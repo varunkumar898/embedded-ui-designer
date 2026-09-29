@@ -10,10 +10,10 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "PropertyChangeCommand.h"
+#include "ColorPickerDialog.h"
 #include <QUndoStack>
 #include <QFormLayout>
 #include <QHBoxLayout>
-#include <QColorDialog>
 #include <QScrollArea>
 #include <QFileDialog>
 
@@ -291,7 +291,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(btn, &QPushButton::clicked, this, [this, btn, setter, desc]() {
             if (!m_targetComponent) return;
             QColor current(btn->text());
-            QColor picked = QColorDialog::getColor(current, this, "Choose Color");
+            QColor picked = ColorPickerDialog::getColor(current, this, "Choose Color");
             if (picked.isValid()) {
                 updateColorButton(btn, picked);
                 setter(picked);
