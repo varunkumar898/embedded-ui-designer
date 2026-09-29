@@ -7,6 +7,7 @@
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
+#include "TextInputComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -78,6 +79,14 @@ bool UgfxGenerator::hasCheckboxes() const {
     if (!m_scene) return false;
     for (auto comp : m_scene->uiComponents()) {
         if (dynamic_cast<CheckboxComponent*>(comp)) return true;
+    }
+    return false;
+}
+
+bool UgfxGenerator::hasTextInputs() const {
+    if (!m_scene) return false;
+    for (auto comp : m_scene->uiComponents()) {
+        if (dynamic_cast<TextInputComponent*>(comp)) return true;
     }
     return false;
 }
@@ -213,13 +222,14 @@ QString UgfxGenerator::generateGfxConf() {
     bool bSliders = hasSliders();
     bool bSwitches = hasSwitches();
     bool bCheckboxes = hasCheckboxes();
+    bool bTextInputs = hasTextInputs();
     bool bImages = hasImages();
     bool bRounded = hasRoundedCorners();
 
-    bool bWidgets = bButtons || bLabels || bProgress || bSliders || bSwitches || bCheckboxes;
-    bool bNeedText = bButtons || bLabels || bCheckboxes;
-    bool bNeedMouse = bButtons || bSliders || bSwitches || bCheckboxes;
-    bool bNeedEvents = bButtons || bSliders || bSwitches || bCheckboxes;
+    bool bWidgets = bButtons || bLabels || bProgress || bSliders || bSwitches || bCheckboxes || bTextInputs;
+    bool bNeedText = bButtons || bLabels || bCheckboxes || bTextInputs;
+    bool bNeedMouse = bButtons || bSliders || bSwitches || bCheckboxes || bTextInputs;
+    bool bNeedEvents = bButtons || bSliders || bSwitches || bCheckboxes || bTextInputs;
 
     QString code;
     code += "/**\n";
@@ -282,7 +292,8 @@ QString UgfxGenerator::generateGfxConf() {
     code += QString("#define GWIN_NEED_LABEL                         %1\n").arg(bLabels ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_PROGRESSBAR                   %1\n").arg(bProgress ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_SLIDER                        %1\n").arg(bSliders ? "GFXON" : "GFXOFF");
-    code += QString("#define GWIN_NEED_CHECKBOX                      %1\n\n").arg((bSwitches || bCheckboxes) ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_CHECKBOX                      %1\n").arg((bSwitches || bCheckboxes) ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_TEXTEDIT                      %1\n\n").arg(bTextInputs ? "GFXON" : "GFXOFF");
 
     code += "/* =============================================================== */\n";
     code += "/* GEVENT & GINPUT - Event & Input Drivers (Mouse/Touch/Buttons)   */\n";
@@ -321,6 +332,8 @@ QString UgfxGenerator::generateUiHeader() {
                 code += QString("extern GHandle ghSwitch_%1;\n").arg(id);
             } else if (dynamic_cast<CheckboxComponent*>(comp)) {
                 code += QString("extern GHandle ghChk_%1;\n").arg(id);
+            } else if (dynamic_cast<TextInputComponent*>(comp)) {
+                code += QString("extern GHandle ghEdit_%1;\n").arg(id);
             }
         }
     }
@@ -363,6 +376,8 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("GHandle ghSwitch_%1 = 0;\n").arg(id);
             } else if (dynamic_cast<CheckboxComponent*>(comp)) {
                 code += QString("GHandle ghChk_%1 = 0;\n").arg(id);
+            } else if (dynamic_cast<TextInputComponent*>(comp)) {
+                code += QString("GHandle ghEdit_%1 = 0;\n").arg(id);
             }
         }
     }
@@ -469,6 +484,24 @@ QString UgfxGenerator::generateUiSource() {
             }
         }
 
+        // TextInputs
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto txt = dynamic_cast<TextInputComponent*>(comp)) {
+                QString id = txt->componentId();
+                code += QString("    // TextInput: %1\n").arg(id);
+                code += "    gwinWidgetClearInit(&wi);\n";
+                code += "    wi.g.show = gTrue;\n";
+                code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(txt->pos().x())).arg(static_cast<int>(txt->pos().y()));
+                code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(txt->compWidth())).arg(static_cast<int>(txt->compHeight()));
+                code += QString("    wi.text = \"%1\";\n").arg(txt->text());
+                code += QString("    ghEdit_%1 = gwinTexteditCreate(0, &wi, 100);\n").arg(id);
+                code += QString("    gwinSetColor(ghEdit_%1, HTML2COLOR(0x%2));\n")
+                    .arg(id, txt->textColor().name().mid(1).toUpper());
+                code += QString("    gwinSetBgColor(ghEdit_%1, HTML2COLOR(0x%2));\n\n")
+                    .arg(id, txt->backgroundColor().name().mid(1).toUpper());
+            }
+        }
+
         // Labels
         for (auto comp : m_scene->uiComponents()) {
             if (auto lbl = dynamic_cast<LabelComponent*>(comp)) {
@@ -522,7 +555,8 @@ QString UgfxGenerator::generateMainSource() {
     bool bSwitches = hasSwitches();
     bool bSliders = hasSliders();
     bool bCheckboxes = hasCheckboxes();
-    bool bNeedEvents = bButtons || bSwitches || bSliders || bCheckboxes;
+    bool bTextInputs = hasTextInputs();
+    bool bNeedEvents = bButtons || bSwitches || bSliders || bCheckboxes || bTextInputs;
 
     QString code;
     code += "#include \"gfx.h\"\n";

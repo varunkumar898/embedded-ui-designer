@@ -7,6 +7,7 @@
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
+#include "TextInputComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -239,6 +240,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new SwitchComponent(id);
     } else if (type == "Checkbox") {
         return new CheckboxComponent(id);
+    } else if (type == "TextInput") {
+        return new TextInputComponent(id);
     }
     return nullptr;
 }

@@ -7,6 +7,7 @@
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
+#include "TextInputComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -143,6 +144,12 @@ QString QtMcuGenerator::generateDesignQml() {
                 if (!handler.isEmpty() && !handlers.contains(handler)) {
                     handlers.insert(handler);
                     qml += QString("    signal %1(bool checked)\n").arg(handler);
+                }
+            } else if (auto txt = dynamic_cast<TextInputComponent*>(comp)) {
+                QString handler = txt->onTextChangedHandler().trimmed();
+                if (!handler.isEmpty() && !handlers.contains(handler)) {
+                    handlers.insert(handler);
+                    qml += QString("    signal %1(string text)\n").arg(handler);
                 }
             }
         }
@@ -348,6 +355,39 @@ QString QtMcuGenerator::generateDesignQml() {
                     qml += QString("                root.%1(parent.checked);\n").arg(chk->onToggledHandler());
                 }
                 qml += "            }\n";
+                qml += "        }\n";
+                qml += "    }\n\n";
+            } else if (auto txt = dynamic_cast<TextInputComponent*>(comp)) {
+                // In QUL, TextInput is rendered inside a styled background Rectangle
+                qml += "    Rectangle {\n";
+                qml += QString("        id: %1_box\n").arg(txt->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(txt->pos().x()))
+                    .arg(static_cast<int>(txt->pos().y()))
+                    .arg(static_cast<int>(txt->compWidth()))
+                    .arg(static_cast<int>(txt->compHeight()));
+                qml += QString("        color: \"%1\"\n").arg(txt->backgroundColor().name());
+                if (txt->borderWidth() > 0) {
+                    qml += QString("        border.color: \"%1\"\n").arg(txt->borderColor().name());
+                    qml += QString("        border.width: %1\n").arg(txt->borderWidth());
+                }
+                if (txt->cornerRadius() > 0) {
+                    qml += QString("        radius: %1\n").arg(txt->cornerRadius());
+                }
+                qml += "        TextInput {\n";
+                qml += QString("            id: %1\n").arg(txt->componentId());
+                qml += "            anchors.fill: parent\n";
+                qml += "            anchors.leftMargin: 6; anchors.rightMargin: 6\n";
+                qml += "            anchors.verticalCenter: parent.verticalCenter\n";
+                qml += QString("            text: \"%1\"\n").arg(txt->text());
+                qml += QString("            color: \"%1\"\n").arg(txt->textColor().name());
+                qml += QString("            font.pixelSize: %1\n").arg(txt->pixelSize());
+                if (txt->isReadOnly()) {
+                    qml += "            readOnly: true\n";
+                }
+                if (!txt->onTextChangedHandler().isEmpty()) {
+                    qml += QString("            onTextChanged: root.%1(text)\n").arg(txt->onTextChangedHandler());
+                }
                 qml += "        }\n";
                 qml += "    }\n\n";
             } else if (comp) {

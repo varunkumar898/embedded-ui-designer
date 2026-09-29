@@ -7,6 +7,7 @@
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
+#include "TextInputComponent.h"
 #include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QFormLayout>
@@ -494,6 +495,81 @@ void PropertiesPanel::rebuildSpecificEditors() {
             commitPropertyChange("Change Toggled Handler");
         });
         form->addRow("OnToggled:", handlerEdit);
+    } else if (auto txt = dynamic_cast<TextInputComponent*>(m_targetComponent)) {
+        QLineEdit* textEdit = new QLineEdit(txt->text(), this);
+        connect(textEdit, &QLineEdit::textChanged, this, [this, txt](const QString& t) {
+            if (!m_updatingFromComponent) txt->setText(t);
+        });
+        connect(textEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Input Text");
+        });
+        form->addRow("Text:", textEdit);
+
+        QLineEdit* placeEdit = new QLineEdit(txt->placeholder(), this);
+        connect(placeEdit, &QLineEdit::textChanged, this, [this, txt](const QString& p) {
+            if (!m_updatingFromComponent) txt->setPlaceholder(p);
+        });
+        connect(placeEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Placeholder");
+        });
+        form->addRow("Placeholder:", placeEdit);
+
+        addColorRow("Text Color:", txt->textColor(), [txt](const QColor& c) { txt->setTextColor(c); }, "Change Text Color");
+        addColorRow("Placeholder Color:", txt->placeholderColor(), [txt](const QColor& c) { txt->setPlaceholderColor(c); }, "Change Placeholder Color");
+        addColorRow("Background Color:", txt->backgroundColor(), [txt](const QColor& c) { txt->setBackgroundColor(c); }, "Change Background Color");
+        addColorRow("Border Color:", txt->borderColor(), [txt](const QColor& c) { txt->setBorderColor(c); }, "Change Border Color");
+
+        QSpinBox* spinBw = new QSpinBox(this);
+        spinBw->setRange(0, 20);
+        spinBw->setValue(txt->borderWidth());
+        connect(spinBw, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
+            if (!m_updatingFromComponent) txt->setBorderWidth(v);
+        });
+        connect(spinBw, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Border Width");
+        });
+        form->addRow("Border Width:", spinBw);
+
+        QSpinBox* spinRadius = new QSpinBox(this);
+        spinRadius->setRange(0, 50);
+        spinRadius->setValue(txt->cornerRadius());
+        connect(spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
+            if (!m_updatingFromComponent) txt->setCornerRadius(v);
+        });
+        connect(spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
+        });
+        form->addRow("Corner Radius:", spinRadius);
+
+        QSpinBox* spinPixel = new QSpinBox(this);
+        spinPixel->setRange(6, 96);
+        spinPixel->setValue(txt->pixelSize());
+        connect(spinPixel, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
+            if (!m_updatingFromComponent) txt->setPixelSize(v);
+        });
+        connect(spinPixel, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Font Size");
+        });
+        form->addRow("Font Size:", spinPixel);
+
+        QCheckBox* chkRo = new QCheckBox("Read Only", this);
+        chkRo->setChecked(txt->isReadOnly());
+        connect(chkRo, &QCheckBox::toggled, this, [this, txt](bool b) {
+            if (!m_updatingFromComponent) {
+                txt->setReadOnly(b);
+                commitPropertyChange("Toggle Read Only");
+            }
+        });
+        form->addRow("Behavior:", chkRo);
+
+        QLineEdit* handlerEdit = new QLineEdit(txt->onTextChangedHandler(), this);
+        connect(handlerEdit, &QLineEdit::textChanged, this, [this, txt](const QString& h) {
+            if (!m_updatingFromComponent) txt->setOnTextChangedHandler(h);
+        });
+        connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Text Changed Handler");
+        });
+        form->addRow("OnTextChanged:", handlerEdit);
     }
 
     m_specificLayout->addLayout(form);

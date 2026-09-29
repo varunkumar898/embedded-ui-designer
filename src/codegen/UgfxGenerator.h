@@ -29,6 +29,7 @@ private:
     bool hasSliders() const;
     bool hasSwitches() const;
     bool hasCheckboxes() const;
+    bool hasTextInputs() const;
     bool hasRectangles() const;
     bool hasImages() const;
     bool hasRoundedCorners() const;
