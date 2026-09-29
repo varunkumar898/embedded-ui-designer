@@ -195,11 +195,29 @@ void PropertiesPanel::updateColorButton(QPushButton* btn, const QColor& color) {
     ).arg(color.name(), (color.lightness() > 140 ? "#000000" : "#FFFFFF")));
 }
 
-void PropertiesPanel::rebuildSpecificEditors() {
-    QLayoutItem* item;
-    while ((item = m_specificLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) delete item->widget();
+static void clearLayout(QLayout* layout) {
+    if (!layout) return;
+    while (layout->count() > 0) {
+        QLayoutItem* item = layout->takeAt(0);
+        if (!item) break;
+        if (QLayout* subLayout = item->layout()) {
+            clearLayout(subLayout);
+        }
+        if (QWidget* widget = item->widget()) {
+            delete widget;
+        }
         delete item;
+    }
+}
+
+void PropertiesPanel::rebuildSpecificEditors() {
+    clearLayout(m_specificLayout);
+
+    if (m_specificGroup) {
+        const auto remainingWidgets = m_specificGroup->findChildren<QWidget*>(Qt::FindDirectChildrenOnly);
+        for (QWidget* w : remainingWidgets) {
+            delete w;
+        }
     }
 
     m_textEdit = nullptr;
@@ -260,7 +278,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Corner Radius");
         });
-        form->addRow("Radius:", m_spinRadius);
+        form->addRow("Corner Radius:", m_spinRadius);
 
         m_handlerEdit = new QLineEdit(btn->onClickedHandler(), this);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, btn](const QString& h) {
