@@ -13,38 +13,30 @@ public:
     explicit DraggableListWidget(QWidget* parent = nullptr) : QListWidget(parent) {
         setDragEnabled(true);
         setViewMode(QListView::ListMode);
-        setIconSize(QSize(32, 32));
+        setIconSize(QSize(28, 28));
         setSpacing(4);
         setStyleSheet(
-            "QListWidget { background-color: #1a1c23; color: #E0E5EE; border: 1px solid #101217; border-top: 1px solid #0d0f14; border-bottom: 1px solid #303746; border-radius: 6px; font-size: 13px; outline: none; padding: 4px; }"
+            "QListWidget { background-color: transparent; color: #e4ecf7; border: none; outline: none; padding: 0px; }"
             "QListWidget::item { "
-            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #323846, stop:0.04 #3b4252, stop:0.5 #2a2f3a, stop:0.96 #21252e, stop:1 #191c22); "
-            "  color: #e2e8f2; "
-            "  border-top: 1px solid #4d576a; "
-            "  border-left: 1px solid #363c49; "
-            "  border-right: 1px solid #20232b; "
-            "  border-bottom: 2px solid #101217; "
-            "  border-radius: 6px; "
-            "  padding: 6px 10px; "
-            "  margin: 3px 4px; "
-            "  font-weight: 600; "
+            "  background: #1c1f26; "
+            "  color: #e4ecf7; "
+            "  border: 1px solid #252933; "
+            "  border-radius: 10px; "
+            "  padding: 7px 12px; "
+            "  margin: 3px 2px; "
+            "  font-size: 12.5px; "
+            "  font-weight: 500; "
             "}"
             "QListWidget::item:hover { "
-            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3f4757, stop:0.04 #4a5467, stop:0.5 #333a48, stop:0.96 #282d38, stop:1 #1f232b); "
+            "  background: #232731; "
+            "  border-color: #323746; "
             "  color: #ffffff; "
-            "  border-top: 1px solid #637189; "
-            "  border-left: 1px solid #434b5c; "
-            "  border-right: 1px solid #242831; "
-            "  border-bottom: 2px solid #121419; "
             "}"
             "QListWidget::item:selected { "
-            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a96ff, stop:0.05 #0a84ed, stop:0.5 #006ecb, stop:0.96 #0054a0, stop:1 #003d78); "
+            "  background: #1a73e8; "
+            "  border-color: #4285f4; "
             "  color: #ffffff; "
-            "  border-top: 1px solid #82c6ff; "
-            "  border-left: 1px solid #369cff; "
-            "  border-right: 1px solid #004b91; "
-            "  border-bottom: 2px solid #00264d; "
-            "  font-weight: bold; "
+            "  font-weight: 600; "
             "}"
         );
     }
@@ -71,8 +63,8 @@ ComponentPalette::ComponentPalette(QWidget* parent)
     setupUi();
 }
 
-static QIcon createBadgeIcon(const QString& symbol, const QColor& baseColor) {
-    const int size = 32;
+static QIcon createBadgeIcon(const QString& type, const QString& symbol, const QColor& baseColor) {
+    const int size = 28;
     QPixmap pixmap(size, size);
     pixmap.fill(Qt::transparent);
 
@@ -82,114 +74,110 @@ static QIcon createBadgeIcon(const QString& symbol, const QColor& baseColor) {
     p.setRenderHint(QPainter::TextAntialiasing);
 
     const qreal s = size;
-    const qreal margin = 2.0;
-    const qreal r = 6.5;
-    const QRectF badgeRect(margin, margin + 0.5, s - margin * 2, s - margin * 2);
+    const qreal margin = 1.0;
+    const qreal r = 6.0;
+    const QRectF badgeRect(margin, margin, s - margin * 2, s - margin * 2);
 
-    // 1. Soft Drop Shadow
-    p.save();
-    p.setPen(Qt::NoPen);
-    for (int i = 0; i < 3; ++i) {
-        QRectF shadowRect(margin, margin + 1.0 + i * 0.7, s - margin * 2, s - margin * 2);
-        p.setBrush(QColor(0, 0, 0, 35 - i * 10));
-        p.drawRoundedRect(shadowRect, r, r);
-    }
-    p.restore();
-
-    // 2. Outer Bevel Rim
-    QLinearGradient rimGrad(0, badgeRect.top(), 0, badgeRect.bottom());
-    rimGrad.setColorAt(0.0, QColor(255, 255, 255, 120));
-    rimGrad.setColorAt(0.5, QColor(255, 255, 255, 40));
-    rimGrad.setColorAt(1.0, QColor(0, 0, 0, 160));
-    p.setPen(QPen(QBrush(rimGrad), 1.2));
-
-    // 3. Gel Body Gradient
+    // Subtle base gradient
     QLinearGradient bodyGrad(0, badgeRect.top(), 0, badgeRect.bottom());
-    bodyGrad.setColorAt(0.0, baseColor.lighter(135));
-    bodyGrad.setColorAt(0.45, baseColor);
-    bodyGrad.setColorAt(0.55, baseColor.darker(110));
-    bodyGrad.setColorAt(1.0, baseColor.darker(160));
+    bodyGrad.setColorAt(0.0, baseColor.lighter(112));
+    bodyGrad.setColorAt(0.5, baseColor);
+    bodyGrad.setColorAt(1.0, baseColor.darker(120));
     p.setBrush(bodyGrad);
-
+    p.setPen(QPen(QColor(255, 255, 255, 30), 0.8));
     p.drawRoundedRect(badgeRect, r, r);
 
-    // 4. Gloss Reflection (Top Aqua Specular Highlight)
-    p.save();
-    QPainterPath clipPath;
-    clipPath.addRoundedRect(badgeRect.adjusted(1, 1, -1, -1), r - 1, r - 1);
-    p.setClipPath(clipPath);
+    // Subtle specular highlight line on top edge
+    p.setPen(QPen(QColor(255, 255, 255, 80), 1.0));
+    p.drawLine(QPointF(badgeRect.left() + 4, badgeRect.top() + 1.0),
+               QPointF(badgeRect.right() - 4, badgeRect.top() + 1.0));
 
-    QRectF glossRect(badgeRect.left() + 1, badgeRect.top() + 1, badgeRect.width() - 2, badgeRect.height() * 0.48);
-    QLinearGradient glossGrad(0, glossRect.top(), 0, glossRect.bottom());
-    glossGrad.setColorAt(0.0, QColor(255, 255, 255, 190));
-    glossGrad.setColorAt(0.3, QColor(255, 255, 255, 130));
-    glossGrad.setColorAt(0.8, QColor(255, 255, 255, 30));
-    glossGrad.setColorAt(1.0, QColor(255, 255, 255, 0));
+    if (type == "Slider") {
+        // Horizontal bar with vertical tick knob
+        p.setPen(QPen(QColor(255, 255, 255), 1.8, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(QPointF(badgeRect.left() + 5.5, badgeRect.center().y()),
+                   QPointF(badgeRect.right() - 5.5, badgeRect.center().y()));
+        p.setPen(Qt::NoPen);
+        p.setBrush(Qt::white);
+        QRectF knob(badgeRect.center().x() - 2.5, badgeRect.center().y() - 4.5, 5.0, 9.0);
+        p.drawRoundedRect(knob, 1.5, 1.5);
+    } else if (type == "Checkbox") {
+        // Clean checkmark
+        QPainterPath path;
+        path.moveTo(badgeRect.left() + 7, badgeRect.center().y());
+        path.lineTo(badgeRect.left() + 11.5, badgeRect.bottom() - 7.5);
+        path.lineTo(badgeRect.right() - 6.5, badgeRect.top() + 7.5);
+        p.strokePath(path, QPen(Qt::white, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    } else if (type == "Circle") {
+        p.setPen(QPen(Qt::white, 2.4));
+        p.setBrush(Qt::NoBrush);
+        p.drawEllipse(badgeRect.center(), 5.5, 5.5);
+    } else if (type == "TextInput") {
+        // TI with I-beam style
+        QFont font = p.font();
+        font.setPixelSize(11);
+        font.setBold(true);
+        p.setFont(font);
+        p.setPen(QColor(255, 255, 255));
+        p.drawText(badgeRect.translated(-3, 0), Qt::AlignCenter, "T");
+        p.setPen(QPen(Qt::white, 1.8, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(QPointF(badgeRect.center().x() + 4, badgeRect.top() + 8),
+                   QPointF(badgeRect.center().x() + 4, badgeRect.bottom() - 8));
+        p.drawLine(QPointF(badgeRect.left() + 6, badgeRect.bottom() - 5),
+                   QPointF(badgeRect.right() - 6, badgeRect.bottom() - 5));
+    } else if (type == "Switch") {
+        // Power icon
+        p.setPen(QPen(Qt::white, 2.0, Qt::SolidLine, Qt::RoundCap));
+        p.setBrush(Qt::NoBrush);
+        QRectF arcRect(badgeRect.center().x() - 4.5, badgeRect.center().y() - 4.0, 9.0, 9.0);
+        p.drawArc(arcRect, 120 * 16, -240 * 16);
+        p.drawLine(QPointF(badgeRect.center().x(), badgeRect.center().y() - 5.5),
+                   QPointF(badgeRect.center().x(), badgeRect.center().y() - 0.5));
+    } else {
+        // Letter / Symbol
+        p.save();
+        QFont font = p.font();
+        font.setPixelSize(12);
+        font.setBold(true);
+        p.setFont(font);
 
-    QPainterPath glossPath;
-    glossPath.addRoundedRect(glossRect, r - 1, r - 1);
-    p.setPen(Qt::NoPen);
-    p.setBrush(glossGrad);
-    p.drawPath(glossPath);
+        p.setPen(QColor(0, 0, 0, 120));
+        p.drawText(badgeRect.translated(0, 1.0), Qt::AlignCenter, symbol);
 
-    // 5. Bottom subtle reflected glow
-    QRectF botGlow(badgeRect.left() + 2, badgeRect.bottom() - 4, badgeRect.width() - 4, 3);
-    QLinearGradient botGrad(0, botGlow.top(), 0, botGlow.bottom());
-    botGrad.setColorAt(0.0, QColor(255, 255, 255, 0));
-    botGrad.setColorAt(1.0, QColor(255, 255, 255, 60));
-    p.setBrush(botGrad);
-    p.drawEllipse(botGlow);
-    p.restore();
-
-    // 6. Embossed 3D Symbol / Letter
-    p.save();
-    QFont font = p.font();
-    font.setPixelSize(13);
-    font.setBold(true);
-    p.setFont(font);
-
-    // Shadow
-    p.setPen(QColor(0, 0, 0, 160));
-    p.drawText(badgeRect.translated(0, 1.2), Qt::AlignCenter, symbol);
-
-    // Highlight
-    p.setPen(QColor(255, 255, 255, 70));
-    p.drawText(badgeRect.translated(0, -0.6), Qt::AlignCenter, symbol);
-
-    // Front text
-    p.setPen(QColor(255, 255, 255));
-    p.drawText(badgeRect, Qt::AlignCenter, symbol);
-    p.restore();
+        p.setPen(QColor(255, 255, 255));
+        p.drawText(badgeRect, Qt::AlignCenter, symbol);
+        p.restore();
+    }
 
     return QIcon(pixmap);
 }
 
 void ComponentPalette::setupUi() {
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(6, 8, 6, 6);
-    layout->setSpacing(6);
+    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setSpacing(4);
 
-    QLabel* title = new QLabel("UI Components", this);
-    title->setStyleSheet("color: #8fa0b8; font-size: 11px; font-weight: bold; text-transform: uppercase; padding-left: 6px; padding-top: 2px;");
+    QLabel* title = new QLabel("UI COMPONENTS", this);
+    title->setStyleSheet("color: #5a6475; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; padding-left: 8px; padding-top: 6px; padding-bottom: 2px;");
     layout->addWidget(title);
 
     m_listWidget = new DraggableListWidget(this);
 
     auto addItem = [this](const QString& name, const QString& type, const QString& symbol, const QColor& color) {
-        QListWidgetItem* item = new QListWidgetItem(createBadgeIcon(symbol, color), name, m_listWidget);
+        QListWidgetItem* item = new QListWidgetItem(createBadgeIcon(type, symbol, color), name, m_listWidget);
         item->setData(Qt::UserRole, type);
         item->setToolTip(QString("Drag onto canvas or double click to insert a %1").arg(name));
     };
 
-    addItem("Button", "Button", "B", QColor(33, 150, 243));
+    addItem("Button", "Button", "B", QColor(26, 115, 232));
     addItem("Text / Label", "Text", "T", QColor(156, 39, 176));
-    addItem("Rectangle", "Rectangle", "R", QColor(255, 152, 0));
-    addItem("Progress Bar", "ProgressBar", "%", QColor(76, 175, 80));
-    addItem("Slider", "Slider", "—", QColor(0, 150, 136));
-    addItem("Switch", "Switch", "⏻", QColor(103, 58, 183));
-    addItem("Checkbox", "Checkbox", "☑", QColor(0, 188, 212));
-    addItem("Text Input", "TextInput", "⌨", QColor(255, 87, 34));
-    addItem("Circle", "Circle", "○", QColor(3, 169, 244));
+    addItem("Rectangle", "Rectangle", "R", QColor(230, 81, 0));
+    addItem("Progress Bar", "ProgressBar", "%", QColor(46, 125, 50));
+    addItem("Slider", "Slider", "—", QColor(0, 137, 123));
+    addItem("Switch", "Switch", "⏻", QColor(123, 31, 162));
+    addItem("Checkbox", "Checkbox", "✓", QColor(0, 168, 120));
+    addItem("Text Input", "TextInput", "TI", QColor(229, 57, 53));
+    addItem("Circle", "Circle", "○", QColor(2, 136, 209));
 
     layout->addWidget(m_listWidget);
 
@@ -200,11 +188,7 @@ void ComponentPalette::setupUi() {
     });
 
     QLabel* hint = new QLabel("Tip: Drag item onto canvas", this);
-    hint->setStyleSheet(
-        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #14161c, stop:1 #1c2028); "
-        "border-top: 1px solid #0f1115; border-bottom: 1px solid #303746; border-radius: 4px; "
-        "color: #7d8c9e; font-size: 11px; font-weight: 500; padding: 5px 8px;"
-    );
+    hint->setStyleSheet("color: #566070; font-size: 11px; padding: 10px 4px 6px 4px;");
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
 }

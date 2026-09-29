@@ -31,17 +31,21 @@ void PropertiesPanel::setupUi() {
     // Empty state
     m_emptyWidget = new QWidget(this);
     QVBoxLayout* emptyLayout = new QVBoxLayout(m_emptyWidget);
-    emptyLayout->setContentsMargins(20, 60, 20, 20);
+    emptyLayout->setContentsMargins(20, 20, 20, 20);
+    emptyLayout->addStretch(1);
+
     QLabel* emptyTitle = new QLabel("No Component Selected", m_emptyWidget);
     emptyTitle->setAlignment(Qt::AlignCenter);
-    emptyTitle->setStyleSheet("color: #8fa0b8; font-size: 14px; font-weight: bold; padding-bottom: 8px;");
-
-    QLabel* emptyLabel = new QLabel("Click an element on the canvas to inspect and edit its properties.", m_emptyWidget);
-    emptyLabel->setWordWrap(true);
-    emptyLabel->setAlignment(Qt::AlignCenter);
-    emptyLabel->setStyleSheet("color: #616e80; font-size: 12px; line-height: 1.5;");
+    emptyTitle->setStyleSheet("color: #d2d9e4; font-size: 13.5px; font-weight: bold; padding-bottom: 2px;");
     emptyLayout->addWidget(emptyTitle);
+
+    emptyLayout->addSpacing(4);
+
+    QLabel* emptyLabel = new QLabel("Click an element on the canvas to inspect and\nedit its properties.", m_emptyWidget);
+    emptyLabel->setAlignment(Qt::AlignCenter);
+    emptyLabel->setStyleSheet("color: #5c6676; font-size: 11.5px; line-height: 1.4;");
     emptyLayout->addWidget(emptyLabel);
+
     emptyLayout->addStretch(1);
     rootLayout->addWidget(m_emptyWidget);
 
