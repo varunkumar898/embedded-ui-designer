@@ -8,6 +8,7 @@
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
+#include "CircleComponent.h"
 #include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QFormLayout>
@@ -570,6 +571,30 @@ void PropertiesPanel::rebuildSpecificEditors() {
             commitPropertyChange("Change Text Changed Handler");
         });
         form->addRow("OnTextChanged:", handlerEdit);
+    } else if (auto circ = dynamic_cast<CircleComponent*>(m_targetComponent)) {
+        addColorRow("Fill Color:", circ->fillColor(), [circ](const QColor& c) { circ->setFillColor(c); }, "Change Fill Color");
+        addColorRow("Stroke Color:", circ->strokeColor(), [circ](const QColor& c) { circ->setStrokeColor(c); }, "Change Stroke Color");
+
+        QSpinBox* spinSw = new QSpinBox(this);
+        spinSw->setRange(0, 20);
+        spinSw->setValue(circ->strokeWidth());
+        connect(spinSw, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, circ](int v) {
+            if (!m_updatingFromComponent) circ->setStrokeWidth(v);
+        });
+        connect(spinSw, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Stroke Width");
+        });
+        form->addRow("Stroke Width:", spinSw);
+
+        QCheckBox* chkFilled = new QCheckBox("Filled", this);
+        chkFilled->setChecked(circ->isFilled());
+        connect(chkFilled, &QCheckBox::toggled, this, [this, circ](bool b) {
+            if (!m_updatingFromComponent) {
+                circ->setFilled(b);
+                commitPropertyChange("Toggle Circle Fill");
+            }
+        });
+        form->addRow("Fill:", chkFilled);
     }
 
     m_specificLayout->addLayout(form);

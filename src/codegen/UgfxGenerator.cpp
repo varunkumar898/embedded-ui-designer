@@ -8,6 +8,7 @@
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
+#include "CircleComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -87,6 +88,14 @@ bool UgfxGenerator::hasTextInputs() const {
     if (!m_scene) return false;
     for (auto comp : m_scene->uiComponents()) {
         if (dynamic_cast<TextInputComponent*>(comp)) return true;
+    }
+    return false;
+}
+
+bool UgfxGenerator::hasCircles() const {
+    if (!m_scene) return false;
+    for (auto comp : m_scene->uiComponents()) {
+        if (dynamic_cast<CircleComponent*>(comp)) return true;
     }
     return false;
 }
@@ -223,6 +232,7 @@ QString UgfxGenerator::generateGfxConf() {
     bool bSwitches = hasSwitches();
     bool bCheckboxes = hasCheckboxes();
     bool bTextInputs = hasTextInputs();
+    bool bCircles = hasCircles();
     bool bImages = hasImages();
     bool bRounded = hasRoundedCorners();
 
@@ -265,7 +275,7 @@ QString UgfxGenerator::generateGfxConf() {
     code += "#define GDISP_DEFAULT_ORIENTATION               GDISP_ROTATE_0\n\n";
 
     code += QString("#define GDISP_NEED_TEXT                         %1\n").arg(bNeedText ? "GFXON" : "GFXOFF");
-    code += QString("#define GDISP_NEED_CIRCLE                       %1\n").arg(bRounded ? "GFXON" : "GFXOFF");
+    code += QString("#define GDISP_NEED_CIRCLE                       %1\n").arg((bCircles || bRounded) ? "GFXON" : "GFXOFF");
     code += QString("#define GDISP_NEED_ARC                          %1\n").arg(bRounded ? "GFXON" : "GFXOFF");
     code += QString("#define GDISP_NEED_ARCSECTORS                   %1\n").arg(bRounded ? "GFXON" : "GFXOFF");
     code += QString("#define GDISP_NEED_IMAGE                        %1\n").arg(bImages ? "GFXON" : "GFXOFF");
@@ -422,6 +432,27 @@ QString UgfxGenerator::generateUiSource() {
                         code += QString("    gdispDrawBox(%1, %2, %3, %4, HTML2COLOR(0x%5));\n")
                             .arg(rx).arg(ry).arg(rw).arg(rh).arg(strokeHex);
                     }
+                }
+                code += "\n";
+            }
+        }
+
+        // Circles
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto circ = dynamic_cast<CircleComponent*>(comp)) {
+                int dim = static_cast<int>(qMin(circ->compWidth(), circ->compHeight()));
+                int radius = dim / 2;
+                int cx = static_cast<int>(circ->pos().x()) + radius;
+                int cy = static_cast<int>(circ->pos().y()) + radius;
+
+                code += QString("    // Circle Shape: %1\n").arg(circ->componentId());
+                if (circ->isFilled()) {
+                    code += QString("    gdispFillCircle(%1, %2, %3, HTML2COLOR(0x%4));\n")
+                        .arg(cx).arg(cy).arg(radius).arg(circ->fillColor().name().mid(1).toUpper());
+                }
+                if (circ->strokeWidth() > 0) {
+                    code += QString("    gdispDrawCircle(%1, %2, %3, HTML2COLOR(0x%4));\n")
+                        .arg(cx).arg(cy).arg(radius).arg(circ->strokeColor().name().mid(1).toUpper());
                 }
                 code += "\n";
             }

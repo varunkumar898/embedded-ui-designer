@@ -129,6 +129,18 @@
           "pixelSize": 12,
           "readOnly": false,
           "onTextChanged": "onUserChanged"
+        },
+        {
+          "id": "circ_status",
+          "type": "Circle",
+          "x": 20,
+          "y": 188,
+          "width": 24,
+          "height": 24,
+          "fillColor": "#00e676",
+          "strokeColor": "#ffffff",
+          "strokeWidth": 1,
+          "isFilled": true
         }
       ]
     }

@@ -8,6 +8,7 @@
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
+#include "CircleComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -242,6 +243,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new CheckboxComponent(id);
     } else if (type == "TextInput") {
         return new TextInputComponent(id);
+    } else if (type == "Circle") {
+        return new CircleComponent(id);
     }
     return nullptr;
 }

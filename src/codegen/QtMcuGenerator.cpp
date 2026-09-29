@@ -8,6 +8,7 @@
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
+#include "CircleComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -389,6 +390,22 @@ QString QtMcuGenerator::generateDesignQml() {
                     qml += QString("            onTextChanged: root.%1(text)\n").arg(txt->onTextChangedHandler());
                 }
                 qml += "        }\n";
+                qml += "    }\n\n";
+            } else if (auto circ = dynamic_cast<CircleComponent*>(comp)) {
+                // In QUL, Circle is rendered via Rectangle with radius: width / 2
+                int dim = static_cast<int>(qMin(circ->compWidth(), circ->compHeight()));
+                qml += "    Rectangle {\n";
+                qml += QString("        id: %1\n").arg(circ->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(circ->pos().x()))
+                    .arg(static_cast<int>(circ->pos().y()))
+                    .arg(dim).arg(dim);
+                qml += "        radius: width / 2\n";
+                qml += QString("        color: \"%1\"\n").arg(circ->isFilled() ? circ->fillColor().name() : "transparent");
+                if (circ->strokeWidth() > 0) {
+                    qml += QString("        border.color: \"%1\"\n").arg(circ->strokeColor().name());
+                    qml += QString("        border.width: %1\n").arg(circ->strokeWidth());
+                }
                 qml += "    }\n\n";
             } else if (comp) {
                 // Fallback for unsupported / unrecognized types

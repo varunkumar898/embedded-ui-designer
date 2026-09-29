@@ -30,6 +30,7 @@ private:
     bool hasSwitches() const;
     bool hasCheckboxes() const;
     bool hasTextInputs() const;
+    bool hasCircles() const;
     bool hasRectangles() const;
     bool hasImages() const;
     bool hasRoundedCorners() const;

@@ -87,6 +87,7 @@ void ComponentPalette::setupUi() {
     addItem("Switch", "Switch", "⏻", QColor(103, 58, 183));
     addItem("Checkbox", "Checkbox", "☑", QColor(0, 188, 212));
     addItem("Text Input", "TextInput", "⌨", QColor(255, 87, 34));
+    addItem("Circle", "Circle", "○", QColor(3, 169, 244));
 
     layout->addWidget(m_listWidget);
 
