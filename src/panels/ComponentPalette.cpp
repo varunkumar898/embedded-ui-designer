@@ -85,6 +85,7 @@ void ComponentPalette::setupUi() {
     addItem("Progress Bar", "ProgressBar", "%", QColor(76, 175, 80));
     addItem("Slider", "Slider", "—", QColor(0, 150, 136));
     addItem("Switch", "Switch", "⏻", QColor(103, 58, 183));
+    addItem("Checkbox", "Checkbox", "☑", QColor(0, 188, 212));
 
     layout->addWidget(m_listWidget);
 

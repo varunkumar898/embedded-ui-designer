@@ -6,6 +6,7 @@
 #include "ImageComponent.h"
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
+#include "CheckboxComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -69,6 +70,14 @@ bool UgfxGenerator::hasSwitches() const {
     if (!m_scene) return false;
     for (auto comp : m_scene->uiComponents()) {
         if (dynamic_cast<SwitchComponent*>(comp)) return true;
+    }
+    return false;
+}
+
+bool UgfxGenerator::hasCheckboxes() const {
+    if (!m_scene) return false;
+    for (auto comp : m_scene->uiComponents()) {
+        if (dynamic_cast<CheckboxComponent*>(comp)) return true;
     }
     return false;
 }
@@ -203,13 +212,14 @@ QString UgfxGenerator::generateGfxConf() {
     bool bProgress = hasProgressBars();
     bool bSliders = hasSliders();
     bool bSwitches = hasSwitches();
+    bool bCheckboxes = hasCheckboxes();
     bool bImages = hasImages();
     bool bRounded = hasRoundedCorners();
 
-    bool bWidgets = bButtons || bLabels || bProgress || bSliders || bSwitches;
-    bool bNeedText = bButtons || bLabels;
-    bool bNeedMouse = bButtons || bSliders || bSwitches;
-    bool bNeedEvents = bButtons || bSliders || bSwitches;
+    bool bWidgets = bButtons || bLabels || bProgress || bSliders || bSwitches || bCheckboxes;
+    bool bNeedText = bButtons || bLabels || bCheckboxes;
+    bool bNeedMouse = bButtons || bSliders || bSwitches || bCheckboxes;
+    bool bNeedEvents = bButtons || bSliders || bSwitches || bCheckboxes;
 
     QString code;
     code += "/**\n";
@@ -272,7 +282,7 @@ QString UgfxGenerator::generateGfxConf() {
     code += QString("#define GWIN_NEED_LABEL                         %1\n").arg(bLabels ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_PROGRESSBAR                   %1\n").arg(bProgress ? "GFXON" : "GFXOFF");
     code += QString("#define GWIN_NEED_SLIDER                        %1\n").arg(bSliders ? "GFXON" : "GFXOFF");
-    code += QString("#define GWIN_NEED_CHECKBOX                      %1\n\n").arg(bSwitches ? "GFXON" : "GFXOFF");
+    code += QString("#define GWIN_NEED_CHECKBOX                      %1\n\n").arg((bSwitches || bCheckboxes) ? "GFXON" : "GFXOFF");
 
     code += "/* =============================================================== */\n";
     code += "/* GEVENT & GINPUT - Event & Input Drivers (Mouse/Touch/Buttons)   */\n";
@@ -309,6 +319,8 @@ QString UgfxGenerator::generateUiHeader() {
                 code += QString("extern GHandle ghSlider_%1;\n").arg(id);
             } else if (dynamic_cast<SwitchComponent*>(comp)) {
                 code += QString("extern GHandle ghSwitch_%1;\n").arg(id);
+            } else if (dynamic_cast<CheckboxComponent*>(comp)) {
+                code += QString("extern GHandle ghChk_%1;\n").arg(id);
             }
         }
     }
@@ -349,6 +361,8 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("GHandle ghSlider_%1 = 0;\n").arg(id);
             } else if (dynamic_cast<SwitchComponent*>(comp)) {
                 code += QString("GHandle ghSwitch_%1 = 0;\n").arg(id);
+            } else if (dynamic_cast<CheckboxComponent*>(comp)) {
+                code += QString("GHandle ghChk_%1 = 0;\n").arg(id);
             }
         }
     }
@@ -440,6 +454,21 @@ QString UgfxGenerator::generateUiSource() {
             }
         }
 
+        // Checkboxes
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto chk = dynamic_cast<CheckboxComponent*>(comp)) {
+                QString id = chk->componentId();
+                code += QString("    // Checkbox: %1\n").arg(id);
+                code += "    gwinWidgetClearInit(&wi);\n";
+                code += "    wi.g.show = gTrue;\n";
+                code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(chk->pos().x())).arg(static_cast<int>(chk->pos().y()));
+                code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(chk->compWidth())).arg(static_cast<int>(chk->compHeight()));
+                code += QString("    wi.text = \"%1\";\n").arg(chk->text());
+                code += QString("    ghChk_%1 = gwinCheckboxCreate(0, &wi);\n").arg(id);
+                code += QString("    gwinCheckboxCheck(ghChk_%1, %2);\n\n").arg(id).arg(chk->isChecked() ? "gTrue" : "gFalse");
+            }
+        }
+
         // Labels
         for (auto comp : m_scene->uiComponents()) {
             if (auto lbl = dynamic_cast<LabelComponent*>(comp)) {
@@ -492,7 +521,8 @@ QString UgfxGenerator::generateMainSource() {
     bool bButtons = hasButtons();
     bool bSwitches = hasSwitches();
     bool bSliders = hasSliders();
-    bool bNeedEvents = bButtons || bSwitches || bSliders;
+    bool bCheckboxes = hasCheckboxes();
+    bool bNeedEvents = bButtons || bSwitches || bSliders || bCheckboxes;
 
     QString code;
     code += "#include \"gfx.h\"\n";

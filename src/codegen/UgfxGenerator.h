@@ -28,6 +28,7 @@ private:
     bool hasProgressBars() const;
     bool hasSliders() const;
     bool hasSwitches() const;
+    bool hasCheckboxes() const;
     bool hasRectangles() const;
     bool hasImages() const;
     bool hasRoundedCorners() const;

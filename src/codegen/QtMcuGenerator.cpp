@@ -6,6 +6,7 @@
 #include "ImageComponent.h"
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
+#include "CheckboxComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -133,6 +134,12 @@ QString QtMcuGenerator::generateDesignQml() {
                 }
             } else if (auto sw = dynamic_cast<SwitchComponent*>(comp)) {
                 QString handler = sw->onToggledHandler().trimmed();
+                if (!handler.isEmpty() && !handlers.contains(handler)) {
+                    handlers.insert(handler);
+                    qml += QString("    signal %1(bool checked)\n").arg(handler);
+                }
+            } else if (auto chk = dynamic_cast<CheckboxComponent*>(comp)) {
+                QString handler = chk->onToggledHandler().trimmed();
                 if (!handler.isEmpty() && !handlers.contains(handler)) {
                     handlers.insert(handler);
                     qml += QString("    signal %1(bool checked)\n").arg(handler);
@@ -299,6 +306,46 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "                parent.checked = !parent.checked;\n";
                 if (!sw->onToggledHandler().isEmpty()) {
                     qml += QString("                root.%1(parent.checked);\n").arg(sw->onToggledHandler());
+                }
+                qml += "            }\n";
+                qml += "        }\n";
+                qml += "    }\n\n";
+            } else if (auto chk = dynamic_cast<CheckboxComponent*>(comp)) {
+                // In QUL, Checkbox is built using pure supported primitives: Item + box Rectangle + check Rectangle + Text label + MouseArea
+                qml += "    Item {\n";
+                qml += QString("        id: %1\n").arg(chk->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(chk->pos().x()))
+                    .arg(static_cast<int>(chk->pos().y()))
+                    .arg(static_cast<int>(chk->compWidth()))
+                    .arg(static_cast<int>(chk->compHeight()));
+                qml += QString("        property bool checked: %1\n").arg(chk->isChecked() ? "true" : "false");
+                qml += "        Rectangle {\n";
+                qml += QString("            id: %1_box\n").arg(chk->componentId());
+                qml += "            width: 18; height: 18; radius: 3\n";
+                qml += "            anchors.verticalCenter: parent.verticalCenter\n";
+                qml += QString("            color: \"%1\"\n").arg(chk->boxColor().name());
+                qml += QString("            border.color: \"%1\"; border.width: 1\n").arg(chk->borderColor().name());
+                qml += "            Rectangle {\n";
+                qml += "                width: 10; height: 10; radius: 2\n";
+                qml += "                anchors.centerIn: parent\n";
+                qml += QString("                color: \"%1\"\n").arg(chk->checkColor().name());
+                qml += "                visible: parent.parent.checked\n";
+                qml += "            }\n";
+                qml += "        }\n";
+                qml += "        Text {\n";
+                qml += QString("            anchors.left: %1_box.right; anchors.leftMargin: 8\n").arg(chk->componentId());
+                qml += "            anchors.verticalCenter: parent.verticalCenter\n";
+                qml += QString("            text: \"%1\"\n").arg(chk->text());
+                qml += QString("            color: \"%1\"\n").arg(chk->textColor().name());
+                qml += "            font.pixelSize: 13\n";
+                qml += "        }\n";
+                qml += "        MouseArea {\n";
+                qml += "            anchors.fill: parent\n";
+                qml += "            onClicked: {\n";
+                qml += "                parent.checked = !parent.checked;\n";
+                if (!chk->onToggledHandler().isEmpty()) {
+                    qml += QString("                root.%1(parent.checked);\n").arg(chk->onToggledHandler());
                 }
                 qml += "            }\n";
                 qml += "        }\n";

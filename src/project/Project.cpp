@@ -6,6 +6,7 @@
 #include "ImageComponent.h"
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
+#include "CheckboxComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -236,6 +237,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new SliderComponent(id);
     } else if (type == "Switch") {
         return new SwitchComponent(id);
+    } else if (type == "Checkbox") {
+        return new CheckboxComponent(id);
     }
     return nullptr;
 }

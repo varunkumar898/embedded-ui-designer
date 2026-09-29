@@ -6,6 +6,7 @@
 #include "ImageComponent.h"
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
+#include "CheckboxComponent.h"
 #include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QFormLayout>
@@ -455,6 +456,39 @@ void PropertiesPanel::rebuildSpecificEditors() {
         QLineEdit* handlerEdit = new QLineEdit(sw->onToggledHandler(), this);
         connect(handlerEdit, &QLineEdit::textChanged, this, [this, sw](const QString& h) {
             if (!m_updatingFromComponent) sw->setOnToggledHandler(h);
+        });
+        connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Toggled Handler");
+        });
+        form->addRow("OnToggled:", handlerEdit);
+    } else if (auto chk = dynamic_cast<CheckboxComponent*>(m_targetComponent)) {
+        QLineEdit* txtEdit = new QLineEdit(chk->text(), this);
+        connect(txtEdit, &QLineEdit::textChanged, this, [this, chk](const QString& t) {
+            if (!m_updatingFromComponent) chk->setText(t);
+        });
+        connect(txtEdit, &QLineEdit::editingFinished, this, [this]() {
+            commitPropertyChange("Change Checkbox Text");
+        });
+        form->addRow("Text:", txtEdit);
+
+        QCheckBox* chkState = new QCheckBox("Checked", this);
+        chkState->setChecked(chk->isChecked());
+        connect(chkState, &QCheckBox::toggled, this, [this, chk](bool b) {
+            if (!m_updatingFromComponent) {
+                chk->setChecked(b);
+                commitPropertyChange("Toggle Checkbox");
+            }
+        });
+        form->addRow("State:", chkState);
+
+        addColorRow("Text Color:", chk->textColor(), [chk](const QColor& c) { chk->setTextColor(c); }, "Change Text Color");
+        addColorRow("Check Color:", chk->checkColor(), [chk](const QColor& c) { chk->setCheckColor(c); }, "Change Check Color");
+        addColorRow("Box Color:", chk->boxColor(), [chk](const QColor& c) { chk->setBoxColor(c); }, "Change Box Color");
+        addColorRow("Border Color:", chk->borderColor(), [chk](const QColor& c) { chk->setBorderColor(c); }, "Change Border Color");
+
+        QLineEdit* handlerEdit = new QLineEdit(chk->onToggledHandler(), this);
+        connect(handlerEdit, &QLineEdit::textChanged, this, [this, chk](const QString& h) {
+            if (!m_updatingFromComponent) chk->setOnToggledHandler(h);
         });
         connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Toggled Handler");

@@ -61,6 +61,8 @@ set(SOURCES
     src/models/SliderComponent.h
     src/models/SwitchComponent.cpp
     src/models/SwitchComponent.h
+    src/models/CheckboxComponent.cpp
+    src/models/CheckboxComponent.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddWidgetCommand.cpp
