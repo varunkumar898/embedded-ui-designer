@@ -28,7 +28,7 @@ void PropertiesPanel::setupUi() {
     QVBoxLayout* rootLayout = new QVBoxLayout(this);
     rootLayout->setContentsMargins(0, 0, 0, 0);
 
-    // Empty state
+    // ── Empty state ──────────────────────────────────────────────────────────
     m_emptyWidget = new QWidget(this);
     QVBoxLayout* emptyLayout = new QVBoxLayout(m_emptyWidget);
     emptyLayout->setContentsMargins(20, 20, 20, 20);
@@ -48,6 +48,104 @@ void PropertiesPanel::setupUi() {
 
     emptyLayout->addStretch(1);
     rootLayout->addWidget(m_emptyWidget);
+
+    // ── Multi-select state ───────────────────────────────────────────────────
+    m_multiWidget = new QWidget(this);
+    m_multiWidget->setVisible(false);
+    QVBoxLayout* multiLayout = new QVBoxLayout(m_multiWidget);
+    multiLayout->setContentsMargins(12, 20, 12, 20);
+    multiLayout->setSpacing(12);
+
+    // Header badge & title
+    QWidget* multiHeaderCard = new QWidget(m_multiWidget);
+    QVBoxLayout* multiHeaderLayout = new QVBoxLayout(multiHeaderCard);
+    multiHeaderLayout->setContentsMargins(4, 4, 4, 4);
+    multiHeaderLayout->setSpacing(4);
+
+    QLabel* multiIcon = new QLabel("⊞", multiHeaderCard);
+    multiIcon->setAlignment(Qt::AlignCenter);
+    multiIcon->setStyleSheet("color: #1a96ff; font-size: 32px;");
+    multiHeaderLayout->addWidget(multiIcon);
+
+    m_multiLabel = new QLabel("2 components selected", multiHeaderCard);
+    m_multiLabel->setAlignment(Qt::AlignCenter);
+    m_multiLabel->setStyleSheet("color: #e2e8f0; font-size: 14px; font-weight: bold;");
+    multiHeaderLayout->addWidget(m_multiLabel);
+
+    QLabel* multiSubtitle = new QLabel("Batch Alignment & Distribution", multiHeaderCard);
+    multiSubtitle->setAlignment(Qt::AlignCenter);
+    multiSubtitle->setStyleSheet("color: #6a7382; font-size: 11px;");
+    multiHeaderLayout->addWidget(multiSubtitle);
+    multiLayout->addWidget(multiHeaderCard);
+
+    // Alignment Group
+    QGroupBox* alignGroup = new QGroupBox("ALIGNMENT", m_multiWidget);
+    alignGroup->setStyleSheet(
+        "QGroupBox { font-size: 11px; font-weight: bold; color: #8e96a4; border: 1px solid #282c38; "
+        "border-radius: 6px; margin-top: 8px; padding-top: 14px; padding-bottom: 8px; padding-left: 6px; padding-right: 6px; } "
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+    );
+    QGridLayout* alignGrid = new QGridLayout(alignGroup);
+    alignGrid->setSpacing(6);
+
+    QPushButton* btnAlignLeft    = new QPushButton("← Left", alignGroup);
+    QPushButton* btnAlignHCenter = new QPushButton("┃ Center", alignGroup);
+    QPushButton* btnAlignRight   = new QPushButton("Right →", alignGroup);
+    QPushButton* btnAlignTop     = new QPushButton("↑ Top", alignGroup);
+    QPushButton* btnAlignVCenter = new QPushButton("━ Middle", alignGroup);
+    QPushButton* btnAlignBottom  = new QPushButton("Bottom ↓", alignGroup);
+
+    btnAlignLeft->setToolTip("Align Left edges to selection bounding box");
+    btnAlignHCenter->setToolTip("Align Horizontal centers");
+    btnAlignRight->setToolTip("Align Right edges to selection bounding box");
+    btnAlignTop->setToolTip("Align Top edges to selection bounding box");
+    btnAlignVCenter->setToolTip("Align Vertical centers");
+    btnAlignBottom->setToolTip("Align Bottom edges to selection bounding box");
+
+    connect(btnAlignLeft, &QPushButton::clicked, this, &PropertiesPanel::alignLeftRequested);
+    connect(btnAlignHCenter, &QPushButton::clicked, this, &PropertiesPanel::alignHCenterRequested);
+    connect(btnAlignRight, &QPushButton::clicked, this, &PropertiesPanel::alignRightRequested);
+    connect(btnAlignTop, &QPushButton::clicked, this, &PropertiesPanel::alignTopRequested);
+    connect(btnAlignVCenter, &QPushButton::clicked, this, &PropertiesPanel::alignVCenterRequested);
+    connect(btnAlignBottom, &QPushButton::clicked, this, &PropertiesPanel::alignBottomRequested);
+
+    alignGrid->addWidget(btnAlignLeft, 0, 0);
+    alignGrid->addWidget(btnAlignHCenter, 0, 1);
+    alignGrid->addWidget(btnAlignRight, 0, 2);
+    alignGrid->addWidget(btnAlignTop, 1, 0);
+    alignGrid->addWidget(btnAlignVCenter, 1, 1);
+    alignGrid->addWidget(btnAlignBottom, 1, 2);
+    multiLayout->addWidget(alignGroup);
+
+    // Distribution Group
+    QGroupBox* distGroup = new QGroupBox("DISTRIBUTION", m_multiWidget);
+    distGroup->setStyleSheet(
+        "QGroupBox { font-size: 11px; font-weight: bold; color: #8e96a4; border: 1px solid #282c38; "
+        "border-radius: 6px; margin-top: 8px; padding-top: 14px; padding-bottom: 8px; padding-left: 6px; padding-right: 6px; } "
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+    );
+    QVBoxLayout* distLayout = new QVBoxLayout(distGroup);
+    distLayout->setSpacing(6);
+
+    m_btnDistributeH = new QPushButton("↔  Distribute Horizontally", distGroup);
+    m_btnDistributeV = new QPushButton("↕  Distribute Vertically", distGroup);
+    m_btnDistributeH->setToolTip("Distribute equal horizontal spacing (requires 3+ items)");
+    m_btnDistributeV->setToolTip("Distribute equal vertical spacing (requires 3+ items)");
+
+    connect(m_btnDistributeH, &QPushButton::clicked, this, &PropertiesPanel::distributeHRequested);
+    connect(m_btnDistributeV, &QPushButton::clicked, this, &PropertiesPanel::distributeVRequested);
+
+    distLayout->addWidget(m_btnDistributeH);
+    distLayout->addWidget(m_btnDistributeV);
+
+    m_distributeHint = new QLabel("Spacing distribution requires 3+ items", distGroup);
+    m_distributeHint->setAlignment(Qt::AlignCenter);
+    m_distributeHint->setStyleSheet("color: #6a7382; font-size: 10.5px; font-style: italic;");
+    distLayout->addWidget(m_distributeHint);
+
+    multiLayout->addWidget(distGroup);
+    multiLayout->addStretch(1);
+    rootLayout->addWidget(m_multiWidget);
 
     // Content container inside scroll area
     QScrollArea* scrollArea = new QScrollArea(this);
@@ -150,22 +248,58 @@ void PropertiesPanel::setupUi() {
     rootLayout->addWidget(scrollArea);
 }
 
+// ── Visibility helpers ────────────────────────────────────────────────────
+void PropertiesPanel::showEmpty() {
+    m_emptyWidget->setVisible(true);
+    m_multiWidget->setVisible(false);
+    m_contentWidget->setVisible(false);
+}
+
+void PropertiesPanel::showSingle() {
+    m_emptyWidget->setVisible(false);
+    m_multiWidget->setVisible(false);
+    m_contentWidget->setVisible(true);
+}
+
+void PropertiesPanel::showMulti(int count) {
+    m_emptyWidget->setVisible(false);
+    m_contentWidget->setVisible(false);
+    m_multiLabel->setText(QString("%1 components selected").arg(count));
+    const bool canDistribute = (count >= 3);
+    if (m_btnDistributeH) m_btnDistributeH->setEnabled(canDistribute);
+    if (m_btnDistributeV) m_btnDistributeV->setEnabled(canDistribute);
+    if (m_distributeHint) m_distributeHint->setVisible(!canDistribute);
+    m_multiWidget->setVisible(true);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 void PropertiesPanel::setTargetComponent(UIComponent* comp) {
     m_targetComponent = comp;
     m_lastSavedState = comp ? comp->toJson() : QJsonObject();
 
     if (!m_targetComponent) {
-        m_emptyWidget->setVisible(true);
-        m_contentWidget->setVisible(false);
+        showEmpty();
         return;
     }
 
-    m_emptyWidget->setVisible(false);
-    m_contentWidget->setVisible(true);
-
+    showSingle();
     m_typeBadge->setText(m_targetComponent->componentType().toUpper());
     rebuildSpecificEditors();
     refreshValues();
+}
+
+void PropertiesPanel::setSelectedComponents(const QList<UIComponent*>& comps) {
+    if (comps.size() == 0) {
+        m_targetComponent = nullptr;
+        showEmpty();
+    } else if (comps.size() == 1) {
+        setTargetComponent(comps.first());
+    } else {
+        // Multi-select: clear single-component tracking and show banner
+        m_targetComponent = nullptr;
+        m_lastSavedState = QJsonObject();
+        showMulti(comps.size());
+    }
 }
 
 void PropertiesPanel::commitPropertyChange(const QString& desc) {

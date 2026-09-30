@@ -11,6 +11,7 @@
 #include <QGroupBox>
 #include <QVBoxLayout>
 #include <QJsonObject>
+#include <QList>
 #include "UIComponent.h"
 
 class PropertiesPanel : public QWidget {
@@ -23,6 +24,9 @@ public:
     UIComponent* targetComponent() const { return m_targetComponent; }
     void refreshValues();
 
+    /// Called when the canvas selection changes to 2+ components.
+    void setSelectedComponents(const QList<UIComponent*>& comps);
+
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
 
@@ -31,6 +35,16 @@ public:
     void commitPropertyChange(const QString& desc);
 
     friend class TestFunctionalRunner;
+
+signals:
+    void alignLeftRequested();
+    void alignRightRequested();
+    void alignHCenterRequested();
+    void alignTopRequested();
+    void alignVCenterRequested();
+    void alignBottomRequested();
+    void distributeHRequested();
+    void distributeVRequested();
 
 private slots:
     void onGeometryChanged();
@@ -44,6 +58,11 @@ private:
 
     // UI Widgets
     QWidget* m_emptyWidget = nullptr;
+    QWidget* m_multiWidget = nullptr;   ///< Shown when 2+ components are selected
+    QLabel*  m_multiLabel  = nullptr;   ///< "N components selected" text
+    QPushButton* m_btnDistributeH = nullptr;
+    QPushButton* m_btnDistributeV = nullptr;
+    QLabel*  m_distributeHint = nullptr;
     QWidget* m_contentWidget = nullptr;
 
     QLabel* m_typeBadge = nullptr;
@@ -78,4 +97,8 @@ private:
     void setupUi();
     void rebuildSpecificEditors();
     void updateColorButton(QPushButton* btn, const QColor& color);
+
+    void showEmpty();
+    void showSingle();
+    void showMulti(int count);
 };

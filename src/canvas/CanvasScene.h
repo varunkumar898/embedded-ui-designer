@@ -41,6 +41,7 @@ public:
 
 signals:
     void componentSelected(UIComponent* comp);
+    void selectionListChanged(const QList<UIComponent*>& selected);
     void componentAdded(UIComponent* comp);
     void componentRemoved(UIComponent* comp);
     void componentChanged(UIComponent* comp);

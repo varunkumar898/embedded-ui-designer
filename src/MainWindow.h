@@ -4,6 +4,8 @@
 #include <QDockWidget>
 #include <QLabel>
 #include <QComboBox>
+#include <QAction>
+#include <QList>
 #include "CanvasScene.h"
 #include "CanvasView.h"
 #include "ComponentPalette.h"
@@ -43,6 +45,21 @@ private slots:
     void onProjectSettingsDialog();
     void onAbout();
 
+    // Align Actions (Task 3)
+    void onAlignLeft();
+    void onAlignRight();
+    void onAlignHCenter();
+    void onAlignTop();
+    void onAlignBottom();
+    void onAlignVCenter();
+
+    // Distribute Actions (Task 4)
+    void onDistributeH();
+    void onDistributeV();
+
+    // Selection changed → update enabled state of align/distribute buttons
+    void onSelectionListChanged(const QList<UIComponent*>& selected);
+
     friend class TestFunctionalRunner;
 
 private:
@@ -63,9 +80,22 @@ private:
     QLabel* m_statusLabel = nullptr;
     QLabel* m_zoomLabel = nullptr;
 
+    // Align/Distribute toolbar actions
+    QAction* m_actAlignLeft    = nullptr;
+    QAction* m_actAlignRight   = nullptr;
+    QAction* m_actAlignHCenter = nullptr;
+    QAction* m_actAlignTop     = nullptr;
+    QAction* m_actAlignBottom  = nullptr;
+    QAction* m_actAlignVCenter = nullptr;
+    QAction* m_actDistributeH  = nullptr;
+    QAction* m_actDistributeV  = nullptr;
+
     void setupUi();
     void setupMenusAndToolbars();
     void setupDocks();
     void applyTheme();
     void updateWindowTitle();
+
+    /// Returns the current UIComponent selection (convenience).
+    QList<UIComponent*> selectedComponents() const;
 };

@@ -9,6 +9,7 @@
 #include "ImageComponent.h"
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
+#include "AlignDistributeCommand.h"
 #include <QUndoStack>
 #include <QMenuBar>
 #include <QToolBar>
@@ -54,8 +55,20 @@ MainWindow::MainWindow(QWidget *parent)
     autoSaveTimer->start(60000);
 
     // Hook signals
-    connect(m_scene, &CanvasScene::componentSelected, m_propertiesPanel, &PropertiesPanel::setTargetComponent);
+    connect(m_scene, &CanvasScene::selectionListChanged, this, &MainWindow::onSelectionListChanged);
+    connect(m_scene, &CanvasScene::selectionListChanged, m_propertiesPanel, &PropertiesPanel::setSelectedComponents);
     connect(m_scene, &CanvasScene::componentChanged, m_propertiesPanel, &PropertiesPanel::refreshValues);
+
+    // Connect PropertiesPanel align & distribute buttons
+    connect(m_propertiesPanel, &PropertiesPanel::alignLeftRequested, this, &MainWindow::onAlignLeft);
+    connect(m_propertiesPanel, &PropertiesPanel::alignHCenterRequested, this, &MainWindow::onAlignHCenter);
+    connect(m_propertiesPanel, &PropertiesPanel::alignRightRequested, this, &MainWindow::onAlignRight);
+    connect(m_propertiesPanel, &PropertiesPanel::alignTopRequested, this, &MainWindow::onAlignTop);
+    connect(m_propertiesPanel, &PropertiesPanel::alignVCenterRequested, this, &MainWindow::onAlignVCenter);
+    connect(m_propertiesPanel, &PropertiesPanel::alignBottomRequested, this, &MainWindow::onAlignBottom);
+    connect(m_propertiesPanel, &PropertiesPanel::distributeHRequested, this, &MainWindow::onDistributeH);
+    connect(m_propertiesPanel, &PropertiesPanel::distributeVRequested, this, &MainWindow::onDistributeV);
+
     connect(m_view, &CanvasView::zoomChanged, this, &MainWindow::onZoomChanged);
     connect(m_view, &CanvasView::statusMessageRequested, this, [this](const QString& msg) {
         statusBar()->showMessage(msg, 3000);
@@ -64,7 +77,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_project, &Project::projectLoaded, this, [this]() {
         updateWindowTitle();
         m_layerPanel->refreshLayers();
-        m_propertiesPanel->setTargetComponent(nullptr);
+        m_propertiesPanel->setSelectedComponents({});
     });
 
     resize(1380, 880);
@@ -225,6 +238,53 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->addAction("Zoom -", m_view, &CanvasView::zoomOut);
     toolbar->addAction("Zoom +", m_view, &CanvasView::zoomIn);
     toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
+
+    // ──────────────────────────────────────────────────────────────
+    // Align & Distribute toolbar section
+    // ──────────────────────────────────────────────────────────────
+    toolbar->addSeparator();
+
+    QLabel* alignLabel = new QLabel(" Align:", this);
+    alignLabel->setStyleSheet("color: #6a7382; font-size: 11px; font-weight: 500; margin-left: 2px; margin-right: 2px;");
+    toolbar->addWidget(alignLabel);
+
+    m_actAlignLeft    = toolbar->addAction("←L",  this, &MainWindow::onAlignLeft);
+    m_actAlignHCenter = toolbar->addAction("┃H",  this, &MainWindow::onAlignHCenter);
+    m_actAlignRight   = toolbar->addAction("R→",  this, &MainWindow::onAlignRight);
+    m_actAlignTop     = toolbar->addAction("↑T",  this, &MainWindow::onAlignTop);
+    m_actAlignVCenter = toolbar->addAction("┃V",  this, &MainWindow::onAlignVCenter);
+    m_actAlignBottom  = toolbar->addAction("B↓",  this, &MainWindow::onAlignBottom);
+
+    m_actAlignLeft->setToolTip("Align Left edges");
+    m_actAlignHCenter->setToolTip("Align Horizontal centers");
+    m_actAlignRight->setToolTip("Align Right edges");
+    m_actAlignTop->setToolTip("Align Top edges");
+    m_actAlignVCenter->setToolTip("Align Vertical centers");
+    m_actAlignBottom->setToolTip("Align Bottom edges");
+
+    toolbar->addSeparator();
+
+    QLabel* distLabel = new QLabel(" Distribute:", this);
+    distLabel->setStyleSheet("color: #6a7382; font-size: 11px; font-weight: 500; margin-left: 2px; margin-right: 2px;");
+    toolbar->addWidget(distLabel);
+
+    m_actDistributeH = toolbar->addAction("↔",  this, &MainWindow::onDistributeH);
+    m_actDistributeV = toolbar->addAction("↕",  this, &MainWindow::onDistributeV);
+
+    m_actDistributeH->setToolTip("Distribute Horizontal spacing equally (3+ items)");
+    m_actDistributeV->setToolTip("Distribute Vertical spacing equally (3+ items)");
+
+    // All align/distribute actions start disabled; they are enabled by
+    // onSelectionListChanged when >= 2 items are selected.
+    const bool off = false;
+    m_actAlignLeft->setEnabled(off);
+    m_actAlignHCenter->setEnabled(off);
+    m_actAlignRight->setEnabled(off);
+    m_actAlignTop->setEnabled(off);
+    m_actAlignVCenter->setEnabled(off);
+    m_actAlignBottom->setEnabled(off);
+    m_actDistributeH->setEnabled(off);
+    m_actDistributeV->setEnabled(off);
 }
 
 static QWidget* createDockTitleBar(const QString& titleText, QDockWidget* dock) {
@@ -694,3 +754,178 @@ void MainWindow::onAbout() {
 
     QMessageBox::about(this, "About Embedded UI Designer", aboutText);
 }
+
+// ============================================================================
+// Helper: current selection
+// ============================================================================
+QList<UIComponent*> MainWindow::selectedComponents() const {
+    QList<UIComponent*> list;
+    for (QGraphicsItem* item : m_scene->selectedItems()) {
+        if (auto comp = dynamic_cast<UIComponent*>(item)) {
+            list.append(comp);
+        }
+    }
+    return list;
+}
+
+// ============================================================================
+// onSelectionListChanged — enable/disable align & distribute buttons
+// ============================================================================
+void MainWindow::onSelectionListChanged(const QList<UIComponent*>& selected) {
+    const int n = selected.size();
+    const bool twoPlus   = (n >= 2);
+    const bool threePlus = (n >= 3);
+
+    m_actAlignLeft->setEnabled(twoPlus);
+    m_actAlignHCenter->setEnabled(twoPlus);
+    m_actAlignRight->setEnabled(twoPlus);
+    m_actAlignTop->setEnabled(twoPlus);
+    m_actAlignVCenter->setEnabled(twoPlus);
+    m_actAlignBottom->setEnabled(twoPlus);
+    m_actDistributeH->setEnabled(threePlus);
+    m_actDistributeV->setEnabled(threePlus);
+}
+
+// ============================================================================
+// Align Slots (Task 3)
+// ============================================================================
+static QRectF selectionBoundingBox(const QList<UIComponent*>& comps) {
+    if (comps.isEmpty()) return QRectF();
+    qreal minX = std::numeric_limits<qreal>::max();
+    qreal minY = std::numeric_limits<qreal>::max();
+    qreal maxX = std::numeric_limits<qreal>::lowest();
+    qreal maxY = std::numeric_limits<qreal>::lowest();
+    for (UIComponent* c : comps) {
+        minX = std::min(minX, c->pos().x());
+        minY = std::min(minY, c->pos().y());
+        maxX = std::max(maxX, c->pos().x() + c->compWidth());
+        maxY = std::max(maxY, c->pos().y() + c->compHeight());
+    }
+    return QRectF(minX, minY, maxX - minX, maxY - minY);
+}
+
+void MainWindow::onAlignLeft() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+    QRectF box = selectionBoundingBox(sel);
+    QList<AlignDistributeCommand::Entry> entries;
+    for (UIComponent* c : sel) {
+        entries.append({c, c->pos(), QPointF(box.left(), c->pos().y())});
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Align Left"));
+}
+
+void MainWindow::onAlignRight() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+    QRectF box = selectionBoundingBox(sel);
+    QList<AlignDistributeCommand::Entry> entries;
+    for (UIComponent* c : sel) {
+        entries.append({c, c->pos(), QPointF(box.right() - c->compWidth(), c->pos().y())});
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Align Right"));
+}
+
+void MainWindow::onAlignHCenter() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+    QRectF box = selectionBoundingBox(sel);
+    qreal cx = box.center().x();
+    QList<AlignDistributeCommand::Entry> entries;
+    for (UIComponent* c : sel) {
+        entries.append({c, c->pos(), QPointF(cx - c->compWidth() / 2.0, c->pos().y())});
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Align Horizontal Center"));
+}
+
+void MainWindow::onAlignTop() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+    QRectF box = selectionBoundingBox(sel);
+    QList<AlignDistributeCommand::Entry> entries;
+    for (UIComponent* c : sel) {
+        entries.append({c, c->pos(), QPointF(c->pos().x(), box.top())});
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Align Top"));
+}
+
+void MainWindow::onAlignBottom() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+    QRectF box = selectionBoundingBox(sel);
+    QList<AlignDistributeCommand::Entry> entries;
+    for (UIComponent* c : sel) {
+        entries.append({c, c->pos(), QPointF(c->pos().x(), box.bottom() - c->compHeight())});
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Align Bottom"));
+}
+
+void MainWindow::onAlignVCenter() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+    QRectF box = selectionBoundingBox(sel);
+    qreal cy = box.center().y();
+    QList<AlignDistributeCommand::Entry> entries;
+    for (UIComponent* c : sel) {
+        entries.append({c, c->pos(), QPointF(c->pos().x(), cy - c->compHeight() / 2.0)});
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Align Vertical Center"));
+}
+
+// ============================================================================
+// Distribute Slots (Task 4)
+// ============================================================================
+void MainWindow::onDistributeH() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 3) return;
+
+    std::sort(sel.begin(), sel.end(), [](UIComponent* a, UIComponent* b) {
+        return a->pos().x() < b->pos().x();
+    });
+
+    qreal leftEdge  = sel.first()->pos().x();
+    qreal rightEdge = sel.last()->pos().x() + sel.last()->compWidth();
+
+    qreal totalItemWidth = 0.0;
+    for (UIComponent* c : sel) totalItemWidth += c->compWidth();
+
+    qreal totalGapSpace = (rightEdge - leftEdge) - totalItemWidth;
+    qreal gap = totalGapSpace / (sel.size() - 1);
+
+    QList<AlignDistributeCommand::Entry> entries;
+    qreal cursor = leftEdge;
+    for (int i = 0; i < sel.size(); ++i) {
+        UIComponent* c = sel[i];
+        entries.append({c, c->pos(), QPointF(cursor, c->pos().y())});
+        cursor += c->compWidth() + gap;
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Distribute Horizontal"));
+}
+
+void MainWindow::onDistributeV() {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 3) return;
+
+    std::sort(sel.begin(), sel.end(), [](UIComponent* a, UIComponent* b) {
+        return a->pos().y() < b->pos().y();
+    });
+
+    qreal topEdge    = sel.first()->pos().y();
+    qreal bottomEdge = sel.last()->pos().y() + sel.last()->compHeight();
+
+    qreal totalItemHeight = 0.0;
+    for (UIComponent* c : sel) totalItemHeight += c->compHeight();
+
+    qreal totalGapSpace = (bottomEdge - topEdge) - totalItemHeight;
+    qreal gap = totalGapSpace / (sel.size() - 1);
+
+    QList<AlignDistributeCommand::Entry> entries;
+    qreal cursor = topEdge;
+    for (int i = 0; i < sel.size(); ++i) {
+        UIComponent* c = sel[i];
+        entries.append({c, c->pos(), QPointF(c->pos().x(), cursor)});
+        cursor += c->compHeight() + gap;
+    }
+    m_undoStack->push(new AlignDistributeCommand(entries, "Distribute Vertical"));
+}
+

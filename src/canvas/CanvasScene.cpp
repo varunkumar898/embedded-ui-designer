@@ -87,12 +87,24 @@ QPointF CanvasScene::snapPoint(const QPointF& pt) const {
 
 void CanvasScene::onSelectionChanged() {
     QList<QGraphicsItem*> sel = selectedItems();
-    if (sel.isEmpty()) {
-        emit componentSelected(nullptr);
-    } else {
-        if (auto comp = dynamic_cast<UIComponent*>(sel.first())) {
-            emit componentSelected(comp);
+
+    // Collect only UIComponent items
+    QList<UIComponent*> uiSel;
+    for (QGraphicsItem* item : sel) {
+        if (auto comp = dynamic_cast<UIComponent*>(item)) {
+            uiSel.append(comp);
         }
+    }
+    emit selectionListChanged(uiSel);
+
+    if (uiSel.isEmpty()) {
+        emit componentSelected(nullptr);
+    } else if (uiSel.size() == 1) {
+        emit componentSelected(uiSel.first());
+    } else {
+        // Multi-select: pass the first item so the legacy single-component
+        // signal still fires (PropertiesPanel ignores it when count > 1).
+        emit componentSelected(nullptr);
     }
 }
 
