@@ -87,14 +87,22 @@ QPointF CanvasScene::snapPoint(const QPointF& pt) const {
 
 void CanvasScene::onSelectionChanged() {
     QList<QGraphicsItem*> sel = selectedItems();
-    UIComponent* target = nullptr;
+
+    QList<UIComponent*> uiSel;
     for (QGraphicsItem* item : sel) {
         if (auto comp = dynamic_cast<UIComponent*>(item)) {
-            target = comp;
-            break;
+            uiSel.append(comp);
         }
     }
-    emit componentSelected(target);
+    emit selectionListChanged(uiSel);
+
+    if (uiSel.isEmpty()) {
+        emit componentSelected(nullptr);
+    } else if (uiSel.size() == 1) {
+        emit componentSelected(uiSel.first());
+    } else {
+        emit componentSelected(nullptr);
+    }
 }
 
 void CanvasScene::onComponentGeometryChanged(UIComponent* comp) {

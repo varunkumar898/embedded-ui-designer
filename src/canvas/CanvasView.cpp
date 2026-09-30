@@ -11,6 +11,7 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QScrollBar>
+#include <QRubberBand>
 #include <algorithm>
 
 CanvasView::CanvasView(CanvasScene* scene, QWidget* parent)
@@ -21,10 +22,15 @@ CanvasView::CanvasView(CanvasScene* scene, QWidget* parent)
     setRenderHint(QPainter::SmoothPixmapTransform);
     setRenderHint(QPainter::TextAntialiasing);
     setAcceptDrops(true);
-    setDragMode(QGraphicsView::RubberBandDrag);
+    // Use NoDrag — we manually implement rubber-band so we can distinguish
+    // empty-space drags (rubber-band) from component drags (move).
+    setDragMode(QGraphicsView::NoDrag);
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_rubberBand = new QRubberBand(QRubberBand::Rectangle, viewport());
+    m_rubberBand->setStyleSheet(
+        "border: 1px dashed #1a96ff; background-color: rgba(26, 150, 255, 40);"
+    );
 }
 
 void CanvasView::zoomIn() {
@@ -72,13 +78,64 @@ void CanvasView::wheelEvent(QWheelEvent* event) {
 }
 
 void CanvasView::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::MiddleButton || (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier))) {
+    // Middle button or Alt+Left = pan
+    if (event->button() == Qt::MiddleButton ||
+        (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier))) {
         m_isPanning = true;
         m_panStartPos = event->pos();
         setCursor(Qt::ClosedHandCursor);
         event->accept();
         return;
     }
+
+    if (event->button() == Qt::LeftButton) {
+        QGraphicsItem* hitItem = itemAt(event->pos());
+        while (hitItem && !dynamic_cast<UIComponent*>(hitItem)) {
+            hitItem = hitItem->parentItem();
+        }
+        auto hitComp = dynamic_cast<UIComponent*>(hitItem);
+
+        bool shiftOrCtrl = (event->modifiers() & Qt::ShiftModifier) ||
+                           (event->modifiers() & Qt::ControlModifier);
+
+        if (hitComp) {
+            // Shift/Ctrl-click: toggle this component in/out of selection
+            if (shiftOrCtrl) {
+                hitComp->setSelected(!hitComp->isSelected());
+                event->accept();
+                return;
+            }
+            // Plain click on a component:
+            // If it isn't selected yet, clear others and select it, then accept
+            // (don't call base class — that triggers Qt's internal selection state
+            // machine which can race with our manual setSelected and clear it on
+            // the subsequent mouseRelease).
+            if (!hitComp->isSelected()) {
+                scene()->clearSelection();
+                hitComp->setSelected(true);
+                event->accept();
+                return;
+            }
+            // Already selected: fall through to base class so the item can be dragged.
+            QGraphicsView::mousePressEvent(event);
+            return;
+        }
+
+        // Click on empty space
+        if (!shiftOrCtrl) {
+            // Clear selection only if clicking empty space without modifier
+            scene()->clearSelection();
+        }
+
+        // Start rubber-band
+        m_isRubberBanding = true;
+        m_rubberBandOrigin = event->pos();
+        m_rubberBand->setGeometry(QRect(m_rubberBandOrigin, QSize()));
+        m_rubberBand->show();
+        event->accept();
+        return;
+    }
+
     QGraphicsView::mousePressEvent(event);
 }
 
@@ -91,6 +148,13 @@ void CanvasView::mouseMoveEvent(QMouseEvent* event) {
         event->accept();
         return;
     }
+
+    if (m_isRubberBanding) {
+        m_rubberBand->setGeometry(QRect(m_rubberBandOrigin, event->pos()).normalized());
+        event->accept();
+        return;
+    }
+
     QGraphicsView::mouseMoveEvent(event);
 }
 
@@ -101,6 +165,42 @@ void CanvasView::mouseReleaseEvent(QMouseEvent* event) {
         event->accept();
         return;
     }
+
+    if (m_isRubberBanding && event->button() == Qt::LeftButton) {
+        m_isRubberBanding = false;
+        m_rubberBand->hide();
+
+        // Convert rubber-band rect from viewport to scene coordinates
+        QRect viewRect = QRect(m_rubberBandOrigin, event->pos()).normalized();
+        QRectF sceneRect = mapToScene(viewRect).boundingRect();
+
+        bool shiftOrCtrl = (event->modifiers() & Qt::ShiftModifier) ||
+                           (event->modifiers() & Qt::ControlModifier);
+
+        // Select all UIComponents whose bounding rects intersect the drag rect
+        for (UIComponent* comp : m_canvasScene->uiComponents()) {
+            QRectF compSceneRect = comp->mapToScene(comp->boundingRect()).boundingRect();
+            if (sceneRect.intersects(compSceneRect)) {
+                if (shiftOrCtrl) {
+                    // Toggle
+                    comp->setSelected(!comp->isSelected());
+                } else {
+                    comp->setSelected(true);
+                }
+            }
+        }
+
+        event->accept();
+        return;
+    }
+
+    bool shiftOrCtrl = (event->modifiers() & Qt::ShiftModifier) ||
+                       (event->modifiers() & Qt::ControlModifier);
+    if (shiftOrCtrl) {
+        event->accept();
+        return;
+    }
+
     QGraphicsView::mouseReleaseEvent(event);
 }
 

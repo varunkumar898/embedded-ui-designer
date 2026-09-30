@@ -72,6 +72,8 @@ set(COMMON_SOURCES
     src/commands/ResizeComponentCommand.h
     src/commands/PropertyChangeCommand.cpp
     src/commands/PropertyChangeCommand.h
+    src/commands/AlignDistributeCommand.cpp
+    src/commands/AlignDistributeCommand.h
 
     # Code Generators
     src/codegen/CodeGenerator.cpp

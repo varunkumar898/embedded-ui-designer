@@ -5,6 +5,7 @@
 #include <QDropEvent>
 #include <QWheelEvent>
 #include <QMouseEvent>
+#include <QRubberBand>
 #include "CanvasScene.h"
 
 class CanvasView : public QGraphicsView {
@@ -43,6 +44,11 @@ private:
     qreal m_zoomFactor = 1.0;
     bool m_isPanning = false;
     QPoint m_panStartPos;
+
+    // Rubber-band drag-select
+    bool m_isRubberBanding = false;
+    QPoint m_rubberBandOrigin;
+    QRubberBand* m_rubberBand = nullptr;
 
     void applyZoom(qreal factor);
     UIComponent* createComponentByType(const QString& compType, const QPointF& pos);

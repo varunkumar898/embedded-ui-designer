@@ -7,6 +7,8 @@ bin/
 lib/
 output_ugfx/
 output_qul/
+output_lvgl/
+output_*/
 
 # CMake temporary files
 CMakeFiles/

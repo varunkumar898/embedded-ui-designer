@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QMouseEvent>
 #include <QUndoStack>
 #include <QTemporaryDir>
 #include <QFile>
@@ -9,6 +10,7 @@
 #include <iomanip>
 #include <vector>
 #include <chrono>
+#include <cmath>
 
 #include "MainWindow.h"
 #include "CanvasScene.h"
@@ -422,6 +424,241 @@ public:
             record("Validation", "Capture Window Screenshot", ok, QString("Captured 1920x1080 screenshot to %1").arg(shotPath).toStdString(), t);
         }
 
+        // --------------------------------------------------------------------
+        // 11. TASK 1: Multi-Select on Canvas (Rubber-Band & Shift-Click)
+        // --------------------------------------------------------------------
+        std::cout << "\n[11] TASK 1: Multi-Select on Canvas\n";
+        window.m_project->newProject("MultiSelectVerification", 800, 480);
+        window.m_scene->clear();
+
+        ButtonComponent* cBtn = new ButtonComponent("btn_task1");
+        cBtn->setText("Power Mode");
+        cBtn->setCompSize(140, 42);
+        cBtn->setCompPos(60, 60);
+        window.m_scene->addUIComponent(cBtn);
+
+        LabelComponent* cLbl = new LabelComponent("lbl_task1");
+        cLbl->setText("Sensors Online");
+        cLbl->setCompSize(140, 32);
+        cLbl->setCompPos(60, 130);
+        window.m_scene->addUIComponent(cLbl);
+
+        RectangleComponent* cRect = new RectangleComponent("rect_task1");
+        cRect->setCompSize(140, 60);
+        cRect->setCompPos(60, 190);
+        cRect->setCornerRadius(8);
+        window.m_scene->addUIComponent(cRect);
+
+        SliderComponent* cSlider = new SliderComponent("slider_task1");
+        cSlider->setCompSize(180, 36);
+        cSlider->setCompPos(320, 60);
+        window.m_scene->addUIComponent(cSlider);
+
+        window.m_scene->clearSelection();
+        qApp->processEvents();
+
+        // 1. Rubber-band drag-select 3 items together
+        {
+            auto t = std::chrono::high_resolution_clock::now();
+            QPoint p1 = window.m_view->mapFromScene(QPointF(30, 40));
+            QPoint p2 = window.m_view->mapFromScene(QPointF(240, 280));
+
+            QMouseEvent pressEv(QEvent::MouseButtonPress, p1, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &pressEv);
+
+            QMouseEvent moveEv(QEvent::MouseMove, p2, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &moveEv);
+
+            QMouseEvent relEv(QEvent::MouseButtonRelease, p2, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &relEv);
+
+            qApp->processEvents();
+
+            bool selOk = cBtn->isSelected() && cLbl->isSelected() && cRect->isSelected() && !cSlider->isSelected();
+            record("Task 1 Canvas Multi-Select", "Rubber-band Drag Select 3 Items", selOk,
+                   "Rubber-band from (30,40) to (240,280) selected 3 items simultaneously", t);
+
+            QPixmap shot1 = window.grab();
+            shot1.save(artifactDir + "/task1_rubberband_selected.png");
+        }
+
+        // 2. Shift-click sequential selection building
+        {
+            auto t = std::chrono::high_resolution_clock::now();
+            window.m_scene->clearSelection();
+            qApp->processEvents();
+
+            // Click cBtn
+            QPoint ptBtn = window.m_view->mapFromScene(cBtn->sceneBoundingRect().center());
+            QMouseEvent p1(QEvent::MouseButtonPress, ptBtn, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &p1);
+            QMouseEvent r1(QEvent::MouseButtonRelease, ptBtn, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &r1);
+            std::cout << "DEBUG after p1: cBtn=" << cBtn->isSelected() << "\n";
+
+            // Shift-click cLbl
+            QPoint ptLbl = window.m_view->mapFromScene(cLbl->sceneBoundingRect().center());
+            QMouseEvent p2(QEvent::MouseButtonPress, ptLbl, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &p2);
+            QMouseEvent r2(QEvent::MouseButtonRelease, ptLbl, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &r2);
+
+            // Shift-click cSlider
+            QPoint ptSlider = window.m_view->mapFromScene(cSlider->sceneBoundingRect().center());
+            QMouseEvent p3(QEvent::MouseButtonPress, ptSlider, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &p3);
+            QMouseEvent r3(QEvent::MouseButtonRelease, ptSlider, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &r3);
+
+            qApp->processEvents();
+
+            bool shiftOk = cBtn->isSelected() && cLbl->isSelected() && cSlider->isSelected() && !cRect->isSelected();
+            record("Task 1 Canvas Multi-Select", "Shift-Click Selection Building", shiftOk,
+                   "Built selection of 3 components (Button, Label, Slider) via sequential Shift-clicks", t);
+
+            QPixmap shot2 = window.grab();
+            shot2.save(artifactDir + "/task1_shift_click_selected.png");
+        }
+
+        // --------------------------------------------------------------------
+        // 12. TASK 2: Properties Panel Multi-Select State
+        // --------------------------------------------------------------------
+        std::cout << "\n[12] TASK 2: Properties Panel Multi-Select Graceful Display\n";
+        {
+            auto t = std::chrono::high_resolution_clock::now();
+            qApp->processEvents();
+
+            bool multiVisible = window.m_propertiesPanel->m_multiWidget->isVisible();
+            bool singleHidden = !window.m_propertiesPanel->m_contentWidget->isVisible();
+            bool emptyHidden  = !window.m_propertiesPanel->m_emptyWidget->isVisible();
+            QString labelText = window.m_propertiesPanel->m_multiLabel->text();
+            bool labelOk = (labelText == "3 components selected");
+
+            bool ok = multiVisible && singleHidden && emptyHidden && labelOk;
+            record("Task 2 Properties Panel", "Multi-Select Clean State (No Overlap)", ok,
+                   QString("Properties panel displays '%1' with zero individual fields").arg(labelText).toStdString(), t);
+
+            QPixmap shotProps = window.grab();
+            shotProps.save(artifactDir + "/task2_properties_multiselect.png");
+        }
+
+        // --------------------------------------------------------------------
+        // 13. TASK 3: Align Tools & Single Compound Undo
+        // --------------------------------------------------------------------
+        std::cout << "\n[13] TASK 3: Align Tools & Single Compound Undo\n";
+        // Stagger 3 components horizontally:
+        cBtn->setCompPos(60, 60);
+        cLbl->setCompPos(150, 130);
+        cRect->setCompPos(100, 200);
+
+        window.m_scene->clearSelection();
+        cBtn->setSelected(true);
+        cLbl->setSelected(true);
+        cRect->setSelected(true);
+        cSlider->setSelected(false);
+        qApp->processEvents();
+
+        QPixmap shotAlignBefore = window.grab();
+        shotAlignBefore.save(artifactDir + "/task3_align_before.png");
+
+        {
+            auto t = std::chrono::high_resolution_clock::now();
+            int undoCountBefore = window.m_undoStack->count();
+
+            // Trigger Align Left
+            window.onAlignLeft();
+            qApp->processEvents();
+
+            bool alignedLeft = (cBtn->pos().x() == 60.0 && cLbl->pos().x() == 60.0 && cRect->pos().x() == 60.0);
+            bool yPreserved  = (cBtn->pos().y() == 60.0 && cLbl->pos().y() == 130.0 && cRect->pos().y() == 200.0);
+            bool oneUndoPushed = (window.m_undoStack->count() == undoCountBefore + 1);
+
+            bool ok = alignedLeft && yPreserved && oneUndoPushed;
+            record("Task 3 Align Tools", "Align Left All to Min X (60)", ok,
+                   "All 3 items aligned to left bounding box X=60 with Y coords preserved", t);
+
+            QPixmap shotAlignAfter = window.grab();
+            shotAlignAfter.save(artifactDir + "/task3_align_after.png");
+
+            // Verify Single Ctrl+Z Undo
+            window.m_undoStack->undo();
+            qApp->processEvents();
+
+            bool restored = (cBtn->pos().x() == 60.0 && cLbl->pos().x() == 150.0 && cRect->pos().x() == 100.0);
+            record("Task 3 Align Tools", "Single Compound Undo (Ctrl+Z)", restored,
+                   "Single Ctrl+Z undo atomically restored all 3 components to original staggered positions", t);
+
+            QPixmap shotAlignUndo = window.grab();
+            shotAlignUndo.save(artifactDir + "/task3_align_undo.png");
+        }
+
+        // --------------------------------------------------------------------
+        // 14. TASK 4: Distribute Tools & Compound Undo
+        // --------------------------------------------------------------------
+        std::cout << "\n[14] TASK 4: Distribute Tools & Compound Undo\n";
+        // Setup 4 unevenly-spaced components horizontally:
+        cBtn->setCompSize(80, 40);
+        cBtn->setCompPos(40, 120);
+
+        cLbl->setCompSize(60, 30);
+        cLbl->setCompPos(140, 120);
+
+        cRect->setCompSize(70, 50);
+        cRect->setCompPos(230, 120);
+
+        cSlider->setCompSize(80, 30);
+        cSlider->setCompPos(460, 120);
+
+        window.m_scene->clearSelection();
+        cBtn->setSelected(true);
+        cLbl->setSelected(true);
+        cRect->setSelected(true);
+        cSlider->setSelected(true);
+        qApp->processEvents();
+
+        QPixmap shotDistBefore = window.grab();
+        shotDistBefore.save(artifactDir + "/task4_distribute_before.png");
+
+        {
+            auto t = std::chrono::high_resolution_clock::now();
+            int undoIndexBefore = window.m_undoStack->index();
+
+            // Trigger Distribute Horizontal
+            window.onDistributeH();
+            qApp->processEvents();
+
+            // Total span = (460 + 80 - 40) = 500. Total width = 80 + 60 + 70 + 80 = 290.
+            // Gap = (500 - 290) / 3 = 70px.
+            // Item 0: 40
+            // Item 1: 40 + 80 + 70 = 190
+            // Item 2: 190 + 60 + 70 = 320
+            // Item 3: 320 + 70 + 70 = 460
+            bool c0Fixed = (std::abs(cBtn->pos().x() - 40.0) < 0.5);
+            bool c1Pos   = (std::abs(cLbl->pos().x() - 190.0) < 0.5);
+            bool c2Pos   = (std::abs(cRect->pos().x() - 320.0) < 0.5);
+            bool c3Fixed = (std::abs(cSlider->pos().x() - 460.0) < 0.5);
+            bool oneUndoPushed = (window.m_undoStack->index() == undoIndexBefore + 1);
+
+            bool ok = c0Fixed && c1Pos && c2Pos && c3Fixed && oneUndoPushed;
+            record("Task 4 Distribute Tools", "Distribute Horizontally Equal Gaps (70px)", ok,
+                   QString("Outermost items fixed at 40 and 460; intermediate items spaced at exactly 70px gaps (%1, %2, %3, %4)")
+                   .arg(cBtn->pos().x()).arg(cLbl->pos().x()).arg(cRect->pos().x()).arg(cSlider->pos().x()).toStdString(), t);
+
+            QPixmap shotDistAfter = window.grab();
+            shotDistAfter.save(artifactDir + "/task4_distribute_after.png");
+
+            // Verify single compound undo
+            window.m_undoStack->undo();
+            qApp->processEvents();
+
+            bool restored = (std::abs(cBtn->pos().x() - 40.0) < 0.5 &&
+                             std::abs(cLbl->pos().x() - 140.0) < 0.5 &&
+                             std::abs(cRect->pos().x() - 230.0) < 0.5 &&
+                             std::abs(cSlider->pos().x() - 460.0) < 0.5);
+            record("Task 4 Distribute Tools", "Single Compound Undo (Ctrl+Z)", restored,
+                   "Single Ctrl+Z undo atomically restored all 4 components to original uneven positions", t);
+        }
+
         auto endTotal = std::chrono::high_resolution_clock::now();
         long long totalMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTotal - startTotal).count();
 
@@ -460,8 +697,17 @@ public:
                     << r.durationMs << "ms |\n";
             }
 
-            out << "\n## Live Visual Verification\n\n";
-            out << "![Functional Verification Window](functional_test_screenshot.png)\n";
+            out << "\n## Visual Verification Artifacts\n\n";
+            out << "- **Full Desktop Environment**: ![Functional Window](functional_test_screenshot.png)\n";
+            out << "- **Task 1: Rubber-band Drag-Select**: ![Task 1 Rubber-band](task1_rubberband_selected.png)\n";
+            out << "- **Task 1: Shift-Click Sequential Select**: ![Task 1 Shift-click](task1_shift_click_selected.png)\n";
+            out << "- **Task 2: Properties Panel Multi-Select State**: ![Task 2 Properties](task2_properties_multiselect.png)\n";
+            out << "- **Task 3: Align Left (Before)**: ![Task 3 Before](task3_align_before.png)\n";
+            out << "- **Task 3: Align Left (After)**: ![Task 3 After](task3_align_after.png)\n";
+            out << "- **Task 3: Align Left (Ctrl+Z Undo)**: ![Task 3 Undo](task3_align_undo.png)\n";
+            out << "- **Task 4: Distribute Horizontal (Before)**: ![Task 4 Before](task4_distribute_before.png)\n";
+            out << "- **Task 4: Distribute Horizontal (After)**: ![Task 4 After](task4_distribute_after.png)\n";
+
             reportFile.close();
             std::cout << "SUCCESS: Detailed report saved to " << reportPath.toStdString() << "\n";
         }
@@ -471,10 +717,13 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    qputenv("QT_QPA_PLATFORM", "offscreen");
+    // Only fall back to offscreen if neither DISPLAY nor WAYLAND_DISPLAY are set
+    if (!qEnvironmentVariableIsSet("DISPLAY") && !qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
     QApplication app(argc, argv);
     Q_INIT_RESOURCE(app);
 
-    QString artifactDir = (argc > 1) ? argv[1] : "/home/cherry/.gemini/antigravity-ide/brain/9d3972bc-cc52-4324-a2ab-6adbfa6175d7";
+    QString artifactDir = (argc > 1) ? argv[1] : "/home/cherry/.gemini/antigravity-ide/brain/7139078c-07a0-4854-95f4-51288c8d351b";
     return TestFunctionalRunner::runAll(artifactDir);
 }
