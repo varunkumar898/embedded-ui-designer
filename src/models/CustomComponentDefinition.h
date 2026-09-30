@@ -8,7 +8,19 @@
 #include <QJsonArray>
 
 struct PrimitiveShapeData {
-    QString type; // "Rectangle", "Circle", "Text"
+    QString shapeType = "Rectangle"; // "Rectangle", "Circle", "Text"
+    QString role = "content";        // "track", "thumb", "fill", "content"
+    qreal relX = 0;
+    qreal relY = 0;
+    qreal relWidth = 40;
+    qreal relHeight = 40;
+    QColor fillColor = QColor("#2196F3");
+    QColor strokeColor = QColor("#FFFFFF");
+    int strokeWidth = 0;
+    int cornerRadius = 0;
+
+    // Compatibility fields
+    QString type = "Rectangle";
     QRectF relativeRect;
     QJsonObject properties;
     bool isThumb = false;
@@ -17,31 +29,45 @@ struct PrimitiveShapeData {
 
     QJsonObject toJson() const {
         QJsonObject obj;
-        obj["type"] = type;
-        obj["x"] = relativeRect.x();
-        obj["y"] = relativeRect.y();
-        obj["width"] = relativeRect.width();
-        obj["height"] = relativeRect.height();
-        obj["properties"] = properties;
-        obj["isThumb"] = isThumb;
-        obj["isTrack"] = isTrack;
-        obj["isFill"] = isFill;
+        obj["shapeType"] = shapeType;
+        obj["type"] = shapeType;
+        obj["role"] = role;
+        obj["relX"] = relX;
+        obj["relY"] = relY;
+        obj["relWidth"] = relWidth;
+        obj["relHeight"] = relHeight;
+        obj["x"] = relX;
+        obj["y"] = relY;
+        obj["width"] = relWidth;
+        obj["height"] = relHeight;
+        obj["fillColor"] = fillColor.name(QColor::HexArgb);
+        obj["strokeColor"] = strokeColor.name(QColor::HexArgb);
+        obj["strokeWidth"] = strokeWidth;
+        obj["cornerRadius"] = cornerRadius;
+        obj["isThumb"] = (role == "thumb");
+        obj["isTrack"] = (role == "track");
+        obj["isFill"] = (role == "fill");
         return obj;
     }
 
     static PrimitiveShapeData fromJson(const QJsonObject& obj) {
         PrimitiveShapeData data;
-        data.type = obj.value("type").toString("Rectangle");
-        data.relativeRect = QRectF(
-            obj.value("x").toDouble(0.0),
-            obj.value("y").toDouble(0.0),
-            obj.value("width").toDouble(40.0),
-            obj.value("height").toDouble(40.0)
-        );
-        data.properties = obj.value("properties").toObject();
-        data.isThumb = obj.value("isThumb").toBool(false);
-        data.isTrack = obj.value("isTrack").toBool(false);
-        data.isFill = obj.value("isFill").toBool(false);
+        data.shapeType = obj.contains("shapeType") ? obj.value("shapeType").toString() : obj.value("type").toString("Rectangle");
+        data.type = data.shapeType;
+        data.role = obj.contains("role") ? obj.value("role").toString() : (obj.value("isThumb").toBool() ? "thumb" : (obj.value("isTrack").toBool() ? "track" : "content"));
+        data.relX = obj.contains("relX") ? obj.value("relX").toDouble(0.0) : obj.value("x").toDouble(0.0);
+        data.relY = obj.contains("relY") ? obj.value("relY").toDouble(0.0) : obj.value("y").toDouble(0.0);
+        data.relWidth = obj.contains("relWidth") ? obj.value("relWidth").toDouble(40.0) : obj.value("width").toDouble(40.0);
+        data.relHeight = obj.contains("relHeight") ? obj.value("relHeight").toDouble(40.0) : obj.value("height").toDouble(40.0);
+        data.relativeRect = QRectF(data.relX, data.relY, data.relWidth, data.relHeight);
+
+        if (obj.contains("fillColor")) data.fillColor = QColor(obj.value("fillColor").toString());
+        if (obj.contains("strokeColor")) data.strokeColor = QColor(obj.value("strokeColor").toString());
+        data.strokeWidth = obj.value("strokeWidth").toInt(0);
+        data.cornerRadius = obj.value("cornerRadius").toInt(0);
+        data.isThumb = (data.role == "thumb");
+        data.isTrack = (data.role == "track");
+        data.isFill = (data.role == "fill");
         return data;
     }
 };

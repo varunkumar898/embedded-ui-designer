@@ -6,6 +6,8 @@
 #include <QStandardPaths>
 #include "DisplayConfig.h"
 #include "CanvasScene.h"
+#include "ColorStyle.h"
+#include "CustomComponentDefinition.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -44,18 +46,18 @@ public:
     static UIComponent* createComponentInstance(const QString& type, const QString& id);
 
     // Named Color Styles
-    QList<struct ColorStyle> colorStyles() const { return m_colorStyles; }
-    void addColorStyle(const struct ColorStyle& style);
+    QList<ColorStyle> colorStyles() const { return m_colorStyles; }
+    void addColorStyle(const ColorStyle& style);
     void updateColorStyle(const QString& name, const QColor& newColor);
     void removeColorStyle(const QString& name);
     QColor resolveColor(const QString& styleName, const QColor& defaultColor = QColor()) const;
     bool hasColorStyle(const QString& name) const;
-    void setColorStyles(const QList<struct ColorStyle>& styles);
+    void setColorStyles(const QList<ColorStyle>& styles);
 
     // Custom Component Definitions
-    QList<class CustomComponentDefinition> customComponentDefinitions() const { return m_customComponentDefinitions; }
-    void addCustomComponentDefinition(const class CustomComponentDefinition& def);
-    class CustomComponentDefinition findCustomComponentDefinition(const QString& id) const;
+    QList<CustomComponentDefinition> customComponentDefinitions() const { return m_customComponentDefinitions; }
+    void addCustomComponentDefinition(const CustomComponentDefinition& def);
+    CustomComponentDefinition findCustomComponentDefinition(const QString& id) const;
     void removeCustomComponentDefinition(const QString& id);
 
 signals:
@@ -73,7 +75,7 @@ private:
     DisplayConfig m_displayConfig;
     bool m_dirty = false;
 
-    QList<struct ColorStyle> m_colorStyles;
-    QList<class CustomComponentDefinition> m_customComponentDefinitions;
+    QList<ColorStyle> m_colorStyles;
+    QList<CustomComponentDefinition> m_customComponentDefinitions;
     void initDefaultStyles();
 };

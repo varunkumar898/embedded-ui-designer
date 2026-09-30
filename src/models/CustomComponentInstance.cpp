@@ -3,6 +3,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QBrush>
+#include <QGraphicsSceneMouseEvent>
 #include <algorithm>
 #include <cmath>
 
@@ -40,11 +41,24 @@ void CustomComponentInstance::setDefinitionId(const QString& defId) {
     }
 }
 
+void CustomComponentInstance::setDefinition(const CustomComponentDefinition& def) {
+    m_definitionId = def.id;
+    m_cachedDefinition = def;
+    m_width = def.width;
+    m_height = def.height;
+    m_minValue = def.minValue;
+    m_maxValue = def.maxValue;
+    m_value = def.defaultValue;
+    update();
+    emit propertyChanged(this);
+}
+
 CustomComponentDefinition CustomComponentInstance::definition() const {
     if (m_project) {
-        return m_project->findCustomComponentDefinition(m_definitionId);
+        CustomComponentDefinition def = m_project->findCustomComponentDefinition(m_definitionId);
+        if (!def.id.isEmpty()) return def;
     }
-    return CustomComponentDefinition();
+    return m_cachedDefinition;
 }
 
 QString CustomComponentInstance::behaviorRole() const {
@@ -79,13 +93,19 @@ void CustomComponentInstance::setMaxValue(double max) {
 }
 
 QRectF CustomComponentInstance::computeThumbRect(const PrimitiveShapeData& thumbPrim, const PrimitiveShapeData& trackPrim) const {
-    qreal scaleX = m_width / std::max(1.0, definition().width);
-    qreal scaleY = m_height / std::max(1.0, definition().height);
+    qreal origW = std::max(1.0, definition().width);
+    qreal origH = std::max(1.0, definition().height);
+    qreal scaleX = m_width / origW;
+    qreal scaleY = m_height / origH;
 
-    QRectF trackRect(trackPrim.relativeRect.x() * scaleX, trackPrim.relativeRect.y() * scaleY,
-                     trackPrim.relativeRect.width() * scaleX, trackPrim.relativeRect.height() * scaleY);
-    qreal thumbW = thumbPrim.relativeRect.width() * scaleX;
-    qreal thumbH = thumbPrim.relativeRect.height() * scaleY;
+    qreal trackX = trackPrim.relX * scaleX;
+    qreal trackY = trackPrim.relY * scaleY;
+    qreal trackW = trackPrim.relWidth * scaleX;
+    qreal trackH = trackPrim.relHeight * scaleY;
+
+    QRectF trackRect(trackX, trackY, trackW, trackH);
+    qreal thumbW = thumbPrim.relWidth * scaleX;
+    qreal thumbH = thumbPrim.relHeight * scaleY;
 
     qreal ratio = (m_maxValue > m_minValue) ? (m_value - m_minValue) / (m_maxValue - m_minValue) : 0.0;
     ratio = std::clamp(ratio, 0.0, 1.0);
@@ -102,7 +122,6 @@ void CustomComponentInstance::paintComponent(QPainter* painter) {
 
     CustomComponentDefinition def = definition();
     if (def.primitives.isEmpty()) {
-        // Fallback placeholder outline
         painter->setPen(QPen(QColor("#717C8F"), 1, Qt::DashLine));
         painter->setBrush(QColor(37, 40, 48, 180));
         painter->drawRoundedRect(0, 0, m_width, m_height, 6, 6);
@@ -111,46 +130,46 @@ void CustomComponentInstance::paintComponent(QPainter* painter) {
         return;
     }
 
-    qreal scaleX = m_width / std::max(1.0, def.width);
-    qreal scaleY = m_height / std::max(1.0, def.height);
+    qreal origW = std::max(1.0, def.width);
+    qreal origH = std::max(1.0, def.height);
+    qreal scaleX = m_width / origW;
+    qreal scaleY = m_height / origH;
 
     const PrimitiveShapeData* trackPrim = nullptr;
     const PrimitiveShapeData* thumbPrim = nullptr;
 
     for (const auto& prim : def.primitives) {
-        if (prim.isTrack) trackPrim = &prim;
-        if (prim.isThumb) thumbPrim = &prim;
+        if (prim.role == "track" || prim.isTrack) trackPrim = &prim;
+        if (prim.role == "thumb" || prim.isThumb) thumbPrim = &prim;
     }
 
     QString role = def.behaviorRole;
 
     for (const auto& prim : def.primitives) {
-        QRectF destRect(prim.relativeRect.x() * scaleX, prim.relativeRect.y() * scaleY,
-                        prim.relativeRect.width() * scaleX, prim.relativeRect.height() * scaleY);
+        QRectF destRect(prim.relX * scaleX, prim.relY * scaleY,
+                        prim.relWidth * scaleX, prim.relHeight * scaleY);
 
-        if (role == "Slider" && prim.isThumb && trackPrim) {
+        if ((role == "Slider" || role == "ProgressBar") && (prim.role == "thumb" || prim.isThumb) && trackPrim) {
             destRect = computeThumbRect(prim, *trackPrim);
         }
 
-        QColor fill = QColor(prim.properties.value("fillColor").toString("#2196F3"));
-        QColor stroke = QColor(prim.properties.value("strokeColor").toString("#3B404E"));
-        int strokeW = prim.properties.value("strokeWidth").toInt(1);
-        int radius = static_cast<int>(prim.properties.value("cornerRadius").toDouble(0.0) * ((scaleX + scaleY) / 2.0));
+        QColor fill = prim.fillColor;
+        QColor stroke = prim.strokeColor;
+        int strokeW = prim.strokeWidth;
+        int radius = static_cast<int>(prim.cornerRadius * ((scaleX + scaleY) / 2.0));
 
         painter->setPen(strokeW > 0 ? QPen(stroke, strokeW) : Qt::NoPen);
         painter->setBrush(fill.isValid() ? QBrush(fill) : Qt::NoBrush);
 
-        if (prim.type == "Circle" || prim.type == "Ellipse") {
+        if (prim.shapeType == "Circle" || prim.type == "Circle" || prim.shapeType == "Ellipse") {
             painter->drawEllipse(destRect);
-        } else if (prim.type == "Text") {
-            QString txt = prim.properties.value("text").toString();
-            QFont font("Roboto", prim.properties.value("pixelSize").toInt(14));
-            font.setBold(prim.properties.value("bold").toBool(false));
+        } else if (prim.shapeType == "Text" || prim.type == "Text") {
+            QFont font("Roboto", 13);
+            font.setBold(true);
             painter->setFont(font);
-            painter->setPen(QColor(prim.properties.value("textColor").toString("#FFFFFF")));
-            painter->drawText(destRect, Qt::AlignCenter, txt);
+            painter->setPen(stroke.isValid() ? stroke : QColor("#FFFFFF"));
+            painter->drawText(destRect, Qt::AlignCenter, def.name);
         } else {
-            // Rectangle / rounded rect
             painter->drawRoundedRect(destRect, radius, radius);
         }
     }
@@ -162,17 +181,18 @@ void CustomComponentInstance::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         const PrimitiveShapeData* trackPrim = nullptr;
         const PrimitiveShapeData* thumbPrim = nullptr;
         for (const auto& prim : def.primitives) {
-            if (prim.isTrack) trackPrim = &prim;
-            if (prim.isThumb) thumbPrim = &prim;
+            if (prim.role == "track" || prim.isTrack) trackPrim = &prim;
+            if (prim.role == "thumb" || prim.isThumb) thumbPrim = &prim;
         }
         if (trackPrim && thumbPrim) {
             QRectF thumbR = computeThumbRect(*thumbPrim, *trackPrim);
             qreal clickX = event->pos().x();
-            qreal scaleX = m_width / std::max(1.0, def.width);
-            QRectF trackRect(trackPrim->relativeRect.x() * scaleX, trackPrim->relativeRect.y() * scaleX,
-                             trackPrim->relativeRect.width() * scaleX, trackPrim->relativeRect.height() * scaleX);
+            qreal origW = std::max(1.0, def.width);
+            qreal scaleX = m_width / origW;
+            QRectF trackRect(trackPrim->relX * scaleX, trackPrim->relY * scaleX,
+                             trackPrim->relWidth * scaleX, trackPrim->relHeight * scaleX);
 
-            if (trackRect.adjusted(-10, -10, 10, 10).contains(event->pos()) || thumbR.adjusted(-5, -5, 5, 5).contains(event->pos())) {
+            if (trackRect.adjusted(-10, -10, 10, 10).contains(event->pos()) || thumbR.adjusted(-8, -8, 8, 8).contains(event->pos())) {
                 m_isDraggingThumb = true;
                 qreal travel = std::max(1.0, trackRect.width() - thumbR.width());
                 qreal ratio = (clickX - trackRect.left() - thumbR.width() / 2.0) / travel;
@@ -191,14 +211,15 @@ void CustomComponentInstance::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
         const PrimitiveShapeData* trackPrim = nullptr;
         const PrimitiveShapeData* thumbPrim = nullptr;
         for (const auto& prim : def.primitives) {
-            if (prim.isTrack) trackPrim = &prim;
-            if (prim.isThumb) thumbPrim = &prim;
+            if (prim.role == "track" || prim.isTrack) trackPrim = &prim;
+            if (prim.role == "thumb" || prim.isThumb) thumbPrim = &prim;
         }
         if (trackPrim && thumbPrim) {
-            qreal scaleX = m_width / std::max(1.0, def.width);
-            QRectF trackRect(trackPrim->relativeRect.x() * scaleX, trackPrim->relativeRect.y() * scaleX,
-                             trackPrim->relativeRect.width() * scaleX, trackPrim->relativeRect.height() * scaleX);
-            qreal thumbW = thumbPrim->relativeRect.width() * scaleX;
+            qreal origW = std::max(1.0, def.width);
+            qreal scaleX = m_width / origW;
+            QRectF trackRect(trackPrim->relX * scaleX, trackPrim->relY * scaleX,
+                             trackPrim->relWidth * scaleX, trackPrim->relHeight * scaleX);
+            qreal thumbW = thumbPrim->relWidth * scaleX;
             qreal travel = std::max(1.0, trackRect.width() - thumbW);
             qreal ratio = (event->pos().x() - trackRect.left() - thumbW / 2.0) / travel;
             setValue(m_minValue + std::clamp(ratio, 0.0, 1.0) * (m_maxValue - m_minValue));

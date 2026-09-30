@@ -12,7 +12,7 @@ class StylesPanel : public QWidget {
     Q_OBJECT
 
 public:
-    explicit StylesPanel(QWidget* parent = nullptr);
+    explicit StylesPanel(Project* project = nullptr, QWidget* parent = nullptr);
 
     void setProject(Project* project);
     Project* project() const { return m_project; }

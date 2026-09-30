@@ -5,10 +5,13 @@
 #include <QPainter>
 #include <QRegularExpression>
 
-StylesPanel::StylesPanel(QWidget* parent)
+StylesPanel::StylesPanel(Project* project, QWidget* parent)
     : QWidget(parent)
 {
     setupUi();
+    if (project) {
+        setProject(project);
+    }
 }
 
 void StylesPanel::setProject(Project* project) {

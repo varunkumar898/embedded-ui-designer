@@ -13,6 +13,7 @@ public:
 
     QString definitionId() const { return m_definitionId; }
     void setDefinitionId(const QString& defId);
+    void setDefinition(const CustomComponentDefinition& def);
 
     void setProject(Project* project) { m_project = project; }
     Project* project() const { return m_project; }
@@ -43,6 +44,7 @@ protected:
 
 private:
     QString m_definitionId;
+    CustomComponentDefinition m_cachedDefinition;
     Project* m_project = nullptr;
 
     double m_value = 50.0;
