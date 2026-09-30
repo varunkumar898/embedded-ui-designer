@@ -415,6 +415,8 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("GHandle ghEdit_%1 = 0;\n").arg(id);
             }
         }
+    }
+
     // Reusable Custom Component Functions (emitted ONCE per definition)
     if (m_project) {
         for (const auto& def : m_project->customComponentDefinitions()) {
@@ -426,13 +428,13 @@ QString UgfxGenerator::generateUiSource() {
             code += QString("GHandle %1(GDisplay* g, int x, int y, int w, int h, float val) {\n").arg(fn);
             code += "    (void)g; (void)val;\n";
             for (const auto& prim : def.primitives) {
-                QString fillHex = prim.properties.value("fillColor").toString("#2196F3").mid(1).toUpper();
+                QString fillHex = prim.fillColor.name().mid(1).toUpper();
                 code += QString("    gdispFillRoundedBox(x + %1, y + %2, %3, %4, %5, HTML2COLOR(0x%6));\n")
-                    .arg(static_cast<int>(prim.relativeRect.x()))
-                    .arg(static_cast<int>(prim.relativeRect.y()))
-                    .arg(static_cast<int>(prim.relativeRect.width()))
-                    .arg(static_cast<int>(prim.relativeRect.height()))
-                    .arg(prim.properties.value("cornerRadius").toInt(4))
+                    .arg(static_cast<int>(prim.relX))
+                    .arg(static_cast<int>(prim.relY))
+                    .arg(static_cast<int>(prim.relWidth))
+                    .arg(static_cast<int>(prim.relHeight))
+                    .arg(prim.cornerRadius)
                     .arg(fillHex);
             }
             code += "    return 0;\n";
