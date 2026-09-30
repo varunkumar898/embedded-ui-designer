@@ -30,6 +30,7 @@ public:
     bool isDirty() const { return m_dirty; }
     void setDirty(bool dirty);
 
+    void newProject(const QString& name, const DisplayConfig& config);
     void newProject(const QString& name = "MyEmbeddedApp", int width = 320, int height = 240);
     bool saveToFile(const QString& filePath);
     bool loadFromFile(const QString& filePath);

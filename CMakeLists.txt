@@ -97,6 +97,8 @@ set(SOURCES
     # Dialogs
     src/dialogs/CreateCustomComponentDialog.cpp
     src/dialogs/CreateCustomComponentDialog.h
+    src/dialogs/NewProjectDialog.cpp
+    src/dialogs/NewProjectDialog.h
 
     # Panels & Visual Views
     src/canvas/CanvasView.cpp

@@ -7,6 +7,7 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "dialogs/NewProjectDialog.h"
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
 #include <QUndoStack>
@@ -498,10 +499,42 @@ void MainWindow::onNewProject() {
             return;
         }
     }
-    m_project->newProject("NewEmbeddedApp", 320, 240);
+
+    NewProjectDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    DisplayConfig cfg = dlg.displayConfig();
+    QString projName = dlg.projectName();
+    if (projName.isEmpty()) projName = "NewEmbeddedApp";
+
+    m_project->newProject(projName, cfg);
     if (m_undoStack) m_undoStack->clear();
-    m_resolutionCombo->setCurrentIndex(0);
-    statusBar()->showMessage("New project initialized", 3000);
+
+    // Synchronize target display resolution dropdown in toolbar
+    bool foundInPresets = false;
+    for (int i = 0; i < m_resolutionCombo->count(); ++i) {
+        QSize sz = m_resolutionCombo->itemData(i).toSize();
+        if (sz.width() == cfg.width && sz.height() == cfg.height) {
+            m_resolutionCombo->blockSignals(true);
+            m_resolutionCombo->setCurrentIndex(i);
+            m_resolutionCombo->blockSignals(false);
+            foundInPresets = true;
+            break;
+        }
+    }
+    if (!foundInPresets) {
+        m_resolutionCombo->blockSignals(true);
+        QString label = QString("%1 × %2 (%3)")
+            .arg(cfg.width).arg(cfg.height)
+            .arg(dlg.isBoardMode() ? dlg.selectedBoardName() : "Custom");
+        m_resolutionCombo->addItem(label, QSize(cfg.width, cfg.height));
+        m_resolutionCombo->setCurrentIndex(m_resolutionCombo->count() - 1);
+        m_resolutionCombo->blockSignals(false);
+    }
+
+    statusBar()->showMessage(QString("New project '%1' created (%2 × %3)").arg(projName).arg(cfg.width).arg(cfg.height), 3000);
 }
 
 void MainWindow::onOpenProject() {

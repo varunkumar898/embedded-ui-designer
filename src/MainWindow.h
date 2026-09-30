@@ -25,6 +25,7 @@ public:
     StylesPanel* stylesPanel() const { return m_stylesPanel; }
     PropertiesPanel* propertiesPanel() const { return m_propertiesPanel; }
     ComponentPalette* palette() const { return m_palette; }
+    class QComboBox* resolutionCombo() const { return m_resolutionCombo; }
 
 private slots:
     // File Actions

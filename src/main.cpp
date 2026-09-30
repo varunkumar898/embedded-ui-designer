@@ -15,6 +15,7 @@
 #include "CustomComponentInstance.h"
 #include "CustomComponentDefinition.h"
 #include "ColorStyle.h"
+#include "dialogs/NewProjectDialog.h"
 
 int main(int argc, char *argv[])
 {
@@ -22,7 +23,8 @@ int main(int argc, char *argv[])
     bool isHeadless = false;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--export") == 0 || strcmp(argv[i], "-e") == 0 ||
-            strcmp(argv[i], "--verify-feature1") == 0 || strcmp(argv[i], "--verify-feature2") == 0) {
+            strcmp(argv[i], "--verify-feature1") == 0 || strcmp(argv[i], "--verify-feature2") == 0 ||
+            strcmp(argv[i], "--verify-wizard") == 0) {
             isHeadless = true;
             break;
         }
@@ -80,6 +82,13 @@ int main(int argc, char *argv[])
         "output_png"
     );
     parser.addOption(verifyF2Option);
+
+    QCommandLineOption verifyWizardOption(
+        "verify-wizard",
+        "Run New Project Wizard verification and save screenshots to output prefix",
+        "prefix"
+    );
+    parser.addOption(verifyWizardOption);
 
     parser.process(app);
 
@@ -292,7 +301,74 @@ int main(int argc, char *argv[])
     }
 
     // -------------------------------------------------------------------------
-    // 4. Interactive GUI Mode (QtWidgets MainWindow)
+    // 4. Feature 1 Verification Mode (New Project Wizard)
+    // -------------------------------------------------------------------------
+    if (parser.isSet(verifyWizardOption)) {
+        QString prefix = parser.value(verifyWizardOption);
+        QString wizardPath = prefix + "_wizard.png";
+        QString canvasPath = prefix + "_canvas.png";
+
+        // Step 1: Open NewProjectDialog, select ESP32-S3-BOX
+        NewProjectDialog dlg;
+        dlg.resize(520, 480);
+        dlg.show();
+        dlg.selectBoard("ESP32-S3-BOX");
+        app.processEvents();
+
+        QPixmap wizardPix = dlg.grab();
+        if (!wizardPix.save(wizardPath)) {
+            std::cerr << "[VERIFY WIZARD] Failed to save wizard screenshot to " << wizardPath.toStdString() << std::endl;
+            return 1;
+        }
+        std::cout << "[VERIFY WIZARD] Saved wizard screenshot to: " << wizardPath.toStdString() << std::endl;
+
+        // Step 2: Extract config from wizard and create new project
+        DisplayConfig cfg = dlg.displayConfig();
+        QString projName = dlg.projectName();
+        dlg.close();
+
+        // Step 3: Open MainWindow with the chosen board DisplayConfig
+        MainWindow window;
+        window.resize(1380, 880);
+        window.project()->newProject(projName, cfg);
+        
+        // Sync resolution combo
+        for (int i = 0; i < window.resolutionCombo()->count(); ++i) {
+            QSize sz = window.resolutionCombo()->itemData(i).toSize();
+            if (sz.width() == cfg.width && sz.height() == cfg.height) {
+                window.resolutionCombo()->setCurrentIndex(i);
+                break;
+            }
+        }
+
+        // Add a sample button to highlight the ESP32-S3-BOX canvas
+        auto btn = new ButtonComponent("btn_wifi");
+        btn->setText("ESP32 CONNECT");
+        btn->setCompPos(60, 90);
+        btn->setCompSize(200, 50);
+        btn->setBackgroundColor(QColor("#00E5FF"));
+        btn->setTextColor(QColor("#0F172A"));
+        window.canvasScene()->addUIComponent(btn);
+
+        window.show();
+        app.processEvents();
+
+        QPixmap canvasPix = window.grab();
+        if (!canvasPix.save(canvasPath)) {
+            std::cerr << "[VERIFY WIZARD] Failed to save canvas screenshot to " << canvasPath.toStdString() << std::endl;
+            return 1;
+        }
+        std::cout << "[VERIFY WIZARD] Saved canvas screenshot to: " << canvasPath.toStdString() << std::endl;
+
+        bool sizeMatches = (window.canvasScene()->displayConfig().width == 320 &&
+                            window.canvasScene()->displayConfig().height == 240);
+        std::cout << "[VERIFY WIZARD] Display size matching (320x240): " << (sizeMatches ? "OK" : "FAIL") << std::endl;
+
+        return sizeMatches ? 0 : 1;
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. Interactive GUI Mode (QtWidgets MainWindow)
     // -------------------------------------------------------------------------
     MainWindow window;
     window.show();

@@ -82,22 +82,15 @@ bool Project::loadSampleProject() {
     return loadFromFile(":/examples/simple.euiproj");
 }
 
-void Project::newProject(const QString& name, int width, int height) {
+void Project::newProject(const QString& name, const DisplayConfig& config) {
     m_name = name;
     m_filePath.clear();
     m_targetFramework = "qt-for-mcus";
-    
-    DisplayConfig cfg;
-    cfg.width = width;
-    cfg.height = height;
-    cfg.colorDepth = 16;
-    cfg.type = "LCD";
-    cfg.dpi = 96;
+    m_displayConfig = config;
 
-    m_displayConfig = cfg;
     if (m_scene) {
         m_scene->clearComponents();
-        m_scene->setDisplayConfig(cfg);
+        m_scene->setDisplayConfig(config);
         m_scene->setScreenBackgroundColor(Qt::white);
     }
 
@@ -108,6 +101,16 @@ void Project::newProject(const QString& name, int width, int height) {
 
     m_dirty = false;
     emit projectLoaded();
+}
+
+void Project::newProject(const QString& name, int width, int height) {
+    DisplayConfig cfg;
+    cfg.width = width;
+    cfg.height = height;
+    cfg.colorDepth = 16;
+    cfg.type = "LCD";
+    cfg.dpi = 96;
+    newProject(name, cfg);
 }
 
 QJsonObject Project::toJson() const {
