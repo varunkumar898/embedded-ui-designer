@@ -54,11 +54,14 @@ private:
     // Specific Fields Container
     QGroupBox* m_specificGroup = nullptr;
     QVBoxLayout* m_specificLayout = nullptr;
+    QWidget* m_specificContainer = nullptr;
 
     // Dynamic controls
     QLineEdit* m_textEdit = nullptr;
     QPushButton* m_colorBtn1 = nullptr;
     QPushButton* m_colorBtn2 = nullptr;
+    QPushButton* m_colorBtn3 = nullptr;
+    QPushButton* m_colorBtn4 = nullptr;
     QSpinBox* m_spinRadius = nullptr;
     QSpinBox* m_spinStrokeW = nullptr;
     QSpinBox* m_spinPixelSize = nullptr;
@@ -69,6 +72,21 @@ private:
     QLineEdit* m_imagePathEdit = nullptr;
     QPushButton* m_browseImageBtn = nullptr;
     QComboBox* m_comboImageFormat = nullptr;
+
+    // Additional specific controls for full coverage
+    QSpinBox* m_spinSliderVal = nullptr;
+    QSpinBox* m_spinSliderMin = nullptr;
+    QSpinBox* m_spinSliderMax = nullptr;
+    QCheckBox* m_chkState = nullptr;
+    QLineEdit* m_placeholderEdit = nullptr;
+    QCheckBox* m_chkReadOnly = nullptr;
+    QCheckBox* m_chkFilled = nullptr;
+
+    // Alignment buttons (LabelComponent)
+    QPushButton* m_btnAlignLeft = nullptr;
+    QPushButton* m_btnAlignCenter = nullptr;
+    QPushButton* m_btnAlignRight = nullptr;
+
     class QUndoStack* m_undoStack = nullptr;
 
     void setupUi();

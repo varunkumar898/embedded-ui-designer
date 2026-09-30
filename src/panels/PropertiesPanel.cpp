@@ -16,6 +16,42 @@
 #include <QHBoxLayout>
 #include <QScrollArea>
 #include <QFileDialog>
+#include <QPainter>
+#include <QButtonGroup>
+
+static QIcon createAlignmentIcon(Qt::AlignmentFlag align) {
+    QPixmap pixmap(22, 22);
+    pixmap.fill(Qt::transparent);
+
+    QPainter p(&pixmap);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(220, 225, 235));
+
+    int y1 = 4, y2 = 10, y3 = 16;
+    int h = 2; // line thickness
+    int r = 1; // corner radius
+
+    if (align == Qt::AlignLeft) {
+        // Left alignment bars
+        p.drawRoundedRect(3, y1, 16, h, r, r);
+        p.drawRoundedRect(3, y2, 10, h, r, r);
+        p.drawRoundedRect(3, y3, 14, h, r, r);
+    } else if (align == Qt::AlignHCenter) {
+        // Center alignment bars
+        p.drawRoundedRect(5, y1, 12, h, r, r);
+        p.drawRoundedRect(3, y2, 16, h, r, r);
+        p.drawRoundedRect(5, y3, 12, h, r, r);
+    } else if (align == Qt::AlignRight) {
+        // Right alignment bars
+        p.drawRoundedRect(3, y1, 16, h, r, r);
+        p.drawRoundedRect(9, y2, 10, h, r, r);
+        p.drawRoundedRect(5, y3, 14, h, r, r);
+    }
+
+    p.end();
+    return QIcon(pixmap);
+}
 
 PropertiesPanel::PropertiesPanel(QWidget* parent)
     : QWidget(parent)
@@ -151,12 +187,24 @@ void PropertiesPanel::setupUi() {
 }
 
 void PropertiesPanel::setTargetComponent(UIComponent* comp) {
+    if (m_targetComponent == comp) {
+        if (comp) {
+            refreshValues();
+        }
+        return;
+    }
+
     m_targetComponent = comp;
     m_lastSavedState = comp ? comp->toJson() : QJsonObject();
 
     if (!m_targetComponent) {
         m_emptyWidget->setVisible(true);
         m_contentWidget->setVisible(false);
+        if (m_specificContainer) {
+            m_specificContainer->hide();
+            delete m_specificContainer;
+            m_specificContainer = nullptr;
+        }
         return;
     }
 
@@ -206,6 +254,16 @@ void PropertiesPanel::refreshValues() {
         if (m_spinPixelSize) m_spinPixelSize->setValue(lbl->pixelSize());
         if (m_chkBold) m_chkBold->setChecked(lbl->bold());
         if (m_chkItalic) m_chkItalic->setChecked(lbl->italic());
+        if (m_btnAlignLeft && m_btnAlignCenter && m_btnAlignRight) {
+            Qt::Alignment a = lbl->alignment();
+            if (a & Qt::AlignHCenter) {
+                m_btnAlignCenter->setChecked(true);
+            } else if (a & Qt::AlignRight) {
+                m_btnAlignRight->setChecked(true);
+            } else {
+                m_btnAlignLeft->setChecked(true);
+            }
+        }
     } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
         if (m_colorBtn1) updateColorButton(m_colorBtn1, rect->fillColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, rect->strokeColor());
@@ -227,6 +285,44 @@ void PropertiesPanel::refreshValues() {
     } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
         if (m_imagePathEdit) m_imagePathEdit->setText(img->imagePath());
         if (m_comboImageFormat) m_comboImageFormat->setCurrentText(img->format());
+    } else if (auto slider = dynamic_cast<SliderComponent*>(m_targetComponent)) {
+        if (m_spinSliderVal) m_spinSliderVal->setValue(slider->value());
+        if (m_spinSliderMin) m_spinSliderMin->setValue(slider->minimum());
+        if (m_spinSliderMax) m_spinSliderMax->setValue(slider->maximum());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, slider->trackColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, slider->fillColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, slider->handleColor());
+    } else if (auto sw = dynamic_cast<SwitchComponent*>(m_targetComponent)) {
+        if (m_chkState) m_chkState->setChecked(sw->isChecked());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, sw->onColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, sw->offColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, sw->thumbColor());
+        if (m_handlerEdit) m_handlerEdit->setText(sw->onToggledHandler());
+    } else if (auto chk = dynamic_cast<CheckboxComponent*>(m_targetComponent)) {
+        if (m_textEdit) m_textEdit->setText(chk->text());
+        if (m_chkState) m_chkState->setChecked(chk->isChecked());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, chk->textColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, chk->checkColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, chk->boxColor());
+        if (m_colorBtn4) updateColorButton(m_colorBtn4, chk->borderColor());
+        if (m_handlerEdit) m_handlerEdit->setText(chk->onToggledHandler());
+    } else if (auto txt = dynamic_cast<TextInputComponent*>(m_targetComponent)) {
+        if (m_textEdit) m_textEdit->setText(txt->text());
+        if (m_placeholderEdit) m_placeholderEdit->setText(txt->placeholder());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, txt->textColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, txt->placeholderColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, txt->backgroundColor());
+        if (m_colorBtn4) updateColorButton(m_colorBtn4, txt->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(txt->borderWidth());
+        if (m_spinRadius) m_spinRadius->setValue(txt->cornerRadius());
+        if (m_spinPixelSize) m_spinPixelSize->setValue(txt->pixelSize());
+        if (m_chkReadOnly) m_chkReadOnly->setChecked(txt->isReadOnly());
+        if (m_handlerEdit) m_handlerEdit->setText(txt->onTextChangedHandler());
+    } else if (auto circ = dynamic_cast<CircleComponent*>(m_targetComponent)) {
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, circ->fillColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, circ->strokeColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(circ->strokeWidth());
+        if (m_chkFilled) m_chkFilled->setChecked(circ->isFilled());
     }
 
     m_lastSavedState = m_targetComponent->toJson();
@@ -241,23 +337,34 @@ void PropertiesPanel::updateColorButton(QPushButton* btn, const QColor& color) {
     ).arg(color.name(), (color.lightness() > 140 ? "#000000" : "#FFFFFF")));
 }
 
-static void clearLayout(QLayout* layout) {
-    if (!layout) return;
-    while (layout->count() > 0) {
-        QLayoutItem* item = layout->takeAt(0);
-        if (!item) break;
-        if (QLayout* subLayout = item->layout()) {
-            clearLayout(subLayout);
-        }
-        if (QWidget* widget = item->widget()) {
-            delete widget;
+void PropertiesPanel::rebuildSpecificEditors() {
+    // 1. Cleanly delete previous container widget and all its children/layouts
+    if (m_specificContainer) {
+        m_specificContainer->hide();
+        m_specificLayout->removeWidget(m_specificContainer);
+        delete m_specificContainer;
+        m_specificContainer = nullptr;
+    }
+
+    // Recursively clear any remaining layout items from m_specificLayout
+    QLayoutItem* item;
+    while ((item = m_specificLayout->takeAt(0)) != nullptr) {
+        if (QWidget* w = item->widget()) {
+            w->hide();
+            delete w;
+        } else if (QLayout* l = item->layout()) {
+            QLayoutItem* subItem;
+            while ((subItem = l->takeAt(0)) != nullptr) {
+                if (QWidget* subW = subItem->widget()) {
+                    subW->hide();
+                    delete subW;
+                }
+                delete subItem;
+            }
+            delete l;
         }
         delete item;
     }
-}
-
-void PropertiesPanel::rebuildSpecificEditors() {
-    clearLayout(m_specificLayout);
 
     if (m_specificGroup) {
         const auto remainingWidgets = m_specificGroup->findChildren<QWidget*>(Qt::FindDirectChildrenOnly);
@@ -266,9 +373,12 @@ void PropertiesPanel::rebuildSpecificEditors() {
         }
     }
 
+    // Reset control pointers
     m_textEdit = nullptr;
     m_colorBtn1 = nullptr;
     m_colorBtn2 = nullptr;
+    m_colorBtn3 = nullptr;
+    m_colorBtn4 = nullptr;
     m_spinRadius = nullptr;
     m_spinStrokeW = nullptr;
     m_spinPixelSize = nullptr;
@@ -279,14 +389,31 @@ void PropertiesPanel::rebuildSpecificEditors() {
     m_imagePathEdit = nullptr;
     m_browseImageBtn = nullptr;
     m_comboImageFormat = nullptr;
+    m_spinSliderVal = nullptr;
+    m_spinSliderMin = nullptr;
+    m_spinSliderMax = nullptr;
+    m_chkState = nullptr;
+    m_placeholderEdit = nullptr;
+    m_chkReadOnly = nullptr;
+    m_chkFilled = nullptr;
+    m_btnAlignLeft = nullptr;
+    m_btnAlignCenter = nullptr;
+    m_btnAlignRight = nullptr;
 
     if (!m_targetComponent) return;
 
+    // 2. Create fresh container parented to m_specificGroup
+    m_specificContainer = new QWidget(m_specificGroup);
+    QVBoxLayout* containerLayout = new QVBoxLayout(m_specificContainer);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+    containerLayout->setSpacing(8);
+
     QFormLayout* form = new QFormLayout();
     form->setSpacing(8);
+    form->setContentsMargins(0, 0, 0, 0);
 
     auto addColorRow = [this, form](const QString& label, const QColor& initialColor, auto setter, const QString& desc) {
-        QPushButton* btn = new QPushButton(this);
+        QPushButton* btn = new QPushButton(m_specificContainer);
         updateColorButton(btn, initialColor);
         connect(btn, &QPushButton::clicked, this, [this, btn, setter, desc]() {
             if (!m_targetComponent) return;
@@ -303,7 +430,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
     };
 
     if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
-        m_textEdit = new QLineEdit(btn->text(), this);
+        m_textEdit = new QLineEdit(btn->text(), m_specificContainer);
         connect(m_textEdit, &QLineEdit::textChanged, this, [this, btn](const QString& t) {
             if (!m_updatingFromComponent) btn->setText(t);
         });
@@ -315,7 +442,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn1 = addColorRow("Background:", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); }, "Change Background Color");
         m_colorBtn2 = addColorRow("Text Color:", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); }, "Change Text Color");
 
-        m_spinRadius = new QSpinBox(m_specificGroup);
+        m_spinRadius = new QSpinBox(m_specificContainer);
         int maxR = static_cast<int>(std::floor(std::min(btn->compWidth(), btn->compHeight()) / 2.0));
         m_spinRadius->setRange(0, std::max(50, maxR));
         m_spinRadius->setValue(btn->cornerRadius());
@@ -327,7 +454,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Corner Radius:", m_spinRadius);
 
-        m_handlerEdit = new QLineEdit(btn->onClickedHandler(), this);
+        m_handlerEdit = new QLineEdit(btn->onClickedHandler(), m_specificContainer);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, btn](const QString& h) {
             if (!m_updatingFromComponent) btn->setOnClickedHandler(h);
         });
@@ -337,7 +464,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("OnClicked:", m_handlerEdit);
 
     } else if (auto lbl = dynamic_cast<LabelComponent*>(m_targetComponent)) {
-        m_textEdit = new QLineEdit(lbl->text(), this);
+        m_textEdit = new QLineEdit(lbl->text(), m_specificContainer);
         connect(m_textEdit, &QLineEdit::textChanged, this, [this, lbl](const QString& t) {
             if (!m_updatingFromComponent) lbl->setText(t);
         });
@@ -348,7 +475,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
 
         m_colorBtn1 = addColorRow("Color:", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); }, "Change Label Color");
 
-        m_spinPixelSize = new QSpinBox(this);
+        m_spinPixelSize = new QSpinBox(m_specificContainer);
         m_spinPixelSize->setRange(6, 96);
         m_spinPixelSize->setValue(lbl->pixelSize());
         connect(m_spinPixelSize, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, lbl](int v) {
@@ -360,7 +487,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("Font Size:", m_spinPixelSize);
 
         QHBoxLayout* fontStyles = new QHBoxLayout();
-        m_chkBold = new QCheckBox("Bold", this);
+        m_chkBold = new QCheckBox("Bold", m_specificContainer);
         m_chkBold->setChecked(lbl->bold());
         connect(m_chkBold, &QCheckBox::toggled, this, [this, lbl](bool b) {
             if (!m_updatingFromComponent) {
@@ -368,7 +495,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
                 commitPropertyChange("Toggle Bold");
             }
         });
-        m_chkItalic = new QCheckBox("Italic", this);
+        m_chkItalic = new QCheckBox("Italic", m_specificContainer);
         m_chkItalic->setChecked(lbl->italic());
         connect(m_chkItalic, &QCheckBox::toggled, this, [this, lbl](bool i) {
             if (!m_updatingFromComponent) {
@@ -380,11 +507,83 @@ void PropertiesPanel::rebuildSpecificEditors() {
         fontStyles->addWidget(m_chkItalic);
         form->addRow("Style:", fontStyles);
 
+        // Alignment controls (Left, Center, Right)
+        QHBoxLayout* alignLayout = new QHBoxLayout();
+        alignLayout->setSpacing(6);
+
+        QButtonGroup* alignGroup = new QButtonGroup(m_specificContainer);
+        alignGroup->setExclusive(true);
+
+        auto styleAlignBtn = [](QPushButton* b) {
+            b->setCheckable(true);
+            b->setFixedSize(38, 28);
+            b->setIconSize(QSize(20, 20));
+            b->setCursor(Qt::PointingHandCursor);
+            b->setStyleSheet(
+                "QPushButton { background-color: #252830; border: 1px solid #3B404E; border-radius: 4px; padding: 2px; }"
+                "QPushButton:hover { background-color: #313642; border-color: #4D5466; }"
+                "QPushButton:checked { background-color: #2196F3; border-color: #1976D2; }"
+            );
+        };
+
+        m_btnAlignLeft = new QPushButton(m_specificContainer);
+        m_btnAlignLeft->setIcon(createAlignmentIcon(Qt::AlignLeft));
+        m_btnAlignLeft->setToolTip("Align Left");
+        styleAlignBtn(m_btnAlignLeft);
+
+        m_btnAlignCenter = new QPushButton(m_specificContainer);
+        m_btnAlignCenter->setIcon(createAlignmentIcon(Qt::AlignHCenter));
+        m_btnAlignCenter->setToolTip("Align Center");
+        styleAlignBtn(m_btnAlignCenter);
+
+        m_btnAlignRight = new QPushButton(m_specificContainer);
+        m_btnAlignRight->setIcon(createAlignmentIcon(Qt::AlignRight));
+        m_btnAlignRight->setToolTip("Align Right");
+        styleAlignBtn(m_btnAlignRight);
+
+        alignGroup->addButton(m_btnAlignLeft);
+        alignGroup->addButton(m_btnAlignCenter);
+        alignGroup->addButton(m_btnAlignRight);
+
+        Qt::Alignment align = lbl->alignment();
+        if (align & Qt::AlignHCenter) {
+            m_btnAlignCenter->setChecked(true);
+        } else if (align & Qt::AlignRight) {
+            m_btnAlignRight->setChecked(true);
+        } else {
+            m_btnAlignLeft->setChecked(true);
+        }
+
+        connect(m_btnAlignLeft, &QPushButton::clicked, this, [this, lbl]() {
+            if (!m_updatingFromComponent) {
+                lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+                commitPropertyChange("Align Text Left");
+            }
+        });
+        connect(m_btnAlignCenter, &QPushButton::clicked, this, [this, lbl]() {
+            if (!m_updatingFromComponent) {
+                lbl->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+                commitPropertyChange("Align Text Center");
+            }
+        });
+        connect(m_btnAlignRight, &QPushButton::clicked, this, [this, lbl]() {
+            if (!m_updatingFromComponent) {
+                lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+                commitPropertyChange("Align Text Right");
+            }
+        });
+
+        alignLayout->addWidget(m_btnAlignLeft);
+        alignLayout->addWidget(m_btnAlignCenter);
+        alignLayout->addWidget(m_btnAlignRight);
+        alignLayout->addStretch(1);
+        form->addRow("Alignment:", alignLayout);
+
     } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
         m_colorBtn1 = addColorRow("Fill Color:", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); }, "Change Fill Color");
         m_colorBtn2 = addColorRow("Stroke Color:", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); }, "Change Stroke Color");
 
-        m_spinStrokeW = new QSpinBox(this);
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
         m_spinStrokeW->setRange(0, 20);
         m_spinStrokeW->setValue(rect->strokeWidth());
         connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, rect](int v) {
@@ -395,7 +594,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Stroke Width:", m_spinStrokeW);
 
-        m_spinRadius = new QSpinBox(m_specificGroup);
+        m_spinRadius = new QSpinBox(m_specificContainer);
         int maxR = static_cast<int>(std::floor(std::min(rect->compWidth(), rect->compHeight()) / 2.0));
         m_spinRadius->setRange(0, std::max(50, maxR));
         m_spinRadius->setValue(rect->cornerRadius());
@@ -408,7 +607,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("Corner Radius:", m_spinRadius);
 
     } else if (auto prog = dynamic_cast<ProgressBarComponent*>(m_targetComponent)) {
-        m_spinProgressValue = new QDoubleSpinBox(this);
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
         m_spinProgressValue->setRange(0.0, 1.0);
         m_spinProgressValue->setSingleStep(0.05);
         m_spinProgressValue->setValue(prog->value());
@@ -423,7 +622,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn1 = addColorRow("Bar Color:", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); }, "Change Bar Color");
         m_colorBtn2 = addColorRow("Track Color:", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); }, "Change Track Color");
 
-        m_spinRadius = new QSpinBox(m_specificGroup);
+        m_spinRadius = new QSpinBox(m_specificContainer);
         int progMaxR = static_cast<int>(std::floor(std::min(prog->compWidth(), prog->compHeight()) / 2.0));
         m_spinRadius->setRange(0, std::max(20, progMaxR));
         m_spinRadius->setValue(prog->cornerRadius());
@@ -437,8 +636,8 @@ void PropertiesPanel::rebuildSpecificEditors() {
 
     } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
         QHBoxLayout* pathLayout = new QHBoxLayout();
-        m_imagePathEdit = new QLineEdit(img->imagePath(), this);
-        m_browseImageBtn = new QPushButton("Browse...", this);
+        m_imagePathEdit = new QLineEdit(img->imagePath(), m_specificContainer);
+        m_browseImageBtn = new QPushButton("Browse...", m_specificContainer);
         pathLayout->addWidget(m_imagePathEdit, 1);
         pathLayout->addWidget(m_browseImageBtn);
 
@@ -459,7 +658,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Image File:", pathLayout);
 
-        m_comboImageFormat = new QComboBox(this);
+        m_comboImageFormat = new QComboBox(m_specificContainer);
         m_comboImageFormat->addItem("RGB565");
         m_comboImageFormat->addItem("Monochrome");
         m_comboImageFormat->setCurrentText(img->format());
@@ -470,201 +669,207 @@ void PropertiesPanel::rebuildSpecificEditors() {
             }
         });
         form->addRow("Color Format:", m_comboImageFormat);
+
     } else if (auto slider = dynamic_cast<SliderComponent*>(m_targetComponent)) {
-        QSpinBox* spinVal = new QSpinBox(this);
-        spinVal->setRange(slider->minimum(), slider->maximum());
-        spinVal->setValue(slider->value());
-        connect(spinVal, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+        m_spinSliderVal = new QSpinBox(m_specificContainer);
+        m_spinSliderVal->setRange(slider->minimum(), slider->maximum());
+        m_spinSliderVal->setValue(slider->value());
+        connect(m_spinSliderVal, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
             if (!m_updatingFromComponent) slider->setValue(v);
         });
-        connect(spinVal, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinSliderVal, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Slider Value");
         });
-        form->addRow("Value:", spinVal);
+        form->addRow("Value:", m_spinSliderVal);
 
-        QSpinBox* spinMin = new QSpinBox(this);
-        spinMin->setRange(-10000, 10000);
-        spinMin->setValue(slider->minimum());
-        connect(spinMin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+        m_spinSliderMin = new QSpinBox(m_specificContainer);
+        m_spinSliderMin->setRange(-10000, 10000);
+        m_spinSliderMin->setValue(slider->minimum());
+        connect(m_spinSliderMin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
             if (!m_updatingFromComponent) slider->setMinimum(v);
         });
-        connect(spinMin, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinSliderMin, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Slider Minimum");
         });
-        form->addRow("Minimum:", spinMin);
+        form->addRow("Minimum:", m_spinSliderMin);
 
-        QSpinBox* spinMax = new QSpinBox(this);
-        spinMax->setRange(-10000, 10000);
-        spinMax->setValue(slider->maximum());
-        connect(spinMax, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+        m_spinSliderMax = new QSpinBox(m_specificContainer);
+        m_spinSliderMax->setRange(-10000, 10000);
+        m_spinSliderMax->setValue(slider->maximum());
+        connect(m_spinSliderMax, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
             if (!m_updatingFromComponent) slider->setMaximum(v);
         });
-        connect(spinMax, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinSliderMax, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Slider Maximum");
         });
-        form->addRow("Maximum:", spinMax);
+        form->addRow("Maximum:", m_spinSliderMax);
 
         m_colorBtn1 = addColorRow("Track Color:", slider->trackColor(), [slider](const QColor& c) { slider->setTrackColor(c); }, "Change Track Color");
         m_colorBtn2 = addColorRow("Fill Color:", slider->fillColor(), [slider](const QColor& c) { slider->setFillColor(c); }, "Change Fill Color");
-        addColorRow("Handle Color:", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
+        m_colorBtn3 = addColorRow("Handle Color:", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
+
     } else if (auto sw = dynamic_cast<SwitchComponent*>(m_targetComponent)) {
-        QCheckBox* chkState = new QCheckBox("Checked", this);
-        chkState->setChecked(sw->isChecked());
-        connect(chkState, &QCheckBox::toggled, this, [this, sw](bool b) {
+        m_chkState = new QCheckBox("Checked", m_specificContainer);
+        m_chkState->setChecked(sw->isChecked());
+        connect(m_chkState, &QCheckBox::toggled, this, [this, sw](bool b) {
             if (!m_updatingFromComponent) {
                 sw->setChecked(b);
                 commitPropertyChange("Toggle Switch");
             }
         });
-        form->addRow("State:", chkState);
+        form->addRow("State:", m_chkState);
 
-        addColorRow("On Color:", sw->onColor(), [sw](const QColor& c) { sw->setOnColor(c); }, "Change On Color");
-        addColorRow("Off Color:", sw->offColor(), [sw](const QColor& c) { sw->setOffColor(c); }, "Change Off Color");
-        addColorRow("Thumb Color:", sw->thumbColor(), [sw](const QColor& c) { sw->setThumbColor(c); }, "Change Thumb Color");
+        m_colorBtn1 = addColorRow("On Color:", sw->onColor(), [sw](const QColor& c) { sw->setOnColor(c); }, "Change On Color");
+        m_colorBtn2 = addColorRow("Off Color:", sw->offColor(), [sw](const QColor& c) { sw->setOffColor(c); }, "Change Off Color");
+        m_colorBtn3 = addColorRow("Thumb Color:", sw->thumbColor(), [sw](const QColor& c) { sw->setThumbColor(c); }, "Change Thumb Color");
 
-        QLineEdit* handlerEdit = new QLineEdit(sw->onToggledHandler(), this);
-        connect(handlerEdit, &QLineEdit::textChanged, this, [this, sw](const QString& h) {
+        m_handlerEdit = new QLineEdit(sw->onToggledHandler(), m_specificContainer);
+        connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, sw](const QString& h) {
             if (!m_updatingFromComponent) sw->setOnToggledHandler(h);
         });
-        connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+        connect(m_handlerEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Toggled Handler");
         });
-        form->addRow("OnToggled:", handlerEdit);
+        form->addRow("OnToggled:", m_handlerEdit);
+
     } else if (auto chk = dynamic_cast<CheckboxComponent*>(m_targetComponent)) {
-        QLineEdit* txtEdit = new QLineEdit(chk->text(), this);
-        connect(txtEdit, &QLineEdit::textChanged, this, [this, chk](const QString& t) {
+        m_textEdit = new QLineEdit(chk->text(), m_specificContainer);
+        connect(m_textEdit, &QLineEdit::textChanged, this, [this, chk](const QString& t) {
             if (!m_updatingFromComponent) chk->setText(t);
         });
-        connect(txtEdit, &QLineEdit::editingFinished, this, [this]() {
+        connect(m_textEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Checkbox Text");
         });
-        form->addRow("Text:", txtEdit);
+        form->addRow("Text:", m_textEdit);
 
-        QCheckBox* chkState = new QCheckBox("Checked", this);
-        chkState->setChecked(chk->isChecked());
-        connect(chkState, &QCheckBox::toggled, this, [this, chk](bool b) {
+        m_chkState = new QCheckBox("Checked", m_specificContainer);
+        m_chkState->setChecked(chk->isChecked());
+        connect(m_chkState, &QCheckBox::toggled, this, [this, chk](bool b) {
             if (!m_updatingFromComponent) {
                 chk->setChecked(b);
                 commitPropertyChange("Toggle Checkbox");
             }
         });
-        form->addRow("State:", chkState);
+        form->addRow("State:", m_chkState);
 
-        addColorRow("Text Color:", chk->textColor(), [chk](const QColor& c) { chk->setTextColor(c); }, "Change Text Color");
-        addColorRow("Check Color:", chk->checkColor(), [chk](const QColor& c) { chk->setCheckColor(c); }, "Change Check Color");
-        addColorRow("Box Color:", chk->boxColor(), [chk](const QColor& c) { chk->setBoxColor(c); }, "Change Box Color");
-        addColorRow("Border Color:", chk->borderColor(), [chk](const QColor& c) { chk->setBorderColor(c); }, "Change Border Color");
+        m_colorBtn1 = addColorRow("Text Color:", chk->textColor(), [chk](const QColor& c) { chk->setTextColor(c); }, "Change Text Color");
+        m_colorBtn2 = addColorRow("Check Color:", chk->checkColor(), [chk](const QColor& c) { chk->setCheckColor(c); }, "Change Check Color");
+        m_colorBtn3 = addColorRow("Box Color:", chk->boxColor(), [chk](const QColor& c) { chk->setBoxColor(c); }, "Change Box Color");
+        m_colorBtn4 = addColorRow("Border Color:", chk->borderColor(), [chk](const QColor& c) { chk->setBorderColor(c); }, "Change Border Color");
 
-        QLineEdit* handlerEdit = new QLineEdit(chk->onToggledHandler(), this);
-        connect(handlerEdit, &QLineEdit::textChanged, this, [this, chk](const QString& h) {
+        m_handlerEdit = new QLineEdit(chk->onToggledHandler(), m_specificContainer);
+        connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, chk](const QString& h) {
             if (!m_updatingFromComponent) chk->setOnToggledHandler(h);
         });
-        connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+        connect(m_handlerEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Toggled Handler");
         });
-        form->addRow("OnToggled:", handlerEdit);
+        form->addRow("OnToggled:", m_handlerEdit);
+
     } else if (auto txt = dynamic_cast<TextInputComponent*>(m_targetComponent)) {
-        QLineEdit* textEdit = new QLineEdit(txt->text(), this);
-        connect(textEdit, &QLineEdit::textChanged, this, [this, txt](const QString& t) {
+        m_textEdit = new QLineEdit(txt->text(), m_specificContainer);
+        connect(m_textEdit, &QLineEdit::textChanged, this, [this, txt](const QString& t) {
             if (!m_updatingFromComponent) txt->setText(t);
         });
-        connect(textEdit, &QLineEdit::editingFinished, this, [this]() {
+        connect(m_textEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Input Text");
         });
-        form->addRow("Text:", textEdit);
+        form->addRow("Text:", m_textEdit);
 
-        QLineEdit* placeEdit = new QLineEdit(txt->placeholder(), this);
-        connect(placeEdit, &QLineEdit::textChanged, this, [this, txt](const QString& p) {
+        m_placeholderEdit = new QLineEdit(txt->placeholder(), m_specificContainer);
+        connect(m_placeholderEdit, &QLineEdit::textChanged, this, [this, txt](const QString& p) {
             if (!m_updatingFromComponent) txt->setPlaceholder(p);
         });
-        connect(placeEdit, &QLineEdit::editingFinished, this, [this]() {
+        connect(m_placeholderEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Placeholder");
         });
-        form->addRow("Placeholder:", placeEdit);
+        form->addRow("Placeholder:", m_placeholderEdit);
 
-        addColorRow("Text Color:", txt->textColor(), [txt](const QColor& c) { txt->setTextColor(c); }, "Change Text Color");
-        addColorRow("Placeholder Color:", txt->placeholderColor(), [txt](const QColor& c) { txt->setPlaceholderColor(c); }, "Change Placeholder Color");
-        addColorRow("Background Color:", txt->backgroundColor(), [txt](const QColor& c) { txt->setBackgroundColor(c); }, "Change Background Color");
-        addColorRow("Border Color:", txt->borderColor(), [txt](const QColor& c) { txt->setBorderColor(c); }, "Change Border Color");
+        m_colorBtn1 = addColorRow("Text Color:", txt->textColor(), [txt](const QColor& c) { txt->setTextColor(c); }, "Change Text Color");
+        m_colorBtn2 = addColorRow("Placeholder Color:", txt->placeholderColor(), [txt](const QColor& c) { txt->setPlaceholderColor(c); }, "Change Placeholder Color");
+        m_colorBtn3 = addColorRow("Background Color:", txt->backgroundColor(), [txt](const QColor& c) { txt->setBackgroundColor(c); }, "Change Background Color");
+        m_colorBtn4 = addColorRow("Border Color:", txt->borderColor(), [txt](const QColor& c) { txt->setBorderColor(c); }, "Change Border Color");
 
-        QSpinBox* spinBw = new QSpinBox(this);
-        spinBw->setRange(0, 20);
-        spinBw->setValue(txt->borderWidth());
-        connect(spinBw, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(txt->borderWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
             if (!m_updatingFromComponent) txt->setBorderWidth(v);
         });
-        connect(spinBw, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Border Width");
         });
-        form->addRow("Border Width:", spinBw);
+        form->addRow("Border Width:", m_spinStrokeW);
 
-        QSpinBox* spinRadius = new QSpinBox(this);
-        spinRadius->setRange(0, 50);
-        spinRadius->setValue(txt->cornerRadius());
-        connect(spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
+        m_spinRadius = new QSpinBox(m_specificContainer);
+        m_spinRadius->setRange(0, 50);
+        m_spinRadius->setValue(txt->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
             if (!m_updatingFromComponent) txt->setCornerRadius(v);
         });
-        connect(spinRadius, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Corner Radius");
         });
-        form->addRow("Corner Radius:", spinRadius);
+        form->addRow("Corner Radius:", m_spinRadius);
 
-        QSpinBox* spinPixel = new QSpinBox(this);
-        spinPixel->setRange(6, 96);
-        spinPixel->setValue(txt->pixelSize());
-        connect(spinPixel, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
+        m_spinPixelSize = new QSpinBox(m_specificContainer);
+        m_spinPixelSize->setRange(6, 96);
+        m_spinPixelSize->setValue(txt->pixelSize());
+        connect(m_spinPixelSize, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, txt](int v) {
             if (!m_updatingFromComponent) txt->setPixelSize(v);
         });
-        connect(spinPixel, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinPixelSize, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Font Size");
         });
-        form->addRow("Font Size:", spinPixel);
+        form->addRow("Font Size:", m_spinPixelSize);
 
-        QCheckBox* chkRo = new QCheckBox("Read Only", this);
-        chkRo->setChecked(txt->isReadOnly());
-        connect(chkRo, &QCheckBox::toggled, this, [this, txt](bool b) {
+        m_chkReadOnly = new QCheckBox("Read Only", m_specificContainer);
+        m_chkReadOnly->setChecked(txt->isReadOnly());
+        connect(m_chkReadOnly, &QCheckBox::toggled, this, [this, txt](bool b) {
             if (!m_updatingFromComponent) {
                 txt->setReadOnly(b);
                 commitPropertyChange("Toggle Read Only");
             }
         });
-        form->addRow("Behavior:", chkRo);
+        form->addRow("Behavior:", m_chkReadOnly);
 
-        QLineEdit* handlerEdit = new QLineEdit(txt->onTextChangedHandler(), this);
-        connect(handlerEdit, &QLineEdit::textChanged, this, [this, txt](const QString& h) {
+        m_handlerEdit = new QLineEdit(txt->onTextChangedHandler(), m_specificContainer);
+        connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, txt](const QString& h) {
             if (!m_updatingFromComponent) txt->setOnTextChangedHandler(h);
         });
-        connect(handlerEdit, &QLineEdit::editingFinished, this, [this]() {
+        connect(m_handlerEdit, &QLineEdit::editingFinished, this, [this]() {
             commitPropertyChange("Change Text Changed Handler");
         });
-        form->addRow("OnTextChanged:", handlerEdit);
-    } else if (auto circ = dynamic_cast<CircleComponent*>(m_targetComponent)) {
-        addColorRow("Fill Color:", circ->fillColor(), [circ](const QColor& c) { circ->setFillColor(c); }, "Change Fill Color");
-        addColorRow("Stroke Color:", circ->strokeColor(), [circ](const QColor& c) { circ->setStrokeColor(c); }, "Change Stroke Color");
+        form->addRow("OnTextChanged:", m_handlerEdit);
 
-        QSpinBox* spinSw = new QSpinBox(this);
-        spinSw->setRange(0, 20);
-        spinSw->setValue(circ->strokeWidth());
-        connect(spinSw, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, circ](int v) {
+    } else if (auto circ = dynamic_cast<CircleComponent*>(m_targetComponent)) {
+        m_colorBtn1 = addColorRow("Fill Color:", circ->fillColor(), [circ](const QColor& c) { circ->setFillColor(c); }, "Change Fill Color");
+        m_colorBtn2 = addColorRow("Stroke Color:", circ->strokeColor(), [circ](const QColor& c) { circ->setStrokeColor(c); }, "Change Stroke Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(circ->strokeWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, circ](int v) {
             if (!m_updatingFromComponent) circ->setStrokeWidth(v);
         });
-        connect(spinSw, &QSpinBox::editingFinished, this, [this]() {
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Stroke Width");
         });
-        form->addRow("Stroke Width:", spinSw);
+        form->addRow("Stroke Width:", m_spinStrokeW);
 
-        QCheckBox* chkFilled = new QCheckBox("Filled", this);
-        chkFilled->setChecked(circ->isFilled());
-        connect(chkFilled, &QCheckBox::toggled, this, [this, circ](bool b) {
+        m_chkFilled = new QCheckBox("Filled", m_specificContainer);
+        m_chkFilled->setChecked(circ->isFilled());
+        connect(m_chkFilled, &QCheckBox::toggled, this, [this, circ](bool b) {
             if (!m_updatingFromComponent) {
                 circ->setFilled(b);
                 commitPropertyChange("Toggle Circle Fill");
             }
         });
-        form->addRow("Fill:", chkFilled);
+        form->addRow("Fill:", m_chkFilled);
     }
 
-    m_specificLayout->addLayout(form);
+    containerLayout->addLayout(form);
+    m_specificLayout->addWidget(m_specificContainer);
 }
 
 void PropertiesPanel::onGeometryChanged() {

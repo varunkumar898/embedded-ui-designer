@@ -91,6 +91,14 @@ QJsonObject LabelComponent::toJson() const {
     fontObj["italic"] = m_italic;
     obj["font"] = fontObj;
 
+    if (m_alignment & Qt::AlignHCenter) {
+        obj["alignment"] = "center";
+    } else if (m_alignment & Qt::AlignRight) {
+        obj["alignment"] = "right";
+    } else {
+        obj["alignment"] = "left";
+    }
+
     return obj;
 }
 
@@ -106,6 +114,16 @@ void LabelComponent::fromJson(const QJsonObject& json) {
         m_pixelSize = fontObj.value("pixelSize").toInt(m_pixelSize);
         m_bold = fontObj.value("bold").toBool(m_bold);
         m_italic = fontObj.value("italic").toBool(m_italic);
+    }
+    if (json.contains("alignment")) {
+        QString a = json.value("alignment").toString().toLower();
+        if (a == "center") {
+            m_alignment = Qt::AlignHCenter | Qt::AlignVCenter;
+        } else if (a == "right") {
+            m_alignment = Qt::AlignRight | Qt::AlignVCenter;
+        } else {
+            m_alignment = Qt::AlignLeft | Qt::AlignVCenter;
+        }
     }
     update();
 }
@@ -131,6 +149,14 @@ QString LabelComponent::toQmlSnippet(int indentSpaces) const {
     if (!m_fontFamily.isEmpty() && m_fontFamily != "Roboto") {
         qml += QString("%1    font.family: \"%2\"\n").arg(indent, m_fontFamily);
     }
+    if (m_alignment & Qt::AlignHCenter) {
+        qml += QString("%1    horizontalAlignment: Text.AlignHCenter\n").arg(indent);
+    } else if (m_alignment & Qt::AlignRight) {
+        qml += QString("%1    horizontalAlignment: Text.AlignRight\n").arg(indent);
+    } else {
+        qml += QString("%1    horizontalAlignment: Text.AlignLeft\n").arg(indent);
+    }
+    qml += QString("%1    verticalAlignment: Text.AlignVCenter\n").arg(indent);
     qml += QString("%1}\n").arg(indent);
     return qml;
 }
@@ -144,6 +170,13 @@ QString LabelComponent::toUgfxSnippet(int indentSpaces) const {
     code += QString("%1wi.text = \"%2\";\n").arg(indent, m_text);
     code += QString("%1wi.customDraw = NULL;\n").arg(indent);
     code += QString("%1GHandle lbl_%2 = gwinLabelCreate(NULL, &wi);\n").arg(indent, m_id);
+    if (m_alignment & Qt::AlignHCenter) {
+        code += QString("%1gwinSetAlignment(lbl_%2, GJustifyCenter);\n").arg(indent, m_id);
+    } else if (m_alignment & Qt::AlignRight) {
+        code += QString("%1gwinSetAlignment(lbl_%2, GJustifyRight);\n").arg(indent, m_id);
+    } else {
+        code += QString("%1gwinSetAlignment(lbl_%2, GJustifyLeft);\n").arg(indent, m_id);
+    }
     code += QString("%1gwinSetVisible(lbl_%2, gTrue);\n").arg(indent, m_id);
     return code;
 }
