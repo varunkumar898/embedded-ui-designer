@@ -31,9 +31,12 @@ private slots:
     // File Actions
     void onNewProject();
     void onOpenProject();
+    void onImportProject();      // Feature 2: merge .euiproj into current project
     void onOpenSampleProject();
     void onSaveProject();
     void onSaveProjectAs();
+    void onExport();             // Feature 3: unified export dialog
+    // Keep these as implementation helpers (called from onExport):
     void onExportUgfx();
     void onExportQtMcu();
     void onExportLvgl();

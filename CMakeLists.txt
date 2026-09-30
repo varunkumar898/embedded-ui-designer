@@ -99,6 +99,8 @@ set(SOURCES
     src/dialogs/CreateCustomComponentDialog.h
     src/dialogs/NewProjectDialog.cpp
     src/dialogs/NewProjectDialog.h
+    src/dialogs/ExportDialog.cpp
+    src/dialogs/ExportDialog.h
 
     # Panels & Visual Views
     src/canvas/CanvasView.cpp

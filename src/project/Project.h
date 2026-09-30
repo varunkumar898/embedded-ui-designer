@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QList>
 #include <QStandardPaths>
+#include <QPointF>
 #include "DisplayConfig.h"
 #include "CanvasScene.h"
 #include "ColorStyle.h"
@@ -34,6 +35,9 @@ public:
     void newProject(const QString& name = "MyEmbeddedApp", int width = 320, int height = 240);
     bool saveToFile(const QString& filePath);
     bool loadFromFile(const QString& filePath);
+    // Import: merges components from another .euiproj into the current project/scene
+    // Returns the number of components imported, or -1 on error.
+    int importFromFile(const QString& filePath, QPointF offset = QPointF(20, 20));
 
     // AppData storage & Autosave
     static QString appDataDirectory();

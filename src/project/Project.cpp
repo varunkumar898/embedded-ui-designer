@@ -17,6 +17,8 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QDebug>
+#include <QSet>
+#include <QPointF>
 
 Project::Project(CanvasScene* scene, QObject* parent)
     : QObject(parent)
@@ -284,6 +286,124 @@ bool Project::loadFromFile(const QString& filePath) {
         m_filePath = filePath;
     }
     return success;
+}
+
+int Project::importFromFile(const QString& filePath, QPointF offset) {
+    if (!m_scene) return -1;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Import: Failed to open file:" << filePath;
+        return -1;
+    }
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isNull() || !doc.isObject()) {
+        qWarning() << "Import: Invalid JSON in" << filePath;
+        return -1;
+    }
+    QJsonObject root = doc.object();
+
+    // Collect existing IDs in the current scene to detect collisions
+    QSet<QString> existingIds;
+    for (auto comp : m_scene->uiComponents()) {
+        existingIds.insert(comp->componentId());
+    }
+
+    // Helper lambda: deduplicate an ID by appending _2, _3 ...
+    auto uniqueId = [&](const QString& baseId) -> QString {
+        if (!existingIds.contains(baseId)) {
+            existingIds.insert(baseId);
+            return baseId;
+        }
+        int suffix = 2;
+        while (true) {
+            QString candidate = baseId + "_" + QString::number(suffix);
+            if (!existingIds.contains(candidate)) {
+                existingIds.insert(candidate);
+                return candidate;
+            }
+            ++suffix;
+        }
+    };
+
+    // Import color styles that don't already exist by name
+    if (root.contains("colorStyles") && root.value("colorStyles").isArray()) {
+        for (const auto& v : root.value("colorStyles").toArray()) {
+            ColorStyle cs = ColorStyle::fromJson(v.toObject());
+            if (!hasColorStyle(cs.name)) {
+                addColorStyle(cs);
+            }
+        }
+    }
+
+    // Import custom component definitions that don't already exist by id
+    if (root.contains("customComponents") && root.value("customComponents").isArray()) {
+        for (const auto& v : root.value("customComponents").toArray()) {
+            CustomComponentDefinition def = CustomComponentDefinition::fromJson(v.toObject());
+            if (findCustomComponentDefinition(def.id).id.isEmpty()) {
+                addCustomComponentDefinition(def);
+            }
+        }
+    }
+
+    // Import components from the first (and only) page
+    int imported = 0;
+    if (root.contains("pages") && root.value("pages").isArray()) {
+        QJsonArray pages = root.value("pages").toArray();
+        if (!pages.isEmpty()) {
+            QJsonObject mainPage = pages.first().toObject();
+            if (mainPage.contains("components") && mainPage.value("components").isArray()) {
+                QJsonArray compsArray = mainPage.value("components").toArray();
+                for (int i = 0; i < compsArray.size(); ++i) {
+                    QJsonObject compObj = compsArray[i].toObject();
+                    QString type = compObj.value("type").toString();
+                    QString originalId = compObj.value("id").toString();
+
+                    // Deduplicate ID
+                    QString newId = uniqueId(originalId.isEmpty() ? (type.toLower() + "_imp") : originalId);
+                    compObj["id"] = newId;
+
+                    // Offset position so imported items don't stack exactly on existing ones
+                    qreal x = compObj.value("x").toDouble() + offset.x();
+                    qreal y = compObj.value("y").toDouble() + offset.y();
+                    compObj["x"] = x;
+                    compObj["y"] = y;
+
+                    UIComponent* comp = createComponentInstance(type, newId);
+                    if (comp) {
+                        if (auto cci = dynamic_cast<CustomComponentInstance*>(comp)) {
+                            cci->setProject(this);
+                        }
+                        comp->fromJson(compObj);
+                        // Ensure position matches offset-adjusted values
+                        comp->setCompPos(x, y);
+                        m_scene->addUIComponent(comp);
+                        ++imported;
+                    }
+                }
+            }
+        }
+    }
+
+    // Resolve any imported style refs
+    for (auto comp : m_scene->uiComponents()) {
+        const auto& refs = comp->colorStyleRefs();
+        for (auto it = refs.begin(); it != refs.end(); ++it) {
+            QString styleName = it.value();
+            if (hasColorStyle(styleName)) {
+                comp->applyColorStyle(styleName, resolveColor(styleName));
+            }
+        }
+    }
+
+    if (imported > 0) {
+        m_dirty = true;
+        emit projectModified();
+    }
+    return imported;
 }
 
 UIComponent* Project::createComponentInstance(const QString& type, const QString& id) {
