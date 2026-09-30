@@ -9,6 +9,7 @@
 #include "ComponentPalette.h"
 #include "PropertiesPanel.h"
 #include "LayerPanel.h"
+#include "StylesPanel.h"
 #include "Project.h"
 
 class MainWindow : public QMainWindow {
@@ -17,6 +18,13 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override = default;
+
+    Project* project() const { return m_project; }
+    CanvasScene* canvasScene() const { return m_scene; }
+    CanvasView* canvasView() const { return m_view; }
+    StylesPanel* stylesPanel() const { return m_stylesPanel; }
+    PropertiesPanel* propertiesPanel() const { return m_propertiesPanel; }
+    ComponentPalette* palette() const { return m_palette; }
 
 private slots:
     // File Actions
@@ -54,6 +62,7 @@ private:
     ComponentPalette* m_palette = nullptr;
     PropertiesPanel* m_propertiesPanel = nullptr;
     LayerPanel* m_layerPanel = nullptr;
+    StylesPanel* m_stylesPanel = nullptr;
 
     // UI Chrome
     QComboBox* m_resolutionCombo = nullptr;

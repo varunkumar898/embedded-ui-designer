@@ -61,6 +61,10 @@ set(SOURCES
     src/models/TextInputComponent.h
     src/models/CircleComponent.cpp
     src/models/CircleComponent.h
+    src/models/ColorStyle.h
+    src/models/CustomComponentDefinition.h
+    src/models/CustomComponentInstance.cpp
+    src/models/CustomComponentInstance.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddComponentCommand.cpp
@@ -90,6 +94,10 @@ set(SOURCES
     src/hardware/FlashController.cpp
     src/hardware/FlashController.h
 
+    # Dialogs
+    src/dialogs/CreateCustomComponentDialog.cpp
+    src/dialogs/CreateCustomComponentDialog.h
+
     # Panels & Visual Views
     src/canvas/CanvasView.cpp
     src/canvas/CanvasView.h
@@ -99,6 +107,8 @@ set(SOURCES
     src/panels/ComponentPalette.h
     src/panels/PropertiesPanel.cpp
     src/panels/PropertiesPanel.h
+    src/panels/StylesPanel.cpp
+    src/panels/StylesPanel.h
     src/panels/ColorPickerDialog.cpp
     src/panels/ColorPickerDialog.h
     src/panels/LayerPanel.cpp

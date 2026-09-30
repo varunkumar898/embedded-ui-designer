@@ -43,10 +43,27 @@ public:
     // Component Factory
     static UIComponent* createComponentInstance(const QString& type, const QString& id);
 
+    // Named Color Styles
+    QList<struct ColorStyle> colorStyles() const { return m_colorStyles; }
+    void addColorStyle(const struct ColorStyle& style);
+    void updateColorStyle(const QString& name, const QColor& newColor);
+    void removeColorStyle(const QString& name);
+    QColor resolveColor(const QString& styleName, const QColor& defaultColor = QColor()) const;
+    bool hasColorStyle(const QString& name) const;
+    void setColorStyles(const QList<struct ColorStyle>& styles);
+
+    // Custom Component Definitions
+    QList<class CustomComponentDefinition> customComponentDefinitions() const { return m_customComponentDefinitions; }
+    void addCustomComponentDefinition(const class CustomComponentDefinition& def);
+    class CustomComponentDefinition findCustomComponentDefinition(const QString& id) const;
+    void removeCustomComponentDefinition(const QString& id);
+
 signals:
     void projectModified();
     void projectLoaded();
     void projectSaved(const QString& filePath);
+    void colorStylesChanged();
+    void customComponentsChanged();
 
 private:
     CanvasScene* m_scene = nullptr;
@@ -55,4 +72,8 @@ private:
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
     DisplayConfig m_displayConfig;
     bool m_dirty = false;
+
+    QList<struct ColorStyle> m_colorStyles;
+    QList<class CustomComponentDefinition> m_customComponentDefinitions;
+    void initDefaultStyles();
 };

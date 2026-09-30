@@ -35,6 +35,8 @@ public:
     QString toQmlSnippet(int indentSpaces = 8) const override;
     QString toUgfxSnippet(int indentSpaces = 4) const override;
 
+    void applyColorStyle(const QString& styleName, const QColor& color) override;
+
 protected:
     void paintComponent(QPainter* painter) override;
 

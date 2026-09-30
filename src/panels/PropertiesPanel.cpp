@@ -9,6 +9,8 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "CustomComponentInstance.h"
+#include "Project.h"
 #include "PropertyChangeCommand.h"
 #include "ColorPickerDialog.h"
 #include <QUndoStack>
@@ -323,6 +325,10 @@ void PropertiesPanel::refreshValues() {
         if (m_colorBtn2) updateColorButton(m_colorBtn2, circ->strokeColor());
         if (m_spinStrokeW) m_spinStrokeW->setValue(circ->strokeWidth());
         if (m_chkFilled) m_chkFilled->setChecked(circ->isFilled());
+    } else if (auto cci = dynamic_cast<CustomComponentInstance*>(m_targetComponent)) {
+        if (m_spinSliderVal) m_spinSliderVal->setValue(static_cast<int>(cci->value()));
+        if (m_spinSliderMin) m_spinSliderMin->setValue(static_cast<int>(cci->minValue()));
+        if (m_spinSliderMax) m_spinSliderMax->setValue(static_cast<int>(cci->maxValue()));
     }
 
     m_lastSavedState = m_targetComponent->toJson();
@@ -412,21 +418,115 @@ void PropertiesPanel::rebuildSpecificEditors() {
     form->setSpacing(8);
     form->setContentsMargins(0, 0, 0, 0);
 
-    auto addColorRow = [this, form](const QString& label, const QColor& initialColor, auto setter, const QString& desc) {
-        QPushButton* btn = new QPushButton(m_specificContainer);
-        updateColorButton(btn, initialColor);
-        connect(btn, &QPushButton::clicked, this, [this, btn, setter, desc]() {
+    auto addColorRow = [this, form](const QString& label, const QString& propKey, const QColor& initialColor, auto setter, const QString& desc) {
+        QWidget* rowWidget = new QWidget(m_specificContainer);
+        QHBoxLayout* h = new QHBoxLayout(rowWidget);
+        h->setContentsMargins(0, 0, 0, 0);
+        h->setSpacing(4);
+
+        QPushButton* hexBtn = new QPushButton(rowWidget);
+        updateColorButton(hexBtn, initialColor);
+
+        QComboBox* styleCombo = new QComboBox(rowWidget);
+        styleCombo->setStyleSheet(
+            "QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }"
+            "QComboBox::drop-down { border: none; }"
+            "QComboBox QAbstractItemView { background: #1C1F26; color: #FFFFFF; selection-background-color: #2196F3; }"
+        );
+
+        auto populateCombo = [this, styleCombo]() {
+            styleCombo->clear();
+            if (m_project) {
+                for (const auto& s : m_project->colorStyles()) {
+                    QPixmap px(12, 12);
+                    px.fill(s.color);
+                    styleCombo->addItem(QIcon(px), QString("%1 (%2)").arg(s.name, s.color.name().toUpper()), s.name);
+                }
+            }
+        };
+        populateCombo();
+
+        bool hasRef = m_targetComponent && m_targetComponent->hasColorStyleRef(propKey);
+        QString currentRef = hasRef ? m_targetComponent->colorStyleRef(propKey) : QString();
+
+        QPushButton* toggleBtn = new QPushButton(hasRef ? "🏷" : "🎨", rowWidget);
+        toggleBtn->setFixedSize(30, 26);
+        toggleBtn->setToolTip(hasRef ? "Named Style active. Click to switch to direct Hex." : "Direct Hex active. Click to pick a named style.");
+        toggleBtn->setStyleSheet(hasRef ?
+            "QPushButton { background: #1976D2; color: #FFFFFF; font-size: 11px; border-radius: 4px; border: 1px solid #2196F3; padding: 0px; }" :
+            "QPushButton { background: #252830; color: #A0ABC0; font-size: 11px; border-radius: 4px; border: 1px solid #3B404E; padding: 0px; }"
+        );
+
+        if (hasRef) {
+            hexBtn->hide();
+            styleCombo->show();
+            int idx = styleCombo->findData(currentRef);
+            if (idx >= 0) styleCombo->setCurrentIndex(idx);
+        } else {
+            styleCombo->hide();
+            hexBtn->show();
+        }
+
+        connect(toggleBtn, &QPushButton::clicked, this, [this, toggleBtn, hexBtn, styleCombo, propKey, setter, desc, populateCombo]() {
             if (!m_targetComponent) return;
-            QColor current(btn->text());
+            bool nowStyle = hexBtn->isVisible(); // switching to style mode
+            if (nowStyle) {
+                populateCombo();
+                hexBtn->hide();
+                styleCombo->show();
+                toggleBtn->setText("🏷");
+                toggleBtn->setToolTip("Named Style active. Click to switch to direct Hex.");
+                toggleBtn->setStyleSheet("QPushButton { background: #1976D2; color: #FFFFFF; font-size: 11px; border-radius: 4px; border: 1px solid #2196F3; padding: 0px; }");
+                if (styleCombo->count() > 0) {
+                    QString styleName = styleCombo->currentData().toString();
+                    m_targetComponent->setColorStyleRef(propKey, styleName);
+                    if (m_project) {
+                        QColor sc = m_project->resolveColor(styleName);
+                        setter(sc);
+                        updateColorButton(hexBtn, sc);
+                    }
+                    commitPropertyChange(desc);
+                }
+            } else {
+                styleCombo->hide();
+                hexBtn->show();
+                toggleBtn->setText("🎨");
+                toggleBtn->setToolTip("Direct Hex active. Click to pick a named style.");
+                toggleBtn->setStyleSheet("QPushButton { background: #252830; color: #A0ABC0; font-size: 11px; border-radius: 4px; border: 1px solid #3B404E; padding: 0px; }");
+                m_targetComponent->clearColorStyleRef(propKey);
+                commitPropertyChange(desc);
+            }
+        });
+
+        connect(hexBtn, &QPushButton::clicked, this, [this, hexBtn, propKey, setter, desc]() {
+            if (!m_targetComponent) return;
+            QColor current(hexBtn->text());
             QColor picked = ColorPickerDialog::getColor(current, this, "Choose Color");
             if (picked.isValid()) {
-                updateColorButton(btn, picked);
+                m_targetComponent->clearColorStyleRef(propKey);
+                updateColorButton(hexBtn, picked);
                 setter(picked);
                 commitPropertyChange(desc);
             }
         });
-        form->addRow(label, btn);
-        return btn;
+
+        connect(styleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, hexBtn, styleCombo, propKey, setter, desc](int idx) {
+            if (!m_targetComponent || idx < 0 || !styleCombo->isVisible()) return;
+            QString styleName = styleCombo->itemData(idx).toString();
+            m_targetComponent->setColorStyleRef(propKey, styleName);
+            if (m_project) {
+                QColor sc = m_project->resolveColor(styleName);
+                setter(sc);
+                updateColorButton(hexBtn, sc);
+            }
+            commitPropertyChange(desc);
+        });
+
+        h->addWidget(toggleBtn);
+        h->addWidget(hexBtn, 1);
+        h->addWidget(styleCombo, 1);
+        form->addRow(label, rowWidget);
+        return hexBtn;
     };
 
     if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
@@ -439,8 +539,8 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Text:", m_textEdit);
 
-        m_colorBtn1 = addColorRow("Background:", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); }, "Change Background Color");
-        m_colorBtn2 = addColorRow("Text Color:", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); }, "Change Text Color");
+        m_colorBtn1 = addColorRow("Background:", "backgroundColor", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); }, "Change Background Color");
+        m_colorBtn2 = addColorRow("Text Color:", "textColor", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); }, "Change Text Color");
 
         m_spinRadius = new QSpinBox(m_specificContainer);
         int maxR = static_cast<int>(std::floor(std::min(btn->compWidth(), btn->compHeight()) / 2.0));
@@ -473,7 +573,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Text:", m_textEdit);
 
-        m_colorBtn1 = addColorRow("Color:", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); }, "Change Label Color");
+        m_colorBtn1 = addColorRow("Color:", "textColor", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); }, "Change Label Color");
 
         m_spinPixelSize = new QSpinBox(m_specificContainer);
         m_spinPixelSize->setRange(6, 96);
@@ -580,8 +680,8 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("Alignment:", alignLayout);
 
     } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
-        m_colorBtn1 = addColorRow("Fill Color:", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); }, "Change Fill Color");
-        m_colorBtn2 = addColorRow("Stroke Color:", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); }, "Change Stroke Color");
+        m_colorBtn1 = addColorRow("Fill Color:", "fillColor", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); }, "Change Fill Color");
+        m_colorBtn2 = addColorRow("Stroke Color:", "strokeColor", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); }, "Change Stroke Color");
 
         m_spinStrokeW = new QSpinBox(m_specificContainer);
         m_spinStrokeW->setRange(0, 20);
@@ -619,8 +719,8 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Progress (0-1):", m_spinProgressValue);
 
-        m_colorBtn1 = addColorRow("Bar Color:", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); }, "Change Bar Color");
-        m_colorBtn2 = addColorRow("Track Color:", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn1 = addColorRow("Bar Color:", "barColor", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); }, "Change Bar Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); }, "Change Track Color");
 
         m_spinRadius = new QSpinBox(m_specificContainer);
         int progMaxR = static_cast<int>(std::floor(std::min(prog->compWidth(), prog->compHeight()) / 2.0));
@@ -704,9 +804,9 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Maximum:", m_spinSliderMax);
 
-        m_colorBtn1 = addColorRow("Track Color:", slider->trackColor(), [slider](const QColor& c) { slider->setTrackColor(c); }, "Change Track Color");
-        m_colorBtn2 = addColorRow("Fill Color:", slider->fillColor(), [slider](const QColor& c) { slider->setFillColor(c); }, "Change Fill Color");
-        m_colorBtn3 = addColorRow("Handle Color:", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
+        m_colorBtn1 = addColorRow("Track Color:", "trackColor", slider->trackColor(), [slider](const QColor& c) { slider->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn2 = addColorRow("Fill Color:", "fillColor", slider->fillColor(), [slider](const QColor& c) { slider->setFillColor(c); }, "Change Fill Color");
+        m_colorBtn3 = addColorRow("Handle Color:", "handleColor", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
 
     } else if (auto sw = dynamic_cast<SwitchComponent*>(m_targetComponent)) {
         m_chkState = new QCheckBox("Checked", m_specificContainer);
@@ -719,9 +819,9 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("State:", m_chkState);
 
-        m_colorBtn1 = addColorRow("On Color:", sw->onColor(), [sw](const QColor& c) { sw->setOnColor(c); }, "Change On Color");
-        m_colorBtn2 = addColorRow("Off Color:", sw->offColor(), [sw](const QColor& c) { sw->setOffColor(c); }, "Change Off Color");
-        m_colorBtn3 = addColorRow("Thumb Color:", sw->thumbColor(), [sw](const QColor& c) { sw->setThumbColor(c); }, "Change Thumb Color");
+        m_colorBtn1 = addColorRow("On Color:", "onColor", sw->onColor(), [sw](const QColor& c) { sw->setOnColor(c); }, "Change On Color");
+        m_colorBtn2 = addColorRow("Off Color:", "offColor", sw->offColor(), [sw](const QColor& c) { sw->setOffColor(c); }, "Change Off Color");
+        m_colorBtn3 = addColorRow("Thumb Color:", "thumbColor", sw->thumbColor(), [sw](const QColor& c) { sw->setThumbColor(c); }, "Change Thumb Color");
 
         m_handlerEdit = new QLineEdit(sw->onToggledHandler(), m_specificContainer);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, sw](const QString& h) {
@@ -752,10 +852,10 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("State:", m_chkState);
 
-        m_colorBtn1 = addColorRow("Text Color:", chk->textColor(), [chk](const QColor& c) { chk->setTextColor(c); }, "Change Text Color");
-        m_colorBtn2 = addColorRow("Check Color:", chk->checkColor(), [chk](const QColor& c) { chk->setCheckColor(c); }, "Change Check Color");
-        m_colorBtn3 = addColorRow("Box Color:", chk->boxColor(), [chk](const QColor& c) { chk->setBoxColor(c); }, "Change Box Color");
-        m_colorBtn4 = addColorRow("Border Color:", chk->borderColor(), [chk](const QColor& c) { chk->setBorderColor(c); }, "Change Border Color");
+        m_colorBtn1 = addColorRow("Text Color:", "textColor", chk->textColor(), [chk](const QColor& c) { chk->setTextColor(c); }, "Change Text Color");
+        m_colorBtn2 = addColorRow("Check Color:", "checkColor", chk->checkColor(), [chk](const QColor& c) { chk->setCheckColor(c); }, "Change Check Color");
+        m_colorBtn3 = addColorRow("Box Color:", "boxColor", chk->boxColor(), [chk](const QColor& c) { chk->setBoxColor(c); }, "Change Box Color");
+        m_colorBtn4 = addColorRow("Border Color:", "borderColor", chk->borderColor(), [chk](const QColor& c) { chk->setBorderColor(c); }, "Change Border Color");
 
         m_handlerEdit = new QLineEdit(chk->onToggledHandler(), m_specificContainer);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, chk](const QString& h) {
@@ -785,10 +885,10 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Placeholder:", m_placeholderEdit);
 
-        m_colorBtn1 = addColorRow("Text Color:", txt->textColor(), [txt](const QColor& c) { txt->setTextColor(c); }, "Change Text Color");
-        m_colorBtn2 = addColorRow("Placeholder Color:", txt->placeholderColor(), [txt](const QColor& c) { txt->setPlaceholderColor(c); }, "Change Placeholder Color");
-        m_colorBtn3 = addColorRow("Background Color:", txt->backgroundColor(), [txt](const QColor& c) { txt->setBackgroundColor(c); }, "Change Background Color");
-        m_colorBtn4 = addColorRow("Border Color:", txt->borderColor(), [txt](const QColor& c) { txt->setBorderColor(c); }, "Change Border Color");
+        m_colorBtn1 = addColorRow("Text Color:", "textColor", txt->textColor(), [txt](const QColor& c) { txt->setTextColor(c); }, "Change Text Color");
+        m_colorBtn2 = addColorRow("Placeholder Color:", "placeholderColor", txt->placeholderColor(), [txt](const QColor& c) { txt->setPlaceholderColor(c); }, "Change Placeholder Color");
+        m_colorBtn3 = addColorRow("Background Color:", "backgroundColor", txt->backgroundColor(), [txt](const QColor& c) { txt->setBackgroundColor(c); }, "Change Background Color");
+        m_colorBtn4 = addColorRow("Border Color:", "borderColor", txt->borderColor(), [txt](const QColor& c) { txt->setBorderColor(c); }, "Change Border Color");
 
         m_spinStrokeW = new QSpinBox(m_specificContainer);
         m_spinStrokeW->setRange(0, 20);
@@ -843,8 +943,8 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("OnTextChanged:", m_handlerEdit);
 
     } else if (auto circ = dynamic_cast<CircleComponent*>(m_targetComponent)) {
-        m_colorBtn1 = addColorRow("Fill Color:", circ->fillColor(), [circ](const QColor& c) { circ->setFillColor(c); }, "Change Fill Color");
-        m_colorBtn2 = addColorRow("Stroke Color:", circ->strokeColor(), [circ](const QColor& c) { circ->setStrokeColor(c); }, "Change Stroke Color");
+        m_colorBtn1 = addColorRow("Fill Color:", "fillColor", circ->fillColor(), [circ](const QColor& c) { circ->setFillColor(c); }, "Change Fill Color");
+        m_colorBtn2 = addColorRow("Stroke Color:", "strokeColor", circ->strokeColor(), [circ](const QColor& c) { circ->setStrokeColor(c); }, "Change Stroke Color");
 
         m_spinStrokeW = new QSpinBox(m_specificContainer);
         m_spinStrokeW->setRange(0, 20);
@@ -866,6 +966,51 @@ void PropertiesPanel::rebuildSpecificEditors() {
             }
         });
         form->addRow("Fill:", m_chkFilled);
+
+    } else if (auto cci = dynamic_cast<CustomComponentInstance*>(m_targetComponent)) {
+        CustomComponentDefinition def = cci->definition();
+        QLabel* defLabel = new QLabel(def.name.isEmpty() ? "Custom Component" : def.name, m_specificContainer);
+        defLabel->setStyleSheet("color: #64B5F6; font-size: 12px; font-weight: bold;");
+        form->addRow("Component:", defLabel);
+
+        QLabel* roleLabel = new QLabel(def.behaviorRole, m_specificContainer);
+        roleLabel->setStyleSheet("color: #A0ABC0; font-size: 11px;");
+        form->addRow("Role:", roleLabel);
+
+        if (cci->behaviorRole() == "Slider" || cci->behaviorRole() == "ProgressBar") {
+            m_spinSliderVal = new QSpinBox(m_specificContainer);
+            m_spinSliderVal->setRange(static_cast<int>(cci->minValue()), static_cast<int>(cci->maxValue()));
+            m_spinSliderVal->setValue(static_cast<int>(cci->value()));
+            connect(m_spinSliderVal, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, cci](int v) {
+                if (!m_updatingFromComponent) cci->setValue(v);
+            });
+            connect(m_spinSliderVal, &QSpinBox::editingFinished, this, [this]() {
+                commitPropertyChange("Change Slider Value");
+            });
+            form->addRow("Value:", m_spinSliderVal);
+
+            m_spinSliderMin = new QSpinBox(m_specificContainer);
+            m_spinSliderMin->setRange(-10000, 10000);
+            m_spinSliderMin->setValue(static_cast<int>(cci->minValue()));
+            connect(m_spinSliderMin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, cci](int v) {
+                if (!m_updatingFromComponent) cci->setMinValue(v);
+            });
+            connect(m_spinSliderMin, &QSpinBox::editingFinished, this, [this]() {
+                commitPropertyChange("Change Minimum");
+            });
+            form->addRow("Minimum:", m_spinSliderMin);
+
+            m_spinSliderMax = new QSpinBox(m_specificContainer);
+            m_spinSliderMax->setRange(-10000, 10000);
+            m_spinSliderMax->setValue(static_cast<int>(cci->maxValue()));
+            connect(m_spinSliderMax, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, cci](int v) {
+                if (!m_updatingFromComponent) cci->setMaxValue(v);
+            });
+            connect(m_spinSliderMax, &QSpinBox::editingFinished, this, [this]() {
+                commitPropertyChange("Change Maximum");
+            });
+            form->addRow("Maximum:", m_spinSliderMax);
+        }
     }
 
     containerLayout->addLayout(form);

@@ -116,14 +116,34 @@ void SliderComponent::paintComponent(QPainter* painter) {
     painter->drawEllipse(QPointF(thumbX, thumbY), thumbRadius, thumbRadius);
 }
 
+void SliderComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("trackColor") == styleName) {
+        m_trackColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("fillColor") == styleName) {
+        m_fillColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("handleColor") == styleName) {
+        m_handleColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 QJsonObject SliderComponent::toJson() const {
     QJsonObject json = UIComponent::toJson();
     json["value"] = m_value;
     json["minimum"] = m_minimum;
     json["maximum"] = m_maximum;
-    json["trackColor"] = m_trackColor.name();
-    json["fillColor"] = m_fillColor.name();
-    json["handleColor"] = m_handleColor.name();
+    json["trackColor"] = serializeColor(m_trackColor, colorStyleRef("trackColor"));
+    json["fillColor"] = serializeColor(m_fillColor, colorStyleRef("fillColor"));
+    json["handleColor"] = serializeColor(m_handleColor, colorStyleRef("handleColor"));
     return json;
 }
 
@@ -132,9 +152,21 @@ void SliderComponent::fromJson(const QJsonObject& json) {
     m_minimum = json.value("minimum").toInt(0);
     m_maximum = json.value("maximum").toInt(100);
     m_value = json.value("value").toInt(50);
-    if (json.contains("trackColor")) m_trackColor = QColor(json.value("trackColor").toString());
-    if (json.contains("fillColor")) m_fillColor = QColor(json.value("fillColor").toString());
-    if (json.contains("handleColor")) m_handleColor = QColor(json.value("handleColor").toString());
+    if (json.contains("trackColor")) {
+        QString ref;
+        deserializeColor(json.value("trackColor"), m_trackColor, ref);
+        setColorStyleRef("trackColor", ref);
+    }
+    if (json.contains("fillColor")) {
+        QString ref;
+        deserializeColor(json.value("fillColor"), m_fillColor, ref);
+        setColorStyleRef("fillColor", ref);
+    }
+    if (json.contains("handleColor")) {
+        QString ref;
+        deserializeColor(json.value("handleColor"), m_handleColor, ref);
+        setColorStyleRef("handleColor", ref);
+    }
 }
 
 QString SliderComponent::toQmlSnippet(int indentSpaces) const {

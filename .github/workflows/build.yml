@@ -2,7 +2,7 @@ name: Embedded UI Designer CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'feature/**' ]
   pull_request:
     branches: [ main ]
 
@@ -71,6 +71,27 @@ jobs:
           fi
           chmod +x ./EmbeddedUIDesigner 2>/dev/null || true
 
+      - name: Verify Features & Capture Screenshots
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
+          elif [ "$RUNNER_OS" = "Linux" ]; then
+            export QT_QPA_PLATFORM=offscreen
+          fi
+          echo "=== Verifying Feature 1: Named Color Styles ==="
+          ./EmbeddedUIDesigner --verify-feature1 verification_feature1.png
+          echo "=== Verifying Feature 2: Custom Components ==="
+          ./EmbeddedUIDesigner --verify-feature2 verification_feature2.png
+          ls -la verification_*.png
+
+      - name: Upload Verification Screenshots
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Verification-Screenshots
+          path: verification_*.png
+
       - name: Test Headless Code Generation (CLI Mode)
         shell: bash
         run: |
@@ -101,6 +122,22 @@ jobs:
           cmake -S /tmp/out -B /tmp/out/build -DUGFX_PATH="$UGFX_DIR"
           echo "=== Compiling Exported µGFX Binary ==="
           cmake --build /tmp/out/build --config Release
+
+      - name: Package Windows Portable Release
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist/EmbeddedUIDesigner
+          cp build/Release/EmbeddedUIDesigner.exe dist/EmbeddedUIDesigner/
+          "${{ env.QT_ROOT_DIR }}/bin/windeployqt.exe" --release --no-translations dist/EmbeddedUIDesigner/EmbeddedUIDesigner.exe
+          cd dist && 7z a ../EmbeddedUIDesigner-Windows-x64-Portable.zip EmbeddedUIDesigner/
+
+      - name: Upload Windows Portable Zip
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmbeddedUIDesigner-Windows-x64-Portable
+          path: EmbeddedUIDesigner-Windows-x64-Portable.zip
 
       - name: Run CPack Packaging
         working-directory: build

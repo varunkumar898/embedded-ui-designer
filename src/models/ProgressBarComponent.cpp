@@ -61,11 +61,28 @@ void ProgressBarComponent::paintComponent(QPainter* painter) {
     }
 }
 
+void ProgressBarComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("barColor") == styleName || colorStyleRef("fillColor") == styleName) {
+        m_barColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("trackColor") == styleName) {
+        m_trackColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 QJsonObject ProgressBarComponent::toJson() const {
     QJsonObject obj = UIComponent::toJson();
     obj["value"] = m_value;
-    obj["barColor"] = m_barColor.name();
-    obj["trackColor"] = m_trackColor.name();
+    QString barRef = colorStyleRef("barColor").isEmpty() ? colorStyleRef("fillColor") : colorStyleRef("barColor");
+    obj["barColor"] = serializeColor(m_barColor, barRef);
+    obj["trackColor"] = serializeColor(m_trackColor, colorStyleRef("trackColor"));
     obj["cornerRadius"] = m_cornerRadius;
     return obj;
 }
@@ -74,10 +91,14 @@ void ProgressBarComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     m_value = json.value("value").toDouble(m_value);
     if (json.contains("barColor")) {
-        m_barColor = QColor(json.value("barColor").toString());
+        QString ref;
+        deserializeColor(json.value("barColor"), m_barColor, ref);
+        setColorStyleRef("barColor", ref);
     }
     if (json.contains("trackColor")) {
-        m_trackColor = QColor(json.value("trackColor").toString());
+        QString ref;
+        deserializeColor(json.value("trackColor"), m_trackColor, ref);
+        setColorStyleRef("trackColor", ref);
     }
     m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
     update();

@@ -64,10 +64,26 @@ void CircleComponent::paintComponent(QPainter* painter) {
     painter->drawEllipse(QRectF(x, y, effDim, effDim));
 }
 
+void CircleComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("fillColor") == styleName) {
+        m_fillColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("strokeColor") == styleName) {
+        m_strokeColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 QJsonObject CircleComponent::toJson() const {
     QJsonObject json = UIComponent::toJson();
-    json["fillColor"] = m_fillColor.name();
-    json["strokeColor"] = m_strokeColor.name();
+    json["fillColor"] = serializeColor(m_fillColor, colorStyleRef("fillColor"));
+    json["strokeColor"] = serializeColor(m_strokeColor, colorStyleRef("strokeColor"));
     json["strokeWidth"] = m_strokeWidth;
     json["isFilled"] = m_isFilled;
     return json;
@@ -75,8 +91,16 @@ QJsonObject CircleComponent::toJson() const {
 
 void CircleComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
-    if (json.contains("fillColor")) m_fillColor = QColor(json.value("fillColor").toString());
-    if (json.contains("strokeColor")) m_strokeColor = QColor(json.value("strokeColor").toString());
+    if (json.contains("fillColor")) {
+        QString ref;
+        deserializeColor(json.value("fillColor"), m_fillColor, ref);
+        setColorStyleRef("fillColor", ref);
+    }
+    if (json.contains("strokeColor")) {
+        QString ref;
+        deserializeColor(json.value("strokeColor"), m_strokeColor, ref);
+        setColorStyleRef("strokeColor", ref);
+    }
     m_strokeWidth = json.value("strokeWidth").toInt(1);
     m_isFilled = json.value("isFilled").toBool(true);
 }

@@ -9,6 +9,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "CustomComponentInstance.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -302,6 +303,29 @@ QString LvglGenerator::generateUiHeader() {
     code += "extern \"C\" {\n";
     code += "#endif\n\n";
 
+    code += "/* =============================================================== */\n";
+    code += "/* Named Color Styles (LVGL color constants)                       */\n";
+    code += "/* Format: #define LV_COLOR_<NAME> lv_color_hex(0xRRGGBB)          */\n";
+    code += "/* Components referencing a style emit that constant name          */\n";
+    code += "/* =============================================================== */\n";
+    if (m_project) {
+        for (const auto& s : m_project->colorStyles()) {
+            code += QString("#define LV_COLOR_%1 lv_color_hex(0x%2)\n")
+                .arg(s.name.toUpper())
+                .arg(s.color.name().mid(1).toUpper());
+        }
+    }
+    code += "\n";
+
+    if (m_project) {
+        for (const auto& def : m_project->customComponentDefinitions()) {
+            QString fn = QString("create_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+            code += QString("// Reusable Custom Component: %1 (%2)\n").arg(def.name, def.behaviorRole);
+            code += QString("lv_obj_t *%1(lv_obj_t *parent, int32_t x, int32_t y, int32_t w, int32_t h, int32_t val);\n").arg(fn);
+        }
+        if (!m_project->customComponentDefinitions().isEmpty()) code += "\n";
+    }
+
     code += "/* Screen & Component Handles */\n";
     code += "extern lv_obj_t *ui_Screen;\n";
 
@@ -460,6 +484,60 @@ QString LvglGenerator::generateUiSource() {
         }
     }
 
+    /* =============================================================== */
+    /* Reusable Custom Component Creation Functions                     */
+    /* =============================================================== */
+    if (m_project) {
+        for (const auto& def : m_project->customComponentDefinitions()) {
+            QString fn = QString("create_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+            code += QString("lv_obj_t *%1(lv_obj_t *parent, int32_t x, int32_t y, int32_t w, int32_t h, int32_t val) {\n").arg(fn);
+            code += "    lv_obj_t *container = lv_obj_create(parent);\n";
+            code += "    lv_obj_remove_style_all(container);\n";
+            code += "    lv_obj_set_pos(container, x, y);\n";
+            code += "    lv_obj_set_size(container, w, h);\n";
+            int idx = 0;
+            for (const auto& prim : def.primitives) {
+                QString pId = QString("p%1").arg(idx++);
+                code += QString("    // Sub-shape: %1 (%2)\n").arg(prim.shapeType, prim.role);
+                code += QString("    lv_obj_t *%1 = lv_obj_create(container);\n").arg(pId);
+                code += QString("    lv_obj_remove_style_all(%1);\n").arg(pId);
+                if (prim.role == "thumb" && (def.behaviorRole == "Slider" || def.behaviorRole == "ProgressBar")) {
+                    code += QString("    float pct = (w > 0) ? ((float)(val - %1) / (%2 - %1)) : 0.0f;\n").arg(def.minValue).arg(def.maxValue);
+                    code += QString("    if (pct < 0.0f) pct = 0.0f; if (pct > 1.0f) pct = 1.0f;\n");
+                    code += QString("    int32_t tx = (int32_t)(pct * (w - %1 * w / %2));\n").arg(prim.relWidth).arg(def.width > 0 ? def.width : 100);
+                    code += QString("    lv_obj_set_pos(%1, tx, (int32_t)(%2 * h / %3));\n").arg(pId).arg(prim.relY).arg(def.height > 0 ? def.height : 100);
+                } else {
+                    code += QString("    lv_obj_set_pos(%1, (int32_t)(%2 * w / %3), (int32_t)(%4 * h / %5));\n")
+                        .arg(pId)
+                        .arg(prim.relX).arg(def.width > 0 ? def.width : 100)
+                        .arg(prim.relY).arg(def.height > 0 ? def.height : 100);
+                }
+                code += QString("    lv_obj_set_size(%1, (int32_t)(%2 * w / %3), (int32_t)(%4 * h / %5));\n")
+                    .arg(pId)
+                    .arg(prim.relWidth).arg(def.width > 0 ? def.width : 100)
+                    .arg(prim.relHeight).arg(def.height > 0 ? def.height : 100);
+                code += QString("    lv_obj_set_style_bg_color(%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                    .arg(pId, prim.fillColor.name().mid(1).toUpper());
+                code += QString("    lv_obj_set_style_bg_opa(%1, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(pId);
+                if (prim.cornerRadius > 0 || prim.shapeType == "Circle") {
+                    if (prim.shapeType == "Circle") {
+                        code += QString("    lv_obj_set_style_radius(%1, LV_RADIUS_CIRCLE, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(pId);
+                    } else {
+                        code += QString("    lv_obj_set_style_radius(%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(pId).arg(prim.cornerRadius);
+                    }
+                }
+                if (prim.strokeWidth > 0) {
+                    code += QString("    lv_obj_set_style_border_color(%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                        .arg(pId, prim.strokeColor.name().mid(1).toUpper());
+                    code += QString("    lv_obj_set_style_border_width(%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                        .arg(pId).arg(prim.strokeWidth);
+                }
+            }
+            code += "    return container;\n";
+            code += "}\n\n";
+        }
+    }
+
     code += "/* =============================================================== */\n";
     code += "/* Screen & Component Construction                                 */\n";
     code += "/* =============================================================== */\n";
@@ -485,8 +563,12 @@ QString LvglGenerator::generateUiSource() {
                 int rw = static_cast<int>(rect->compWidth());
                 int rh = static_cast<int>(rect->compHeight());
                 int rad = rect->cornerRadius();
-                QString fillHex = rect->fillColor().name().mid(1).toUpper();
-                QString strokeHex = rect->strokeColor().name().mid(1).toUpper();
+                QString fillExpr = rect->hasColorStyleRef("fillColor")
+                    ? QString("LV_COLOR_%1").arg(rect->colorStyleRef("fillColor").toUpper())
+                    : QString("lv_color_hex(0x%1)").arg(rect->fillColor().name().mid(1).toUpper());
+                QString strokeExpr = rect->hasColorStyleRef("strokeColor")
+                    ? QString("LV_COLOR_%1").arg(rect->colorStyleRef("strokeColor").toUpper())
+                    : QString("lv_color_hex(0x%1)").arg(rect->strokeColor().name().mid(1).toUpper());
                 int strokeW = rect->strokeWidth();
 
                 code += QString("    // Rectangle: %1\n").arg(id);
@@ -494,13 +576,13 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    lv_obj_remove_style_all(ui_rect_%1);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_rect_%1, %2, %3);\n").arg(id).arg(rx).arg(ry);
                 code += QString("    lv_obj_set_size(ui_rect_%1, %2, %3);\n").arg(id).arg(rw).arg(rh);
-                code += QString("    lv_obj_set_style_bg_color(ui_rect_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, fillHex);
+                code += QString("    lv_obj_set_style_bg_color(ui_rect_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, fillExpr);
                 code += QString("    lv_obj_set_style_bg_opa(ui_rect_%1, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
                 if (rad > 0) {
                     code += QString("    lv_obj_set_style_radius(ui_rect_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(rad);
                 }
                 if (strokeW > 0) {
-                    code += QString("    lv_obj_set_style_border_color(ui_rect_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, strokeHex);
+                    code += QString("    lv_obj_set_style_border_color(ui_rect_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, strokeExpr);
                     code += QString("    lv_obj_set_style_border_width(ui_rect_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(strokeW);
                 }
                 code += "\n";
@@ -714,15 +796,19 @@ QString LvglGenerator::generateUiSource() {
                 int by = static_cast<int>(btn->pos().y());
                 int bw = static_cast<int>(btn->compWidth());
                 int bh = static_cast<int>(btn->compHeight());
-                QString bgHex = btn->backgroundColor().name().mid(1).toUpper();
-                QString textHex = btn->textColor().name().mid(1).toUpper();
+                QString bgExpr = btn->hasColorStyleRef("backgroundColor")
+                    ? QString("LV_COLOR_%1").arg(btn->colorStyleRef("backgroundColor").toUpper())
+                    : QString("lv_color_hex(0x%1)").arg(btn->backgroundColor().name().mid(1).toUpper());
+                QString textExpr = btn->hasColorStyleRef("textColor")
+                    ? QString("LV_COLOR_%1").arg(btn->colorStyleRef("textColor").toUpper())
+                    : QString("lv_color_hex(0x%1)").arg(btn->textColor().name().mid(1).toUpper());
                 int rad = btn->cornerRadius();
 
                 code += QString("    // Button: %1\n").arg(id);
                 code += QString("    ui_btn_%1 = lv_btn_create(ui_Screen);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_btn_%1, %2, %3);\n").arg(id).arg(bx).arg(by);
                 code += QString("    lv_obj_set_size(ui_btn_%1, %2, %3);\n").arg(id).arg(bw).arg(bh);
-                code += QString("    lv_obj_set_style_bg_color(ui_btn_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, bgHex);
+                code += QString("    lv_obj_set_style_bg_color(ui_btn_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, bgExpr);
                 if (rad > 0) {
                     code += QString("    lv_obj_set_style_radius(ui_btn_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(rad);
                 }
@@ -730,8 +816,24 @@ QString LvglGenerator::generateUiSource() {
 
                 code += QString("    ui_btn_%1_label = lv_label_create(ui_btn_%1);\n").arg(id);
                 code += QString("    lv_label_set_text(ui_btn_%1_label, \"%2\");\n").arg(id, btn->text());
-                code += QString("    lv_obj_set_style_text_color(ui_btn_%1_label, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, textHex);
+                code += QString("    lv_obj_set_style_text_color(ui_btn_%1_label, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, textExpr);
                 code += QString("    lv_obj_center(ui_btn_%1_label);\n\n").arg(id);
+            }
+        }
+
+        // 11. Custom Components
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto cci = dynamic_cast<CustomComponentInstance*>(comp)) {
+                CustomComponentDefinition def = cci->definition();
+                QString fn = QString("create_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+                code += QString("    // Custom Component Instance: %1 (%2)\n").arg(cci->componentId(), def.name);
+                code += QString("    %1(ui_Screen, %2, %3, %4, %5, %6);\n\n")
+                    .arg(fn)
+                    .arg(static_cast<int>(cci->pos().x()))
+                    .arg(static_cast<int>(cci->pos().y()))
+                    .arg(static_cast<int>(cci->compWidth()))
+                    .arg(static_cast<int>(cci->compHeight()))
+                    .arg(static_cast<int>(cci->value()));
             }
         }
     }

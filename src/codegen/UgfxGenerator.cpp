@@ -9,6 +9,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "CustomComponentInstance.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -327,6 +328,29 @@ QString UgfxGenerator::generateUiHeader() {
     code += "extern \"C\" {\n";
     code += "#endif\n\n";
 
+    code += "/* =============================================================== */\n";
+    code += "/* Named Color Styles (µGFX color constants)                       */\n";
+    code += "/* Format: #define COLOR_<NAME> HTML2COLOR(0xRRGGBB)               */\n";
+    code += "/* Components referencing a style emit that constant name          */\n";
+    code += "/* =============================================================== */\n";
+    if (m_project) {
+        for (const auto& s : m_project->colorStyles()) {
+            code += QString("#define COLOR_%1 HTML2COLOR(0x%2)\n")
+                .arg(s.name.toUpper())
+                .arg(s.color.name().mid(1).toUpper());
+        }
+    }
+    code += "\n";
+
+    if (m_project) {
+        for (const auto& def : m_project->customComponentDefinitions()) {
+            QString fn = QString("create_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+            code += QString("// Reusable Custom Component: %1 (%2)\n").arg(def.name, def.behaviorRole);
+            code += QString("GHandle %1(GDisplay* g, int x, int y, int w, int h, float val);\n").arg(fn);
+        }
+        if (!m_project->customComponentDefinitions().isEmpty()) code += "\n";
+    }
+
     code += "// Widget handles\n";
     if (m_scene) {
         for (auto comp : m_scene->uiComponents()) {
@@ -390,6 +414,29 @@ QString UgfxGenerator::generateUiSource() {
             } else if (dynamic_cast<TextInputComponent*>(comp)) {
                 code += QString("GHandle ghEdit_%1 = 0;\n").arg(id);
             }
+        }
+    // Reusable Custom Component Functions (emitted ONCE per definition)
+    if (m_project) {
+        for (const auto& def : m_project->customComponentDefinitions()) {
+            QString fn = QString("create_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+            code += QString("/* =============================================================== */\n");
+            code += QString("/* Reusable Custom Component: %1 (Role: %2)                         */\n").arg(def.name, def.behaviorRole);
+            code += QString("/* Emitted ONCE per definition, called once per canvas instance     */\n");
+            code += QString("/* =============================================================== */\n");
+            code += QString("GHandle %1(GDisplay* g, int x, int y, int w, int h, float val) {\n").arg(fn);
+            code += "    (void)g; (void)val;\n";
+            for (const auto& prim : def.primitives) {
+                QString fillHex = prim.properties.value("fillColor").toString("#2196F3").mid(1).toUpper();
+                code += QString("    gdispFillRoundedBox(x + %1, y + %2, %3, %4, %5, HTML2COLOR(0x%6));\n")
+                    .arg(static_cast<int>(prim.relativeRect.x()))
+                    .arg(static_cast<int>(prim.relativeRect.y()))
+                    .arg(static_cast<int>(prim.relativeRect.width()))
+                    .arg(static_cast<int>(prim.relativeRect.height()))
+                    .arg(prim.properties.value("cornerRadius").toInt(4))
+                    .arg(fillHex);
+            }
+            code += "    return 0;\n";
+            code += "}\n\n";
         }
     }
 
@@ -569,11 +616,33 @@ QString UgfxGenerator::generateUiSource() {
                 code += QString("    wi.text = \"%1\";\n").arg(btn->text());
                 code += "    wi.customDraw = 0;\n";
                 code += QString("    ghBtn_%1 = gwinButtonCreate(0, &wi);\n").arg(id);
-                code += QString("    gwinSetColor(ghBtn_%1, HTML2COLOR(0x%2));\n")
-                    .arg(id, btn->textColor().name().mid(1).toUpper());
-                code += QString("    gwinSetBgColor(ghBtn_%1, HTML2COLOR(0x%2));\n")
-                    .arg(id, btn->backgroundColor().name().mid(1).toUpper());
+
+                QString txtColor = btn->hasColorStyleRef("textColor")
+                    ? QString("COLOR_%1").arg(btn->colorStyleRef("textColor").toUpper())
+                    : QString("HTML2COLOR(0x%1)").arg(btn->textColor().name().mid(1).toUpper());
+                QString bgColor = btn->hasColorStyleRef("backgroundColor")
+                    ? QString("COLOR_%1").arg(btn->colorStyleRef("backgroundColor").toUpper())
+                    : QString("HTML2COLOR(0x%1)").arg(btn->backgroundColor().name().mid(1).toUpper());
+
+                code += QString("    gwinSetColor(ghBtn_%1, %2);\n").arg(id, txtColor);
+                code += QString("    gwinSetBgColor(ghBtn_%1, %2);\n").arg(id, bgColor);
                 code += QString("    gwinSetFont(ghBtn_%1, fontNormal);\n\n").arg(id);
+            }
+        }
+
+        // Custom Component Instances
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto cci = dynamic_cast<CustomComponentInstance*>(comp)) {
+                CustomComponentDefinition def = cci->definition();
+                QString fn = QString("create_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+                code += QString("    // Custom Component Instance: %1 (%2)\n").arg(cci->componentId(), def.name);
+                code += QString("    %1(0, %2, %3, %4, %5, %6f);\n\n")
+                    .arg(fn)
+                    .arg(static_cast<int>(cci->pos().x()))
+                    .arg(static_cast<int>(cci->pos().y()))
+                    .arg(static_cast<int>(cci->compWidth()))
+                    .arg(static_cast<int>(cci->compHeight()))
+                    .arg(cci->value(), 0, 'f', 1);
             }
         }
     }

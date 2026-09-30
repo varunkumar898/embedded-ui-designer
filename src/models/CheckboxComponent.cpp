@@ -106,14 +106,38 @@ void CheckboxComponent::paintComponent(QPainter* painter) {
     painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, m_text);
 }
 
+void CheckboxComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("textColor") == styleName) {
+        m_textColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("checkColor") == styleName) {
+        m_checkColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("boxColor") == styleName) {
+        m_boxColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("borderColor") == styleName) {
+        m_borderColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 QJsonObject CheckboxComponent::toJson() const {
     QJsonObject json = UIComponent::toJson();
     json["text"] = m_text;
     json["checked"] = m_checked;
-    json["textColor"] = m_textColor.name();
-    json["checkColor"] = m_checkColor.name();
-    json["boxColor"] = m_boxColor.name();
-    json["borderColor"] = m_borderColor.name();
+    json["textColor"] = serializeColor(m_textColor, colorStyleRef("textColor"));
+    json["checkColor"] = serializeColor(m_checkColor, colorStyleRef("checkColor"));
+    json["boxColor"] = serializeColor(m_boxColor, colorStyleRef("boxColor"));
+    json["borderColor"] = serializeColor(m_borderColor, colorStyleRef("borderColor"));
     json["onToggled"] = m_onToggledHandler;
     return json;
 }
@@ -122,10 +146,26 @@ void CheckboxComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     m_text = json.value("text").toString("Checkbox");
     m_checked = json.value("checked").toBool(false);
-    if (json.contains("textColor")) m_textColor = QColor(json.value("textColor").toString());
-    if (json.contains("checkColor")) m_checkColor = QColor(json.value("checkColor").toString());
-    if (json.contains("boxColor")) m_boxColor = QColor(json.value("boxColor").toString());
-    if (json.contains("borderColor")) m_borderColor = QColor(json.value("borderColor").toString());
+    if (json.contains("textColor")) {
+        QString ref;
+        deserializeColor(json.value("textColor"), m_textColor, ref);
+        setColorStyleRef("textColor", ref);
+    }
+    if (json.contains("checkColor")) {
+        QString ref;
+        deserializeColor(json.value("checkColor"), m_checkColor, ref);
+        setColorStyleRef("checkColor", ref);
+    }
+    if (json.contains("boxColor")) {
+        QString ref;
+        deserializeColor(json.value("boxColor"), m_boxColor, ref);
+        setColorStyleRef("boxColor", ref);
+    }
+    if (json.contains("borderColor")) {
+        QString ref;
+        deserializeColor(json.value("borderColor"), m_borderColor, ref);
+        setColorStyleRef("borderColor", ref);
+    }
     m_onToggledHandler = json.value("onToggled").toString();
 }
 

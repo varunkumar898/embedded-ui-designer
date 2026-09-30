@@ -9,6 +9,9 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "ColorStyle.h"
+#include "CustomComponentDefinition.h"
+#include "CustomComponentInstance.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -20,6 +23,7 @@ Project::Project(CanvasScene* scene, QObject* parent)
     , m_scene(scene)
 {
     m_displayConfig = DisplayConfig();
+    initDefaultStyles();
 
     if (m_scene) {
         connect(m_scene, &CanvasScene::componentChanged, this, [this]() { setDirty(true); });
@@ -97,6 +101,11 @@ void Project::newProject(const QString& name, int width, int height) {
         m_scene->setScreenBackgroundColor(Qt::white);
     }
 
+    initDefaultStyles();
+    m_customComponentDefinitions.clear();
+    emit colorStylesChanged();
+    emit customComponentsChanged();
+
     m_dirty = false;
     emit projectLoaded();
 }
@@ -107,6 +116,20 @@ QJsonObject Project::toJson() const {
     root["name"] = m_name;
     root["target"] = m_targetFramework;
     root["display"] = m_displayConfig.toJson();
+
+    // Top-level colorStyles
+    QJsonArray stylesArr;
+    for (const auto& s : m_colorStyles) {
+        stylesArr.append(s.toJson());
+    }
+    root["colorStyles"] = stylesArr;
+
+    // Top-level customComponents
+    QJsonArray customArr;
+    for (const auto& def : m_customComponentDefinitions) {
+        customArr.append(def.toJson());
+    }
+    root["customComponents"] = customArr;
 
     QJsonArray pages;
     QJsonObject mainPage;
@@ -139,6 +162,28 @@ bool Project::fromJson(const QJsonObject& root) {
         m_displayConfig = DisplayConfig::fromJson(root.value("display").toObject());
     }
 
+    // Load top-level colorStyles
+    m_colorStyles.clear();
+    if (root.contains("colorStyles") && root.value("colorStyles").isArray()) {
+        QJsonArray stylesArr = root.value("colorStyles").toArray();
+        for (const auto& v : stylesArr) {
+            m_colorStyles.append(ColorStyle::fromJson(v.toObject()));
+        }
+    } else {
+        initDefaultStyles();
+    }
+    emit colorStylesChanged();
+
+    // Load top-level customComponents
+    m_customComponentDefinitions.clear();
+    if (root.contains("customComponents") && root.value("customComponents").isArray()) {
+        QJsonArray customArr = root.value("customComponents").toArray();
+        for (const auto& v : customArr) {
+            m_customComponentDefinitions.append(CustomComponentDefinition::fromJson(v.toObject()));
+        }
+    }
+    emit customComponentsChanged();
+
     if (m_scene) {
         m_scene->clearComponents();
         m_scene->setDisplayConfig(m_displayConfig);
@@ -160,10 +205,23 @@ bool Project::fromJson(const QJsonObject& root) {
 
                         UIComponent* comp = createComponentInstance(type, id);
                         if (comp) {
+                            if (auto cci = dynamic_cast<CustomComponentInstance*>(comp)) {
+                                cci->setProject(this);
+                            }
                             comp->fromJson(compObj);
                             m_scene->addUIComponent(comp);
                         }
                     }
+                }
+            }
+        }
+
+        // Resolve all style refs on canvas components
+        for (auto comp : m_scene->uiComponents()) {
+            for (auto it = comp->colorStyleRefs().begin(); it != comp->colorStyleRefs().end(); ++it) {
+                QString styleName = it.value();
+                if (hasColorStyle(styleName)) {
+                    comp->applyColorStyle(styleName, resolveColor(styleName));
                 }
             }
         }
@@ -245,6 +303,119 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new TextInputComponent(id);
     } else if (type == "Circle") {
         return new CircleComponent(id);
+    } else if (type == "CustomComponent") {
+        return new CustomComponentInstance(id);
     }
     return nullptr;
+}
+
+void Project::initDefaultStyles() {
+    m_colorStyles = {
+        { "Primary", QColor("#2196F3") },
+        { "Background", QColor("#1E2026") },
+        { "Accent", QColor("#FF5722") },
+        { "Text", QColor("#FFFFFF") }
+    };
+}
+
+void Project::addColorStyle(const ColorStyle& style) {
+    for (int i = 0; i < m_colorStyles.size(); ++i) {
+        if (m_colorStyles[i].name == style.name) {
+            updateColorStyle(style.name, style.color);
+            return;
+        }
+    }
+    m_colorStyles.append(style);
+    setDirty(true);
+    emit colorStylesChanged();
+}
+
+void Project::updateColorStyle(const QString& name, const QColor& newColor) {
+    bool found = false;
+    for (auto& s : m_colorStyles) {
+        if (s.name == name) {
+            s.color = newColor;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        m_colorStyles.append({name, newColor});
+    }
+    setDirty(true);
+    emit colorStylesChanged();
+
+    // Immediately update every component on the canvas that references this style
+    if (m_scene) {
+        for (auto comp : m_scene->uiComponents()) {
+            comp->applyColorStyle(name, newColor);
+        }
+    }
+}
+
+void Project::removeColorStyle(const QString& name) {
+    for (int i = 0; i < m_colorStyles.size(); ++i) {
+        if (m_colorStyles[i].name == name) {
+            m_colorStyles.removeAt(i);
+            setDirty(true);
+            emit colorStylesChanged();
+            break;
+        }
+    }
+}
+
+QColor Project::resolveColor(const QString& styleName, const QColor& defaultColor) const {
+    for (const auto& s : m_colorStyles) {
+        if (s.name == styleName) {
+            return s.color;
+        }
+    }
+    return defaultColor;
+}
+
+bool Project::hasColorStyle(const QString& name) const {
+    for (const auto& s : m_colorStyles) {
+        if (s.name == name) return true;
+    }
+    return false;
+}
+
+void Project::setColorStyles(const QList<ColorStyle>& styles) {
+    m_colorStyles = styles;
+    setDirty(true);
+    emit colorStylesChanged();
+}
+
+void Project::addCustomComponentDefinition(const CustomComponentDefinition& def) {
+    for (int i = 0; i < m_customComponentDefinitions.size(); ++i) {
+        if (m_customComponentDefinitions[i].id == def.id) {
+            m_customComponentDefinitions[i] = def;
+            setDirty(true);
+            emit customComponentsChanged();
+            return;
+        }
+    }
+    m_customComponentDefinitions.append(def);
+    setDirty(true);
+    emit customComponentsChanged();
+}
+
+CustomComponentDefinition Project::findCustomComponentDefinition(const QString& id) const {
+    for (const auto& def : m_customComponentDefinitions) {
+        if (def.id == id) {
+            return def;
+        }
+    }
+    return CustomComponentDefinition();
+}
+
+void Project::removeCustomComponentDefinition(const QString& id) {
+    for (int i = 0; i < m_customComponentDefinitions.size(); ++i) {
+        if (m_customComponentDefinitions[i].id == id) {
+            m_customComponentDefinitions.removeAt(i);
+            setDirty(true);
+            emit customComponentsChanged();
+            break;
+        }
+    }
 }

@@ -29,6 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_view = new CanvasView(m_scene, this);
     m_view->setUndoStack(m_undoStack);
     m_project = new Project(m_scene, this);
+    m_view->setProject(m_project);
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
         m_project->setDirty(!clean);
@@ -65,6 +66,16 @@ MainWindow::MainWindow(QWidget *parent)
         updateWindowTitle();
         m_layerPanel->refreshLayers();
         m_propertiesPanel->setTargetComponent(nullptr);
+        m_propertiesPanel->setProject(m_project);
+        if (m_stylesPanel) m_stylesPanel->setProject(m_project);
+        if (m_palette) m_palette->setCustomComponents(m_project->customComponentDefinitions());
+    });
+    connect(m_project, &Project::colorStylesChanged, this, [this]() {
+        if (m_propertiesPanel) m_propertiesPanel->refreshValues();
+        if (m_stylesPanel) m_stylesPanel->refreshStyles();
+    });
+    connect(m_project, &Project::customComponentsChanged, this, [this]() {
+        if (m_palette) m_palette->setCustomComponents(m_project->customComponentDefinitions());
     });
 
     resize(1380, 880);
@@ -289,6 +300,7 @@ void MainWindow::setupDocks() {
     propDock->setTitleBarWidget(createDockTitleBar("Properties", propDock));
     m_propertiesPanel = new PropertiesPanel(propDock);
     m_propertiesPanel->setUndoStack(m_undoStack);
+    m_propertiesPanel->setProject(m_project);
     propDock->setWidget(m_propertiesPanel);
     addDockWidget(Qt::RightDockWidgetArea, propDock);
 
@@ -300,9 +312,22 @@ void MainWindow::setupDocks() {
     layerDock->setWidget(m_layerPanel);
     addDockWidget(Qt::RightDockWidgetArea, layerDock);
 
+    // Right Styles Dock: Theme Styles Panel
+    QDockWidget* stylesDock = new QDockWidget("Styles", this);
+    stylesDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    stylesDock->setTitleBarWidget(createDockTitleBar("Color Styles", stylesDock));
+    m_stylesPanel = new StylesPanel(m_project, stylesDock);
+    stylesDock->setWidget(m_stylesPanel);
+    addDockWidget(Qt::RightDockWidgetArea, stylesDock);
+    tabifyDockWidget(layerDock, stylesDock);
+    stylesDock->raise();
+
+    // Initialize custom components in palette
+    m_palette->setCustomComponents(m_project->customComponentDefinitions());
+
     resizeDocks({paletteDock}, {210}, Qt::Horizontal);
-    resizeDocks({propDock, layerDock}, {260, 260}, Qt::Horizontal);
-    resizeDocks({propDock, layerDock}, {550, 330}, Qt::Vertical);
+    resizeDocks({propDock, layerDock, stylesDock}, {270, 270, 270}, Qt::Horizontal);
+    resizeDocks({propDock, layerDock}, {520, 360}, Qt::Vertical);
 }
 
 void MainWindow::applyTheme() {
