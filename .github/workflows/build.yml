@@ -98,9 +98,9 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then
             export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
           fi
-          mkdir -p /tmp/out
-          echo "=== Exporting µGFX Project to /tmp/out ==="
-          ./EmbeddedUIDesigner --export ugfx --project examples/simple.euiproj --out /tmp/out
+          mkdir -p build/ugfx_out
+          echo "=== Exporting µGFX Project to build/ugfx_out ==="
+          ./EmbeddedUIDesigner --export ugfx --project examples/simple.euiproj --out build/ugfx_out
           
           echo "=== Exporting Qt for MCUs (QUL) Project ==="
           ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out build/qul_out
@@ -119,9 +119,9 @@ jobs:
         run: |
           echo "=== Configuring Exported µGFX Build ==="
           UGFX_DIR="${GITHUB_WORKSPACE//\\//}/ugfx_lib"
-          cmake -S /tmp/out -B /tmp/out/build -DUGFX_PATH="$UGFX_DIR"
+          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$UGFX_DIR"
           echo "=== Compiling Exported µGFX Binary ==="
-          cmake --build /tmp/out/build --config Release
+          cmake --build build/ugfx_out/build --config Release
 
       - name: Package Windows Portable Release
         if: runner.os == 'Windows'

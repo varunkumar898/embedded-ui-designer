@@ -118,21 +118,21 @@ int main(int argc, char *argv[])
 
         if (target == "ugfx") {
             std::cout << "Generating µGFX C project in: " << outDir.toStdString() << std::endl;
-            UgfxGenerator generator(projectPath);
+            UgfxGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
             }
         } else if (target == "qul") {
             std::cout << "Generating Qt for MCUs (QUL) project in: " << outDir.toStdString() << std::endl;
-            QtMcuGenerator generator(projectPath);
+            QtMcuGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
             }
         } else if (target == "lvgl") {
             std::cout << "Generating LVGL C project in: " << outDir.toStdString() << std::endl;
-            LvglGenerator generator(projectPath);
+            LvglGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
