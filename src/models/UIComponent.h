@@ -87,7 +87,7 @@ public:
     QString colorStyleRef(const QString& propertyKey) const;
     bool hasColorStyleRef(const QString& propertyKey) const;
     void clearColorStyleRef(const QString& propertyKey);
-    QMap<QString, QString> colorStyleRefs() const { return m_colorStyleRefs; }
+    const QMap<QString, QString>& colorStyleRefs() const { return m_colorStyleRefs; }
 
     virtual void applyColorStyle(const QString& styleName, const QColor& color);
 

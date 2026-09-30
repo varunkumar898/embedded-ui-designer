@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
                   << " (" << project.displayConfig().width << "x" << project.displayConfig().height << ")" << std::endl;
 
         if (target == "ugfx") {
-            std::cout << "Generating µGFX C project in: " << outDir.toStdString() << std::endl;
+            std::cout << "Generating uGFX C project in: " << outDir.toStdString() << std::endl;
             UgfxGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;

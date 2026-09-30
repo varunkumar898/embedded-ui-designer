@@ -218,7 +218,8 @@ bool Project::fromJson(const QJsonObject& root) {
 
         // Resolve all style refs on canvas components
         for (auto comp : m_scene->uiComponents()) {
-            for (auto it = comp->colorStyleRefs().begin(); it != comp->colorStyleRefs().end(); ++it) {
+            const auto& refs = comp->colorStyleRefs();
+            for (auto it = refs.begin(); it != refs.end(); ++it) {
                 QString styleName = it.value();
                 if (hasColorStyle(styleName)) {
                     comp->applyColorStyle(styleName, resolveColor(styleName));
