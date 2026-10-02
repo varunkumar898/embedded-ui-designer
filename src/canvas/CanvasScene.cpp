@@ -85,6 +85,13 @@ QPointF CanvasScene::snapPoint(const QPointF& pt) const {
     return QPointF(sx, sy);
 }
 
+void CanvasScene::setPathPreview(const QList<QPointF>& points, const QPointF& cursor, bool visible) {
+    m_pathPreviewPoints = points;
+    m_pathPreviewCursor = cursor;
+    m_pathPreviewVisible = visible;
+    update();
+}
+
 void CanvasScene::onSelectionChanged() {
     QList<QGraphicsItem*> sel = selectedItems();
 
@@ -212,4 +219,23 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
     painter->setPen(QColor(220, 228, 238));
     painter->drawText(badgeRect.adjusted(0, -1, 0, -1), Qt::AlignCenter, label);
     painter->restore();
+
+    if (m_pathPreviewVisible) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(QColor(26, 150, 255), 2.0, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->setBrush(QColor(26, 150, 255, 70));
+
+        for (int index = 1; index < m_pathPreviewPoints.size(); ++index) {
+            painter->drawLine(m_pathPreviewPoints.at(index - 1), m_pathPreviewPoints.at(index));
+        }
+        if (!m_pathPreviewPoints.isEmpty()) {
+            painter->drawLine(m_pathPreviewPoints.last(), m_pathPreviewCursor);
+        }
+        for (const QPointF& point : m_pathPreviewPoints) {
+            painter->drawEllipse(point, 3.5, 3.5);
+        }
+        painter->drawEllipse(m_pathPreviewCursor, 4.0, 4.0);
+        painter->restore();
+    }
 }
