@@ -72,12 +72,32 @@ void SwitchComponent::paintComponent(QPainter* painter) {
     painter->drawEllipse(QRectF(thumbX, thumbY, thumbDiameter, thumbDiameter));
 }
 
+void SwitchComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("onColor") == styleName) {
+        m_onColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("offColor") == styleName) {
+        m_offColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("thumbColor") == styleName) {
+        m_thumbColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 QJsonObject SwitchComponent::toJson() const {
     QJsonObject json = UIComponent::toJson();
     json["checked"] = m_checked;
-    json["onColor"] = m_onColor.name();
-    json["offColor"] = m_offColor.name();
-    json["thumbColor"] = m_thumbColor.name();
+    json["onColor"] = serializeColor(m_onColor, colorStyleRef("onColor"));
+    json["offColor"] = serializeColor(m_offColor, colorStyleRef("offColor"));
+    json["thumbColor"] = serializeColor(m_thumbColor, colorStyleRef("thumbColor"));
     json["onToggled"] = m_onToggledHandler;
     return json;
 }
@@ -85,9 +105,21 @@ QJsonObject SwitchComponent::toJson() const {
 void SwitchComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     m_checked = json.value("checked").toBool(false);
-    if (json.contains("onColor")) m_onColor = QColor(json.value("onColor").toString());
-    if (json.contains("offColor")) m_offColor = QColor(json.value("offColor").toString());
-    if (json.contains("thumbColor")) m_thumbColor = QColor(json.value("thumbColor").toString());
+    if (json.contains("onColor")) {
+        QString ref;
+        deserializeColor(json.value("onColor"), m_onColor, ref);
+        setColorStyleRef("onColor", ref);
+    }
+    if (json.contains("offColor")) {
+        QString ref;
+        deserializeColor(json.value("offColor"), m_offColor, ref);
+        setColorStyleRef("offColor", ref);
+    }
+    if (json.contains("thumbColor")) {
+        QString ref;
+        deserializeColor(json.value("thumbColor"), m_thumbColor, ref);
+        setColorStyleRef("thumbColor", ref);
+    }
     m_onToggledHandler = json.value("onToggled").toString();
 }
 

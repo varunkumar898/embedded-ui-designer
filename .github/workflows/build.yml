@@ -2,7 +2,7 @@ name: Embedded UI Designer CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'feature/**' ]
   pull_request:
     branches: [ main ]
 
@@ -10,6 +10,8 @@ jobs:
   build-and-test:
     name: Build & Verify Output (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -71,15 +73,52 @@ jobs:
           fi
           chmod +x ./EmbeddedUIDesigner 2>/dev/null || true
 
+      - name: Verify Features & Capture Screenshots
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
+          elif [ "$RUNNER_OS" = "Linux" ]; then
+            export QT_QPA_PLATFORM=offscreen
+          fi
+          mkdir -p screenshots
+          echo "=== Verifying Feature 1: Named Color Styles ==="
+          ./EmbeddedUIDesigner --verify-feature1 verification_feature1.png
+          echo "=== Verifying Feature 2: Custom Components ==="
+          ./EmbeddedUIDesigner --verify-feature2 verification_feature2.png
+          echo "=== Verifying Feature 1: New Project Wizard ==="
+          ./EmbeddedUIDesigner --verify-wizard screenshots/verification_f1
+          ls -la verification_*.png screenshots/
+
+      - name: Commit Screenshots
+        if: runner.os == 'Linux'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin ${{ github.ref_name }}
+          git checkout ${{ github.ref_name }}
+          git add screenshots/
+          git commit -m "chore(screenshots): update verification screenshots [skip ci]" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }} || echo "Push skipped"
+
+      - name: Upload Verification Screenshots
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Verification-Screenshots
+          path: |
+            verification_*.png
+            screenshots/*.png
+
       - name: Test Headless Code Generation (CLI Mode)
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
             export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
           fi
-          mkdir -p /tmp/out
-          echo "=== Exporting µGFX Project to /tmp/out ==="
-          ./EmbeddedUIDesigner --export ugfx --project examples/simple.euiproj --out /tmp/out
+          mkdir -p build/ugfx_out
+          echo "=== Exporting µGFX Project to build/ugfx_out ==="
+          ./EmbeddedUIDesigner --export ugfx --project examples/simple.euiproj --out build/ugfx_out
           
           echo "=== Exporting Qt for MCUs (QUL) Project ==="
           ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out build/qul_out
@@ -98,9 +137,25 @@ jobs:
         run: |
           echo "=== Configuring Exported µGFX Build ==="
           UGFX_DIR="${GITHUB_WORKSPACE//\\//}/ugfx_lib"
-          cmake -S /tmp/out -B /tmp/out/build -DUGFX_PATH="$UGFX_DIR"
+          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$UGFX_DIR"
           echo "=== Compiling Exported µGFX Binary ==="
-          cmake --build /tmp/out/build --config Release
+          cmake --build build/ugfx_out/build --config Release
+
+      - name: Package Windows Portable Release
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist/EmbeddedUIDesigner
+          cp build/Release/EmbeddedUIDesigner.exe dist/EmbeddedUIDesigner/
+          "${{ env.QT_ROOT_DIR }}/bin/windeployqt.exe" --release --no-translations dist/EmbeddedUIDesigner/EmbeddedUIDesigner.exe
+          cd dist && 7z a ../EmbeddedUIDesigner-Windows-x64-Portable.zip EmbeddedUIDesigner/
+
+      - name: Upload Windows Portable Zip
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmbeddedUIDesigner-Windows-x64-Portable
+          path: EmbeddedUIDesigner-Windows-x64-Portable.zip
 
       - name: Run CPack Packaging
         working-directory: build

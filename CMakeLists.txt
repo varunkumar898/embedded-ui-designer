@@ -61,6 +61,10 @@ set(SOURCES
     src/models/TextInputComponent.h
     src/models/CircleComponent.cpp
     src/models/CircleComponent.h
+    src/models/ColorStyle.h
+    src/models/CustomComponentDefinition.h
+    src/models/CustomComponentInstance.cpp
+    src/models/CustomComponentInstance.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddComponentCommand.cpp
@@ -90,6 +94,14 @@ set(SOURCES
     src/hardware/FlashController.cpp
     src/hardware/FlashController.h
 
+    # Dialogs
+    src/dialogs/CreateCustomComponentDialog.cpp
+    src/dialogs/CreateCustomComponentDialog.h
+    src/dialogs/NewProjectDialog.cpp
+    src/dialogs/NewProjectDialog.h
+    src/dialogs/ExportDialog.cpp
+    src/dialogs/ExportDialog.h
+
     # Panels & Visual Views
     src/canvas/CanvasView.cpp
     src/canvas/CanvasView.h
@@ -99,6 +111,8 @@ set(SOURCES
     src/panels/ComponentPalette.h
     src/panels/PropertiesPanel.cpp
     src/panels/PropertiesPanel.h
+    src/panels/StylesPanel.cpp
+    src/panels/StylesPanel.h
     src/panels/ColorPickerDialog.cpp
     src/panels/ColorPickerDialog.h
     src/panels/LayerPanel.cpp
@@ -157,6 +171,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
 )
 
 # Target Link Libraries

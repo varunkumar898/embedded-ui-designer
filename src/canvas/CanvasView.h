@@ -22,6 +22,9 @@ public:
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
 
+    void setProject(class Project* project) { m_project = project; }
+    class Project* project() const { return m_project; }
+
 signals:
     void zoomChanged(qreal factor);
     void statusMessageRequested(const QString& msg);
@@ -47,4 +50,5 @@ private:
     void applyZoom(qreal factor);
     UIComponent* createComponentByType(const QString& compType, const QPointF& pos);
     class QUndoStack* m_undoStack = nullptr;
+    class Project* m_project = nullptr;
 };

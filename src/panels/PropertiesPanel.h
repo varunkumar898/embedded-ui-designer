@@ -26,6 +26,9 @@ public:
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
 
+    void setProject(class Project* project) { m_project = project; }
+    class Project* project() const { return m_project; }
+
     void commitPropertyChange(const QString& desc);
 
 private slots:
@@ -88,6 +91,7 @@ private:
     QPushButton* m_btnAlignRight = nullptr;
 
     class QUndoStack* m_undoStack = nullptr;
+    class Project* m_project = nullptr;
 
     void setupUi();
     void rebuildSpecificEditors();

@@ -11,20 +11,27 @@
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
 #include "LvglGenerator.h"
+#include "ButtonComponent.h"
+#include "CustomComponentInstance.h"
+#include "CustomComponentDefinition.h"
+#include "ColorStyle.h"
+#include "dialogs/NewProjectDialog.h"
 
 int main(int argc, char *argv[])
 {
-    // Check if CLI export mode is requested before creating QApplication
-    bool isCliExport = false;
+    // Check if CLI export or verification mode is requested before creating QApplication
+    bool isHeadless = false;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--export") == 0 || strcmp(argv[i], "-e") == 0) {
-            isCliExport = true;
+        if (strcmp(argv[i], "--export") == 0 || strcmp(argv[i], "-e") == 0 ||
+            strcmp(argv[i], "--verify-feature1") == 0 || strcmp(argv[i], "--verify-feature2") == 0 ||
+            strcmp(argv[i], "--verify-wizard") == 0) {
+            isHeadless = true;
             break;
         }
     }
 
-    // Set offscreen platform in headless CLI mode if no display environment is set
-    if (isCliExport) {
+    // Set offscreen platform in headless CLI mode
+    if (isHeadless) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     }
 
@@ -62,6 +69,27 @@ int main(int argc, char *argv[])
     );
     parser.addOption(outOption);
 
+    QCommandLineOption verifyF1Option(
+        "verify-feature1",
+        "Run Feature 1 verification (Named Color Styles) and save screenshot to output path",
+        "output_png"
+    );
+    parser.addOption(verifyF1Option);
+
+    QCommandLineOption verifyF2Option(
+        "verify-feature2",
+        "Run Feature 2 verification (Custom Components) and save screenshot to output path",
+        "output_png"
+    );
+    parser.addOption(verifyF2Option);
+
+    QCommandLineOption verifyWizardOption(
+        "verify-wizard",
+        "Run New Project Wizard verification and save screenshots to output prefix",
+        "prefix"
+    );
+    parser.addOption(verifyWizardOption);
+
     parser.process(app);
 
     // -------------------------------------------------------------------------
@@ -87,7 +115,6 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        // Validate that the project file exists and is readable
         CanvasScene scene;
         Project project(&scene);
         if (!project.loadFromFile(projectPath)) {
@@ -99,22 +126,22 @@ int main(int argc, char *argv[])
                   << " (" << project.displayConfig().width << "x" << project.displayConfig().height << ")" << std::endl;
 
         if (target == "ugfx") {
-            std::cout << "Generating µGFX C project in: " << outDir.toStdString() << std::endl;
-            UgfxGenerator generator(projectPath);
+            std::cout << "Generating uGFX C project in: " << outDir.toStdString() << std::endl;
+            UgfxGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
             }
         } else if (target == "qul") {
             std::cout << "Generating Qt for MCUs (QUL) project in: " << outDir.toStdString() << std::endl;
-            QtMcuGenerator generator(projectPath);
+            QtMcuGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
             }
         } else if (target == "lvgl") {
             std::cout << "Generating LVGL C project in: " << outDir.toStdString() << std::endl;
-            LvglGenerator generator(projectPath);
+            LvglGenerator generator(&project, &scene);
             if (!generator.generate(outDir)) {
                 std::cerr << "Export Error: " << generator.lastError().toStdString() << std::endl;
                 return 1;
@@ -127,7 +154,221 @@ int main(int argc, char *argv[])
     }
 
     // -------------------------------------------------------------------------
-    // 2. Interactive GUI Mode (QtWidgets MainWindow)
+    // 2. Feature 1 Verification Mode (Named Color Styles)
+    // -------------------------------------------------------------------------
+    if (parser.isSet(verifyF1Option)) {
+        QString outPath = parser.value(verifyF1Option);
+        MainWindow window;
+        window.resize(1380, 880);
+        window.show();
+        app.processEvents();
+
+        // Step 1: Ensure "Primary" style is created with #2196F3
+        window.project()->addColorStyle({ "Primary", QColor("#2196F3") });
+
+        // Step 2: Apply to two different buttons' fill color
+        auto btn1 = new ButtonComponent("btn_save");
+        btn1->setText("SAVE SETTINGS");
+        btn1->setCompPos(70, 60);
+        btn1->setCompSize(180, 48);
+        btn1->setColorStyleRef("backgroundColor", "Primary");
+        btn1->setBackgroundColor(window.project()->resolveColor("Primary"));
+        window.canvasScene()->addUIComponent(btn1);
+
+        auto btn2 = new ButtonComponent("btn_submit");
+        btn2->setText("SUBMIT ACTION");
+        btn2->setCompPos(70, 130);
+        btn2->setCompSize(180, 48);
+        btn2->setColorStyleRef("backgroundColor", "Primary");
+        btn2->setBackgroundColor(window.project()->resolveColor("Primary"));
+        window.canvasScene()->addUIComponent(btn2);
+
+        btn1->setSelected(true);
+        window.propertiesPanel()->setTargetComponent(btn1);
+        app.processEvents();
+
+        // Step 3: Change "Primary" style to #FF5722 in Styles panel
+        window.project()->updateColorStyle("Primary", QColor("#FF5722"));
+        window.stylesPanel()->refreshStyles();
+        window.propertiesPanel()->refreshValues();
+        app.processEvents();
+
+        // Step 4: Confirm both buttons turn orange immediately on canvas
+        bool btn1Orange = (btn1->backgroundColor().name().toUpper() == "#FF5722");
+        bool btn2Orange = (btn2->backgroundColor().name().toUpper() == "#FF5722");
+        std::cout << "[VERIFY 1] btn1 color: " << btn1->backgroundColor().name().toStdString() 
+                  << " (" << (btn1Orange ? "OK" : "FAIL") << ")" << std::endl;
+        std::cout << "[VERIFY 1] btn2 color: " << btn2->backgroundColor().name().toStdString() 
+                  << " (" << (btn2Orange ? "OK" : "FAIL") << ")" << std::endl;
+
+        app.processEvents();
+        QPixmap pixmap = window.grab();
+        if (pixmap.save(outPath)) {
+            std::cout << "[VERIFY 1] Screenshot saved to: " << outPath.toStdString() << std::endl;
+            return (btn1Orange && btn2Orange) ? 0 : 1;
+        } else {
+            std::cerr << "[VERIFY 1] Failed to save screenshot to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Feature 2 Verification Mode (Custom Components)
+    // -------------------------------------------------------------------------
+    if (parser.isSet(verifyF2Option)) {
+        QString outPath = parser.value(verifyF2Option);
+        MainWindow window;
+        window.resize(1380, 880);
+        window.show();
+        app.processEvents();
+
+        // Step 1: Define "MySlider" with rounded track + round thumb
+        CustomComponentDefinition def;
+        def.id = "custom_myslider_def";
+        def.name = "MySlider";
+        def.behaviorRole = "Slider";
+        def.width = 240;
+        def.height = 36;
+        def.minValue = 0.0;
+        def.maxValue = 100.0;
+        def.defaultValue = 20.0;
+
+        // Rounded track primitive
+        PrimitiveShapeData trackPrim;
+        trackPrim.shapeType = "Rectangle";
+        trackPrim.role = "track";
+        trackPrim.relX = 0;
+        trackPrim.relY = 10;
+        trackPrim.relWidth = 240;
+        trackPrim.relHeight = 16;
+        trackPrim.cornerRadius = 8;
+        trackPrim.fillColor = QColor("#232936");
+        trackPrim.strokeColor = QColor("#3b4455");
+        trackPrim.strokeWidth = 1;
+        def.primitives.append(trackPrim);
+
+        // Round thumb primitive
+        PrimitiveShapeData thumbPrim;
+        thumbPrim.shapeType = "Circle";
+        thumbPrim.role = "thumb";
+        thumbPrim.relX = 20;
+        thumbPrim.relY = 3;
+        thumbPrim.relWidth = 30;
+        thumbPrim.relHeight = 30;
+        thumbPrim.cornerRadius = 15;
+        thumbPrim.fillColor = QColor("#00E5FF");
+        thumbPrim.strokeColor = QColor("#FFFFFF");
+        thumbPrim.strokeWidth = 2;
+        def.primitives.append(thumbPrim);
+
+        // Add to project -> updates palette under "My Components"
+        window.project()->addCustomComponentDefinition(def);
+        window.palette()->setCustomComponents(window.project()->customComponentDefinitions());
+
+        // Step 2: Drag/place two instances onto canvas
+        auto inst1 = new CustomComponentInstance("slider_inst_1");
+        inst1->setDefinition(def);
+        inst1->setCompPos(70, 70);
+        inst1->setCompSize(240, 36);
+        inst1->setValue(25.0);
+        window.canvasScene()->addUIComponent(inst1);
+
+        auto inst2 = new CustomComponentInstance("slider_inst_2");
+        inst2->setDefinition(def);
+        inst2->setCompPos(70, 150);
+        inst2->setCompSize(240, 36);
+        inst2->setValue(80.0);
+        window.canvasScene()->addUIComponent(inst2);
+
+        // Step 3: Confirm value updates independently
+        bool independent = (inst1->value() == 25.0 && inst2->value() == 80.0);
+        std::cout << "[VERIFY 2] Instance 1 value: " << inst1->value() << std::endl;
+        std::cout << "[VERIFY 2] Instance 2 value: " << inst2->value() << std::endl;
+        std::cout << "[VERIFY 2] Independence check: " << (independent ? "OK" : "FAIL") << std::endl;
+
+        inst2->setSelected(true);
+        window.propertiesPanel()->setTargetComponent(inst2);
+        app.processEvents();
+
+        QPixmap pixmap = window.grab();
+        if (pixmap.save(outPath)) {
+            std::cout << "[VERIFY 2] Screenshot saved to: " << outPath.toStdString() << std::endl;
+            return independent ? 0 : 1;
+        } else {
+            std::cerr << "[VERIFY 2] Failed to save screenshot to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. Feature 1 Verification Mode (New Project Wizard)
+    // -------------------------------------------------------------------------
+    if (parser.isSet(verifyWizardOption)) {
+        QString prefix = parser.value(verifyWizardOption);
+        QString wizardPath = prefix + "_wizard.png";
+        QString canvasPath = prefix + "_canvas.png";
+
+        // Step 1: Open NewProjectDialog, select ESP32-S3-BOX
+        NewProjectDialog dlg;
+        dlg.resize(520, 480);
+        dlg.show();
+        dlg.selectBoard("ESP32-S3-BOX");
+        app.processEvents();
+
+        QPixmap wizardPix = dlg.grab();
+        if (!wizardPix.save(wizardPath)) {
+            std::cerr << "[VERIFY WIZARD] Failed to save wizard screenshot to " << wizardPath.toStdString() << std::endl;
+            return 1;
+        }
+        std::cout << "[VERIFY WIZARD] Saved wizard screenshot to: " << wizardPath.toStdString() << std::endl;
+
+        // Step 2: Extract config from wizard and create new project
+        DisplayConfig cfg = dlg.displayConfig();
+        QString projName = dlg.projectName();
+        dlg.close();
+
+        // Step 3: Open MainWindow with the chosen board DisplayConfig
+        MainWindow window;
+        window.resize(1380, 880);
+        window.project()->newProject(projName, cfg);
+        
+        // Sync resolution combo
+        for (int i = 0; i < window.resolutionCombo()->count(); ++i) {
+            QSize sz = window.resolutionCombo()->itemData(i).toSize();
+            if (sz.width() == cfg.width && sz.height() == cfg.height) {
+                window.resolutionCombo()->setCurrentIndex(i);
+                break;
+            }
+        }
+
+        // Add a sample button to highlight the ESP32-S3-BOX canvas
+        auto btn = new ButtonComponent("btn_wifi");
+        btn->setText("ESP32 CONNECT");
+        btn->setCompPos(60, 90);
+        btn->setCompSize(200, 50);
+        btn->setBackgroundColor(QColor("#00E5FF"));
+        btn->setTextColor(QColor("#0F172A"));
+        window.canvasScene()->addUIComponent(btn);
+
+        window.show();
+        app.processEvents();
+
+        QPixmap canvasPix = window.grab();
+        if (!canvasPix.save(canvasPath)) {
+            std::cerr << "[VERIFY WIZARD] Failed to save canvas screenshot to " << canvasPath.toStdString() << std::endl;
+            return 1;
+        }
+        std::cout << "[VERIFY WIZARD] Saved canvas screenshot to: " << canvasPath.toStdString() << std::endl;
+
+        bool sizeMatches = (window.canvasScene()->displayConfig().width == 320 &&
+                            window.canvasScene()->displayConfig().height == 240);
+        std::cout << "[VERIFY WIZARD] Display size matching (320x240): " << (sizeMatches ? "OK" : "FAIL") << std::endl;
+
+        return sizeMatches ? 0 : 1;
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. Interactive GUI Mode (QtWidgets MainWindow)
     // -------------------------------------------------------------------------
     MainWindow window;
     window.show();

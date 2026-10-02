@@ -4,8 +4,11 @@
 #include <QJsonObject>
 #include <QList>
 #include <QStandardPaths>
+#include <QPointF>
 #include "DisplayConfig.h"
 #include "CanvasScene.h"
+#include "ColorStyle.h"
+#include "CustomComponentDefinition.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -28,9 +31,13 @@ public:
     bool isDirty() const { return m_dirty; }
     void setDirty(bool dirty);
 
+    void newProject(const QString& name, const DisplayConfig& config);
     void newProject(const QString& name = "MyEmbeddedApp", int width = 320, int height = 240);
     bool saveToFile(const QString& filePath);
     bool loadFromFile(const QString& filePath);
+    // Import: merges components from another .euiproj into the current project/scene
+    // Returns the number of components imported, or -1 on error.
+    int importFromFile(const QString& filePath, QPointF offset = QPointF(20, 20));
 
     // AppData storage & Autosave
     static QString appDataDirectory();
@@ -43,10 +50,27 @@ public:
     // Component Factory
     static UIComponent* createComponentInstance(const QString& type, const QString& id);
 
+    // Named Color Styles
+    QList<ColorStyle> colorStyles() const { return m_colorStyles; }
+    void addColorStyle(const ColorStyle& style);
+    void updateColorStyle(const QString& name, const QColor& newColor);
+    void removeColorStyle(const QString& name);
+    QColor resolveColor(const QString& styleName, const QColor& defaultColor = QColor()) const;
+    bool hasColorStyle(const QString& name) const;
+    void setColorStyles(const QList<ColorStyle>& styles);
+
+    // Custom Component Definitions
+    QList<CustomComponentDefinition> customComponentDefinitions() const { return m_customComponentDefinitions; }
+    void addCustomComponentDefinition(const CustomComponentDefinition& def);
+    CustomComponentDefinition findCustomComponentDefinition(const QString& id) const;
+    void removeCustomComponentDefinition(const QString& id);
+
 signals:
     void projectModified();
     void projectLoaded();
     void projectSaved(const QString& filePath);
+    void colorStylesChanged();
+    void customComponentsChanged();
 
 private:
     CanvasScene* m_scene = nullptr;
@@ -55,4 +79,8 @@ private:
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
     DisplayConfig m_displayConfig;
     bool m_dirty = false;
+
+    QList<ColorStyle> m_colorStyles;
+    QList<CustomComponentDefinition> m_customComponentDefinitions;
+    void initDefaultStyles();
 };

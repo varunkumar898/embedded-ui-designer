@@ -9,6 +9,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "CustomComponentInstance.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -124,6 +125,60 @@ QString QtMcuGenerator::generateDesignQml() {
     QString bgColor = (m_scene) ? m_scene->screenBackgroundColor().name() : "#ffffff";
     qml += QString("    color: \"%1\"\n\n").arg(bgColor);
 
+    // ===============================================================
+    // Named Color Styles (QUL / QML readonly property color)
+    // Format: readonly property color color<Name>: "<HEX>"
+    // Components referencing a style emit that property name
+    // ===============================================================
+    if (m_project) {
+        for (const auto& s : m_project->colorStyles()) {
+            qml += QString("    readonly property color color%1: \"%2\"\n")
+                .arg(s.name)
+                .arg(s.color.name());
+        }
+        if (!m_project->colorStyles().isEmpty()) qml += "\n";
+    }
+
+    // ===============================================================
+    // Reusable Custom Component Definitions (QUL / QML Component)
+    // Emitted ONCE per custom component definition
+    // ===============================================================
+    if (m_project) {
+        for (const auto& def : m_project->customComponentDefinitions()) {
+            QString compId = QString("Comp_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+            qml += QString("    // Reusable Custom Component: %1 (%2)\n").arg(def.name, def.behaviorRole);
+            qml += QString("    Component {\n");
+            qml += QString("        id: %1\n").arg(compId);
+            qml += "        Item {\n";
+            qml += QString("            width: %1; height: %2\n").arg(def.width > 0 ? def.width : 100).arg(def.height > 0 ? def.height : 30);
+            qml += QString("            property real value: %1\n").arg(def.defaultValue);
+            qml += QString("            property real minValue: %1\n").arg(def.minValue);
+            qml += QString("            property real maxValue: %1\n").arg(def.maxValue);
+            for (const auto& prim : def.primitives) {
+                qml += "            Rectangle {\n";
+                if (prim.role == "thumb" && (def.behaviorRole == "Slider" || def.behaviorRole == "ProgressBar")) {
+                    qml += QString("                x: (parent.width > %1) ? ((parent.value - parent.minValue) / (parent.maxValue - parent.minValue) * (parent.width - %1)) : 0\n").arg(prim.relWidth);
+                    qml += QString("                y: %1\n").arg(prim.relY);
+                } else {
+                    qml += QString("                x: %1; y: %2\n").arg(prim.relX).arg(prim.relY);
+                }
+                qml += QString("                width: %1; height: %2\n").arg(prim.relWidth).arg(prim.relHeight);
+                qml += QString("                color: \"%1\"\n").arg(prim.fillColor.name());
+                if (prim.shapeType == "Circle") {
+                    qml += "                radius: width / 2\n";
+                } else if (prim.cornerRadius > 0) {
+                    qml += QString("                radius: %1\n").arg(prim.cornerRadius);
+                }
+                if (prim.strokeWidth > 0) {
+                    qml += QString("                border.color: \"%1\"; border.width: %2\n").arg(prim.strokeColor.name()).arg(prim.strokeWidth);
+                }
+                qml += "            }\n";
+            }
+            qml += "        }\n";
+            qml += "    }\n\n";
+        }
+    }
+
     // QUL Signals
     QSet<QString> handlers;
     if (m_scene) {
@@ -164,6 +219,13 @@ QString QtMcuGenerator::generateDesignQml() {
         for (auto comp : m_scene->uiComponents()) {
             if (auto rect = dynamic_cast<RectangleComponent*>(comp)) {
                 // Verified QUL type: Rectangle
+                QString fillExpr = rect->hasColorStyleRef("fillColor")
+                    ? QString("root.color%1").arg(rect->colorStyleRef("fillColor"))
+                    : QString("\"%1\"").arg(rect->fillColor().name());
+                QString strokeExpr = rect->hasColorStyleRef("strokeColor")
+                    ? QString("root.color%1").arg(rect->colorStyleRef("strokeColor"))
+                    : QString("\"%1\"").arg(rect->strokeColor().name());
+
                 qml += "    Rectangle {\n";
                 qml += QString("        id: %1\n").arg(rect->componentId());
                 qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
@@ -171,12 +233,12 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(rect->pos().y()))
                     .arg(static_cast<int>(rect->compWidth()))
                     .arg(static_cast<int>(rect->compHeight()));
-                qml += QString("        color: \"%1\"\n").arg(rect->fillColor().name());
+                qml += QString("        color: %1\n").arg(fillExpr);
                 if (rect->cornerRadius() > 0) {
                     qml += QString("        radius: %1\n").arg(rect->cornerRadius());
                 }
                 if (rect->strokeWidth() > 0) {
-                    qml += QString("        border.color: \"%1\"\n").arg(rect->strokeColor().name());
+                    qml += QString("        border.color: %1\n").arg(strokeExpr);
                     qml += QString("        border.width: %1\n").arg(rect->strokeWidth());
                 }
                 qml += "    }\n\n";
@@ -197,6 +259,13 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "    }\n\n";
             } else if (auto btn = dynamic_cast<ButtonComponent*>(comp)) {
                 // In Qt Quick Ultralite, standard buttons are implemented via Rectangle + Text + MouseArea
+                QString bgExpr = btn->hasColorStyleRef("backgroundColor")
+                    ? QString("root.color%1").arg(btn->colorStyleRef("backgroundColor"))
+                    : QString("\"%1\"").arg(btn->backgroundColor().name());
+                QString txtExpr = btn->hasColorStyleRef("textColor")
+                    ? QString("root.color%1").arg(btn->colorStyleRef("textColor"))
+                    : QString("\"%1\"").arg(btn->textColor().name());
+
                 qml += "    Rectangle {\n";
                 qml += QString("        id: %1\n").arg(btn->componentId());
                 qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
@@ -204,17 +273,22 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(btn->pos().y()))
                     .arg(static_cast<int>(btn->compWidth()))
                     .arg(static_cast<int>(btn->compHeight()));
-                qml += QString("        color: %1_mouse.pressed ? \"%2\" : \"%3\"\n")
-                    .arg(btn->componentId())
-                    .arg(btn->backgroundColor().darker(120).name())
-                    .arg(btn->backgroundColor().name());
+                if (btn->hasColorStyleRef("backgroundColor")) {
+                    qml += QString("        color: %1_mouse.pressed ? Qt.darker(%2, 1.2) : %2\n")
+                        .arg(btn->componentId(), bgExpr);
+                } else {
+                    qml += QString("        color: %1_mouse.pressed ? \"%2\" : \"%3\"\n")
+                        .arg(btn->componentId())
+                        .arg(btn->backgroundColor().darker(120).name())
+                        .arg(btn->backgroundColor().name());
+                }
                 if (btn->cornerRadius() > 0) {
                     qml += QString("        radius: %1\n").arg(btn->cornerRadius());
                 }
                 qml += "        Text {\n";
                 qml += "            anchors.centerIn: parent\n";
                 qml += QString("            text: \"%1\"\n").arg(btn->text());
-                qml += QString("            color: \"%1\"\n").arg(btn->textColor().name());
+                qml += QString("            color: %1\n").arg(txtExpr);
                 qml += "            font.bold: true\n";
                 qml += "            font.pixelSize: 14\n";
                 qml += "        }\n";
@@ -406,6 +480,20 @@ QString QtMcuGenerator::generateDesignQml() {
                     qml += QString("        border.color: \"%1\"\n").arg(circ->strokeColor().name());
                     qml += QString("        border.width: %1\n").arg(circ->strokeWidth());
                 }
+                qml += "    }\n\n";
+            } else if (auto cci = dynamic_cast<CustomComponentInstance*>(comp)) {
+                CustomComponentDefinition def = cci->definition();
+                QString compDefId = QString("Comp_%1").arg(def.name.isEmpty() ? "Custom" : def.name);
+                qml += QString("    // Custom Component Instance: %1 (%2)\n").arg(cci->componentId(), def.name);
+                qml += "    Loader {\n";
+                qml += QString("        id: %1\n").arg(cci->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(cci->pos().x()))
+                    .arg(static_cast<int>(cci->pos().y()))
+                    .arg(static_cast<int>(cci->compWidth()))
+                    .arg(static_cast<int>(cci->compHeight()));
+                qml += QString("        sourceComponent: %1\n").arg(compDefId);
+                qml += QString("        onLoaded: { if (item) item.value = %1; }\n").arg(cci->value());
                 qml += "    }\n\n";
             } else if (comp) {
                 // Fallback for unsupported / unrecognized types

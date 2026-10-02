@@ -474,3 +474,46 @@ void UIComponent::fromJson(const QJsonObject& json) {
     qreal h = json.value("height").toDouble(m_height);
     setCompSize(w, h);
 }
+
+void UIComponent::setColorStyleRef(const QString& propertyKey, const QString& styleName) {
+    if (styleName.isEmpty()) {
+        m_colorStyleRefs.remove(propertyKey);
+    } else {
+        m_colorStyleRefs[propertyKey] = styleName;
+    }
+}
+
+QString UIComponent::colorStyleRef(const QString& propertyKey) const {
+    return m_colorStyleRefs.value(propertyKey);
+}
+
+bool UIComponent::hasColorStyleRef(const QString& propertyKey) const {
+    return m_colorStyleRefs.contains(propertyKey) && !m_colorStyleRefs.value(propertyKey).isEmpty();
+}
+
+void UIComponent::clearColorStyleRef(const QString& propertyKey) {
+    m_colorStyleRefs.remove(propertyKey);
+}
+
+void UIComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    Q_UNUSED(styleName);
+    Q_UNUSED(color);
+}
+
+QJsonValue UIComponent::serializeColor(const QColor& color, const QString& styleRef) {
+    if (!styleRef.isEmpty()) {
+        QJsonObject refObj;
+        refObj["styleRef"] = styleRef;
+        return refObj;
+    }
+    return color.name(QColor::HexRgb);
+}
+
+void UIComponent::deserializeColor(const QJsonValue& val, QColor& colorOut, QString& styleRefOut) {
+    if (val.isObject()) {
+        styleRefOut = val.toObject().value("styleRef").toString();
+    } else if (val.isString()) {
+        colorOut = QColor(val.toString());
+        styleRefOut.clear();
+    }
+}

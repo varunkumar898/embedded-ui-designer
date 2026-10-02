@@ -7,6 +7,8 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "dialogs/NewProjectDialog.h"
+#include "dialogs/ExportDialog.h"
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
 #include <QUndoStack>
@@ -29,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_view = new CanvasView(m_scene, this);
     m_view->setUndoStack(m_undoStack);
     m_project = new Project(m_scene, this);
+    m_view->setProject(m_project);
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
         m_project->setDirty(!clean);
@@ -65,6 +68,16 @@ MainWindow::MainWindow(QWidget *parent)
         updateWindowTitle();
         m_layerPanel->refreshLayers();
         m_propertiesPanel->setTargetComponent(nullptr);
+        m_propertiesPanel->setProject(m_project);
+        if (m_stylesPanel) m_stylesPanel->setProject(m_project);
+        if (m_palette) m_palette->setCustomComponents(m_project->customComponentDefinitions());
+    });
+    connect(m_project, &Project::colorStylesChanged, this, [this]() {
+        if (m_propertiesPanel) m_propertiesPanel->refreshValues();
+        if (m_stylesPanel) m_stylesPanel->refreshStyles();
+    });
+    connect(m_project, &Project::customComponentsChanged, this, [this]() {
+        if (m_palette) m_palette->setCustomComponents(m_project->customComponentDefinitions());
     });
 
     resize(1380, 880);
@@ -100,13 +113,14 @@ void MainWindow::setupMenusAndToolbars() {
     fileMenu->addAction("New Project", this, &MainWindow::onNewProject, QKeySequence::New);
     fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
     fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
+    // Feature 2: Import - separate from Open, merges components
+    fileMenu->addAction("Import...", this, &MainWindow::onImportProject, QKeySequence(Qt::CTRL | Qt::Key_I));
     fileMenu->addSeparator();
     fileMenu->addAction("Save", this, &MainWindow::onSaveProject, QKeySequence::Save);
     fileMenu->addAction("Save As...", this, &MainWindow::onSaveProjectAs, QKeySequence::SaveAs);
     fileMenu->addSeparator();
-    fileMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx, QKeySequence(Qt::CTRL | Qt::Key_E));
-    fileMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
-    fileMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
+    // Feature 3: Single Export entry in File menu
+    fileMenu->addAction("Export...", this, &MainWindow::onExport, QKeySequence(Qt::CTRL | Qt::Key_E));
     fileMenu->addSeparator();
     fileMenu->addAction("Exit", this, &QWidget::close, QKeySequence::Quit);
 
@@ -140,9 +154,8 @@ void MainWindow::setupMenusAndToolbars() {
 
     QMenu* projectMenu = menuBar()->addMenu("Project");
     projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
-    projectMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx);
-    projectMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu);
-    projectMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl);
+    // Feature 3: unified Export action in Project menu too
+    projectMenu->addAction("Export...", this, &MainWindow::onExport);
 
     QMenu* helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
@@ -172,9 +185,8 @@ void MainWindow::setupMenusAndToolbars() {
     });
     toolbar->addSeparator();
 
-    toolbar->addAction("Export µGFX", this, &MainWindow::onExportUgfx);
-    toolbar->addAction("Export QUL", this, &MainWindow::onExportQtMcu);
-    toolbar->addAction("Export LVGL", this, &MainWindow::onExportLvgl);
+    // Feature 3: Replace three Export µGFX/QUL/LVGL buttons with ONE "Export" button
+    toolbar->addAction("Export...", this, &MainWindow::onExport);
     toolbar->addSeparator();
 
     QLabel* resLabel = new QLabel("Target Display:", this);
@@ -289,6 +301,7 @@ void MainWindow::setupDocks() {
     propDock->setTitleBarWidget(createDockTitleBar("Properties", propDock));
     m_propertiesPanel = new PropertiesPanel(propDock);
     m_propertiesPanel->setUndoStack(m_undoStack);
+    m_propertiesPanel->setProject(m_project);
     propDock->setWidget(m_propertiesPanel);
     addDockWidget(Qt::RightDockWidgetArea, propDock);
 
@@ -300,9 +313,22 @@ void MainWindow::setupDocks() {
     layerDock->setWidget(m_layerPanel);
     addDockWidget(Qt::RightDockWidgetArea, layerDock);
 
+    // Right Styles Dock: Theme Styles Panel
+    QDockWidget* stylesDock = new QDockWidget("Styles", this);
+    stylesDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    stylesDock->setTitleBarWidget(createDockTitleBar("Color Styles", stylesDock));
+    m_stylesPanel = new StylesPanel(m_project, stylesDock);
+    stylesDock->setWidget(m_stylesPanel);
+    addDockWidget(Qt::RightDockWidgetArea, stylesDock);
+    tabifyDockWidget(layerDock, stylesDock);
+    stylesDock->raise();
+
+    // Initialize custom components in palette
+    m_palette->setCustomComponents(m_project->customComponentDefinitions());
+
     resizeDocks({paletteDock}, {210}, Qt::Horizontal);
-    resizeDocks({propDock, layerDock}, {260, 260}, Qt::Horizontal);
-    resizeDocks({propDock, layerDock}, {550, 330}, Qt::Vertical);
+    resizeDocks({propDock, layerDock, stylesDock}, {270, 270, 270}, Qt::Horizontal);
+    resizeDocks({propDock, layerDock}, {520, 360}, Qt::Vertical);
 }
 
 void MainWindow::applyTheme() {
@@ -473,10 +499,42 @@ void MainWindow::onNewProject() {
             return;
         }
     }
-    m_project->newProject("NewEmbeddedApp", 320, 240);
+
+    NewProjectDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    DisplayConfig cfg = dlg.displayConfig();
+    QString projName = dlg.projectName();
+    if (projName.isEmpty()) projName = "NewEmbeddedApp";
+
+    m_project->newProject(projName, cfg);
     if (m_undoStack) m_undoStack->clear();
-    m_resolutionCombo->setCurrentIndex(0);
-    statusBar()->showMessage("New project initialized", 3000);
+
+    // Synchronize target display resolution dropdown in toolbar
+    bool foundInPresets = false;
+    for (int i = 0; i < m_resolutionCombo->count(); ++i) {
+        QSize sz = m_resolutionCombo->itemData(i).toSize();
+        if (sz.width() == cfg.width && sz.height() == cfg.height) {
+            m_resolutionCombo->blockSignals(true);
+            m_resolutionCombo->setCurrentIndex(i);
+            m_resolutionCombo->blockSignals(false);
+            foundInPresets = true;
+            break;
+        }
+    }
+    if (!foundInPresets) {
+        m_resolutionCombo->blockSignals(true);
+        QString label = QString("%1 × %2 (%3)")
+            .arg(cfg.width).arg(cfg.height)
+            .arg(dlg.isBoardMode() ? dlg.selectedBoardName() : "Custom");
+        m_resolutionCombo->addItem(label, QSize(cfg.width, cfg.height));
+        m_resolutionCombo->setCurrentIndex(m_resolutionCombo->count() - 1);
+        m_resolutionCombo->blockSignals(false);
+    }
+
+    statusBar()->showMessage(QString("New project '%1' created (%2 × %3)").arg(projName).arg(cfg.width).arg(cfg.height), 3000);
 }
 
 void MainWindow::onOpenProject() {
@@ -501,6 +559,39 @@ void MainWindow::onOpenProject() {
             QMessageBox::warning(this, "Error", "Failed to load project file.");
         }
     }
+}
+
+// Feature 2: Import — merges components from another .euiproj into the current project.
+// Architecture note: this app uses a single-screen (single-page) model per project.
+// Imported components land on the same screen, offset by 20px so they don't overlap.
+void MainWindow::onImportProject() {
+    QString defaultDir = Project::appDataDirectory();
+    QString file = QFileDialog::getOpenFileName(
+        this,
+        "Import Embedded UI Project",
+        defaultDir,
+        "Embedded UI Project (*.euiproj);;All Files (*)"
+    );
+    if (file.isEmpty()) return;
+
+    int count = m_project->importFromFile(file, QPointF(20, 20));
+    if (count < 0) {
+        QMessageBox::warning(this, "Import Failed", "Could not read or parse the selected .euiproj file.");
+        return;
+    }
+    if (count == 0) {
+        QMessageBox::information(this, "Import Complete", "The imported project contained no components.");
+        return;
+    }
+
+    // Refresh the layer panel and properties panel after import
+    if (m_layerPanel) m_layerPanel->refreshLayers();
+    if (m_propertiesPanel) m_propertiesPanel->setTargetComponent(nullptr);
+
+    statusBar()->showMessage(
+        QString("Imported %1 component(s) from: %2").arg(count).arg(file),
+        5000
+    );
 }
 
 void MainWindow::onSaveProject() {
@@ -578,6 +669,48 @@ void MainWindow::onExportLvgl() {
         statusBar()->showMessage("LVGL project successfully exported to " + exportDir, 5000);
     } else {
         QMessageBox::critical(this, "Export Failed", "Error exporting LVGL project: " + generator.lastError());
+    }
+}
+
+// Feature 3: Unified export dialog — delegates to the existing per-format generators
+void MainWindow::onExport() {
+    ExportDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    QString target = dlg.selectedTarget();
+    QString exportDir = dlg.outputFolder();
+    if (exportDir.isEmpty()) return;
+
+    QString errorMsg;
+    bool success = false;
+    QString successLabel;
+
+    if (target == "ugfx") {
+        UgfxGenerator gen(m_project, m_scene);
+        success = gen.generate(exportDir);
+        successLabel = "µGFX";
+        if (!success) errorMsg = gen.lastError();
+    } else if (target == "qul") {
+        QtMcuGenerator gen(m_project, m_scene);
+        success = gen.generate(exportDir);
+        successLabel = "Qt for MCUs (QUL)";
+        if (!success) errorMsg = gen.lastError();
+    } else { // lvgl
+        LvglGenerator gen(m_project, m_scene);
+        success = gen.generate(exportDir);
+        successLabel = "LVGL";
+        if (!success) errorMsg = gen.lastError();
+    }
+
+    if (success) {
+        QString msg = QString("%1 project exported to:\n\n%2\n\nWould you like to open the folder?").arg(successLabel, exportDir);
+        auto res = QMessageBox::information(this, "Export Succeeded", msg, QMessageBox::Open | QMessageBox::Ok);
+        if (res == QMessageBox::Open) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(exportDir));
+        }
+        statusBar()->showMessage(successLabel + " project exported to " + exportDir, 5000);
+    } else {
+        QMessageBox::critical(this, "Export Failed", "Error exporting " + successLabel + " project: " + errorMsg);
     }
 }
 

@@ -36,6 +36,8 @@ public:
     QString toCppSignalSlotStub() const override;
     QString toUgfxSnippet(int indentSpaces = 4) const override;
 
+    void applyColorStyle(const QString& styleName, const QColor& color) override;
+
 signals:
     void targetScreenIdChanged(const QString& targetScreenId);
 

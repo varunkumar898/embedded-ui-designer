@@ -82,6 +82,18 @@ public:
     // Selection & Resize Handle helpers
     static constexpr qreal HANDLE_SIZE = 7.0;
 
+    // Named Color Style References
+    void setColorStyleRef(const QString& propertyKey, const QString& styleName);
+    QString colorStyleRef(const QString& propertyKey) const;
+    bool hasColorStyleRef(const QString& propertyKey) const;
+    void clearColorStyleRef(const QString& propertyKey);
+    const QMap<QString, QString>& colorStyleRefs() const { return m_colorStyleRefs; }
+
+    virtual void applyColorStyle(const QString& styleName, const QColor& color);
+
+    static QJsonValue serializeColor(const QColor& color, const QString& styleRef = QString());
+    static void deserializeColor(const QJsonValue& val, QColor& colorOut, QString& styleRefOut);
+
 signals:
     void propertyChanged(UIComponent* comp);
     void geometryChangedSignal(UIComponent* comp);
@@ -112,4 +124,6 @@ protected:
     bool m_draggingRadius = false;
     CornerRadiusHandle m_activeRadiusHandle = CornerRadiusHandle::None;
     int m_dragStartRadius = 0;
+
+    QMap<QString, QString> m_colorStyleRefs;
 };

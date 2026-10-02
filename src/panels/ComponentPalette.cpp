@@ -187,8 +187,55 @@ void ComponentPalette::setupUi() {
         }
     });
 
+    // MY COMPONENTS section
+    m_myComponentsTitle = new QLabel("MY COMPONENTS", this);
+    m_myComponentsTitle->setStyleSheet("color: #5a6475; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; padding-left: 8px; padding-top: 10px; padding-bottom: 2px;");
+    layout->addWidget(m_myComponentsTitle);
+
+    m_myComponentsList = new DraggableListWidget(this);
+    m_myComponentsList->setMinimumHeight(60);
+    layout->addWidget(m_myComponentsList);
+
+    connect(m_myComponentsList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        if (item) {
+            emit componentDoubleClicked(item->data(Qt::UserRole).toString());
+        }
+    });
+
+    m_emptyNotice = new QLabel("Right-click selection on canvas\nto create custom component", this);
+    m_emptyNotice->setStyleSheet("color: #4a5464; font-size: 10.5px; font-style: italic; padding: 4px 8px;");
+    m_emptyNotice->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_emptyNotice);
+
     QLabel* hint = new QLabel("Tip: Drag item onto canvas", this);
     hint->setStyleSheet("color: #566070; font-size: 11px; padding: 10px 4px 6px 4px;");
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
+}
+
+void ComponentPalette::setCustomComponents(const QList<CustomComponentDefinition>& defs) {
+    m_myComponentsList->clear();
+    bool hasAny = !defs.isEmpty();
+    m_emptyNotice->setVisible(!hasAny);
+
+    for (const auto& def : defs) {
+        QString sym = "🧩";
+        QColor color = QColor(142, 36, 170); // Vibrant Purple
+        if (def.behaviorRole == "Slider") {
+            sym = "—";
+            color = QColor(0, 150, 136); // Teal
+        } else if (def.behaviorRole == "ProgressBar") {
+            sym = "%";
+            color = QColor(56, 142, 60); // Green
+        } else if (def.behaviorRole == "Button") {
+            sym = "B";
+            color = QColor(25, 118, 210); // Blue
+        }
+
+        QIcon icon = createBadgeIcon(def.behaviorRole, sym, color);
+        QListWidgetItem* item = new QListWidgetItem(icon, def.name, m_myComponentsList);
+        item->setData(Qt::UserRole, QString("custom:%1").arg(def.id));
+        item->setToolTip(QString("Custom Component: %1\nRole: %2\nSize: %3x%4")
+            .arg(def.name, def.behaviorRole).arg(def.width).arg(def.height));
+    }
 }
