@@ -30,6 +30,11 @@ set(COMMON_SOURCES
     src/MainWindow.cpp
     src/MainWindow.h
 
+    src/dialogs/FlashDialog.cpp
+    src/dialogs/FlashDialog.h
+    src/dialogs/NewProjectDialog.cpp
+    src/dialogs/NewProjectDialog.h
+
     # Display Configuration
     src/models/DisplayConfig.h
 
@@ -163,6 +168,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
 )
 
 # Target Link Libraries

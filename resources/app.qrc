@@ -3,6 +3,9 @@
         <file>config/devices.json</file>
         <file alias="examples/simple.euiproj">../examples/simple.euiproj</file>
         <file alias="examples/sample_dashboard.euiproj">../examples/sample_dashboard.euiproj</file>
+        <file alias="examples/thermostat.euiproj">../examples/thermostat.euiproj</file>
+        <file alias="examples/automotive_cluster.euiproj">../examples/automotive_cluster.euiproj</file>
+        <file alias="examples/smartwatch.euiproj">../examples/smartwatch.euiproj</file>
         <file alias="packaging/embedded-ui-designer.png">../packaging/embedded-ui-designer.png</file>
         <file>combo_arrow.png</file>
     </qresource>

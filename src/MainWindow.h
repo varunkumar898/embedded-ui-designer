@@ -13,6 +13,8 @@
 #include "LayerPanel.h"
 #include "Project.h"
 
+class DeviceManager;
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -30,6 +32,7 @@ private slots:
     void onExportUgfx();
     void onExportQtMcu();
     void onExportLvgl();
+    void onFlashFirmware();
 
     // Edit Actions
     void onDeleteSelected();
@@ -67,6 +70,7 @@ private:
     CanvasScene* m_scene = nullptr;
     CanvasView* m_view = nullptr;
     Project* m_project = nullptr;
+    DeviceManager* m_deviceManager = nullptr;
     class QUndoStack* m_undoStack = nullptr;
 
     // Dock Panels

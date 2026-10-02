@@ -2,6 +2,9 @@
 #include "QtMcuGenerator.h"
 #include "UgfxGenerator.h"
 #include "LvglGenerator.h"
+#include "FlashDialog.h"
+#include "NewProjectDialog.h"
+#include "DeviceManager.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
@@ -30,6 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_view = new CanvasView(m_scene, this);
     m_view->setUndoStack(m_undoStack);
     m_project = new Project(m_scene, this);
+    m_deviceManager = new DeviceManager(this);
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
         m_project->setDirty(!clean);
@@ -156,6 +160,9 @@ void MainWindow::setupMenusAndToolbars() {
     projectMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx);
     projectMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu);
     projectMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl);
+
+    QMenu* hardwareMenu = menuBar()->addMenu("Hardware");
+    hardwareMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
 
     QMenu* helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
@@ -525,6 +532,11 @@ void MainWindow::updateWindowTitle() {
 }
 
 void MainWindow::onNewProject() {
+    NewProjectDialog dialog(this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
     if (m_project->isDirty()) {
         auto res = QMessageBox::question(this, "Unsaved Changes", "Save changes before creating a new project?", QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
         if (res == QMessageBox::Yes) {
@@ -533,10 +545,27 @@ void MainWindow::onNewProject() {
             return;
         }
     }
-    m_project->newProject("NewEmbeddedApp", 320, 240);
+    if (dialog.startsFromTemplate()) {
+        if (!m_project->loadFromFile(dialog.templateResource())) {
+            QMessageBox::warning(this, "Template Error", "The selected project template could not be loaded.");
+            return;
+        }
+        m_project->setProjectName(dialog.projectName());
+        m_project->setProjectFilePath(QString());
+    } else {
+        m_project->newProject(dialog.projectName(), dialog.projectWidth(), dialog.projectHeight());
+        m_project->setTargetFramework(dialog.targetFramework());
+    }
     if (m_undoStack) m_undoStack->clear();
     m_resolutionCombo->setCurrentIndex(0);
-    statusBar()->showMessage("New project initialized", 3000);
+    statusBar()->showMessage(dialog.startsFromTemplate()
+                                 ? "Project created from template"
+                                 : "New project initialized", 3000);
+}
+
+void MainWindow::onFlashFirmware() {
+    FlashDialog dialog(m_deviceManager, this);
+    dialog.exec();
 }
 
 void MainWindow::onOpenProject() {
