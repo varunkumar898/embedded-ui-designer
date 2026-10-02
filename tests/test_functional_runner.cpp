@@ -6,6 +6,15 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QMenu>
+#include <QScreen>
+#include <QToolButton>
+#include <QGraphicsSceneMouseEvent>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QTimer>
+#include <QComboBox>
+#include <QSpinBox>
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -30,6 +39,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "PathComponent.h"
 
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
@@ -417,6 +427,214 @@ public:
         std::cout << "\n[10] Capturing High-Resolution Verification Screenshot\n";
         {
             auto t = std::chrono::high_resolution_clock::now();
+            QDir().mkpath(artifactDir);
+            window.m_scene->clearSelection();
+            RectangleComponent* resizeProbe = new RectangleComponent("resize_probe");
+            resizeProbe->setCompPos(100, 100);
+            resizeProbe->setCompSize(120, 70);
+            resizeProbe->setFillColor(QColor("#e4583e"));
+            window.m_scene->addUIComponent(resizeProbe);
+            QPoint componentCenter = window.m_view->mapFromScene(resizeProbe->sceneBoundingRect().center());
+            QMouseEvent selectPress(QEvent::MouseButtonPress, componentCenter, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &selectPress);
+            QMouseEvent selectRelease(QEvent::MouseButtonRelease, componentCenter, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(window.m_view->viewport(), &selectRelease);
+            resizeProbe->setSelected(true);
+            window.m_propertiesPanel->setTargetComponent(resizeProbe);
+
+            QUndoStack* sceneUndoStack = window.m_scene->undoStack();
+            window.m_scene->setUndoStack(nullptr);
+            const QPointF dragStartScene = resizeProbe->mapToScene(QPointF(resizeProbe->compWidth(), resizeProbe->compHeight()));
+            const QPointF dragEndScene = dragStartScene + QPointF(50, 35);
+            QGraphicsSceneMouseEvent resizePress(QEvent::GraphicsSceneMousePress);
+            resizePress.setButton(Qt::LeftButton);
+            resizePress.setButtons(Qt::LeftButton);
+            resizePress.setScenePos(dragStartScene);
+            resizePress.setPos(resizeProbe->mapFromScene(dragStartScene));
+            resizePress.setModifiers(Qt::NoModifier);
+            window.m_scene->sendEvent(resizeProbe, &resizePress);
+            bool resizeStarted = resizeProbe->isResizing();
+            QGraphicsSceneMouseEvent resizeMove(QEvent::GraphicsSceneMouseMove);
+            resizeMove.setButton(Qt::NoButton);
+            resizeMove.setButtons(Qt::LeftButton);
+            resizeMove.setScenePos(dragEndScene);
+            resizeMove.setPos(resizeProbe->mapFromScene(dragEndScene));
+            resizeMove.setModifiers(Qt::NoModifier);
+            window.m_scene->sendEvent(resizeProbe, &resizeMove);
+            qApp->processEvents();
+
+            bool anchorStayedFixed = resizeProbe->compX() == 100 && resizeProbe->compY() == 100;
+            bool resizedLive = resizeProbe->compWidth() == 170 && resizeProbe->compHeight() == 105;
+            record("Canvas Resize", "Live Corner Resize Anchor", anchorStayedFixed && resizedLive,
+                   QString("started=%1, anchor=(%2,%3), size=%4x%5")
+                       .arg(resizeStarted).arg(resizeProbe->compX()).arg(resizeProbe->compY())
+                       .arg(resizeProbe->compWidth()).arg(resizeProbe->compHeight()).toStdString(), t);
+            QPixmap liveResizeShot = window.grab();
+            bool liveShotSaved = liveResizeShot.save(artifactDir + "/task1_corner_resize_live.png");
+            record("Canvas Resize", "Capture Held Resize", liveShotSaved,
+                   "Saved the visible MainWindow while the resize mouse button was still held", t);
+
+            QGraphicsSceneMouseEvent resizeRelease(QEvent::GraphicsSceneMouseRelease);
+            resizeRelease.setButton(Qt::LeftButton);
+            resizeRelease.setButtons(Qt::NoButton);
+            resizeRelease.setScenePos(dragEndScene);
+            resizeRelease.setPos(resizeProbe->mapFromScene(dragEndScene));
+            window.m_scene->sendEvent(resizeProbe, &resizeRelease);
+            const QPointF shiftStartScene = resizeProbe->mapToScene(QPointF(resizeProbe->compWidth(), resizeProbe->compHeight()));
+            const QPointF shiftEndScene = shiftStartScene + QPointF(34, 14);
+            QGraphicsSceneMouseEvent shiftPress(QEvent::GraphicsSceneMousePress);
+            shiftPress.setButton(Qt::LeftButton);
+            shiftPress.setButtons(Qt::LeftButton);
+            shiftPress.setScenePos(shiftStartScene);
+            shiftPress.setPos(resizeProbe->mapFromScene(shiftStartScene));
+            shiftPress.setModifiers(Qt::ShiftModifier);
+            window.m_scene->sendEvent(resizeProbe, &shiftPress);
+            QGraphicsSceneMouseEvent shiftMove(QEvent::GraphicsSceneMouseMove);
+            shiftMove.setButton(Qt::NoButton);
+            shiftMove.setButtons(Qt::LeftButton);
+            shiftMove.setScenePos(shiftEndScene);
+            shiftMove.setPos(resizeProbe->mapFromScene(shiftEndScene));
+            shiftMove.setModifiers(Qt::ShiftModifier);
+            window.m_scene->sendEvent(resizeProbe, &shiftMove);
+            qApp->processEvents();
+            bool shiftLocked = std::abs(resizeProbe->compWidth() / 170.0 - resizeProbe->compHeight() / 105.0) < 0.01;
+            record("Canvas Resize", "Shift Aspect Lock", shiftLocked,
+                   "Shift-modified corner drag preserved the original component aspect ratio", t);
+            QGraphicsSceneMouseEvent shiftRelease(QEvent::GraphicsSceneMouseRelease);
+            shiftRelease.setButton(Qt::LeftButton);
+            shiftRelease.setButtons(Qt::NoButton);
+            shiftRelease.setScenePos(shiftEndScene);
+            shiftRelease.setPos(resizeProbe->mapFromScene(shiftEndScene));
+            shiftRelease.setModifiers(Qt::ShiftModifier);
+            window.m_scene->sendEvent(resizeProbe, &shiftRelease);
+            window.m_scene->setUndoStack(sceneUndoStack);
+            window.m_scene->removeUIComponent(resizeProbe);
+            delete resizeProbe;
+
+                 QToolButton* shapeButton = window.m_palette->shapeToolButton();
+                 shapeButton->showMenu();
+                 qApp->processEvents();
+                 QStringList shapeNames;
+                 for (QAction* action : shapeButton->menu()->actions()) {
+                  shapeNames.append(action->text());
+                 }
+                QPixmap flyoutShot = shapeButton->menu()->grab();
+                 bool flyoutShotSaved = flyoutShot.save(artifactDir + "/task2_shape_flyout.png");
+                 bool hasFiveOptions = shapeNames == QStringList({"Circle", "Triangle", "Square", "Rectangle", "Custom"});
+                 record("Shape Tool", "Capture Shape Flyout", flyoutShotSaved && hasFiveOptions,
+                     "Captured the open Shape flyout with all five options", t);
+                 shapeButton->menu()->actions().last()->trigger();
+                 qApp->processEvents();
+                 bool customToolSelected = window.m_view->activeDrawingTool() == "Custom";
+                 record("Shape Tool", "Select Custom Drawing Tool", customToolSelected,
+                     "Selecting Custom set the canvas active drawing tool", t);
+
+                     const QPoint pathVertices[] = {
+                        window.m_view->mapFromScene(QPointF(70, 50)),
+                        window.m_view->mapFromScene(QPointF(190, 65)),
+                        window.m_view->mapFromScene(QPointF(145, 160))
+                     };
+                     for (const QPoint& vertex : pathVertices) {
+                      QMouseEvent placeVertex(QEvent::MouseButtonPress, vertex, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                      QApplication::sendEvent(window.m_view->viewport(), &placeVertex);
+                     }
+                     QKeyEvent finishPath(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                     QApplication::sendEvent(window.m_view, &finishPath);
+                     qApp->processEvents();
+                     PathComponent* drawnPath = nullptr;
+                     for (UIComponent* component : window.m_scene->uiComponents()) {
+                      if (auto path = dynamic_cast<PathComponent*>(component)) drawnPath = path;
+                     }
+                     bool pathCreated = drawnPath && drawnPath->points().size() == 3 && drawnPath->isSelected();
+                     bool pathFieldsVisible = pathCreated && window.m_propertiesPanel->m_colorBtn1 &&
+                                  window.m_propertiesPanel->m_spinStrokeW && window.m_propertiesPanel->m_spinOpacity;
+                     record("Custom Shape", "Place and Finish Polygon", pathCreated,
+                         "Three point clicks followed by Enter created and selected a closed PathComponent", t);
+                     record("Custom Shape", "Path Stroke Properties", pathFieldsVisible,
+                         "Properties panel exposes Stroke Color, Stroke Thickness, and Opacity", t);
+                         PathComponent restoredPath("path_restore");
+                         if (drawnPath) restoredPath.fromJson(drawnPath->toJson());
+                         bool pathRoundTrips = drawnPath && restoredPath.points().size() == drawnPath->points().size() &&
+                                      restoredPath.strokeColor() == drawnPath->strokeColor() &&
+                                              qFuzzyCompare(restoredPath.strokeThickness(), drawnPath->strokeThickness()) &&
+                                      restoredPath.opacityPercent() == drawnPath->opacityPercent();
+                         record("Custom Shape", "Path JSON Round Trip", pathRoundTrips,
+                             "Path vertices, stroke color, thickness, and opacity survive JSON serialization", t);
+                         if (drawnPath) drawnPath->setCompPos(50, 45);
+                     QPixmap pathShot = window.grab();
+                     bool pathShotSaved = pathShot.save(artifactDir + "/task3_custom_path_properties.png");
+                     record("Custom Shape", "Capture Drawn Path", pathShotSaved,
+                         "Saved the selected stroked path with its inspector fields visible", t);
+
+                         auto sendCanvasClick = [&window](const QPointF& scenePoint) {
+                          const QPoint point = window.m_view->mapFromScene(scenePoint);
+                          QMouseEvent press(QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                          QApplication::sendEvent(window.m_view->viewport(), &press);
+                          QMouseEvent release(QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                          QApplication::sendEvent(window.m_view->viewport(), &release);
+                         };
+                         const int beforeEscapeCount = window.m_scene->uiComponents().size();
+                         window.m_view->setActiveDrawingTool("Custom");
+                         sendCanvasClick(QPointF(40, 40));
+                         sendCanvasClick(QPointF(80, 45));
+                         QKeyEvent cancelPath(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+                         QApplication::sendEvent(window.m_view, &cancelPath);
+                         const bool escapeCancelled = window.m_view->activeDrawingTool().isEmpty() &&
+                                          window.m_scene->uiComponents().size() == beforeEscapeCount;
+                         record("Custom Shape", "Escape Cancels Path", escapeCancelled,
+                             "Escape removed the unfinished preview without adding a component", t);
+
+                         window.m_view->setActiveDrawingTool("Custom");
+                         sendCanvasClick(QPointF(40, 40));
+                         sendCanvasClick(QPointF(100, 40));
+                         sendCanvasClick(QPointF(70, 100));
+                         const QPoint closePoint = window.m_view->mapFromScene(QPointF(70, 100));
+                         QMouseEvent closePath(QEvent::MouseButtonDblClick, closePoint, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                         QApplication::sendEvent(window.m_view->viewport(), &closePath);
+                         int doubleClickPathCount = 0;
+                         for (UIComponent* component : window.m_scene->uiComponents()) {
+                          if (dynamic_cast<PathComponent*>(component)) ++doubleClickPathCount;
+                         }
+                         record("Custom Shape", "Double-Click Finishes Path", doubleClickPathCount == 2,
+                             "Double-click closed a three-vertex polygon", t);
+
+                         const int beforeRectangleCount = window.m_scene->uiComponents().size();
+                         window.m_view->setActiveDrawingTool("Rectangle");
+                         const QPoint rectStart = window.m_view->mapFromScene(QPointF(35, 35));
+                         const QPoint rectEnd = window.m_view->mapFromScene(QPointF(95, 80));
+                         QMouseEvent rectPress(QEvent::MouseButtonPress, rectStart, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                         QApplication::sendEvent(window.m_view->viewport(), &rectPress);
+                         QMouseEvent rectRelease(QEvent::MouseButtonRelease, rectEnd, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                         QApplication::sendEvent(window.m_view->viewport(), &rectRelease);
+                         bool rectangleToolDrew = window.m_scene->uiComponents().size() == beforeRectangleCount + 1 &&
+                                      dynamic_cast<RectangleComponent*>(window.m_scene->uiComponents().last());
+                         record("Shape Tool", "Rectangle Drag Draw", rectangleToolDrew,
+                             "Rectangle menu selection created a canvas shape from a drag", t);
+
+                         window.m_project->setDirty(false);
+                         QTimer::singleShot(0, &window, [&window]() {
+                          QDialog* newProjectDialog = window.findChild<QDialog*>();
+                          if (!newProjectDialog) return;
+                          newProjectDialog->findChild<QSpinBox*>("newProjectWidth")->setValue(240);
+                          newProjectDialog->findChild<QSpinBox*>("newProjectHeight")->setValue(320);
+                          newProjectDialog->findChild<QSpinBox*>("newProjectColorDepth")->setValue(24);
+                          newProjectDialog->findChild<QComboBox*>("newProjectShape")->setCurrentText("Round");
+                          newProjectDialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+                         });
+                         window.onNewProject();
+                         const DisplayConfig roundConfig = window.m_project->displayConfig();
+                         const bool roundProjectCreated = roundConfig.round && roundConfig.width == 240 &&
+                                           roundConfig.height == 240 && roundConfig.colorDepth == 24;
+                         record("Round Display", "Create Round New Project", roundProjectCreated,
+                             "New Project dialog created a 240px round canvas at 24-bit depth", t);
+                             bool roundConfigRoundTrips = DisplayConfig::fromJson(roundConfig.toJson()).round;
+                             record("Round Display", "Round Config JSON", roundConfigRoundTrips,
+                                 "The round display shape persists through DisplayConfig JSON", t);
+                         QPixmap roundDisplayShot = window.grab();
+                         const bool roundShotSaved = roundDisplayShot.save(artifactDir + "/task4_round_display.png");
+                         record("Round Display", "Capture Circular Canvas", roundShotSaved && roundConfig.round,
+                             "Captured the project canvas with its circular display boundary", t);
+
             qApp->processEvents();
             QPixmap pixmap = window.grab();
             QString shotPath = artifactDir + "/functional_test_screenshot.png";

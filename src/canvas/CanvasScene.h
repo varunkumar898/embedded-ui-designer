@@ -35,6 +35,7 @@ public:
     void clearComponents();
 
     QPointF snapPoint(const QPointF& pt) const;
+    void setPathPreview(const QList<QPointF>& points, const QPointF& cursor, bool visible);
 
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
@@ -60,5 +61,8 @@ private:
     bool m_gridVisible = true;
     bool m_snapToGrid = true;
     int m_gridSize = 10;
+    QList<QPointF> m_pathPreviewPoints;
+    QPointF m_pathPreviewCursor;
+    bool m_pathPreviewVisible = false;
     class QUndoStack* m_undoStack = nullptr;
 };

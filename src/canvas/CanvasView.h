@@ -5,6 +5,7 @@
 #include <QDropEvent>
 #include <QWheelEvent>
 #include <QMouseEvent>
+#include <QPolygonF>
 #include <QRubberBand>
 #include "CanvasScene.h"
 
@@ -19,6 +20,8 @@ public:
     void resetZoom();
     void setZoomFactor(qreal factor);
     qreal zoomFactor() const { return m_zoomFactor; }
+    void setActiveDrawingTool(const QString& type);
+    QString activeDrawingTool() const { return m_activeDrawingTool; }
 
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
@@ -32,6 +35,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
 
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -42,6 +46,11 @@ protected:
 private:
     CanvasScene* m_canvasScene = nullptr;
     qreal m_zoomFactor = 1.0;
+    QString m_activeDrawingTool;
+    QList<QPointF> m_pendingPathPoints;
+    QPointF m_pathCursorScenePos;
+    bool m_isShapeDragging = false;
+    QPointF m_shapeDragStart;
     bool m_isPanning = false;
     QPoint m_panStartPos;
 
@@ -52,5 +61,8 @@ private:
 
     void applyZoom(qreal factor);
     UIComponent* createComponentByType(const QString& compType, const QPointF& pos);
+    void finishCustomPath();
+    void cancelCustomPath();
+    void finishShapeDrag(const QPointF& end);
     class QUndoStack* m_undoStack = nullptr;
 };

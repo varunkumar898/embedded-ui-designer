@@ -7,6 +7,8 @@
 #include <QIcon>
 #include <QPainter>
 #include <QPainterPath>
+#include <QMenu>
+#include <QToolButton>
 
 class DraggableListWidget : public QListWidget {
 public:
@@ -48,6 +50,7 @@ protected:
         if (!item) return;
 
         QString compType = item->data(Qt::UserRole).toString();
+        if (compType == "Shape") return;
         QMimeData* mimeData = new QMimeData();
         mimeData->setData("application/x-embedded-ui-component", compType.toUtf8());
 
@@ -172,17 +175,47 @@ void ComponentPalette::setupUi() {
     addItem("Button", "Button", "B", QColor(26, 115, 232));
     addItem("Text / Label", "Text", "T", QColor(156, 39, 176));
     addItem("Rectangle", "Rectangle", "R", QColor(230, 81, 0));
+
+    QListWidgetItem* shapeItem = new QListWidgetItem(m_listWidget);
+    shapeItem->setData(Qt::UserRole, "Shape");
+    shapeItem->setFlags(Qt::ItemIsEnabled);
+    shapeItem->setSizeHint(QSize(180, 46));
+    m_shapeButton = new QToolButton(m_listWidget);
+    m_shapeButton->setObjectName("shapeToolButton");
+    m_shapeButton->setText("Shape");
+    m_shapeButton->setIcon(createBadgeIcon("Shape", "S", QColor(0, 137, 123)));
+    m_shapeButton->setIconSize(QSize(28, 28));
+    m_shapeButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_shapeButton->setPopupMode(QToolButton::InstantPopup);
+    m_shapeButton->setCursor(Qt::PointingHandCursor);
+    m_shapeButton->setToolTip("Choose a shape drawing tool");
+    m_shapeButton->setStyleSheet(
+        "QToolButton { background: #1c1f26; color: #e4ecf7; border: 1px solid #252933; "
+        "border-radius: 10px; padding: 6px 10px; text-align: left; font-size: 12.5px; font-weight: 500; }"
+        "QToolButton:hover { background: #232731; border-color: #323746; color: #ffffff; }"
+        "QToolButton::menu-indicator { image: url(:/combo_arrow.png); subcontrol-origin: padding; "
+        "subcontrol-position: top right; width: 26px; height: 7px; }"
+    );
+    QMenu* shapeMenu = new QMenu(m_shapeButton);
+    const QStringList shapes = {"Circle", "Triangle", "Square", "Rectangle", "Custom"};
+    for (const QString& shape : shapes) {
+        QAction* action = shapeMenu->addAction(shape);
+        connect(action, &QAction::triggered, this, [this, shape]() {
+            emit shapeToolSelected(shape);
+        });
+    }
+    m_shapeButton->setMenu(shapeMenu);
+    m_listWidget->setItemWidget(shapeItem, m_shapeButton);
+
     addItem("Progress Bar", "ProgressBar", "%", QColor(46, 125, 50));
     addItem("Slider", "Slider", "—", QColor(0, 137, 123));
     addItem("Switch", "Switch", "⏻", QColor(123, 31, 162));
     addItem("Checkbox", "Checkbox", "✓", QColor(0, 168, 120));
     addItem("Text Input", "TextInput", "TI", QColor(229, 57, 53));
-    addItem("Circle", "Circle", "○", QColor(2, 136, 209));
-
     layout->addWidget(m_listWidget);
 
     connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
-        if (item) {
+        if (item && item->data(Qt::UserRole).toString() != "Shape") {
             emit componentDoubleClicked(item->data(Qt::UserRole).toString());
         }
     });

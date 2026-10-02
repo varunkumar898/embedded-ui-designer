@@ -23,6 +23,11 @@
 #include <QUrl>
 #include <QApplication>
 #include <QTimer>
+#include <QDialog>
+#include <QFormLayout>
+#include <QSpinBox>
+#include <QDialogButtonBox>
+#include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -86,7 +91,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     resize(1380, 880);
 }
-
 void MainWindow::setupUi() {
     QWidget* statusWidget = new QWidget(this);
     QHBoxLayout* statusLayout = new QHBoxLayout(statusWidget);
@@ -125,7 +129,8 @@ void MainWindow::setupMenusAndToolbars() {
     fileMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
     fileMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
     fileMenu->addSeparator();
-    fileMenu->addAction("Exit", this, &QWidget::close, QKeySequence::Quit);
+    QAction* exitAction = fileMenu->addAction("Exit", QKeySequence::Quit);
+    connect(exitAction, &QAction::triggered, this, &QWidget::close);
 
     QMenu* editMenu = menuBar()->addMenu("Edit");
     QAction* undoAct = m_undoStack->createUndoAction(this, "Undo");
@@ -349,6 +354,7 @@ void MainWindow::setupDocks() {
             }
         }
     });
+    connect(m_palette, &ComponentPalette::shapeToolSelected, m_view, &CanvasView::setActiveDrawingTool);
 
     // Right Top Dock: Properties Panel
     QDockWidget* propDock = new QDockWidget("Properties", this);
@@ -555,9 +561,15 @@ void MainWindow::onNewProject() {
     } else {
         m_project->newProject(dialog.projectName(), dialog.projectWidth(), dialog.projectHeight());
         m_project->setTargetFramework(dialog.targetFramework());
+        DisplayConfig config = m_project->displayConfig();
+        config.colorDepth = dialog.colorDepth();
+        config.round = dialog.roundDisplay();
+        m_project->setDisplayConfig(config);
     }
     if (m_undoStack) m_undoStack->clear();
-    m_resolutionCombo->setCurrentIndex(0);
+    m_resolutionCombo->blockSignals(true);
+    m_resolutionCombo->setCurrentIndex(-1);
+    m_resolutionCombo->blockSignals(false);
     statusBar()->showMessage(dialog.startsFromTemplate()
                                  ? "Project created from template"
                                  : "New project initialized", 3000);

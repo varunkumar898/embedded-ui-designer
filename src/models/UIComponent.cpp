@@ -322,6 +322,36 @@ void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
         qreal nw = m_initialGeom.width();
         qreal nh = m_initialGeom.height();
 
+        const bool isCornerHandle = m_activeHandle == ResizeHandle::TopLeft ||
+                                    m_activeHandle == ResizeHandle::TopRight ||
+                                    m_activeHandle == ResizeHandle::BottomLeft ||
+                                    m_activeHandle == ResizeHandle::BottomRight;
+        if (isCornerHandle) {
+            const bool leftHandle = m_activeHandle == ResizeHandle::TopLeft ||
+                                    m_activeHandle == ResizeHandle::BottomLeft;
+            const bool topHandle = m_activeHandle == ResizeHandle::TopLeft ||
+                                   m_activeHandle == ResizeHandle::TopRight;
+            const qreal horizontalSign = leftHandle ? -1.0 : 1.0;
+            const qreal verticalSign = topHandle ? -1.0 : 1.0;
+            const qreal minScale = std::max(15.0 / m_initialGeom.width(),
+                                            15.0 / m_initialGeom.height());
+
+            if (event->modifiers() & Qt::ShiftModifier) {
+                const QPointF initialVector(horizontalSign * m_initialGeom.width(),
+                                             verticalSign * m_initialGeom.height());
+                const QPointF dragVector = initialVector + delta;
+                const qreal denominator = QPointF::dotProduct(initialVector, initialVector);
+                const qreal scale = QPointF::dotProduct(dragVector, initialVector) / denominator;
+                nw = m_initialGeom.width() * std::max(scale, minScale);
+                nh = m_initialGeom.height() * std::max(scale, minScale);
+            } else {
+                nw = std::max(15.0, m_initialGeom.width() + horizontalSign * delta.x());
+                nh = std::max(15.0, m_initialGeom.height() + verticalSign * delta.y());
+            }
+            nx = leftHandle ? m_initialGeom.right() - nw : m_initialGeom.left();
+            ny = topHandle ? m_initialGeom.bottom() - nh : m_initialGeom.top();
+        } else {
+
         switch (m_activeHandle) {
             case ResizeHandle::Right:
                 nw += delta.x();
@@ -373,6 +403,7 @@ void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
             }
             nh = 15.0;
         }
+        }
 
         prepareGeometryChange();
         setPos(nx, ny);
@@ -414,7 +445,6 @@ void UIComponent::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     }
 
     if (m_resizing) {
-        m_resizing = false;
         m_activeHandle = ResizeHandle::None;
         setCursor(Qt::ArrowCursor);
         QRectF finalGeom(pos().x(), pos().y(), m_width, m_height);
@@ -427,6 +457,7 @@ void UIComponent::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
         }
         event->accept();
         emit geometryChangedSignal(this);
+        m_resizing = false;
         return;
     }
     QGraphicsObject::mouseReleaseEvent(event);

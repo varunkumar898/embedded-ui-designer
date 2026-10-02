@@ -87,6 +87,7 @@ private:
     QPushButton* m_colorBtn4 = nullptr;
     QSpinBox* m_spinRadius = nullptr;
     QSpinBox* m_spinStrokeW = nullptr;
+    QSpinBox* m_spinOpacity = nullptr;
     QSpinBox* m_spinPixelSize = nullptr;
     QCheckBox* m_chkBold = nullptr;
     QCheckBox* m_chkItalic = nullptr;

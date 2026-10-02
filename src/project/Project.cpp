@@ -9,6 +9,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "PathComponent.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -245,6 +246,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new TextInputComponent(id);
     } else if (type == "Circle") {
         return new CircleComponent(id);
+    } else if (type == "Path") {
+        return new PathComponent(id);
     }
     return nullptr;
 }

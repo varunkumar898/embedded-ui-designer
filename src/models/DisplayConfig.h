@@ -9,6 +9,8 @@ struct DisplayConfig {
     int colorDepth = 16;       // 1, 8, 16, 24-bit
     QString type = "LCD";      // LCD, OLED, E-Ink
     int dpi = 96;
+    // Code generation for round displays is not solved here; this only changes the canvas boundary.
+    bool round = false;
 
     QJsonObject toJson() const {
         QJsonObject obj;
@@ -17,6 +19,7 @@ struct DisplayConfig {
         obj["colorDepth"] = colorDepth;
         obj["type"] = type;
         obj["dpi"] = dpi;
+        obj["round"] = round;
         return obj;
     }
 
@@ -27,6 +30,7 @@ struct DisplayConfig {
         config.colorDepth = obj.value("colorDepth").toInt(16);
         config.type = obj.value("type").toString("LCD");
         config.dpi = obj.value("dpi").toInt(96);
+        config.round = obj.value("round").toBool(false);
         return config;
     }
 };

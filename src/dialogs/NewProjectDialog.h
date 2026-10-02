@@ -21,6 +21,8 @@ public:
     int projectWidth() const;
     int projectHeight() const;
     QString targetFramework() const;
+    int colorDepth() const;
+    bool roundDisplay() const;
 
 private slots:
     void updateTemplateDetails();
@@ -30,6 +32,8 @@ private:
     QLineEdit* m_projectNameEdit = nullptr;
     QSpinBox* m_widthSpin = nullptr;
     QSpinBox* m_heightSpin = nullptr;
+    QSpinBox* m_colorDepthSpin = nullptr;
+    QComboBox* m_shapeCombo = nullptr;
     QComboBox* m_frameworkCombo = nullptr;
     QListWidget* m_templateList = nullptr;
     QLabel* m_templateDescription = nullptr;

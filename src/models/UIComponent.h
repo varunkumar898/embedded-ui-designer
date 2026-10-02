@@ -49,6 +49,7 @@ public:
     qreal compY() const { return pos().y(); }
     qreal compWidth() const { return m_width; }
     qreal compHeight() const { return m_height; }
+    bool isResizing() const { return m_resizing; }
 
     void setCompPos(qreal x, qreal y);
     void setCompSize(qreal w, qreal h);

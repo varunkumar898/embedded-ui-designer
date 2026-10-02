@@ -34,13 +34,29 @@ NewProjectDialog::NewProjectDialog(QWidget* parent)
     m_heightSpin = new QSpinBox(blankPage);
     m_heightSpin->setRange(64, 2000);
     m_heightSpin->setValue(240);
+    m_colorDepthSpin = new QSpinBox(blankPage);
+    m_colorDepthSpin->setRange(1, 32);
+    m_colorDepthSpin->setValue(16);
+    m_shapeCombo = new QComboBox(blankPage);
+    m_shapeCombo->addItem("Rectangular", false);
+    m_shapeCombo->addItem("Round", true);
     m_frameworkCombo = new QComboBox(blankPage);
     m_frameworkCombo->addItem("uGFX", "ugfx");
     m_frameworkCombo->addItem("Qt for MCUs (QUL)", "qt-for-mcus");
     m_frameworkCombo->addItem("LVGL", "lvgl");
     blankForm->addRow("Display width", m_widthSpin);
     blankForm->addRow("Display height", m_heightSpin);
+    blankForm->addRow("Color depth", m_colorDepthSpin);
+    blankForm->addRow("Display shape", m_shapeCombo);
     blankForm->addRow("Target framework", m_frameworkCombo);
+    connect(m_shapeCombo, &QComboBox::currentTextChanged, this, [this](const QString& selected) {
+        const bool round = selected == "Round";
+        m_heightSpin->setEnabled(!round);
+        if (round) m_heightSpin->setValue(m_widthSpin->value());
+    });
+    connect(m_widthSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+        if (roundDisplay()) m_heightSpin->setValue(value);
+    });
     m_tabs->addTab(blankPage, "Blank Project");
 
     auto* templatePage = new QWidget(m_tabs);
@@ -110,11 +126,19 @@ int NewProjectDialog::projectWidth() const {
 }
 
 int NewProjectDialog::projectHeight() const {
-    return m_heightSpin->value();
+    return roundDisplay() ? m_widthSpin->value() : m_heightSpin->value();
 }
 
 QString NewProjectDialog::targetFramework() const {
     return m_frameworkCombo->currentData().toString();
+}
+
+int NewProjectDialog::colorDepth() const {
+    return m_colorDepthSpin->value();
+}
+
+bool NewProjectDialog::roundDisplay() const {
+    return m_shapeCombo->currentData().toBool();
 }
 
 void NewProjectDialog::updateTemplateDetails() {

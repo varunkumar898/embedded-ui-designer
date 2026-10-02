@@ -4,6 +4,8 @@
 #include "RectangleComponent.h"
 #include "ProgressBarComponent.h"
 #include "ImageComponent.h"
+#include "PathComponent.h"
+#include "CircleComponent.h"
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
 #include "MoveComponentCommand.h"
@@ -55,6 +57,13 @@ void CanvasView::setZoomFactor(qreal factor) {
     emit zoomChanged(m_zoomFactor);
 }
 
+void CanvasView::setActiveDrawingTool(const QString& type) {
+    m_activeDrawingTool = type;
+    setCursor(type.isEmpty() ? Qt::ArrowCursor : Qt::CrossCursor);
+    if (!type.isEmpty()) setFocus(Qt::OtherFocusReason);
+    emit statusMessageRequested(type.isEmpty() ? "Ready" : QString("Active shape tool: %1").arg(type));
+}
+
 void CanvasView::applyZoom(qreal factor) {
     qreal newZoom = m_zoomFactor * factor;
     if (newZoom >= 0.25 && newZoom <= 4.0) {
@@ -78,6 +87,24 @@ void CanvasView::wheelEvent(QWheelEvent* event) {
 }
 
 void CanvasView::mousePressEvent(QMouseEvent* event) {
+    if (m_activeDrawingTool == "Custom" && event->button() == Qt::LeftButton) {
+        m_pathCursorScenePos = m_canvasScene->snapPoint(mapToScene(event->pos()));
+        if (m_pendingPathPoints.isEmpty() || QLineF(m_pendingPathPoints.last(), m_pathCursorScenePos).length() > 1.0) {
+            m_pendingPathPoints.append(m_pathCursorScenePos);
+        }
+        m_canvasScene->setPathPreview(m_pendingPathPoints, m_pathCursorScenePos, true);
+        event->accept();
+        return;
+    }
+
+    if (!m_activeDrawingTool.isEmpty() && event->button() == Qt::LeftButton) {
+        m_isShapeDragging = true;
+        m_shapeDragStart = m_canvasScene->snapPoint(mapToScene(event->pos()));
+        m_canvasScene->setPathPreview({m_shapeDragStart}, m_shapeDragStart, true);
+        event->accept();
+        return;
+    }
+
     // Middle button or Alt+Left = pan
     if (event->button() == Qt::MiddleButton ||
         (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier))) {
@@ -140,6 +167,18 @@ void CanvasView::mousePressEvent(QMouseEvent* event) {
 }
 
 void CanvasView::mouseMoveEvent(QMouseEvent* event) {
+    if (m_isShapeDragging) {
+        const QPointF cursor = m_canvasScene->snapPoint(mapToScene(event->pos()));
+        m_canvasScene->setPathPreview({m_shapeDragStart}, cursor, true);
+        event->accept();
+        return;
+    }
+
+    if (m_activeDrawingTool == "Custom") {
+        m_pathCursorScenePos = m_canvasScene->snapPoint(mapToScene(event->pos()));
+        m_canvasScene->setPathPreview(m_pendingPathPoints, m_pathCursorScenePos, !m_pendingPathPoints.isEmpty());
+    }
+
     if (m_isPanning) {
         QPoint delta = event->pos() - m_panStartPos;
         m_panStartPos = event->pos();
@@ -158,7 +197,23 @@ void CanvasView::mouseMoveEvent(QMouseEvent* event) {
     QGraphicsView::mouseMoveEvent(event);
 }
 
+void CanvasView::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (m_activeDrawingTool == "Custom" && event->button() == Qt::LeftButton) {
+        finishCustomPath();
+        event->accept();
+        return;
+    }
+    QGraphicsView::mouseDoubleClickEvent(event);
+}
+
 void CanvasView::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_isShapeDragging && event->button() == Qt::LeftButton) {
+        m_isShapeDragging = false;
+        finishShapeDrag(m_canvasScene->snapPoint(mapToScene(event->pos())));
+        event->accept();
+        return;
+    }
+
     if (m_isPanning && (event->button() == Qt::MiddleButton || event->button() == Qt::LeftButton)) {
         m_isPanning = false;
         setCursor(Qt::ArrowCursor);
@@ -205,6 +260,17 @@ void CanvasView::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void CanvasView::keyPressEvent(QKeyEvent* event) {
+    if (m_activeDrawingTool == "Custom" && event->key() == Qt::Key_Return) {
+        finishCustomPath();
+        event->accept();
+        return;
+    }
+    if (m_activeDrawingTool == "Custom" && event->key() == Qt::Key_Escape) {
+        cancelCustomPath();
+        event->accept();
+        return;
+    }
+
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
         QList<UIComponent*> selComps;
         for (QGraphicsItem* item : scene()->selectedItems()) {
@@ -263,6 +329,72 @@ void CanvasView::keyPressEvent(QKeyEvent* event) {
     }
 
     QGraphicsView::keyPressEvent(event);
+}
+
+void CanvasView::finishCustomPath() {
+    if (m_pendingPathPoints.size() >= 3) {
+        QRectF bounds;
+        for (const QPointF& point : m_pendingPathPoints) bounds |= QRectF(point, QSizeF(0, 0));
+        QPolygonF localPoints;
+        for (const QPointF& point : m_pendingPathPoints) localPoints.append(point - bounds.topLeft());
+        PathComponent* path = new PathComponent("path_new");
+        path->setCompPos(bounds.left(), bounds.top());
+        path->setPoints(localPoints);
+        m_canvasScene->clearSelection();
+        if (m_undoStack) {
+            m_undoStack->push(new AddComponentCommand(m_canvasScene, path));
+        } else {
+            m_canvasScene->addUIComponent(path);
+            path->setSelected(true);
+        }
+        emit statusMessageRequested(QString("Added custom path with %1 points").arg(m_pendingPathPoints.size()));
+    }
+    m_pendingPathPoints.clear();
+    m_canvasScene->setPathPreview({}, QPointF(), false);
+    setActiveDrawingTool(QString());
+}
+
+void CanvasView::cancelCustomPath() {
+    m_pendingPathPoints.clear();
+    m_canvasScene->setPathPreview({}, QPointF(), false);
+    setActiveDrawingTool(QString());
+}
+
+void CanvasView::finishShapeDrag(const QPointF& end) {
+    QRectF bounds(m_shapeDragStart, end);
+    bounds = bounds.normalized();
+    if (m_activeDrawingTool == "Square" || m_activeDrawingTool == "Circle") {
+        const qreal side = std::max<qreal>(10.0, std::min(bounds.width(), bounds.height()));
+        bounds.setSize(QSizeF(side, side));
+    }
+
+    UIComponent* component = nullptr;
+    const QString id = m_activeDrawingTool.toLower() + "_new";
+    if (m_activeDrawingTool == "Circle") {
+        auto* circle = new CircleComponent(id);
+        circle->setCompSize(bounds.width(), bounds.height());
+        component = circle;
+    } else if (m_activeDrawingTool == "Triangle") {
+        auto* path = new PathComponent(id);
+        path->setPoints(QPolygonF({QPointF(bounds.width() / 2.0, 0),
+                                   QPointF(bounds.width(), bounds.height()),
+                                   QPointF(0, bounds.height())}));
+        component = path;
+    } else {
+        auto* rectangle = new RectangleComponent(id);
+        rectangle->setCompSize(std::max<qreal>(10.0, bounds.width()), std::max<qreal>(10.0, bounds.height()));
+        component = rectangle;
+    }
+
+    if (component) {
+        component->setCompPos(bounds.left(), bounds.top());
+        m_canvasScene->clearSelection();
+        if (m_undoStack) m_undoStack->push(new AddComponentCommand(m_canvasScene, component));
+        else m_canvasScene->addUIComponent(component);
+        component->setSelected(true);
+    }
+    m_canvasScene->setPathPreview({}, QPointF(), false);
+    setActiveDrawingTool(QString());
 }
 
 void CanvasView::dragEnterEvent(QDragEnterEvent* event) {

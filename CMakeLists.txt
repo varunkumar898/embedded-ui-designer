@@ -65,6 +65,8 @@ set(COMMON_SOURCES
     src/models/TextInputComponent.h
     src/models/CircleComponent.cpp
     src/models/CircleComponent.h
+    src/models/PathComponent.cpp
+    src/models/PathComponent.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddComponentCommand.cpp
