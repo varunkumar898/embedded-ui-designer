@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "name": "AutomotiveCluster",
+  "target": "lvgl",
+  "display": { "width": 320, "height": 240, "colorDepth": 16, "type": "LCD", "dpi": 96 },
+  "pages": [{
+    "id": "MainScreen",
+    "width": 320,
+    "height": 240,
+    "backgroundColor": "#101820",
+    "components": [
+      { "id": "cluster_frame", "type": "Rectangle", "x": 10, "y": 10, "width": 300, "height": 220, "fillColor": "#18252b", "strokeColor": "#38505a", "strokeWidth": 2, "cornerRadius": 8 },
+      { "id": "speed_ring", "type": "Circle", "x": 28, "y": 38, "width": 158, "height": 158, "fillColor": "#20343b", "strokeColor": "#25b7a5", "strokeWidth": 4, "isFilled": true },
+      { "id": "speed_value", "type": "Text", "x": 60, "y": 83, "width": 100, "height": 44, "text": "084", "color": "#f4fbf9", "font": { "family": "DejaVuSans", "pixelSize": 30, "bold": true, "italic": false } },
+      { "id": "speed_units", "type": "Text", "x": 78, "y": 128, "width": 70, "height": 20, "text": "km/h", "color": "#9bb5b7", "font": { "family": "DejaVuSans", "pixelSize": 12, "bold": false, "italic": false } },
+      { "id": "fuel_label", "type": "Text", "x": 207, "y": 42, "width": 82, "height": 20, "text": "FUEL", "color": "#a8b8bb", "font": { "family": "DejaVuSans", "pixelSize": 12, "bold": true, "italic": false } },
+      { "id": "fuel_bar", "type": "ProgressBar", "x": 207, "y": 70, "width": 82, "height": 14, "value": 0.62, "barColor": "#e6ae4b", "trackColor": "#263238", "cornerRadius": 3 },
+      { "id": "range_label", "type": "Text", "x": 207, "y": 100, "width": 88, "height": 18, "text": "RANGE", "color": "#a8b8bb", "font": { "family": "DejaVuSans", "pixelSize": 11, "bold": true, "italic": false } },
+      { "id": "range_value", "type": "Text", "x": 207, "y": 121, "width": 90, "height": 26, "text": "312 km", "color": "#f1f5f3", "font": { "family": "DejaVuSans", "pixelSize": 16, "bold": true, "italic": false } },
+      { "id": "turn_signal", "type": "Circle", "x": 223, "y": 166, "width": 16, "height": 16, "fillColor": "#61d690", "strokeColor": "#61d690", "strokeWidth": 1, "isFilled": true },
+      { "id": "gear_label", "type": "Text", "x": 254, "y": 158, "width": 30, "height": 34, "text": "D", "color": "#85d2be", "font": { "family": "DejaVuSans", "pixelSize": 24, "bold": true, "italic": false } },
+      { "id": "drive_button", "type": "Button", "x": 32, "y": 199, "width": 256, "height": 20, "text": "DRIVE READY", "backgroundColor": "#245d56", "textColor": "#e9f8f3", "cornerRadius": 4, "onClicked": "openDriveMenu" }
+    ]
+  }],
+  "assets": []
+}
