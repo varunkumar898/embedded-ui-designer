@@ -90,19 +90,6 @@ jobs:
           ./EmbeddedUIDesigner --verify-wizard screenshots/verification_f1
           ls -la verification_*.png screenshots/
 
-          # If on Linux, upload screenshots to uguu.se and notify via ntfy
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            for f in screenshots/*.png; do
-              if [ -f "$f" ]; then
-                BASENAME=$(basename "$f")
-                RESP=$(curl -s -F "files[]=@$f" https://uguu.se/upload)
-                URL=$(echo "$RESP" | grep -o 'https://h.uguu.se/[^"]*' | head -n 1)
-                echo "UPLOADED $BASENAME -> $URL"
-                curl -s -d "${BASENAME}=${URL}" https://ntfy.sh/emb-ui-designer-verification-bfe71ac8/publish || true
-              fi
-            done
-          fi
-
       - name: Commit Screenshots
         if: runner.os == 'Linux'
         run: |
