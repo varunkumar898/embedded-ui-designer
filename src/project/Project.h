@@ -31,6 +31,7 @@ public:
     void newProject(const QString& name = "MyEmbeddedApp", int width = 320, int height = 240);
     bool saveToFile(const QString& filePath);
     bool loadFromFile(const QString& filePath);
+    int importFromFile(const QString& filePath, QPointF offset = QPointF(20, 20));
 
     // AppData storage & Autosave
     static QString appDataDirectory();

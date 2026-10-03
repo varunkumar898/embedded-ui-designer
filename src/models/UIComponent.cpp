@@ -274,6 +274,7 @@ void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         }
     }
     QGraphicsObject::mousePressEvent(event);
+    if (event->button() == Qt::LeftButton) emit interactionTriggered("On Click");
     emit geometryChangedSignal(this);
 }
 
@@ -492,16 +493,24 @@ QJsonObject UIComponent::toJson() const {
     obj["y"] = static_cast<int>(std::round(pos().y()));
     obj["width"] = static_cast<int>(std::round(m_width));
     obj["height"] = static_cast<int>(std::round(m_height));
+    obj["interactions"] = m_interactions;
     return obj;
 }
 
 void UIComponent::fromJson(const QJsonObject& json) {
     m_id = json.value("id").toString(m_id);
     m_componentType = json.value("type").toString(m_componentType);
+    m_interactions = json.value("interactions").toArray();
     qreal x = json.value("x").toDouble(pos().x());
     qreal y = json.value("y").toDouble(pos().y());
     setCompPos(x, y);
     qreal w = json.value("width").toDouble(m_width);
     qreal h = json.value("height").toDouble(m_height);
     setCompSize(w, h);
+}
+
+void UIComponent::setInteractions(const QJsonArray& interactions) {
+    if (m_interactions == interactions) return;
+    m_interactions = interactions;
+    emit propertyChanged(this);
 }

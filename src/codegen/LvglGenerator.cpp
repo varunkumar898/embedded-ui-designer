@@ -9,9 +9,78 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "PathComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
+
+static UIComponent* findInteractionTarget(CanvasScene* scene, const QString& componentId) {
+    if (!scene) return nullptr;
+    for (UIComponent* component : scene->uiComponents()) {
+        if (component->componentId() == componentId) return component;
+    }
+    return nullptr;
+}
+
+static QString lvglObjectName(UIComponent* component) {
+    if (dynamic_cast<ButtonComponent*>(component)) return "ui_btn_" + component->componentId();
+    if (dynamic_cast<LabelComponent*>(component)) return "ui_lbl_" + component->componentId();
+    if (dynamic_cast<RectangleComponent*>(component)) return "ui_rect_" + component->componentId();
+    if (dynamic_cast<ProgressBarComponent*>(component)) return "ui_bar_" + component->componentId();
+    if (dynamic_cast<SliderComponent*>(component)) return "ui_slider_" + component->componentId();
+    if (dynamic_cast<SwitchComponent*>(component)) return "ui_sw_" + component->componentId();
+    if (dynamic_cast<CheckboxComponent*>(component)) return "ui_cb_" + component->componentId();
+    if (dynamic_cast<TextInputComponent*>(component)) return "ui_ta_" + component->componentId();
+    if (dynamic_cast<CircleComponent*>(component)) return "ui_circle_" + component->componentId();
+    if (dynamic_cast<ImageComponent*>(component)) return "ui_img_" + component->componentId();
+    return {};
+}
+
+static QString lvglInteractionAction(const QJsonObject& interaction, CanvasScene* scene) {
+    UIComponent* target = findInteractionTarget(scene, interaction.value("target").toString());
+    const QString object = lvglObjectName(target);
+    if (!target || object.isEmpty()) return {};
+    const QString action = interaction.value("action").toString();
+    const QString value = interaction.value("value").toString();
+    QString code;
+    if (action == "Show") {
+        code = QString("lv_obj_clear_flag(%1, LV_OBJ_FLAG_HIDDEN);\n").arg(object);
+    } else if (action == "Hide") {
+        code = QString("lv_obj_add_flag(%1, LV_OBJ_FLAG_HIDDEN);\n").arg(object);
+    } else if (dynamic_cast<SwitchComponent*>(target) || dynamic_cast<CheckboxComponent*>(target)) {
+        const QString checked = action == "Toggle"
+            ? QString("!lv_obj_has_state(%1, LV_STATE_CHECKED)").arg(object)
+            : (value.compare("true", Qt::CaseInsensitive) == 0 || value == "1" ? "true" : "false");
+        code = QString("if (%1) lv_obj_add_state(%2, LV_STATE_CHECKED); else lv_obj_clear_state(%2, LV_STATE_CHECKED);\n")
+            .arg(checked, object);
+        if (interaction.value("transition").toString() != "Instant") {
+            code += QString("/* %1 transition requested for %2 ms; LVGL switch/checkbox state animation remains theme-controlled. */\n")
+                .arg(interaction.value("transition").toString())
+                .arg(interaction.value("duration").toInt());
+        }
+    } else if (action == "Toggle") {
+        code = QString("if (lv_obj_has_flag(%1, LV_OBJ_FLAG_HIDDEN)) lv_obj_clear_flag(%1, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(%1, LV_OBJ_FLAG_HIDDEN);\n").arg(object);
+    } else if (action == "Set Value") {
+        if (dynamic_cast<SliderComponent*>(target)) code = QString("lv_slider_set_value(%1, %2, LV_ANIM_ON);\n").arg(object, value);
+        else if (dynamic_cast<ProgressBarComponent*>(target)) code = QString("lv_bar_set_value(%1, %2, LV_ANIM_ON);\n").arg(object, QString::number(qRound(value.toDouble() * 100.0)));
+        else if (dynamic_cast<LabelComponent*>(target)) code = QString("lv_label_set_text(%1, \"%2\");\n").arg(object, value);
+        else if (dynamic_cast<TextInputComponent*>(target)) code = QString("lv_textarea_set_text(%1, \"%2\");\n").arg(object, value);
+        else if (dynamic_cast<ButtonComponent*>(target)) code = QString("lv_label_set_text(%1_label, \"%2\");\n").arg(object, value);
+    }
+    return code;
+}
+
+static void appendLvglInteractions(QString& code, UIComponent* source, CanvasScene* scene,
+                                  const QStringList& triggers, const QString& indent) {
+    for (const QJsonValue& value : source->interactions()) {
+        const QJsonObject interaction = value.toObject();
+        if (!triggers.contains(interaction.value("trigger").toString())) continue;
+        const QString action = lvglInteractionAction(interaction, scene);
+        if (!action.isEmpty()) {
+            for (const QString& line : action.split('\n', Qt::SkipEmptyParts)) code += indent + line + "\n";
+        }
+    }
+}
 
 LvglGenerator::LvglGenerator(Project* project, CanvasScene* scene)
     : CodeGenerator(project)
@@ -327,6 +396,8 @@ QString LvglGenerator::generateUiHeader() {
                 code += QString("extern lv_obj_t *ui_ta_%1;\n").arg(id);
             } else if (dynamic_cast<CircleComponent*>(comp)) {
                 code += QString("extern lv_obj_t *ui_circle_%1;\n").arg(id);
+            } else if (dynamic_cast<PathComponent*>(comp)) {
+                code += QString("extern lv_obj_t *ui_path_%1;\n").arg(id);
             } else if (dynamic_cast<ImageComponent*>(comp)) {
                 code += QString("extern lv_obj_t *ui_img_%1;\n").arg(id);
             }
@@ -395,6 +466,8 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("lv_obj_t *ui_ta_%1 = NULL;\n").arg(id);
             } else if (dynamic_cast<CircleComponent*>(comp)) {
                 code += QString("lv_obj_t *ui_circle_%1 = NULL;\n").arg(id);
+            } else if (dynamic_cast<PathComponent*>(comp)) {
+                code += QString("lv_obj_t *ui_path_%1 = NULL;\n").arg(id);
             } else if (dynamic_cast<ImageComponent*>(comp)) {
                 code += QString("lv_obj_t *ui_img_%1 = NULL;\n").arg(id);
             }
@@ -402,7 +475,7 @@ QString LvglGenerator::generateUiSource() {
     }
 
     code += "\n/* =============================================================== */\n";
-    code += "/* Event Callbacks (Hook your MCU hardware logic or state machines)*/\n";
+    code += "/* Event Callbacks; LVGL same-screen Prototype interactions are wired below. */\n";
     code += "/* =============================================================== */\n";
 
     if (m_scene) {
@@ -415,6 +488,7 @@ QString LvglGenerator::generateUiSource() {
                 code += "    if (event_code == LV_EVENT_CLICKED) {\n";
                 code += QString("        printf(\"[LVGL EVENT] Button clicked: %1 (handler: %2)\\n\");\n").arg(id, handler);
                 code += "        /* TODO: Trigger GPIO, state machine transition, or hardware routine */\n";
+                appendLvglInteractions(code, btn, m_scene, {"On Click"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";
             } else if (auto sw = dynamic_cast<SwitchComponent*>(comp)) {
@@ -426,6 +500,7 @@ QString LvglGenerator::generateUiSource() {
                 code += "        bool is_checked = lv_obj_has_state(target, LV_STATE_CHECKED);\n";
                 code += QString("        printf(\"[LVGL EVENT] Switch %1 changed state: %2\\n\", is_checked ? \"ON\" : \"OFF\");\n").arg(id, "%s");
                 code += "        /* TODO: Switch relay, LED, or system flag */\n";
+                appendLvglInteractions(code, sw, m_scene, {"On Click", "On Change", "On Value Changed"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";
             } else if (dynamic_cast<CheckboxComponent*>(comp)) {
@@ -435,6 +510,8 @@ QString LvglGenerator::generateUiSource() {
                 code += "    if (event_code == LV_EVENT_VALUE_CHANGED) {\n";
                 code += "        bool is_checked = lv_obj_has_state(target, LV_STATE_CHECKED);\n";
                 code += QString("        printf(\"[LVGL EVENT] Checkbox %1 toggled: %2\\n\", is_checked ? \"CHECKED\" : \"UNCHECKED\");\n").arg(id, "%s");
+                appendLvglInteractions(code, dynamic_cast<CheckboxComponent*>(comp), m_scene,
+                                       {"On Click", "On Change", "On Value Changed"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";
             } else if (dynamic_cast<SliderComponent*>(comp)) {
@@ -445,6 +522,12 @@ QString LvglGenerator::generateUiSource() {
                 code += "        int32_t val = (int32_t)lv_slider_get_value(target);\n";
                 code += QString("        printf(\"[LVGL EVENT] Slider %1 value: %2\\n\", (int)val);\n").arg(id, "%d");
                 code += "        /* TODO: Update PWM brightness, volume, or target setpoint */\n";
+                appendLvglInteractions(code, dynamic_cast<SliderComponent*>(comp), m_scene,
+                                       {"On Change", "On Value Changed"}, "        ");
+                code += "    }\n";
+                code += "    if (event_code == LV_EVENT_CLICKED) {\n";
+                appendLvglInteractions(code, dynamic_cast<SliderComponent*>(comp), m_scene,
+                                       {"On Click"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";
             } else if (dynamic_cast<TextInputComponent*>(comp)) {
@@ -454,6 +537,12 @@ QString LvglGenerator::generateUiSource() {
                 code += "    if (event_code == LV_EVENT_VALUE_CHANGED) {\n";
                 code += "        const char *txt = lv_textarea_get_text(target);\n";
                 code += QString("        printf(\"[LVGL EVENT] Text input %1 changed: %2\\n\", txt);\n").arg(id, "%s");
+                appendLvglInteractions(code, dynamic_cast<TextInputComponent*>(comp), m_scene,
+                                       {"On Change", "On Value Changed"}, "        ");
+                code += "    }\n";
+                code += "    if (event_code == LV_EVENT_CLICKED) {\n";
+                appendLvglInteractions(code, dynamic_cast<TextInputComponent*>(comp), m_scene,
+                                       {"On Click"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";
             }
@@ -538,6 +627,35 @@ QString LvglGenerator::generateUiSource() {
             }
         }
 
+        // LVGL has no cubic path primitive; feed it a closed flattened polyline.
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto path = dynamic_cast<PathComponent*>(comp)) {
+                const QString id = path->componentId();
+                const QPolygonF flattened = path->flattenedPoints();
+                if (flattened.size() < 2) continue;
+                const int pointCount = flattened.size() + 1;
+                code += QString("    // Path %1 flattened to %2 polyline points\n").arg(id).arg(flattened.size());
+                code += QString("    static lv_point_t ui_path_%1_points[%2] = {\n").arg(id).arg(pointCount);
+                for (const QPointF& point : flattened) {
+                    code += QString("        {%1, %2},\n").arg(qRound(point.x())).arg(qRound(point.y()));
+                }
+                code += QString("        {%1, %2}\n    };\n")
+                    .arg(qRound(flattened.first().x())).arg(qRound(flattened.first().y()));
+                code += QString("    ui_path_%1 = lv_line_create(ui_Screen);\n").arg(id);
+                code += QString("    lv_obj_set_pos(ui_path_%1, %2, %3);\n")
+                    .arg(id).arg(qRound(path->pos().x())).arg(qRound(path->pos().y()));
+                code += QString("    lv_obj_set_size(ui_path_%1, %2, %3);\n")
+                    .arg(id).arg(qRound(path->compWidth())).arg(qRound(path->compHeight()));
+                code += QString("    lv_line_set_points(ui_path_%1, ui_path_%1_points, %2);\n").arg(id).arg(pointCount);
+                code += QString("    lv_obj_set_style_line_color(ui_path_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                    .arg(id, path->strokeColor().name().mid(1).toUpper());
+                code += QString("    lv_obj_set_style_line_width(ui_path_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                    .arg(id).arg(qRound(path->strokeThickness()));
+                code += QString("    lv_obj_set_style_line_opa(ui_path_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n\n")
+                    .arg(id).arg(path->opacityPercent() * 255 / 100);
+            }
+        }
+
         // 4. Progress Bars
         for (auto comp : m_scene->uiComponents()) {
             if (auto prog = dynamic_cast<ProgressBarComponent*>(comp)) {
@@ -588,7 +706,8 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    lv_obj_set_style_bg_color(ui_slider_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, trackHex);
                 code += QString("    lv_obj_set_style_bg_color(ui_slider_%1, lv_color_hex(0x%2), LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id, fillHex);
                 code += QString("    lv_obj_set_style_bg_color(ui_slider_%1, lv_color_hex(0x%2), LV_PART_KNOB | LV_STATE_DEFAULT);\n").arg(id, knobHex);
-                code += QString("    lv_obj_add_event_cb(ui_slider_%1, ui_event_slider_%1, LV_EVENT_VALUE_CHANGED, NULL);\n\n").arg(id);
+                code += QString("    lv_obj_add_event_cb(ui_slider_%1, ui_event_slider_%1, LV_EVENT_VALUE_CHANGED, NULL);\n").arg(id);
+                code += QString("    lv_obj_add_event_cb(ui_slider_%1, ui_event_slider_%1, LV_EVENT_CLICKED, NULL);\n\n").arg(id);
             }
         }
 
@@ -666,7 +785,8 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    lv_obj_set_style_border_color(ui_ta_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, borderHex);
                 code += QString("    lv_obj_set_style_border_width(ui_ta_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(ta->borderWidth());
                 code += QString("    lv_obj_set_style_radius(ui_ta_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(ta->cornerRadius());
-                code += QString("    lv_obj_add_event_cb(ui_ta_%1, ui_event_ta_%1, LV_EVENT_VALUE_CHANGED, NULL);\n\n").arg(id);
+                code += QString("    lv_obj_add_event_cb(ui_ta_%1, ui_event_ta_%1, LV_EVENT_VALUE_CHANGED, NULL);\n").arg(id);
+                code += QString("    lv_obj_add_event_cb(ui_ta_%1, ui_event_ta_%1, LV_EVENT_CLICKED, NULL);\n\n").arg(id);
             }
         }
 

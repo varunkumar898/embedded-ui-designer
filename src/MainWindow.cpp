@@ -3,6 +3,7 @@
 #include "UgfxGenerator.h"
 #include "LvglGenerator.h"
 #include "FlashDialog.h"
+#include "SerialMonitorDialog.h"
 #include "NewProjectDialog.h"
 #include "DeviceManager.h"
 #include "ButtonComponent.h"
@@ -13,11 +14,14 @@
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
 #include "AlignDistributeCommand.h"
+#include "BooleanPathCommand.h"
+#include "PathComponent.h"
 #include <QUndoStack>
 #include <QMenuBar>
 #include <QToolBar>
 #include <QStatusBar>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QUrl>
@@ -64,8 +68,8 @@ MainWindow::MainWindow(QWidget *parent)
     autoSaveTimer->start(60000);
 
     // Hook signals
-    connect(m_scene, &CanvasScene::selectionListChanged, this, &MainWindow::onSelectionListChanged);
     connect(m_scene, &CanvasScene::selectionListChanged, m_propertiesPanel, &PropertiesPanel::setSelectedComponents);
+    connect(m_scene, &CanvasScene::componentSelected, m_prototypePanel, &PrototypePanel::setTargetComponent);
     connect(m_scene, &CanvasScene::componentChanged, m_propertiesPanel, &PropertiesPanel::refreshValues);
 
     // Connect PropertiesPanel align & distribute buttons
@@ -77,6 +81,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_propertiesPanel, &PropertiesPanel::alignBottomRequested, this, &MainWindow::onAlignBottom);
     connect(m_propertiesPanel, &PropertiesPanel::distributeHRequested, this, &MainWindow::onDistributeH);
     connect(m_propertiesPanel, &PropertiesPanel::distributeVRequested, this, &MainWindow::onDistributeV);
+    connect(m_propertiesPanel, &PropertiesPanel::booleanUnionRequested,     this, &MainWindow::onBooleanUnion);
+    connect(m_propertiesPanel, &PropertiesPanel::booleanSubtractRequested,  this, &MainWindow::onBooleanSubtract);
+    connect(m_propertiesPanel, &PropertiesPanel::booleanIntersectRequested, this, &MainWindow::onBooleanIntersect);
+    connect(m_propertiesPanel, &PropertiesPanel::booleanXorRequested,       this, &MainWindow::onBooleanXor);
 
     connect(m_view, &CanvasView::zoomChanged, this, &MainWindow::onZoomChanged);
     connect(m_view, &CanvasView::statusMessageRequested, this, [this](const QString& msg) {
@@ -121,13 +129,12 @@ void MainWindow::setupMenusAndToolbars() {
     fileMenu->addAction("New Project", this, &MainWindow::onNewProject, QKeySequence::New);
     fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
     fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
+    fileMenu->addAction("Import...", this, &MainWindow::onImportProject, QKeySequence(Qt::CTRL | Qt::Key_I));
     fileMenu->addSeparator();
     fileMenu->addAction("Save", this, &MainWindow::onSaveProject, QKeySequence::Save);
     fileMenu->addAction("Save As...", this, &MainWindow::onSaveProjectAs, QKeySequence::SaveAs);
     fileMenu->addSeparator();
-    fileMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx, QKeySequence(Qt::CTRL | Qt::Key_E));
-    fileMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
-    fileMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
+    fileMenu->addAction("Export...", this, &MainWindow::onExport, QKeySequence(Qt::CTRL | Qt::Key_E));
     fileMenu->addSeparator();
     QAction* exitAction = fileMenu->addAction("Exit", QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
@@ -162,12 +169,11 @@ void MainWindow::setupMenusAndToolbars() {
 
     QMenu* projectMenu = menuBar()->addMenu("Project");
     projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
-    projectMenu->addAction("Export µGFX C Project...", this, &MainWindow::onExportUgfx);
-    projectMenu->addAction("Export Qt for MCUs (QUL) Project...", this, &MainWindow::onExportQtMcu);
-    projectMenu->addAction("Export LVGL (C/C++) Project...", this, &MainWindow::onExportLvgl);
+    projectMenu->addAction("Export...", this, &MainWindow::onExport);
 
-    QMenu* hardwareMenu = menuBar()->addMenu("Hardware");
-    hardwareMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
+    QMenu* deviceMenu = menuBar()->addMenu("Device");
+    deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
+    deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
 
     QMenu* helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
@@ -184,11 +190,6 @@ void MainWindow::setupMenusAndToolbars() {
         "}"
     );
 
-    toolbar->addAction("New", this, &MainWindow::onNewProject);
-    toolbar->addAction("Open", this, &MainWindow::onOpenProject);
-    toolbar->addAction("Save", this, &MainWindow::onSaveProject);
-    toolbar->addSeparator();
-
     toolbar->addAction("Undo", this, [this]() {
         if (m_undoStack && m_undoStack->canUndo()) m_undoStack->undo();
     });
@@ -197,9 +198,7 @@ void MainWindow::setupMenusAndToolbars() {
     });
     toolbar->addSeparator();
 
-    toolbar->addAction("Export µGFX", this, &MainWindow::onExportUgfx);
-    toolbar->addAction("Export QUL", this, &MainWindow::onExportQtMcu);
-    toolbar->addAction("Export LVGL", this, &MainWindow::onExportLvgl);
+    toolbar->addAction("Export...", this, &MainWindow::onExport);
     toolbar->addSeparator();
 
     QLabel* resLabel = new QLabel("Target Display:", this);
@@ -247,57 +246,12 @@ void MainWindow::setupMenusAndToolbars() {
     connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onResolutionPresetChanged);
 
     toolbar->addSeparator();
-    toolbar->addAction("Zoom -", m_view, &CanvasView::zoomOut);
-    toolbar->addAction("Zoom +", m_view, &CanvasView::zoomIn);
+    QAction* zoomOutAction = toolbar->addAction("−", m_view, &CanvasView::zoomOut);
+    zoomOutAction->setToolTip("Zoom out");
+    QAction* zoomInAction = toolbar->addAction("+", m_view, &CanvasView::zoomIn);
+    zoomInAction->setToolTip("Zoom in");
     toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
 
-    // ──────────────────────────────────────────────────────────────
-    // Align & Distribute toolbar section
-    // ──────────────────────────────────────────────────────────────
-    toolbar->addSeparator();
-
-    QLabel* alignLabel = new QLabel(" Align:", this);
-    alignLabel->setStyleSheet("color: #6a7382; font-size: 11px; font-weight: 500; margin-left: 2px; margin-right: 2px;");
-    toolbar->addWidget(alignLabel);
-
-    m_actAlignLeft    = toolbar->addAction("←L",  this, &MainWindow::onAlignLeft);
-    m_actAlignHCenter = toolbar->addAction("┃H",  this, &MainWindow::onAlignHCenter);
-    m_actAlignRight   = toolbar->addAction("R→",  this, &MainWindow::onAlignRight);
-    m_actAlignTop     = toolbar->addAction("↑T",  this, &MainWindow::onAlignTop);
-    m_actAlignVCenter = toolbar->addAction("┃V",  this, &MainWindow::onAlignVCenter);
-    m_actAlignBottom  = toolbar->addAction("B↓",  this, &MainWindow::onAlignBottom);
-
-    m_actAlignLeft->setToolTip("Align Left edges");
-    m_actAlignHCenter->setToolTip("Align Horizontal centers");
-    m_actAlignRight->setToolTip("Align Right edges");
-    m_actAlignTop->setToolTip("Align Top edges");
-    m_actAlignVCenter->setToolTip("Align Vertical centers");
-    m_actAlignBottom->setToolTip("Align Bottom edges");
-
-    toolbar->addSeparator();
-
-    QLabel* distLabel = new QLabel(" Distribute:", this);
-    distLabel->setStyleSheet("color: #6a7382; font-size: 11px; font-weight: 500; margin-left: 2px; margin-right: 2px;");
-    toolbar->addWidget(distLabel);
-
-    m_actDistributeH = toolbar->addAction("↔",  this, &MainWindow::onDistributeH);
-    m_actDistributeV = toolbar->addAction("↕",  this, &MainWindow::onDistributeV);
-
-    m_actDistributeH->setToolTip("Distribute Horizontal spacing equally (3+ items)");
-    m_actDistributeV->setToolTip("Distribute Vertical spacing equally (3+ items)");
-
-    // All align/distribute actions start disabled; they are enabled by
-    // onSelectionListChanged when >= 2 items are selected.
-    const bool off = false;
-    m_actAlignLeft->setEnabled(off);
-    m_actAlignHCenter->setEnabled(off);
-    m_actAlignRight->setEnabled(off);
-    m_actAlignTop->setEnabled(off);
-    m_actAlignVCenter->setEnabled(off);
-    m_actAlignBottom->setEnabled(off);
-    m_actDistributeH->setEnabled(off);
-    m_actDistributeV->setEnabled(off);
-}
 
 static QWidget* createDockTitleBar(const QString& titleText, QDockWidget* dock) {
     QWidget* bar = new QWidget(dock);
@@ -365,6 +319,15 @@ void MainWindow::setupDocks() {
     propDock->setWidget(m_propertiesPanel);
     addDockWidget(Qt::RightDockWidgetArea, propDock);
 
+    QDockWidget* prototypeDock = new QDockWidget("Prototype", this);
+    prototypeDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    prototypeDock->setTitleBarWidget(createDockTitleBar("Prototype", prototypeDock));
+    m_prototypePanel = new PrototypePanel(m_scene, prototypeDock);
+    prototypeDock->setWidget(m_prototypePanel);
+    addDockWidget(Qt::RightDockWidgetArea, prototypeDock);
+    tabifyDockWidget(propDock, prototypeDock);
+    propDock->raise();
+
     // Right Bottom Dock: Layer Panel
     QDockWidget* layerDock = new QDockWidget("Layers", this);
     layerDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
@@ -374,7 +337,7 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::RightDockWidgetArea, layerDock);
 
     resizeDocks({paletteDock}, {210}, Qt::Horizontal);
-    resizeDocks({propDock, layerDock}, {260, 260}, Qt::Horizontal);
+    resizeDocks({propDock, prototypeDock, layerDock}, {260, 260, 260}, Qt::Horizontal);
     resizeDocks({propDock, layerDock}, {550, 330}, Qt::Vertical);
 }
 
@@ -580,6 +543,11 @@ void MainWindow::onFlashFirmware() {
     dialog.exec();
 }
 
+void MainWindow::onSerialMonitor() {
+    SerialMonitorDialog dialog(m_deviceManager, this);
+    dialog.exec();
+}
+
 void MainWindow::onOpenProject() {
     QString defaultDir = Project::appDataDirectory();
     QString file = QFileDialog::getOpenFileName(this, "Open Embedded UI Project", defaultDir, "Embedded UI Project (*.euiproj);;All Files (*)");
@@ -602,6 +570,22 @@ void MainWindow::onOpenProject() {
             QMessageBox::warning(this, "Error", "Failed to load project file.");
         }
     }
+}
+
+void MainWindow::onImportProject() {
+    const QString file = QFileDialog::getOpenFileName(
+        this, "Import Embedded UI Project", Project::appDataDirectory(),
+        "Embedded UI Project (*.euiproj);;All Files (*)");
+    if (file.isEmpty()) return;
+
+    const int count = m_project->importFromFile(file, QPointF(20, 20));
+    if (count < 0) {
+        QMessageBox::warning(this, "Import Failed", "Could not read or parse the selected project file.");
+        return;
+    }
+    if (m_propertiesPanel) m_propertiesPanel->setSelectedComponents({});
+    if (m_layerPanel) m_layerPanel->refreshLayers();
+    statusBar()->showMessage(QString("Imported %1 component(s) from %2").arg(count).arg(file), 5000);
 }
 
 void MainWindow::onSaveProject() {
@@ -629,6 +613,16 @@ void MainWindow::onSaveProjectAs() {
             QMessageBox::warning(this, "Error", "Failed to save project.");
         }
     }
+}
+
+void MainWindow::onExport() {
+    const QStringList formats = {"µGFX C Project", "Qt for MCUs (QUL) Project", "LVGL C/C++ Project"};
+    bool accepted = false;
+    const QString selected = QInputDialog::getItem(this, "Export Project", "Target format:", formats, 0, false, &accepted);
+    if (!accepted) return;
+    if (selected == formats.at(0)) onExportUgfx();
+    else if (selected == formats.at(1)) onExportQtMcu();
+    else if (selected == formats.at(2)) onExportLvgl();
 }
 
 void MainWindow::onExportUgfx() {
@@ -810,24 +804,6 @@ QList<UIComponent*> MainWindow::selectedComponents() const {
 }
 
 // ============================================================================
-// onSelectionListChanged — enable/disable align & distribute buttons
-// ============================================================================
-void MainWindow::onSelectionListChanged(const QList<UIComponent*>& selected) {
-    const int n = selected.size();
-    const bool twoPlus   = (n >= 2);
-    const bool threePlus = (n >= 3);
-
-    m_actAlignLeft->setEnabled(twoPlus);
-    m_actAlignHCenter->setEnabled(twoPlus);
-    m_actAlignRight->setEnabled(twoPlus);
-    m_actAlignTop->setEnabled(twoPlus);
-    m_actAlignVCenter->setEnabled(twoPlus);
-    m_actAlignBottom->setEnabled(twoPlus);
-    m_actDistributeH->setEnabled(threePlus);
-    m_actDistributeV->setEnabled(threePlus);
-}
-
-// ============================================================================
 // Align Slots (Task 3)
 // ============================================================================
 static QRectF selectionBoundingBox(const QList<UIComponent*>& comps) {
@@ -970,3 +946,22 @@ void MainWindow::onDistributeV() {
     m_undoStack->push(new AlignDistributeCommand(entries, "Distribute Vertical"));
 }
 
+// ── Boolean Path Operations ───────────────────────────────────────────────
+
+void MainWindow::runBooleanOp(int opCode) {
+    QList<UIComponent*> sel = selectedComponents();
+    if (sel.size() < 2) return;
+
+    auto op = static_cast<BooleanPathCommand::Operation>(opCode);
+    auto* cmd = new BooleanPathCommand(m_scene, sel, op);
+    // compute() returns nullptr when the result is empty; guard against that
+    if (cmd->isValid())
+        m_undoStack->push(cmd);
+    else
+        delete cmd;
+}
+
+void MainWindow::onBooleanUnion()     { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Union)); }
+void MainWindow::onBooleanSubtract()  { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Subtract)); }
+void MainWindow::onBooleanIntersect() { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Intersect)); }
+void MainWindow::onBooleanXor()       { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Xor)); }

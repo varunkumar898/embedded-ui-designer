@@ -22,6 +22,8 @@ void CheckboxComponent::setChecked(bool checked) {
         m_checked = checked;
         update();
         emit propertyChanged(this);
+        emit interactionTriggered("On Change");
+        emit interactionTriggered("On Value Changed");
     }
 }
 

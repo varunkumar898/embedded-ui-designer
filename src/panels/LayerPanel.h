@@ -33,4 +33,5 @@ private:
 
     bool m_syncing = false;
     void setupUi();
+    void applyListOrder();
 };

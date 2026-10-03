@@ -14,6 +14,8 @@ void TextInputComponent::setText(const QString& text) {
         m_text = text;
         update();
         emit propertyChanged(this);
+        emit interactionTriggered("On Change");
+        emit interactionTriggered("On Value Changed");
     }
 }
 

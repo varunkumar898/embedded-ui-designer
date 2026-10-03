@@ -231,6 +231,10 @@ The hardware subsystem facilitates testing directly on physical microcontrollers
 - **Hardware Profile Matching**: Compares detected `vendorId` and `productId` against `resources/config/devices.json` to identify target architectures (STM32, ESP32, Raspberry Pi RP2040, NXP i.MX RT).
 - **Command Synthesis**: Automatically generates platform-appropriate flashing invocations (e.g. `esptool.py --port ... write_flash 0x10000 firmware.bin`).
 
+### Serial Device Monitor
+- The Device menu monitor is a generic terminal for manually sent and received serial text; it does not map designer UI actions to device commands.
+- UI-to-device command mapping is a separate future task that depends on a defined firmware-side protocol and acknowledgement/error semantics.
+
 ### Flash Controller (`FlashController.h/cpp`)
 - **Asynchronous Execution**: Wraps external vendor programming CLI tools using `QProcess` so the UI remains responsive during long erase/flash cycles.
 - **Supported Toolchain Backends**:

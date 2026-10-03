@@ -5,6 +5,7 @@
 #include <QDoubleSpinBox>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QToolButton>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
@@ -45,6 +46,11 @@ signals:
     void alignBottomRequested();
     void distributeHRequested();
     void distributeVRequested();
+    // Boolean path operations (2+ shapes selected)
+    void booleanUnionRequested();
+    void booleanSubtractRequested();
+    void booleanIntersectRequested();
+    void booleanXorRequested();
 
 private slots:
     void onGeometryChanged();
@@ -60,10 +66,10 @@ private:
     QWidget* m_emptyWidget = nullptr;
     QWidget* m_multiWidget = nullptr;   ///< Shown when 2+ components are selected
     QLabel*  m_multiLabel  = nullptr;   ///< "N components selected" text
-    QPushButton* m_btnDistributeH = nullptr;
-    QPushButton* m_btnDistributeV = nullptr;
-    QLabel*  m_distributeHint = nullptr;
     QWidget* m_contentWidget = nullptr;
+    QWidget* m_headerWidget = nullptr;
+    QWidget* m_alignmentRow = nullptr;
+    QWidget* m_booleanOpsRow = nullptr;
 
     QLabel* m_typeBadge = nullptr;
     QLineEdit* m_idEdit = nullptr;
@@ -73,6 +79,8 @@ private:
     QSpinBox* m_spinY = nullptr;
     QSpinBox* m_spinW = nullptr;
     QSpinBox* m_spinH = nullptr;
+    QGroupBox* m_geometryGroup = nullptr;
+    QList<QToolButton*> m_distributeButtons;
 
     // Specific Fields Container
     QGroupBox* m_specificGroup = nullptr;
@@ -105,6 +113,7 @@ private:
     QLineEdit* m_placeholderEdit = nullptr;
     QCheckBox* m_chkReadOnly = nullptr;
     QCheckBox* m_chkFilled = nullptr;
+    QSpinBox* m_spinPathFlatten = nullptr;
 
     // Alignment buttons (LabelComponent)
     QPushButton* m_btnAlignLeft = nullptr;

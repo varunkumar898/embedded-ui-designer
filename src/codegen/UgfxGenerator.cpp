@@ -9,6 +9,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "PathComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -370,6 +371,7 @@ QString UgfxGenerator::generateUiSource() {
     QString code;
     code += "#include \"gfx.h\"\n";
     code += "#include \"ui.h\"\n\n";
+    code += "/* Prototype interaction callback stub: same-screen actions are not executed by this µGFX generator yet. */\n\n";
 
     // Define handles
     if (m_scene) {
@@ -453,6 +455,26 @@ QString UgfxGenerator::generateUiSource() {
                 if (circ->strokeWidth() > 0) {
                     code += QString("    gdispDrawCircle(%1, %2, %3, HTML2COLOR(0x%4));\n")
                         .arg(cx).arg(cy).arg(radius).arg(circ->strokeColor().name().mid(1).toUpper());
+                }
+                code += "\n";
+            }
+        }
+
+        // Curves are flattened to the PathComponent default subdivision count for µGFX.
+        for (auto comp : m_scene->uiComponents()) {
+            if (auto path = dynamic_cast<PathComponent*>(comp)) {
+                const QPolygonF flattened = path->flattenedPoints();
+                const QPointF origin = path->pos();
+                const QString color = path->strokeColor().name().mid(1).toUpper();
+                code += QString("    // Path %1 flattened to %2 polyline points\n")
+                    .arg(path->componentId()).arg(flattened.size());
+                for (int index = 0; index < flattened.size(); ++index) {
+                    const QPointF& start = flattened.at(index);
+                    const QPointF& end = flattened.at((index + 1) % flattened.size());
+                    code += QString("    gdispDrawLine(%1, %2, %3, %4, HTML2COLOR(0x%5));\n")
+                        .arg(qRound(origin.x() + start.x())).arg(qRound(origin.y() + start.y()))
+                        .arg(qRound(origin.x() + end.x())).arg(qRound(origin.y() + end.y()))
+                        .arg(color);
                 }
                 code += "\n";
             }

@@ -2,6 +2,8 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QAbstractItemModel>
+#include <QSignalBlocker>
 
 LayerPanel::LayerPanel(CanvasScene* scene, QWidget* parent)
     : QWidget(parent)
@@ -40,6 +42,11 @@ void LayerPanel::setupUi() {
     layout->addWidget(title);
 
     m_listWidget = new QListWidget(this);
+    m_listWidget->setDragDropMode(QAbstractItemView::InternalMove);
+    m_listWidget->setDefaultDropAction(Qt::MoveAction);
+    m_listWidget->setDragEnabled(true);
+    m_listWidget->setAcceptDrops(true);
+    m_listWidget->setDropIndicatorShown(true);
     m_listWidget->setStyleSheet(
         "QListWidget { background-color: #131519; color: #c9d2de; border: 1px solid #1f2229; border-radius: 10px; font-size: 12px; outline: none; padding: 6px; }"
         "QListWidget::item { "
@@ -66,6 +73,11 @@ void LayerPanel::setupUi() {
     layout->addWidget(m_listWidget);
 
     connect(m_listWidget, &QListWidget::itemSelectionChanged, this, &LayerPanel::onSelectionChanged);
+    connect(m_listWidget->model(), &QAbstractItemModel::rowsMoved, this,
+            [this](const QModelIndex&, int, int, const QModelIndex&, int) {
+        applyListOrder();
+        refreshLayers();
+    });
 
     QHBoxLayout* actions = new QHBoxLayout();
     actions->setSpacing(8);
@@ -155,23 +167,37 @@ void LayerPanel::onSelectionChanged() {
 }
 
 void LayerPanel::onMoveUp() {
-    QListWidgetItem* item = m_listWidget->currentItem();
-    if (!item) return;
-    UIComponent* comp = reinterpret_cast<UIComponent*>(item->data(Qt::UserRole).value<quintptr>());
-    if (comp) {
-        comp->setZValue(comp->zValue() + 1.0);
-        refreshLayers();
-    }
+    const int row = m_listWidget->currentRow();
+    if (row <= 0) return;
+    m_syncing = true;
+    QListWidgetItem* item = m_listWidget->takeItem(row);
+    m_listWidget->insertItem(row - 1, item);
+    m_listWidget->setCurrentItem(item);
+    applyListOrder();
+    m_syncing = false;
+    refreshLayers();
 }
 
 void LayerPanel::onMoveDown() {
-    QListWidgetItem* item = m_listWidget->currentItem();
-    if (!item) return;
-    UIComponent* comp = reinterpret_cast<UIComponent*>(item->data(Qt::UserRole).value<quintptr>());
-    if (comp) {
-        comp->setZValue(comp->zValue() - 1.0);
-        refreshLayers();
+    const int row = m_listWidget->currentRow();
+    if (row < 0 || row >= m_listWidget->count() - 1) return;
+    m_syncing = true;
+    QListWidgetItem* item = m_listWidget->takeItem(row);
+    m_listWidget->insertItem(row + 1, item);
+    m_listWidget->setCurrentItem(item);
+    applyListOrder();
+    m_syncing = false;
+    refreshLayers();
+}
+
+void LayerPanel::applyListOrder() {
+    const int count = m_listWidget->count();
+    for (int row = 0; row < count; ++row) {
+        UIComponent* component = reinterpret_cast<UIComponent*>(
+            m_listWidget->item(row)->data(Qt::UserRole).value<quintptr>());
+        if (component) component->setZValue(count - row);
     }
+    m_scene->update();
 }
 
 void LayerPanel::onDelete() {

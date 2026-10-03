@@ -1,32 +1,97 @@
-# Architecture Guide
+# Architecture
 
-This document maps all features of the Embedded UI Designer to their exact implementation file paths and purposes.
+> **Standing rule (effective immediately):** Before touching any code, consult this file to
+> identify the exact file(s) needed. Read and edit **only those files**. Do not grep or scan
+> the entire `src/` tree "to be safe." If this document doesn't clearly point to the right
+> file, say so explicitly and ask rather than broad-scanning.
+>
+> **Maintenance rule:** After any task that adds, renames, or removes a file, update the
+> table below in the same commit so it never goes stale.
 
-> **Standing Rule:** Before touching any code, consult this table to identify the specific file(s) needed. Read and edit **only** those files. If this table does not clearly point to the right file for a feature, ask explicitly rather than scanning broadly. If a task adds, renames, or removes a file, update this table in the same commit.
+---
 
-## Feature Map
+## Directory Map
 
-| Feature | Exact File Path(s) | One-line Purpose |
-| :--- | :--- | :--- |
-| **Application Entry & Shell** | `src/main.cpp`<br>`src/MainWindow.h`<br>`src/MainWindow.cpp` | Initializes Qt application, sets up main window layout, menus, docks, and connects canvas/panel actions. |
-| **Canvas & Selection** | `src/canvas/CanvasScene.h`<br>`src/canvas/CanvasScene.cpp`<br>`src/canvas/CanvasView.h`<br>`src/canvas/CanvasView.cpp` | Renders the display canvas and handles grid snapping, zoom/pan, rubber-band selection, and selection-state signals. |
-| **Properties Panel** | `src/panels/PropertiesPanel.h`<br>`src/panels/PropertiesPanel.cpp` | Edits component identity, geometry, and component-specific properties, and presents multi-selection alignment/distribution controls. |
-| **Layers Panel** | `src/panels/LayerPanel.h`<br>`src/panels/LayerPanel.cpp` | Lists components in visual order, synchronizes selection with the canvas, and supports z-order changes and deletion. |
-| **Styles Panel / Color Picking** | `src/panels/PropertiesPanel.h`<br>`src/panels/PropertiesPanel.cpp`<br>`src/panels/ColorPickerDialog.h`<br>`src/panels/ColorPickerDialog.cpp` | Provides component-specific appearance controls and the color picker dialog for choosing colors. |
-| **Component Palette** | `src/panels/ComponentPalette.h`<br>`src/panels/ComponentPalette.cpp` | Provides draggable palette of embedded UI widgets and controls for dropping onto the canvas. |
-| **Custom Components (Base)** | `src/models/UIComponent.h`<br>`src/models/UIComponent.cpp` | Defines shared graphics-item geometry, selection and resize behavior, serialization, rendering, and code-generation hooks. |
-| **Custom Components (Models)** | `src/models/ButtonComponent.h`<br>`src/models/ButtonComponent.cpp`<br>`src/models/CheckboxComponent.h`<br>`src/models/CheckboxComponent.cpp`<br>`src/models/CircleComponent.h`<br>`src/models/CircleComponent.cpp`<br>`src/models/ImageComponent.h`<br>`src/models/ImageComponent.cpp`<br>`src/models/LabelComponent.h`<br>`src/models/LabelComponent.cpp`<br>`src/models/ProgressBarComponent.h`<br>`src/models/ProgressBarComponent.cpp`<br>`src/models/RectangleComponent.h`<br>`src/models/RectangleComponent.cpp`<br>`src/models/SliderComponent.h`<br>`src/models/SliderComponent.cpp`<br>`src/models/SwitchComponent.h`<br>`src/models/SwitchComponent.cpp`<br>`src/models/TextInputComponent.h`<br>`src/models/TextInputComponent.cpp` | Implements the concrete button, checkbox, circle, image, label, progress bar, rectangle, slider, switch, and text-input components. |
-| **Path Component** | `src/models/PathComponent.h`<br>`src/models/PathComponent.cpp` | Stores and renders custom vector paths drawn interactively on the canvas. |
-| **Display Configuration** | `src/models/DisplayConfig.h` | Defines target embedded display resolution, color format/depth, and screen orientation. |
-| **Commands & Undo/Redo** | `src/commands/AddComponentCommand.h` / `.cpp`<br>`src/commands/DeleteComponentCommand.h` / `.cpp`<br>`src/commands/MoveComponentCommand.h` / `.cpp`<br>`src/commands/ResizeComponentCommand.h` / `.cpp`<br>`src/commands/PropertyChangeCommand.h` / `.cpp`<br>`src/commands/AlignDistributeCommand.h` / `.cpp` | QUndoCommand implementations providing reversible actions, including compound atomic undo for multi-item align and distribute. |
-| **Align & Distribute Actions** | `src/MainWindow.h`<br>`src/MainWindow.cpp`<br>`src/commands/AlignDistributeCommand.h`<br>`src/commands/AlignDistributeCommand.cpp` | Computes selection bounding box alignment and equal-gap distribution for 2+ and 3+ selected components. |
-| **Project Save / Load** | `src/project/Project.h`<br>`src/project/Project.cpp` | Creates, serializes, and restores project metadata, display settings, screen background, and components in `.euiproj` JSON files. |
-| **New Project Wizard / Templates** | `src/dialogs/NewProjectDialog.h`<br>`src/dialogs/NewProjectDialog.cpp`<br>`src/MainWindow.h`<br>`src/MainWindow.cpp`<br>`examples/thermostat.euiproj`<br>`examples/automotive_cluster.euiproj`<br>`examples/smartwatch.euiproj`<br>`resources/app.qrc` | Creates blank projects or starts a new project from one of the bundled single-screen templates. |
-| **Code Generator (Base)** | `src/codegen/CodeGenerator.h`<br>`src/codegen/CodeGenerator.cpp` | Abstract base class defining code generator interface, source formatting, and file export workflow. |
-| **Code Generator (LVGL)** | `src/codegen/LvglGenerator.h`<br>`src/codegen/LvglGenerator.cpp` | Generates an LVGL project with C UI files, configuration, and build metadata. |
-| **Code Generator (Qt for MCUs / QUL)** | `src/codegen/QtMcuGenerator.h`<br>`src/codegen/QtMcuGenerator.cpp` | Generates a QUL project containing its QML screen, project file, and CMake build configuration. |
-| **Code Generator (uGFX)** | `src/codegen/UgfxGenerator.h`<br>`src/codegen/UgfxGenerator.cpp` | Generates a uGFX project with C UI files, configuration, and build metadata. |
-| **Device Manager & Hardware** | `src/hardware/DeviceManager.h`<br>`src/hardware/DeviceManager.cpp`<br>`src/hardware/FlashController.h`<br>`src/hardware/FlashController.cpp` | Discovers serial devices and identifies likely boards; the flash controller launches supported external tools to program firmware. |
-| **Hardware Flash Dialog** | `src/dialogs/FlashDialog.h`<br>`src/dialogs/FlashDialog.cpp`<br>`src/MainWindow.h`<br>`src/MainWindow.cpp`<br>`src/hardware/DeviceManager.h`<br>`src/hardware/DeviceManager.cpp` | Lists detected ports, generates vendor-specific commands, copies them, and runs supported commands with streamed output. |
-| **Image Asset Processing** | `src/assets/ImageAssetProcessor.h`<br>`src/assets/ImageAssetProcessor.cpp` | Converts graphical assets (PNG/JPEG) into C array pixel buffers and palette-indexed formats for embedded displays. |
-| **Docker Dev Setup** | `Dockerfile`<br>`docker-compose.yml`<br>`docs/DOCKER_DEV.md` | Provides containerized build and execution environment with Qt6, Ninja, CMake, and X11 forwarding support. |
+```
+embedded-ui-designer/
+├── src/
+│   ├── main.cpp                    Application entry point
+│   ├── MainWindow.{h,cpp}          Top-level shell (menus, toolbars, dock wiring)
+│   ├── canvas/                     Rendering surface
+│   ├── panels/                     Dock panels & color picker
+│   ├── models/                     Component data model & display config
+│   ├── commands/                   Qt undo/redo command objects
+│   ├── codegen/                    Code generators (abstract base + 3 targets)
+│   ├── project/                    Project serialization (save/load/autosave)
+│   ├── hardware/                   Device detection & firmware flashing
+│   ├── dialogs/                    Modal dialogs (flash, serial monitor, new-project)
+│   └── assets/                     Image-to-C-array conversion utility
+├── Dockerfile                      Docker dev environment image definition
+├── docker-compose.yml              Docker Compose service (X11 forwarding for GUI)
+├── CMakeLists.txt                  CMake build definition
+└── .gitignore                      Excludes build/, build-*/, output_*/ (see below)
+```
+
+---
+
+## Feature → File(s) Table
+
+| Feature | File path(s) | One-line purpose |
+|---------|-------------|-----------------|
+| **Canvas – rendering surface** | `src/canvas/CanvasScene.{h,cpp}` | `QGraphicsScene` subclass; owns the component list, grid, snap-to-grid, display boundary, and emits selection/change signals |
+| **Canvas – interaction & zoom** | `src/canvas/CanvasView.{h,cpp}` | `QGraphicsView` subclass; handles mouse events, rubber-band drag-select, zoom, panning, drag-drop from palette, pen path drawing mode, and context menu |
+| **Selection (single & multi)** | `src/canvas/CanvasScene.{h,cpp}` + `src/canvas/CanvasView.{h,cpp}` | Scene emits `selectionListChanged`; View drives rubber-band multi-select and propagates it; handled together |
+| **Properties panel** | `src/panels/PropertiesPanel.{h,cpp}` | Dock panel showing geometry, ID, and component-specific properties (text, colors, radii, font, handler name, etc.) for the selected component; also exposes alignment/distribute buttons |
+| **Styles / color picking** | `src/panels/ColorPickerDialog.{h,cpp}` | Custom color-wheel dialog with HSV wheel, hex input, RGB-565 preview, and harmony swatches; invoked by color buttons inside `PropertiesPanel` — there is no separate "Styles panel" |
+| **Layers panel** | `src/panels/LayerPanel.{h,cpp}` | Dock panel listing all components in z-order with move-up / move-down / delete controls; syncs selection with `CanvasScene` |
+| **Component palette** | `src/panels/ComponentPalette.{h,cpp}` | Left-dock widget listing available component types; emits `componentDoubleClicked` and `shapeToolSelected` signals consumed by `MainWindow` / `CanvasView` |
+| **Prototype / interaction panel** | `src/panels/PrototypePanel.{h,cpp}` | Right-dock panel for defining on-component event→target interactions (e.g., "on click → show component X"); stores interactions as JSON on the component |
+| **Component data model (base)** | `src/models/UIComponent.{h,cpp}` | Abstract `QGraphicsObject` base for all widgets; owns id, type, geometry, resize/corner-radius handles, interaction array, and the `toJson`/`fromJson`/`toQmlSnippet`/`toUgfxSnippet` virtual interface |
+| **Display configuration** | `src/models/DisplayConfig.h` | Plain struct holding screen width, height, color depth, type (LCD/OLED/E-Ink), DPI, round flag; serializes to/from JSON |
+| **Custom components – Button** | `src/models/ButtonComponent.{h,cpp}` | Clickable button with fill/border/text colors and corner radius |
+| **Custom components – Label** | `src/models/LabelComponent.{h,cpp}` | Text label with font size, bold/italic, color, and horizontal alignment |
+| **Custom components – Checkbox** | `src/models/CheckboxComponent.{h,cpp}` | Checkbox widget with checked-state, fill, and accent colors |
+| **Custom components – Switch** | `src/models/SwitchComponent.{h,cpp}` | Toggle switch with on/off state and track/thumb colors |
+| **Custom components – Slider** | `src/models/SliderComponent.{h,cpp}` | Horizontal slider with min/max/value and track/thumb colors |
+| **Custom components – ProgressBar** | `src/models/ProgressBarComponent.{h,cpp}` | Progress bar (0.0–1.0 value) with fill and background colors |
+| **Custom components – TextInput** | `src/models/TextInputComponent.{h,cpp}` | Text input field with placeholder, read-only flag, border, and text colors |
+| **Custom components – Rectangle** | `src/models/RectangleComponent.{h,cpp}` | Filled rectangle with fill/border colors and corner radius |
+| **Custom components – Circle** | `src/models/CircleComponent.{h,cpp}` | Filled ellipse/circle with fill and border colors |
+| **Custom components – Image** | `src/models/ImageComponent.{h,cpp}` | Image widget referencing an external file path and pixel format (RGB565/Mono/RGB888) |
+| **Custom components – Path** | `src/models/PathComponent.{h,cpp}` | Bézier-path shape with anchor points, control handles, stroke/fill, and flattening for export |
+| **Image-to-C-array conversion** | `src/assets/ImageAssetProcessor.{h,cpp}` | Static utility that converts a `QImage` to a packed C `uint8_t` array string (RGB565, Monochrome, or RGB888) for embedding in firmware |
+| **Code generator – abstract base** | `src/codegen/CodeGenerator.{h,cpp}` | Pure-virtual `generate(outputDir)` interface plus a `writeFile` helper; all concrete generators inherit from this |
+| **Code generator – µGFX** | `src/codegen/UgfxGenerator.{h,cpp}` | Emits a complete µGFX C project: `CMakeLists.txt`, `gfxconf.h`, `ui.h`, `ui.c`, `main.c`, `README.md` |
+| **Code generator – Qt for MCU (QUL)** | `src/codegen/QtMcuGenerator.{h,cpp}` | Emits a Qt for MCU QML project: `CMakeLists.txt`, `.qmlproject`, `Design.qml`, `README.md` |
+| **Code generator – LVGL** | `src/codegen/LvglGenerator.{h,cpp}` | Emits a full LVGL C project: `CMakeLists.txt`, `lv_conf.h`, `ui.h`, `ui.c`, `main.c`, `idf_component.yml`, `platformio.ini`, `README.md` |
+| **Project save / load** | `src/project/Project.{h,cpp}` | Owns project name, file path, target framework, `DisplayConfig`, and dirty flag; serializes the entire scene to JSON; handles autosave to app-data directory and sample-project loading |
+| **Device manager** | `src/hardware/DeviceManager.{h,cpp}` | Polls serial/COM/tty ports on a timer; exposes port list, vendor details, board-type detection, and flash-command lookup; emits connect/disconnect signals |
+| **Firmware flashing** | `src/hardware/FlashController.{h,cpp}` | Launches OpenOCD, ST-Link, or esptool as a `QProcess`; streams real-time console output; supports STM32, RISC-V, and ESP32 targets |
+| **Flash dialog** | `src/dialogs/FlashDialog.{h,cpp}` | Modal dialog for selecting port, binary path, and triggering `FlashController`; shows live console log |
+| **Serial monitor dialog** | `src/dialogs/SerialMonitorDialog.{h,cpp}` | Modal dialog for opening a serial port and displaying received data |
+| **New project dialog** | `src/dialogs/NewProjectDialog.{h,cpp}` | Modal dialog to configure project name, resolution preset, and target framework before creating a new project |
+| **Undo / redo commands** | `src/commands/AddComponentCommand.{h,cpp}`<br>`src/commands/DeleteComponentCommand.{h,cpp}`<br>`src/commands/MoveComponentCommand.{h,cpp}`<br>`src/commands/ResizeComponentCommand.{h,cpp}`<br>`src/commands/PropertyChangeCommand.{h,cpp}`<br>`src/commands/AlignDistributeCommand.{h,cpp}`<br>`src/commands/BooleanPathCommand.{h,cpp}` | Seven `QUndoCommand` subclasses for reversible add, delete, move, resize, property, align/distribute, and Boolean-path operations |
+| **Application shell** | `src/MainWindow.{h,cpp}` | Top-level `QMainWindow`; creates and wires all subsystems, menus, toolbars, and dock panels; dispatches File / Edit / View / Export / Hardware menu actions |
+| **Entry point** | `src/main.cpp` | Creates `QApplication` and `MainWindow`; applies global dark theme |
+| **Docker dev environment** | `Dockerfile` + `docker-compose.yml` | Ubuntu 22.04 image installing Qt 6.5.3 via `aqtinstall` with X11 forwarding so the GUI can be developed inside Docker |
+
+---
+
+## `.gitignore` – Build & Export Output Coverage
+
+The following patterns are explicitly excluded and **confirmed not tracked** (see verification below):
+
+| Pattern | What it excludes |
+|---------|-----------------|
+| `build/` | CMake build directory |
+| `build-*/` | Any variant build directories (e.g., `build-release/`) |
+| `cmake-build-*/` | CLion-style build directories |
+| `out/` | Generic output folder |
+| `output_ugfx/` | µGFX code generator output |
+| `output_qul/` | Qt for MCU code generator output |
+| `output_lvgl/` | LVGL code generator output |
+| `output_*/` | Any other generator output |
+
+> **Verification result:** `git ls-files | grep -E "^build/"` → **empty output (exit code 1 = no matches)**.
+> No files under `build/` have ever been committed to the repository. ✅
+

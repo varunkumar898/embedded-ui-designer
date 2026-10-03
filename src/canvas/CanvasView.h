@@ -8,6 +8,7 @@
 #include <QPolygonF>
 #include <QRubberBand>
 #include "CanvasScene.h"
+#include "PathComponent.h"
 
 class CanvasView : public QGraphicsView {
     Q_OBJECT
@@ -47,8 +48,16 @@ private:
     CanvasScene* m_canvasScene = nullptr;
     qreal m_zoomFactor = 1.0;
     QString m_activeDrawingTool;
-    QList<QPointF> m_pendingPathPoints;
+    QList<PathAnchor> m_pendingPathAnchors;
     QPointF m_pathCursorScenePos;
+    QPointF m_newAnchorDragStart;
+    bool m_isDraggingNewPathAnchor = false;
+    bool m_isEditingPathControl = false;
+    bool m_editingFromAnchor = false;
+    bool m_editingHandleIn = false;
+    int m_pendingDragAnchorIndex = -1;
+    int m_editingAnchorIndex = -1;
+    PathComponent* m_editingPath = nullptr;
     bool m_isShapeDragging = false;
     QPointF m_shapeDragStart;
     bool m_isPanning = false;

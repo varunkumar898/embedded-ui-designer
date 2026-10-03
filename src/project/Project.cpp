@@ -14,6 +14,7 @@
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QSet>
 #include <QDebug>
 
 Project::Project(CanvasScene* scene, QObject* parent)
@@ -223,6 +224,40 @@ bool Project::loadFromFile(const QString& filePath) {
         m_filePath = filePath;
     }
     return success;
+}
+
+int Project::importFromFile(const QString& filePath, QPointF offset) {
+    if (!m_scene) return -1;
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return -1;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    if (!document.isObject()) return -1;
+
+    const QJsonArray pages = document.object().value("pages").toArray();
+    if (pages.isEmpty()) return 0;
+    const QJsonArray components = pages.first().toObject().value("components").toArray();
+    QSet<QString> usedIds;
+    for (UIComponent* component : m_scene->uiComponents()) usedIds.insert(component->componentId());
+
+    int imported = 0;
+    for (const QJsonValue& value : components) {
+        const QJsonObject data = value.toObject();
+        const QString type = data.value("type").toString();
+        const QString originalId = data.value("id").toString(type.toLower());
+        QString uniqueId = originalId;
+        for (int suffix = 2; usedIds.contains(uniqueId); ++suffix) {
+            uniqueId = originalId + "_" + QString::number(suffix);
+        }
+        UIComponent* component = createComponentInstance(type, uniqueId);
+        if (!component) continue;
+        component->fromJson(data);
+        component->setComponentId(uniqueId);
+        component->setCompPos(component->compX() + offset.x(), component->compY() + offset.y());
+        m_scene->addUIComponent(component);
+        usedIds.insert(uniqueId);
+        ++imported;
+    }
+    return imported;
 }
 
 UIComponent* Project::createComponentInstance(const QString& type, const QString& id) {

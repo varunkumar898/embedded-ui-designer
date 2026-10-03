@@ -16,6 +16,8 @@ void ProgressBarComponent::setValue(double val) {
         m_value = val;
         update();
         emit propertyChanged(this);
+        emit interactionTriggered("On Change");
+        emit interactionTriggered("On Value Changed");
     }
 }
 

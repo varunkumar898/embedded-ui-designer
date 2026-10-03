@@ -2,6 +2,7 @@
 
 #include "UIComponent.h"
 #include <QColor>
+#include <QVariantAnimation>
 
 class SwitchComponent : public UIComponent {
     Q_OBJECT
@@ -11,6 +12,8 @@ public:
 
     bool isChecked() const { return m_checked; }
     void setChecked(bool checked);
+    void animateChecked(bool checked, const QString& transition, int durationMs);
+    qreal transitionProgress() const { return m_transitionProgress; }
 
     QColor onColor() const { return m_onColor; }
     void setOnColor(const QColor& color);
@@ -42,4 +45,8 @@ private:
     QColor m_offColor = QColor("#3B404E");
     QColor m_thumbColor = QColor("#FFFFFF");
     QString m_onToggledHandler;
+    bool m_animationFromChecked = false;
+    qreal m_transitionProgress = 0.0;
+    QString m_transitionType = "Instant";
+    QVariantAnimation* m_transitionAnimation = nullptr;
 };

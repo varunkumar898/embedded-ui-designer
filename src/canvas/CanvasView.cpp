@@ -14,6 +14,7 @@
 #include <QMimeData>
 #include <QScrollBar>
 #include <QRubberBand>
+#include <QLineF>
 #include <algorithm>
 
 CanvasView::CanvasView(CanvasScene* scene, QWidget* parent)
@@ -89,10 +90,39 @@ void CanvasView::wheelEvent(QWheelEvent* event) {
 void CanvasView::mousePressEvent(QMouseEvent* event) {
     if (m_activeDrawingTool == "Custom" && event->button() == Qt::LeftButton) {
         m_pathCursorScenePos = m_canvasScene->snapPoint(mapToScene(event->pos()));
-        if (m_pendingPathPoints.isEmpty() || QLineF(m_pendingPathPoints.last(), m_pathCursorScenePos).length() > 1.0) {
-            m_pendingPathPoints.append(m_pathCursorScenePos);
+        m_isDraggingNewPathAnchor = false;
+        m_pendingDragAnchorIndex = -1;
+
+        QGraphicsItem* hitItem = itemAt(event->pos());
+        while (hitItem && !dynamic_cast<PathComponent*>(hitItem)) hitItem = hitItem->parentItem();
+        if (auto* path = dynamic_cast<PathComponent*>(hitItem)) {
+            const QPointF localPosition = path->mapFromScene(m_pathCursorScenePos);
+            bool handleIn = false;
+            const int handleIndex = path->handleAt(localPosition, &handleIn);
+            const int anchorIndex = handleIndex >= 0 ? handleIndex : path->anchorAt(localPosition);
+            if (anchorIndex >= 0) {
+                m_canvasScene->clearSelection();
+                path->setSelected(true);
+                m_editingPath = path;
+                m_editingAnchorIndex = anchorIndex;
+                m_editingHandleIn = handleIn;
+                m_editingFromAnchor = handleIndex < 0;
+                m_isEditingPathControl = true;
+                event->accept();
+                return;
+            }
         }
-        m_canvasScene->setPathPreview(m_pendingPathPoints, m_pathCursorScenePos, true);
+
+        if (m_pendingPathAnchors.isEmpty() ||
+            QLineF(m_pendingPathAnchors.last().position, m_pathCursorScenePos).length() > 1.0) {
+            m_pendingPathAnchors.append({m_pathCursorScenePos, QPointF(), QPointF(), false, false});
+            m_pendingDragAnchorIndex = m_pendingPathAnchors.size() - 1;
+            m_newAnchorDragStart = m_pathCursorScenePos;
+            m_isDraggingNewPathAnchor = true;
+        }
+        const QPolygonF preview = PathComponent::flattenAnchors(m_pendingPathAnchors,
+                                                                PathComponent::DefaultFlattenSubdivisions, false);
+        m_canvasScene->setPathPreview(preview, m_pathCursorScenePos, !m_pendingPathAnchors.isEmpty());
         event->accept();
         return;
     }
@@ -167,6 +197,34 @@ void CanvasView::mousePressEvent(QMouseEvent* event) {
 }
 
 void CanvasView::mouseMoveEvent(QMouseEvent* event) {
+    if (m_isEditingPathControl && m_editingPath && (event->buttons() & Qt::LeftButton)) {
+        const QPointF localCursor = m_editingPath->mapFromScene(m_canvasScene->snapPoint(mapToScene(event->pos())));
+        const PathAnchor anchor = m_editingPath->anchors().at(m_editingAnchorIndex);
+        const QPointF offset = localCursor - anchor.position;
+        const bool symmetric = m_editingFromAnchor || !(event->modifiers() & Qt::AltModifier);
+        m_editingPath->setAnchorHandle(m_editingAnchorIndex, m_editingHandleIn, offset, symmetric);
+        event->accept();
+        return;
+    }
+
+    if (m_activeDrawingTool == "Custom" && m_isDraggingNewPathAnchor &&
+        m_pendingDragAnchorIndex >= 0 && (event->buttons() & Qt::LeftButton)) {
+        const QPointF cursor = m_canvasScene->snapPoint(mapToScene(event->pos()));
+        const QPointF offset = cursor - m_newAnchorDragStart;
+        if (QLineF(m_newAnchorDragStart, cursor).length() >= 2.0) {
+            PathAnchor& anchor = m_pendingPathAnchors[m_pendingDragAnchorIndex];
+            anchor.handleOut = offset;
+            anchor.handleIn = -offset;
+            anchor.hasHandleIn = true;
+            anchor.hasHandleOut = true;
+        }
+        const QPolygonF preview = PathComponent::flattenAnchors(m_pendingPathAnchors,
+                                                                PathComponent::DefaultFlattenSubdivisions, false);
+        m_canvasScene->setPathPreview(preview, m_pendingPathAnchors.at(m_pendingDragAnchorIndex).position, true);
+        event->accept();
+        return;
+    }
+
     if (m_isShapeDragging) {
         const QPointF cursor = m_canvasScene->snapPoint(mapToScene(event->pos()));
         m_canvasScene->setPathPreview({m_shapeDragStart}, cursor, true);
@@ -176,7 +234,9 @@ void CanvasView::mouseMoveEvent(QMouseEvent* event) {
 
     if (m_activeDrawingTool == "Custom") {
         m_pathCursorScenePos = m_canvasScene->snapPoint(mapToScene(event->pos()));
-        m_canvasScene->setPathPreview(m_pendingPathPoints, m_pathCursorScenePos, !m_pendingPathPoints.isEmpty());
+        const QPolygonF preview = PathComponent::flattenAnchors(m_pendingPathAnchors,
+                                                                PathComponent::DefaultFlattenSubdivisions, false);
+        m_canvasScene->setPathPreview(preview, m_pathCursorScenePos, !m_pendingPathAnchors.isEmpty());
     }
 
     if (m_isPanning) {
@@ -207,6 +267,25 @@ void CanvasView::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void CanvasView::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_isEditingPathControl && event->button() == Qt::LeftButton) {
+        m_isEditingPathControl = false;
+        m_editingPath = nullptr;
+        m_editingAnchorIndex = -1;
+        event->accept();
+        return;
+    }
+
+    if (m_isDraggingNewPathAnchor && event->button() == Qt::LeftButton) {
+        m_isDraggingNewPathAnchor = false;
+        m_pendingDragAnchorIndex = -1;
+        const QPolygonF preview = PathComponent::flattenAnchors(m_pendingPathAnchors,
+                                                                PathComponent::DefaultFlattenSubdivisions, false);
+        const QPointF cursor = m_pendingPathAnchors.isEmpty() ? QPointF() : m_pendingPathAnchors.last().position;
+        m_canvasScene->setPathPreview(preview, cursor, !m_pendingPathAnchors.isEmpty());
+        event->accept();
+        return;
+    }
+
     if (m_isShapeDragging && event->button() == Qt::LeftButton) {
         m_isShapeDragging = false;
         finishShapeDrag(m_canvasScene->snapPoint(mapToScene(event->pos())));
@@ -332,14 +411,13 @@ void CanvasView::keyPressEvent(QKeyEvent* event) {
 }
 
 void CanvasView::finishCustomPath() {
-    if (m_pendingPathPoints.size() >= 3) {
-        QRectF bounds;
-        for (const QPointF& point : m_pendingPathPoints) bounds |= QRectF(point, QSizeF(0, 0));
-        QPolygonF localPoints;
-        for (const QPointF& point : m_pendingPathPoints) localPoints.append(point - bounds.topLeft());
+    if (m_pendingPathAnchors.size() >= 3) {
+        const QRectF bounds = PathComponent::anchorBounds(m_pendingPathAnchors);
+        QList<PathAnchor> localAnchors = m_pendingPathAnchors;
+        for (PathAnchor& anchor : localAnchors) anchor.position -= bounds.topLeft();
         PathComponent* path = new PathComponent("path_new");
         path->setCompPos(bounds.left(), bounds.top());
-        path->setPoints(localPoints);
+        path->setAnchors(localAnchors);
         m_canvasScene->clearSelection();
         if (m_undoStack) {
             m_undoStack->push(new AddComponentCommand(m_canvasScene, path));
@@ -347,15 +425,23 @@ void CanvasView::finishCustomPath() {
             m_canvasScene->addUIComponent(path);
             path->setSelected(true);
         }
-        emit statusMessageRequested(QString("Added custom path with %1 points").arg(m_pendingPathPoints.size()));
+        emit statusMessageRequested(QString("Added custom path with %1 anchors").arg(m_pendingPathAnchors.size()));
     }
-    m_pendingPathPoints.clear();
+    m_pendingPathAnchors.clear();
+    m_isDraggingNewPathAnchor = false;
+    m_pendingDragAnchorIndex = -1;
+    m_isEditingPathControl = false;
+    m_editingPath = nullptr;
     m_canvasScene->setPathPreview({}, QPointF(), false);
     setActiveDrawingTool(QString());
 }
 
 void CanvasView::cancelCustomPath() {
-    m_pendingPathPoints.clear();
+    m_pendingPathAnchors.clear();
+    m_isDraggingNewPathAnchor = false;
+    m_pendingDragAnchorIndex = -1;
+    m_isEditingPathControl = false;
+    m_editingPath = nullptr;
     m_canvasScene->setPathPreview({}, QPointF(), false);
     setActiveDrawingTool(QString());
 }
@@ -363,6 +449,9 @@ void CanvasView::cancelCustomPath() {
 void CanvasView::finishShapeDrag(const QPointF& end) {
     QRectF bounds(m_shapeDragStart, end);
     bounds = bounds.normalized();
+    if (bounds.width() < 10.0 && bounds.height() < 10.0) {
+        bounds.setSize(QSizeF(60.0, 60.0));
+    }
     if (m_activeDrawingTool == "Square" || m_activeDrawingTool == "Circle") {
         const qreal side = std::max<qreal>(10.0, std::min(bounds.width(), bounds.height()));
         bounds.setSize(QSizeF(side, side));

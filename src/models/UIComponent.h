@@ -2,6 +2,7 @@
 
 #include <QGraphicsObject>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QColor>
 #include <QFont>
 #include <QPainter>
@@ -65,6 +66,8 @@ public:
     // Serialization
     virtual QJsonObject toJson() const;
     virtual void fromJson(const QJsonObject& json);
+    QJsonArray interactions() const { return m_interactions; }
+    void setInteractions(const QJsonArray& interactions);
 
     // Code Generation Hooks
     virtual QString toQmlSnippet(int indentSpaces = 8) const = 0;
@@ -86,6 +89,7 @@ public:
 signals:
     void propertyChanged(UIComponent* comp);
     void geometryChangedSignal(UIComponent* comp);
+    void interactionTriggered(const QString& trigger);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
@@ -102,6 +106,7 @@ protected:
 
     QString m_id;
     QString m_componentType;
+    QJsonArray m_interactions;
     qreal m_width = 120.0;
     qreal m_height = 40.0;
 

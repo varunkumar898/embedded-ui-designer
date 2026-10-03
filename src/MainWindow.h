@@ -10,6 +10,7 @@
 #include "CanvasView.h"
 #include "ComponentPalette.h"
 #include "PropertiesPanel.h"
+#include "PrototypePanel.h"
 #include "LayerPanel.h"
 #include "Project.h"
 
@@ -27,12 +28,15 @@ private slots:
     void onNewProject();
     void onOpenProject();
     void onOpenSampleProject();
+    void onImportProject();
     void onSaveProject();
     void onSaveProjectAs();
+    void onExport();
     void onExportUgfx();
     void onExportQtMcu();
     void onExportLvgl();
     void onFlashFirmware();
+    void onSerialMonitor();
 
     // Edit Actions
     void onDeleteSelected();
@@ -60,8 +64,12 @@ private slots:
     void onDistributeH();
     void onDistributeV();
 
-    // Selection changed → update enabled state of align/distribute buttons
-    void onSelectionListChanged(const QList<UIComponent*>& selected);
+    // Boolean Path Operations (Task 2)
+    void onBooleanUnion();
+    void onBooleanSubtract();
+    void onBooleanIntersect();
+    void onBooleanXor();
+    void runBooleanOp(int opCode);
 
     friend class TestFunctionalRunner;
 
@@ -76,6 +84,7 @@ private:
     // Dock Panels
     ComponentPalette* m_palette = nullptr;
     PropertiesPanel* m_propertiesPanel = nullptr;
+    PrototypePanel* m_prototypePanel = nullptr;
     LayerPanel* m_layerPanel = nullptr;
 
     // UI Chrome
@@ -85,14 +94,6 @@ private:
     QLabel* m_zoomLabel = nullptr;
 
     // Align/Distribute toolbar actions
-    QAction* m_actAlignLeft    = nullptr;
-    QAction* m_actAlignRight   = nullptr;
-    QAction* m_actAlignHCenter = nullptr;
-    QAction* m_actAlignTop     = nullptr;
-    QAction* m_actAlignBottom  = nullptr;
-    QAction* m_actAlignVCenter = nullptr;
-    QAction* m_actDistributeH  = nullptr;
-    QAction* m_actDistributeV  = nullptr;
 
     void setupUi();
     void setupMenusAndToolbars();

@@ -15,6 +15,8 @@ void SliderComponent::setValue(int val) {
         m_value = clamped;
         update();
         emit propertyChanged(this);
+        emit interactionTriggered("On Change");
+        emit interactionTriggered("On Value Changed");
     }
 }
 

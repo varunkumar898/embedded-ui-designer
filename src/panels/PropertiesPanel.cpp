@@ -9,6 +9,7 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "PathComponent.h"
 #include "PropertyChangeCommand.h"
 #include "ColorPickerDialog.h"
 #include <QUndoStack>
@@ -114,72 +115,6 @@ void PropertiesPanel::setupUi() {
     multiHeaderLayout->addWidget(multiSubtitle);
     multiLayout->addWidget(multiHeaderCard);
 
-    // Alignment Group
-    QGroupBox* alignGroup = new QGroupBox("ALIGNMENT", m_multiWidget);
-    alignGroup->setStyleSheet(
-        "QGroupBox { font-size: 11px; font-weight: bold; color: #8e96a4; border: 1px solid #282c38; "
-        "border-radius: 6px; margin-top: 8px; padding-top: 14px; padding-bottom: 8px; padding-left: 6px; padding-right: 6px; } "
-        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-    );
-    QGridLayout* alignGrid = new QGridLayout(alignGroup);
-    alignGrid->setSpacing(6);
-
-    QPushButton* btnAlignLeft    = new QPushButton("← Left", alignGroup);
-    QPushButton* btnAlignHCenter = new QPushButton("┃ Center", alignGroup);
-    QPushButton* btnAlignRight   = new QPushButton("Right →", alignGroup);
-    QPushButton* btnAlignTop     = new QPushButton("↑ Top", alignGroup);
-    QPushButton* btnAlignVCenter = new QPushButton("━ Middle", alignGroup);
-    QPushButton* btnAlignBottom  = new QPushButton("Bottom ↓", alignGroup);
-
-    btnAlignLeft->setToolTip("Align Left edges to selection bounding box");
-    btnAlignHCenter->setToolTip("Align Horizontal centers");
-    btnAlignRight->setToolTip("Align Right edges to selection bounding box");
-    btnAlignTop->setToolTip("Align Top edges to selection bounding box");
-    btnAlignVCenter->setToolTip("Align Vertical centers");
-    btnAlignBottom->setToolTip("Align Bottom edges to selection bounding box");
-
-    connect(btnAlignLeft, &QPushButton::clicked, this, &PropertiesPanel::alignLeftRequested);
-    connect(btnAlignHCenter, &QPushButton::clicked, this, &PropertiesPanel::alignHCenterRequested);
-    connect(btnAlignRight, &QPushButton::clicked, this, &PropertiesPanel::alignRightRequested);
-    connect(btnAlignTop, &QPushButton::clicked, this, &PropertiesPanel::alignTopRequested);
-    connect(btnAlignVCenter, &QPushButton::clicked, this, &PropertiesPanel::alignVCenterRequested);
-    connect(btnAlignBottom, &QPushButton::clicked, this, &PropertiesPanel::alignBottomRequested);
-
-    alignGrid->addWidget(btnAlignLeft, 0, 0);
-    alignGrid->addWidget(btnAlignHCenter, 0, 1);
-    alignGrid->addWidget(btnAlignRight, 0, 2);
-    alignGrid->addWidget(btnAlignTop, 1, 0);
-    alignGrid->addWidget(btnAlignVCenter, 1, 1);
-    alignGrid->addWidget(btnAlignBottom, 1, 2);
-    multiLayout->addWidget(alignGroup);
-
-    // Distribution Group
-    QGroupBox* distGroup = new QGroupBox("DISTRIBUTION", m_multiWidget);
-    distGroup->setStyleSheet(
-        "QGroupBox { font-size: 11px; font-weight: bold; color: #8e96a4; border: 1px solid #282c38; "
-        "border-radius: 6px; margin-top: 8px; padding-top: 14px; padding-bottom: 8px; padding-left: 6px; padding-right: 6px; } "
-        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-    );
-    QVBoxLayout* distLayout = new QVBoxLayout(distGroup);
-    distLayout->setSpacing(6);
-
-    m_btnDistributeH = new QPushButton("↔  Distribute Horizontally", distGroup);
-    m_btnDistributeV = new QPushButton("↕  Distribute Vertically", distGroup);
-    m_btnDistributeH->setToolTip("Distribute equal horizontal spacing (requires 3+ items)");
-    m_btnDistributeV->setToolTip("Distribute equal vertical spacing (requires 3+ items)");
-
-    connect(m_btnDistributeH, &QPushButton::clicked, this, &PropertiesPanel::distributeHRequested);
-    connect(m_btnDistributeV, &QPushButton::clicked, this, &PropertiesPanel::distributeVRequested);
-
-    distLayout->addWidget(m_btnDistributeH);
-    distLayout->addWidget(m_btnDistributeV);
-
-    m_distributeHint = new QLabel("Spacing distribution requires 3+ items", distGroup);
-    m_distributeHint->setAlignment(Qt::AlignCenter);
-    m_distributeHint->setStyleSheet("color: #6a7382; font-size: 10.5px; font-style: italic;");
-    distLayout->addWidget(m_distributeHint);
-
-    multiLayout->addWidget(distGroup);
     multiLayout->addStretch(1);
     rootLayout->addWidget(m_multiWidget);
 
@@ -195,7 +130,9 @@ void PropertiesPanel::setupUi() {
     mainLayout->setSpacing(10);
 
     // Header: Type badge & ID
-    QHBoxLayout* headerLayout = new QHBoxLayout();
+    m_headerWidget = new QWidget(m_contentWidget);
+    QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
     m_typeBadge = new QLabel("COMPONENT", m_contentWidget);
     m_typeBadge->setStyleSheet(
         "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a96ff, stop:0.1 #0b82ec, stop:0.85 #0060b8, stop:1 #004485); "
@@ -211,7 +148,7 @@ void PropertiesPanel::setupUi() {
     );
     headerLayout->addWidget(m_typeBadge);
     headerLayout->addWidget(m_idEdit, 1);
-    mainLayout->addLayout(headerLayout);
+    mainLayout->addWidget(m_headerWidget);
 
     connect(m_idEdit, &QLineEdit::textChanged, this, &PropertiesPanel::onIdChanged);
     connect(m_idEdit, &QLineEdit::editingFinished, this, [this]() {
@@ -219,14 +156,14 @@ void PropertiesPanel::setupUi() {
     });
 
     // Geometry Group
-    QGroupBox* geomGroup = new QGroupBox("Transform & Geometry", m_contentWidget);
-    geomGroup->setStyleSheet(
+    m_geometryGroup = new QGroupBox("Transform & Geometry", m_contentWidget);
+    m_geometryGroup->setStyleSheet(
         "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
         "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
         "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
     );
-    QGridLayout* geomLayout = new QGridLayout(geomGroup);
+    QGridLayout* geomLayout = new QGridLayout(m_geometryGroup);
     geomLayout->setSpacing(8);
 
     auto makeSpin = [this](int minVal, int maxVal) {
@@ -246,16 +183,106 @@ void PropertiesPanel::setupUi() {
     m_spinW = makeSpin(10, 2000);
     m_spinH = makeSpin(10, 2000);
 
-    geomLayout->addWidget(new QLabel("X:", geomGroup), 0, 0);
+    geomLayout->addWidget(new QLabel("X:", m_geometryGroup), 0, 0);
     geomLayout->addWidget(m_spinX, 0, 1);
-    geomLayout->addWidget(new QLabel("Y:", geomGroup), 0, 2);
+    geomLayout->addWidget(new QLabel("Y:", m_geometryGroup), 0, 2);
     geomLayout->addWidget(m_spinY, 0, 3);
-    geomLayout->addWidget(new QLabel("W:", geomGroup), 1, 0);
+    geomLayout->addWidget(new QLabel("W:", m_geometryGroup), 1, 0);
     geomLayout->addWidget(m_spinW, 1, 1);
-    geomLayout->addWidget(new QLabel("H:", geomGroup), 1, 2);
+    geomLayout->addWidget(new QLabel("H:", m_geometryGroup), 1, 2);
     geomLayout->addWidget(m_spinH, 1, 3);
 
-    mainLayout->addWidget(geomGroup);
+    mainLayout->addWidget(m_geometryGroup);
+
+    m_alignmentRow = new QWidget(m_contentWidget);
+    m_alignmentRow->setObjectName("multiSelectionAlignmentRow");
+    m_alignmentRow->setVisible(false);
+    QHBoxLayout* alignmentLayout = new QHBoxLayout(m_alignmentRow);
+    alignmentLayout->setContentsMargins(2, 0, 2, 0);
+    alignmentLayout->setSpacing(2);
+    const QStringList alignGlyphs = {"⇤", "↤", "⇥", "↥", "↕", "↧"};
+    const QStringList alignTips = {"Align left", "Align horizontal center", "Align right", "Align top", "Align vertical center", "Align bottom"};
+    for (int index = 0; index < alignGlyphs.size(); ++index) {
+        QToolButton* button = new QToolButton(m_alignmentRow);
+        button->setText(alignGlyphs[index]);
+        button->setToolTip(alignTips[index]);
+        button->setFixedSize(24, 24);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setStyleSheet("QToolButton { background: #252830; color: #dce3ee; border: 1px solid #3B404E; border-radius: 4px; padding: 0; font-size: 14px; } QToolButton:hover { background: #313642; }");
+        connect(button, &QToolButton::clicked, this, [this, index]() {
+            switch (index) {
+                case 0: emit alignLeftRequested(); break;
+                case 1: emit alignHCenterRequested(); break;
+                case 2: emit alignRightRequested(); break;
+                case 3: emit alignTopRequested(); break;
+                case 4: emit alignVCenterRequested(); break;
+                case 5: emit alignBottomRequested(); break;
+            }
+        });
+        alignmentLayout->addWidget(button);
+    }
+    QFrame* divider = new QFrame(m_alignmentRow);
+    divider->setFrameShape(QFrame::VLine);
+    divider->setStyleSheet("color: #3B404E;");
+    alignmentLayout->addWidget(divider);
+    const QStringList distributeGlyphs = {"⇔", "⇕"};
+    const QStringList distributeTips = {"Distribute horizontally (3+ components)", "Distribute vertically (3+ components)"};
+    for (int index = 0; index < distributeGlyphs.size(); ++index) {
+        QToolButton* button = new QToolButton(m_alignmentRow);
+        button->setText(distributeGlyphs[index]);
+        button->setToolTip(distributeTips[index]);
+        button->setFixedSize(24, 24);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setStyleSheet("QToolButton { background: #252830; color: #dce3ee; border: 1px solid #3B404E; border-radius: 4px; padding: 0; font-size: 14px; } QToolButton:hover { background: #313642; } QToolButton:disabled { color: #596170; }");
+        button->setEnabled(false);
+        m_distributeButtons.append(button);
+        connect(button, &QToolButton::clicked, this, [this, index]() {
+            if (index == 0) emit distributeHRequested();
+            else emit distributeVRequested();
+        });
+        alignmentLayout->addWidget(button);
+    }
+    alignmentLayout->addStretch(1);
+    mainLayout->addWidget(m_alignmentRow);
+
+    // ── Boolean path operations row (shown when 2+ shapes are selected) ──
+    m_booleanOpsRow = new QWidget(m_contentWidget);
+    m_booleanOpsRow->setObjectName("booleanOpsRow");
+    m_booleanOpsRow->setVisible(false);
+    QHBoxLayout* boolLayout = new QHBoxLayout(m_booleanOpsRow);
+    boolLayout->setContentsMargins(2, 0, 2, 0);
+    boolLayout->setSpacing(4);
+
+    struct BoolBtn { QString label; QString tip; };
+    const QList<BoolBtn> boolBtns = {
+        {"∪", "Boolean Union — merge all selected shapes"},
+        {"−", "Boolean Subtract — cut clips from subject"},
+        {"∩", "Boolean Intersect — keep overlapping area"},
+        {"⊕", "Boolean XOR — keep non-overlapping area"},
+    };
+    for (int idx = 0; idx < boolBtns.size(); ++idx) {
+        QToolButton* btn = new QToolButton(m_booleanOpsRow);
+        btn->setText(boolBtns[idx].label);
+        btn->setToolTip(boolBtns[idx].tip);
+        btn->setFixedSize(28, 24);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(
+            "QToolButton { background: #1e2938; color: #7ecfff; border: 1px solid #3B404E; "
+            "border-radius: 4px; padding: 0; font-size: 15px; font-weight: bold; } "
+            "QToolButton:hover { background: #253448; border-color: #5a8fcc; }"
+        );
+        connect(btn, &QToolButton::clicked, this, [this, idx]() {
+            switch (idx) {
+                case 0: emit booleanUnionRequested();     break;
+                case 1: emit booleanSubtractRequested();  break;
+                case 2: emit booleanIntersectRequested(); break;
+                case 3: emit booleanXorRequested();       break;
+            }
+        });
+        boolLayout->addWidget(btn);
+    }
+    boolLayout->addStretch(1);
+    mainLayout->addWidget(m_booleanOpsRow);
 
     connect(m_spinX, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
     connect(m_spinY, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
@@ -289,22 +316,31 @@ void PropertiesPanel::showEmpty() {
     m_emptyWidget->setVisible(true);
     m_multiWidget->setVisible(false);
     m_contentWidget->setVisible(false);
+    m_alignmentRow->setVisible(false);
+    m_booleanOpsRow->setVisible(false);
 }
 
 void PropertiesPanel::showSingle() {
     m_emptyWidget->setVisible(false);
     m_multiWidget->setVisible(false);
     m_contentWidget->setVisible(true);
+    m_headerWidget->setVisible(true);
+    m_specificGroup->setVisible(true);
+    m_geometryGroup->setEnabled(true);
+    m_alignmentRow->setVisible(false);
+    m_booleanOpsRow->setVisible(false);
 }
 
 void PropertiesPanel::showMulti(int count) {
     m_emptyWidget->setVisible(false);
-    m_contentWidget->setVisible(false);
+    m_contentWidget->setVisible(true);
     m_multiLabel->setText(QString("%1 components selected").arg(count));
-    const bool canDistribute = (count >= 3);
-    if (m_btnDistributeH) m_btnDistributeH->setEnabled(canDistribute);
-    if (m_btnDistributeV) m_btnDistributeV->setEnabled(canDistribute);
-    if (m_distributeHint) m_distributeHint->setVisible(!canDistribute);
+    m_headerWidget->setVisible(false);
+    m_specificGroup->setVisible(false);
+    m_geometryGroup->setEnabled(false);
+    m_alignmentRow->setVisible(count >= 2);
+    m_booleanOpsRow->setVisible(count >= 2);
+    for (QToolButton* button : m_distributeButtons) button->setEnabled(count >= 3);
     m_multiWidget->setVisible(true);
 }
 
@@ -455,6 +491,11 @@ void PropertiesPanel::refreshValues() {
         if (m_colorBtn2) updateColorButton(m_colorBtn2, circ->strokeColor());
         if (m_spinStrokeW) m_spinStrokeW->setValue(circ->strokeWidth());
         if (m_chkFilled) m_chkFilled->setChecked(circ->isFilled());
+    } else if (auto path = dynamic_cast<PathComponent*>(m_targetComponent)) {
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, path->strokeColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(qRound(path->strokeThickness()));
+        if (m_spinOpacity) m_spinOpacity->setValue(path->opacityPercent());
+        if (m_spinPathFlatten) m_spinPathFlatten->setValue(path->flattenSubdivisions());
     }
 
     m_lastSavedState = m_targetComponent->toJson();
@@ -513,6 +554,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
     m_colorBtn4 = nullptr;
     m_spinRadius = nullptr;
     m_spinStrokeW = nullptr;
+    m_spinOpacity = nullptr;
     m_spinPixelSize = nullptr;
     m_chkBold = nullptr;
     m_chkItalic = nullptr;
@@ -528,6 +570,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
     m_placeholderEdit = nullptr;
     m_chkReadOnly = nullptr;
     m_chkFilled = nullptr;
+    m_spinPathFlatten = nullptr;
     m_btnAlignLeft = nullptr;
     m_btnAlignCenter = nullptr;
     m_btnAlignRight = nullptr;
@@ -998,6 +1041,41 @@ void PropertiesPanel::rebuildSpecificEditors() {
             }
         });
         form->addRow("Fill:", m_chkFilled);
+    } else if (auto path = dynamic_cast<PathComponent*>(m_targetComponent)) {
+        m_colorBtn1 = addColorRow("Stroke Color:", path->strokeColor(), [path](const QColor& color) { path->setStrokeColor(color); }, "Change Path Stroke Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(1, 64);
+        m_spinStrokeW->setValue(qRound(path->strokeThickness()));
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, path](int value) {
+            if (!m_updatingFromComponent) path->setStrokeThickness(value);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Path Stroke Thickness");
+        });
+        form->addRow("Stroke Thickness:", m_spinStrokeW);
+
+        m_spinOpacity = new QSpinBox(m_specificContainer);
+        m_spinOpacity->setRange(0, 100);
+        m_spinOpacity->setValue(path->opacityPercent());
+        connect(m_spinOpacity, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, path](int value) {
+            if (!m_updatingFromComponent) path->setOpacityPercent(value);
+        });
+        connect(m_spinOpacity, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Path Opacity");
+        });
+        form->addRow("Opacity (%):", m_spinOpacity);
+
+        m_spinPathFlatten = new QSpinBox(m_specificContainer);
+        m_spinPathFlatten->setRange(1, 256);
+        m_spinPathFlatten->setValue(path->flattenSubdivisions());
+        connect(m_spinPathFlatten, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, path](int value) {
+            if (!m_updatingFromComponent) path->setFlattenSubdivisions(value);
+        });
+        connect(m_spinPathFlatten, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Path Flattening");
+        });
+        form->addRow("Flatten subdivisions:", m_spinPathFlatten);
     }
 
     containerLayout->addLayout(form);

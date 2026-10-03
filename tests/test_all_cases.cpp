@@ -6,6 +6,14 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QElapsedTimer>
+#include <QComboBox>
+#include <QFrame>
+#include <QSpinBox>
+#include <QDir>
+#include <QToolButton>
+#include <QToolBar>
+#include <QMenuBar>
 
 // Models
 #include "ButtonComponent.h"
@@ -18,6 +26,7 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "ImageComponent.h"
+#include "PathComponent.h"
 
 // Commands
 #include "AddComponentCommand.h"
@@ -30,6 +39,10 @@
 #include "CanvasScene.h"
 #include "CanvasView.h"
 #include "PropertiesPanel.h"
+#include "PrototypePanel.h"
+#include "SerialMonitorDialog.h"
+#include "DeviceManager.h"
+#include "MainWindow.h"
 #include "LayerPanel.h"
 #include "ColorPickerDialog.h"
 #include "Project.h"
@@ -49,6 +62,8 @@ private slots:
     void testAllComponentsCreationAndDefaults();
     void testComponentPropertyMutations();
     void testComponentSerializationJson();
+    void testPathBezierFlattening();
+    void testBezierPenDragAndEdit();
     void testComponentCodeGenerationSnippets();
 
     // 2. Corner Radius Handle (Task 2)
@@ -65,6 +80,7 @@ private slots:
     // 4. Properties Panel & Bug Regression (Task 1)
     void testPropertiesPanelRebuildNoOverlap();
     void testPropertiesPanelGeometryEditing();
+    void testPropertiesPanelAlignmentRow();
 
     // 5. Embedded Color Picker & RGB565 / Harmonies
     void testColorPickerRgb565Calculations();
@@ -76,6 +92,10 @@ private slots:
 
     // 7. Project Serialization Full Roundtrip
     void testProjectFullSaveAndLoad();
+    void testProjectImportMergesComponents();
+    void testPrototypeInteractionTransition();
+    void testSerialMonitorPortListing();
+    void testToolbarDecluttered();
 
     // 8. Code Generators
     void testUgfxCodeGenerator();
@@ -252,6 +272,135 @@ void TestAllCases::testComponentSerializationJson() {
     QCOMPARE(restoredBtn.backgroundColor(), QColor("#1ECBE1"));
     QCOMPARE(restoredBtn.textColor(), QColor("#112233"));
     QCOMPARE(restoredBtn.cornerRadius(), 8);
+}
+
+void TestAllCases::testPathBezierFlattening() {
+    PathComponent path("curve_test");
+    PathAnchor first{QPointF(0, 0), QPointF(), QPointF(0, 16), false, true};
+    PathAnchor second{QPointF(48, 0), QPointF(0, 16), QPointF(), true, false};
+    PathAnchor third{QPointF(48, 48), QPointF(), QPointF(), false, false};
+    path.setAnchors({first, second, third});
+
+    const QPolygonF flattened = path.flattenedPoints();
+    QCOMPARE(path.anchors().size(), 3);
+    QCOMPARE(path.flattenSubdivisions(), 16);
+    QCOMPARE(flattened.size(), 48);
+    QVERIFY(qAbs(flattened.at(8).x() - 24.0) < 0.000001);
+    QVERIFY(qAbs(flattened.at(8).y() - 12.0) < 0.000001);
+    QCOMPARE(path.painterPath().elementAt(1).type, QPainterPath::CurveToElement);
+    path.setFlattenSubdivisions(8);
+    QCOMPARE(path.flattenedPoints().size(), 24);
+    path.setFlattenSubdivisions(16);
+
+    const QJsonObject saved = path.toJson();
+    QVERIFY(saved.value("points").isArray());
+    QVERIFY(saved.value("anchors").isArray());
+    PathComponent restored("curve_restore");
+    restored.fromJson(saved);
+    QCOMPARE(restored.anchors().size(), 3);
+    QCOMPARE(restored.anchors().at(0).position, QPointF(0, 0));
+    QCOMPARE(restored.anchors().at(0).handleOut, QPointF(0, 16));
+    QCOMPARE(restored.anchors().at(1).handleIn, QPointF(0, 16));
+    QCOMPARE(restored.flattenedPoints().size(), 48);
+    QCOMPARE(restored.flattenSubdivisions(), 16);
+
+    QJsonObject legacy = saved;
+    legacy.remove("anchors");
+    legacy.remove("flattenSubdivisions");
+    PathComponent legacyRestored("legacy_curve");
+    legacyRestored.fromJson(legacy);
+    QCOMPARE(legacyRestored.anchors().size(), 3);
+    QCOMPARE(legacyRestored.flattenSubdivisions(), 16);
+    QVERIFY(!legacyRestored.anchors().first().hasHandleOut);
+
+    CanvasScene scene;
+    Project project(&scene);
+    auto* exportPath = new PathComponent("curve_export");
+    exportPath->setCompPos(80, 60);
+    exportPath->setAnchors({first, second, third});
+    scene.addUIComponent(exportPath);
+    const QString projectFile = m_tempDir.filePath("bezier_path.euiproj");
+    QVERIFY(project.saveToFile(projectFile));
+    CanvasScene loadedScene;
+    Project loadedProject(&loadedScene);
+    QVERIFY(loadedProject.loadFromFile(projectFile));
+    auto* loadedPath = dynamic_cast<PathComponent*>(loadedScene.uiComponents().first());
+    QVERIFY(loadedPath);
+    QCOMPARE(loadedPath->anchors().at(0).handleOut, QPointF(0, 16));
+
+    UgfxGenerator ugfx(&project, &scene);
+    const QString ugfxDir = m_tempDir.filePath("bezier_ugfx_out");
+    QVERIFY(ugfx.generate(ugfxDir));
+    QFile ugfxUi(ugfxDir + "/ui.c");
+    QVERIFY(ugfxUi.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(ugfxUi.readAll()).count("gdispDrawLine("), 48);
+
+    LvglGenerator lvgl(&project, &scene);
+    const QString lvglUi = lvgl.generateUiSource();
+    QVERIFY(lvglUi.contains("lv_point_t ui_path_curve_export_points[49]"));
+    QVERIFY(lvglUi.contains("lv_line_set_points(ui_path_curve_export, ui_path_curve_export_points, 49)"));
+
+    QtMcuGenerator qul(&project, &scene);
+    const QString designQml = qul.generateDesignQml();
+    QVERIFY(designQml.contains("Shape {"));
+    QVERIFY(designQml.contains("PathCubic {"));
+}
+
+void TestAllCases::testBezierPenDragAndEdit() {
+    CanvasScene scene;
+    CanvasView view(&scene);
+    view.resize(680, 480);
+    view.show();
+    QApplication::processEvents();
+    view.setActiveDrawingTool("Custom");
+
+    const auto sendPress = [&view](const QPointF& scenePoint) {
+        const QPoint point = view.mapFromScene(scenePoint);
+        QMouseEvent press(QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(view.viewport(), &press);
+    };
+    const auto sendRelease = [&view](const QPointF& scenePoint) {
+        const QPoint point = view.mapFromScene(scenePoint);
+        QMouseEvent release(QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(view.viewport(), &release);
+    };
+    const QPointF firstPoint(60, 60);
+    sendPress(firstPoint);
+    const QPoint dragPoint = view.mapFromScene(QPointF(60, 80));
+    QMouseEvent drag(QEvent::MouseMove, dragPoint, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(view.viewport(), &drag);
+    sendRelease(QPointF(60, 80));
+    const QPointF secondPoint(120, 60);
+    sendPress(secondPoint);
+    sendRelease(secondPoint);
+    const QPointF thirdPoint(120, 120);
+    sendPress(thirdPoint);
+    sendRelease(thirdPoint);
+    QKeyEvent finish(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &finish);
+
+    PathComponent* path = nullptr;
+    for (UIComponent* component : scene.uiComponents()) {
+        if (auto* candidate = dynamic_cast<PathComponent*>(component)) path = candidate;
+    }
+    QVERIFY(path);
+    QCOMPARE(path->anchors().size(), 3);
+    QCOMPARE(path->anchors().first().handleOut, QPointF(0, 20));
+    QCOMPARE(path->anchors().first().handleIn, QPointF(0, -20));
+    const QString drawn = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task1_bezier_pen_drag.png");
+    QVERIFY(view.grab().save(drawn));
+
+    view.setActiveDrawingTool("Custom");
+    const QPointF anchorScene = path->mapToScene(path->anchors().first().position);
+    sendPress(anchorScene);
+    const QPoint editEnd = view.mapFromScene(anchorScene + QPointF(0, 10));
+    QMouseEvent editDrag(QEvent::MouseMove, editEnd, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(view.viewport(), &editDrag);
+    sendRelease(anchorScene + QPointF(0, 10));
+    QCOMPARE(path->anchors().first().handleOut, QPointF(0, 10));
+    QCOMPARE(path->anchors().first().handleIn, QPointF(0, -10));
+    const QString reshaped = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task1_bezier_handle_edit.png");
+    QVERIFY(view.grab().save(reshaped));
 }
 
 void TestAllCases::testComponentCodeGenerationSnippets() {
@@ -529,6 +678,30 @@ void TestAllCases::testPropertiesPanelGeometryEditing() {
     QCOMPARE(btn.compHeight(), 35.0);
 }
 
+void TestAllCases::testPropertiesPanelAlignmentRow() {
+    PropertiesPanel panel;
+    ButtonComponent button("align_a");
+    LabelComponent label("align_b");
+    SwitchComponent switchComponent("align_c");
+    panel.resize(320, 640);
+    panel.setSelectedComponents({&button, &label});
+    panel.show();
+    QApplication::processEvents();
+    auto* row = panel.findChild<QWidget*>("multiSelectionAlignmentRow");
+    QVERIFY(row);
+    QVERIFY(row->isVisible());
+    const auto buttons = row->findChildren<QToolButton*>();
+    QCOMPARE(buttons.size(), 8);
+    QVERIFY(!buttons.at(6)->isEnabled());
+    QVERIFY(!buttons.at(7)->isEnabled());
+    panel.setSelectedComponents({&button, &label, &switchComponent});
+    QApplication::processEvents();
+    QVERIFY(buttons.at(6)->isEnabled());
+    QVERIFY(buttons.at(7)->isEnabled());
+    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/properties_alignment_row_3_selected.png");
+    QVERIFY(panel.grab().save(screenshot));
+}
+
 // ============================================================================
 // 5. Embedded Color Picker & RGB565 / Harmonies
 // ============================================================================
@@ -575,13 +748,45 @@ void TestAllCases::testLayerPanelSyncAndReorder() {
     ButtonComponent* b1 = new ButtonComponent("layer_b1");
     LabelComponent* l1 = new LabelComponent("layer_l1");
     RectangleComponent* r1 = new RectangleComponent("layer_r1");
+    ButtonComponent* b2 = new ButtonComponent("layer_b2");
+    LabelComponent* l2 = new LabelComponent("layer_l2");
 
     scene.addUIComponent(b1);
     scene.addUIComponent(l1);
     scene.addUIComponent(r1);
+    scene.addUIComponent(b2);
+    scene.addUIComponent(l2);
+    b1->setZValue(0);
+    l1->setZValue(10);
+    r1->setZValue(20);
+    b2->setZValue(30);
+    l2->setZValue(40);
 
     layers.refreshLayers();
-    QCOMPARE(scene.uiComponents().count(), 3);
+    QCOMPARE(scene.uiComponents().count(), 5);
+    auto* list = layers.findChild<QListWidget*>();
+    QVERIFY(list);
+    QCOMPARE(list->dragDropMode(), QAbstractItemView::InternalMove);
+    QCOMPARE(list->item(0)->text(), QString("layer_l2 (Text)"));
+
+    list->setCurrentRow(2);
+    auto* upButton = layers.findChild<QPushButton*>(QString(), Qt::FindDirectChildrenOnly);
+    QVERIFY(upButton);
+    const auto buttons = layers.findChildren<QPushButton*>();
+    QPushButton* moveUp = nullptr;
+    for (QPushButton* button : buttons) {
+        if (button->text() == "▲ Up") moveUp = button;
+    }
+    QVERIFY(moveUp);
+    moveUp->click();
+    QCOMPARE(list->item(0)->text(), QString("layer_l2 (Text)"));
+    QCOMPARE(list->item(1)->text(), QString("layer_r1 (Rectangle)"));
+    QCOMPARE(list->currentRow(), 1);
+    layers.resize(320, 360);
+    layers.show();
+    QApplication::processEvents();
+    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task3_layer_up_one_step.png");
+    QVERIFY(layers.grab().save(screenshot));
 }
 
 // ============================================================================
@@ -668,6 +873,173 @@ void TestAllCases::testProjectFullSaveAndLoad() {
 // ============================================================================
 // 8. Code Generators
 // ============================================================================
+
+void TestAllCases::testPrototypeInteractionTransition() {
+    CanvasScene scene;
+    Project project(&scene);
+    auto* checkbox = new CheckboxComponent("prototype_checkbox");
+    auto* switchComponent = new SwitchComponent("prototype_switch");
+    checkbox->setCompPos(30, 40);
+    switchComponent->setCompPos(170, 60);
+    scene.addUIComponent(checkbox);
+    scene.addUIComponent(switchComponent);
+
+    QJsonObject interaction;
+    interaction["trigger"] = "On Click";
+    interaction["target"] = switchComponent->componentId();
+    interaction["action"] = "Toggle";
+    interaction["value"] = "true";
+    interaction["transition"] = "Slide";
+    interaction["duration"] = 500;
+    checkbox->setInteractions(QJsonArray{interaction});
+
+    CheckboxComponent restored("restored");
+    restored.fromJson(checkbox->toJson());
+    QCOMPARE(restored.interactions().size(), 1);
+    QCOMPARE(restored.interactions().first().toObject().value("duration").toInt(), 500);
+
+    PrototypePanel panel(&scene);
+    panel.setTargetComponent(checkbox);
+    panel.resize(360, 620);
+    panel.show();
+    QApplication::processEvents();
+    auto* row = panel.findChild<QFrame*>("interactionRow");
+    QVERIFY(row);
+    QCOMPARE(row->findChild<QComboBox*>("transition")->currentText(), QString("Slide"));
+    QCOMPARE(row->findChild<QSpinBox*>("duration")->value(), 500);
+    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/prototype_interaction_transition.png");
+    QVERIFY(panel.grab().save(screenshot));
+
+    CanvasView view(&scene);
+    view.resize(680, 480);
+    view.show();
+    QApplication::processEvents();
+    QVERIFY(!checkbox->isChecked());
+    QElapsedTimer elapsed;
+    elapsed.start();
+    const QPoint clickPoint = view.mapFromScene(QPointF(checkbox->compX() + 24, checkbox->compY() + 12));
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, Qt::NoModifier, clickPoint);
+    QVERIFY(checkbox->isChecked());
+    QVERIFY(switchComponent->isChecked());
+    QVERIFY(switchComponent->transitionProgress() < 1.0);
+    QTest::qWait(250);
+    QVERIFY(switchComponent->transitionProgress() >= 0.35);
+    QVERIFY(switchComponent->transitionProgress() <= 0.75);
+    const QString midTransition = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/prototype_switch_transition_midpoint.png");
+    QVERIFY(view.grab().save(midTransition));
+    QTRY_VERIFY_WITH_TIMEOUT(switchComponent->transitionProgress() >= 1.0, 1200);
+    QVERIFY(elapsed.elapsed() >= 450);
+    QVERIFY(elapsed.elapsed() < 1000);
+    const QString afterTransition = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/prototype_checkbox_switch_after.png");
+    QVERIFY(view.grab().save(afterTransition));
+
+    LvglGenerator lvgl(&project, &scene);
+    const QString lvglSource = lvgl.generateUiSource();
+    QVERIFY(lvglSource.contains("ui_event_cb_prototype_checkbox"));
+    QVERIFY(lvglSource.contains("lv_obj_add_state(ui_sw_prototype_switch, LV_STATE_CHECKED)"));
+
+    QtMcuGenerator qul(&project, &scene);
+    const QString qml = qul.generateDesignQml();
+    QVERIFY(qml.contains("prototype_switch.prototypeDuration = 500"));
+    QVERIFY(qml.contains("prototype_switch.checked = !prototype_switch.checked"));
+
+    UgfxGenerator ugfx(&project, &scene);
+    const QString ugfxDir = m_tempDir.filePath("prototype_ugfx_out");
+    QVERIFY(ugfx.generate(ugfxDir));
+    QFile ugfxSource(ugfxDir + "/ui.c");
+    QVERIFY(ugfxSource.open(QIODevice::ReadOnly));
+    QVERIFY(QString::fromUtf8(ugfxSource.readAll()).contains("Prototype interaction callback stub"));
+}
+
+void TestAllCases::testProjectImportMergesComponents() {
+    CanvasScene sourceScene;
+    Project sourceProject(&sourceScene);
+    auto* importedButton = new ButtonComponent("shared");
+    importedButton->setCompPos(10, 20);
+    sourceScene.addUIComponent(importedButton);
+    const QString filePath = m_tempDir.filePath("import_source.euiproj");
+    QVERIFY(sourceProject.saveToFile(filePath));
+
+    CanvasScene destinationScene;
+    Project destinationProject(&destinationScene);
+    auto* existingButton = new ButtonComponent("shared");
+    existingButton->setCompPos(100, 120);
+    destinationScene.addUIComponent(existingButton);
+    QCOMPARE(destinationProject.importFromFile(filePath, QPointF(20, 20)), 1);
+    QCOMPARE(destinationScene.uiComponents().size(), 2);
+    QCOMPARE(existingButton->pos(), QPointF(100, 120));
+
+    UIComponent* merged = nullptr;
+    for (UIComponent* component : destinationScene.uiComponents()) {
+        if (component != existingButton) merged = component;
+    }
+    QVERIFY(merged);
+    QCOMPARE(merged->componentId(), QString("shared_2"));
+    QCOMPARE(merged->pos(), QPointF(30, 40));
+}
+
+void TestAllCases::testSerialMonitorPortListing() {
+    DeviceManager deviceManager;
+    SerialMonitorDialog dialog(&deviceManager);
+    dialog.resize(720, 520);
+    dialog.show();
+    QApplication::processEvents();
+    auto* picker = dialog.findChild<QComboBox*>("serialPortPicker");
+    auto* baudRate = dialog.findChild<QSpinBox*>("serialBaudRate");
+    QVERIFY(picker);
+    QVERIFY(baudRate);
+    QCOMPARE(baudRate->value(), 115200);
+    if (deviceManager.portNames().isEmpty()) {
+        QCOMPARE(picker->currentText(), QString("No serial ports detected"));
+        const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/serial_monitor_no_ports.png");
+        QVERIFY(dialog.grab().save(screenshot));
+    } else {
+        for (const QString& port : deviceManager.portNames()) QVERIFY(picker->findData(port) >= 0);
+    }
+}
+
+void TestAllCases::testToolbarDecluttered() {
+    MainWindow window;
+    window.show();
+    QApplication::processEvents();
+    const auto toolbars = window.findChildren<QToolBar*>();
+    QVERIFY(!toolbars.isEmpty());
+    QToolBar* toolbar = nullptr;
+    for (QToolBar* candidate : toolbars) {
+        for (QAction* action : candidate->actions()) {
+            if (action->text() == "Export...") toolbar = candidate;
+        }
+    }
+    QVERIFY(toolbar);
+    QStringList labels;
+    for (QAction* action : toolbar->actions()) labels.append(action->text());
+    QVERIFY(labels.contains("Export..."));
+    QVERIFY(!labels.contains("New"));
+    QVERIFY(!labels.contains("Open"));
+    QVERIFY(!labels.contains("Save"));
+    QVERIFY(labels.contains("−"));
+    QVERIFY(labels.contains("+"));
+    QVERIFY(labels.contains("100%"));
+    QVERIFY(!labels.contains("Zoom -"));
+    QVERIFY(!labels.contains("Zoom +"));
+    QVERIFY(!labels.contains("Align:"));
+
+    QMenu* fileMenu = nullptr;
+    for (QAction* action : window.menuBar()->actions()) {
+        if (action->text() == "File") fileMenu = action->menu();
+    }
+    QVERIFY(fileMenu);
+    int importActions = 0;
+    int exportActions = 0;
+    for (QAction* action : fileMenu->actions()) {
+        if (action->text() == "Import...") ++importActions;
+        if (action->text() == "Export...") ++exportActions;
+    }
+    QCOMPARE(importActions, 1);
+    QCOMPARE(exportActions, 1);
+    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task2_toolbar_after.png");
+    QVERIFY(toolbar->grab().save(screenshot));
+}
 
 void TestAllCases::testUgfxCodeGenerator() {
     CanvasScene scene;

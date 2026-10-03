@@ -9,9 +9,71 @@
 #include "CheckboxComponent.h"
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
+#include "PathComponent.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
+
+static UIComponent* findQmlInteractionTarget(CanvasScene* scene, const QString& componentId) {
+    if (!scene) return nullptr;
+    for (UIComponent* component : scene->uiComponents()) {
+        if (component->componentId() == componentId) return component;
+    }
+    return nullptr;
+}
+
+static QString qmlString(const QString& value) {
+    QString escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    return escaped;
+}
+
+static QString qmlInteractionAction(const QJsonObject& interaction, CanvasScene* scene, const QString& indent) {
+    UIComponent* target = findQmlInteractionTarget(scene, interaction.value("target").toString());
+    if (!target) return {};
+    const QString targetId = target->componentId();
+    const QString action = interaction.value("action").toString();
+    const QString value = interaction.value("value").toString();
+    const QString transition = interaction.value("transition").toString("Instant");
+    const int duration = interaction.value("duration").toInt();
+    QString code;
+    if (dynamic_cast<SwitchComponent*>(target)) {
+        code += indent + QString("%1.prototypeTransition = \"%2\";\n").arg(targetId, transition);
+        code += indent + QString("%1.prototypeDuration = %2;\n").arg(targetId).arg(duration);
+    }
+    if (action == "Show") code += indent + targetId + ".visible = true;\n";
+    else if (action == "Hide") code += indent + targetId + ".visible = false;\n";
+    else if (action == "Toggle") {
+        if (dynamic_cast<SwitchComponent*>(target) || dynamic_cast<CheckboxComponent*>(target))
+            code += indent + targetId + ".checked = !" + targetId + ".checked;\n";
+        else code += indent + targetId + ".visible = !" + targetId + ".visible;\n";
+    } else if (action == "Set Value") {
+        if (dynamic_cast<SwitchComponent*>(target) || dynamic_cast<CheckboxComponent*>(target))
+            code += indent + QString("%1.checked = %2;\n").arg(targetId, value.compare("true", Qt::CaseInsensitive) == 0 || value == "1" ? "true" : "false");
+        else if (dynamic_cast<LabelComponent*>(target) || dynamic_cast<ButtonComponent*>(target) || dynamic_cast<TextInputComponent*>(target))
+            code += indent + QString("%1.text = \"%2\";\n").arg(targetId, qmlString(value));
+        else code += indent + QString("%1.value = %2;\n").arg(targetId, value);
+    }
+    return code;
+}
+
+static void appendQmlInteractions(QString& qml, UIComponent* source, CanvasScene* scene,
+                                 const QStringList& triggers, const QString& indent) {
+    for (const QJsonValue& value : source->interactions()) {
+        const QJsonObject interaction = value.toObject();
+        if (triggers.contains(interaction.value("trigger").toString()))
+            qml += qmlInteractionAction(interaction, scene, indent);
+    }
+}
+
+static bool hasQmlInteractions(UIComponent* source, const QStringList& triggers) {
+    for (const QJsonValue& value : source->interactions()) {
+        if (triggers.contains(value.toObject().value("trigger").toString())) return true;
+    }
+    return false;
+}
 
 QtMcuGenerator::QtMcuGenerator(Project* project, CanvasScene* scene)
     : CodeGenerator(project)
@@ -117,8 +179,10 @@ QString QtMcuGenerator::generateDesignQml() {
     qml += " * Strictly adheres to supported QUL types (Rectangle, Text, Image, MouseArea).\n";
     qml += " */\n";
     qml += "import Qul 1.0\n\n";
+    qml += "import QtQuick.Shapes 1.15\n\n";
     qml += "Rectangle {\n";
     qml += "    id: root\n";
+    qml += "    // Prototype actions target components on this screen only.\n";
     qml += QString("    width: %1\n").arg(cfg.width);
     qml += QString("    height: %2\n").arg(cfg.height);
     QString bgColor = (m_scene) ? m_scene->screenBackgroundColor().name() : "#ffffff";
@@ -204,6 +268,7 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(btn->pos().y()))
                     .arg(static_cast<int>(btn->compWidth()))
                     .arg(static_cast<int>(btn->compHeight()));
+                qml += QString("        property string text: \"%1\"\n").arg(qmlString(btn->text()));
                 qml += QString("        color: %1_mouse.pressed ? \"%2\" : \"%3\"\n")
                     .arg(btn->componentId())
                     .arg(btn->backgroundColor().darker(120).name())
@@ -213,7 +278,7 @@ QString QtMcuGenerator::generateDesignQml() {
                 }
                 qml += "        Text {\n";
                 qml += "            anchors.centerIn: parent\n";
-                qml += QString("            text: \"%1\"\n").arg(btn->text());
+                qml += "            text: parent.text\n";
                 qml += QString("            color: \"%1\"\n").arg(btn->textColor().name());
                 qml += "            font.bold: true\n";
                 qml += "            font.pixelSize: 14\n";
@@ -221,8 +286,15 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "        MouseArea {\n";
                 qml += QString("            id: %1_mouse\n").arg(btn->componentId());
                 qml += "            anchors.fill: parent\n";
-                if (!btn->onClickedHandler().isEmpty()) {
+                const bool hasPrototypeClick = hasQmlInteractions(btn, {"On Click"});
+                if (!hasPrototypeClick && !btn->onClickedHandler().isEmpty()) {
                     qml += QString("            onClicked: root.%1()\n").arg(btn->onClickedHandler());
+                } else if (hasPrototypeClick) {
+                    qml += "            onClicked: {\n";
+                    if (!btn->onClickedHandler().isEmpty())
+                        qml += QString("                root.%1()\n").arg(btn->onClickedHandler());
+                    appendQmlInteractions(qml, btn, m_scene, {"On Click"}, "                ");
+                    qml += "            }\n";
                 }
                 qml += "        }\n";
                 qml += "    }\n\n";
@@ -235,13 +307,14 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(prog->pos().y()))
                     .arg(static_cast<int>(prog->compWidth()))
                     .arg(static_cast<int>(prog->compHeight()));
+                qml += QString("        property real value: %1\n").arg(prog->value(), 0, 'f', 3);
                 qml += QString("        color: \"%1\"\n").arg(prog->trackColor().name());
                 if (prog->cornerRadius() > 0) {
                     qml += QString("        radius: %1\n").arg(prog->cornerRadius());
                 }
                 qml += "        Rectangle {\n";
                 qml += "            height: parent.height\n";
-                qml += QString("            width: parent.width * %1\n").arg(prog->value(), 0, 'f', 2);
+                qml += "            width: parent.width * parent.value\n";
                 qml += QString("            color: \"%1\"\n").arg(prog->barColor().name());
                 if (prog->cornerRadius() > 0) {
                     qml += QString("            radius: %1\n").arg(prog->cornerRadius());
@@ -277,16 +350,24 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += QString("            color: \"%1\"\n").arg(slider->trackColor().name());
                 qml += "            Rectangle {\n";
                 qml += "                height: parent.height; radius: 3\n";
-                qml += QString("                width: parent.width * %1\n").arg((slider->maximum() > slider->minimum()) ? static_cast<double>(slider->value() - slider->minimum()) / (slider->maximum() - slider->minimum()) : 0.0, 0, 'f', 2);
+                qml += "                width: parent.width * (parent.parent.maximum > parent.parent.minimum ? (parent.parent.value - parent.parent.minimum) / (parent.parent.maximum - parent.parent.minimum) : 0)\n";
                 qml += QString("                color: \"%1\"\n").arg(slider->fillColor().name());
                 qml += "            }\n";
                 qml += "        }\n";
                 qml += "        Rectangle {\n";
                 qml += "            width: 14; height: 14; radius: 7\n";
-                qml += QString("            x: 10 + (parent.width - 20) * %1 - 7\n").arg((slider->maximum() > slider->minimum()) ? static_cast<double>(slider->value() - slider->minimum()) / (slider->maximum() - slider->minimum()) : 0.0, 0, 'f', 2);
+                qml += "            x: 10 + (parent.width - 20) * (parent.maximum > parent.minimum ? (parent.value - parent.minimum) / (parent.maximum - parent.minimum) : 0) - 7\n";
                 qml += "            anchors.verticalCenter: parent.verticalCenter\n";
                 qml += QString("            color: \"%1\"\n").arg(slider->handleColor().name());
                 qml += QString("            border.color: \"%1\"; border.width: 1\n").arg(slider->fillColor().name());
+                qml += "        }\n";
+                qml += "        MouseArea {\n";
+                qml += "            anchors.fill: parent\n";
+                qml += "            onClicked: {\n";
+                qml += "                parent.value = parent.minimum + Math.round((parent.maximum - parent.minimum) * mouse.x / parent.width)\n";
+                appendQmlInteractions(qml, slider, m_scene,
+                                      {"On Click", "On Change", "On Value Changed"}, "                ");
+                qml += "            }\n";
                 qml += "        }\n";
                 qml += "    }\n\n";
             } else if (auto sw = dynamic_cast<SwitchComponent*>(comp)) {
@@ -299,13 +380,18 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(sw->compWidth()))
                     .arg(static_cast<int>(sw->compHeight()));
                 qml += QString("        property bool checked: %1\n").arg(sw->isChecked() ? "true" : "false");
+                qml += "        property int prototypeDuration: 0\n";
+                qml += "        property string prototypeTransition: \"Instant\"\n";
                 qml += "        radius: height / 2\n";
                 qml += QString("        color: checked ? \"%1\" : \"%2\"\n")
                     .arg(sw->onColor().name()).arg(sw->offColor().name());
+                qml += "        Behavior on color { ColorAnimation { duration: prototypeTransition == \"Dissolve\" ? prototypeDuration : 0 } }\n";
+                qml += "        // Slide moves the thumb; Dissolve fades the track color.\n";
                 qml += "        Rectangle {\n";
                 qml += "            width: parent.height - 6; height: width; radius: width / 2\n";
                 qml += "            anchors.verticalCenter: parent.verticalCenter\n";
                 qml += "            x: parent.checked ? parent.width - width - 3 : 3\n";
+                qml += QString("            Behavior on x { NumberAnimation { duration: %1.prototypeTransition == \"Slide\" ? %1.prototypeDuration : 0 } }\n").arg(sw->componentId());
                 qml += QString("            color: \"%1\"\n").arg(sw->thumbColor().name());
                 qml += "        }\n";
                 qml += "        MouseArea {\n";
@@ -315,6 +401,8 @@ QString QtMcuGenerator::generateDesignQml() {
                 if (!sw->onToggledHandler().isEmpty()) {
                     qml += QString("                root.%1(parent.checked);\n").arg(sw->onToggledHandler());
                 }
+                appendQmlInteractions(qml, sw, m_scene,
+                                      {"On Click", "On Change", "On Value Changed"}, "                ");
                 qml += "            }\n";
                 qml += "        }\n";
                 qml += "    }\n\n";
@@ -355,6 +443,8 @@ QString QtMcuGenerator::generateDesignQml() {
                 if (!chk->onToggledHandler().isEmpty()) {
                     qml += QString("                root.%1(parent.checked);\n").arg(chk->onToggledHandler());
                 }
+                appendQmlInteractions(qml, chk, m_scene,
+                                      {"On Click", "On Change", "On Value Changed"}, "                ");
                 qml += "            }\n";
                 qml += "        }\n";
                 qml += "    }\n\n";
@@ -386,8 +476,22 @@ QString QtMcuGenerator::generateDesignQml() {
                 if (txt->isReadOnly()) {
                     qml += "            readOnly: true\n";
                 }
-                if (!txt->onTextChangedHandler().isEmpty()) {
+                const bool hasPrototypeTextChange = hasQmlInteractions(txt, {"On Change", "On Value Changed"});
+                if (!hasPrototypeTextChange && !txt->onTextChangedHandler().isEmpty()) {
                     qml += QString("            onTextChanged: root.%1(text)\n").arg(txt->onTextChangedHandler());
+                } else if (hasPrototypeTextChange) {
+                    qml += "            onTextChanged: {\n";
+                    if (!txt->onTextChangedHandler().isEmpty())
+                        qml += QString("                root.%1(text)\n").arg(txt->onTextChangedHandler());
+                    appendQmlInteractions(qml, txt, m_scene, {"On Change", "On Value Changed"}, "                ");
+                    qml += "            }\n";
+                }
+                if (hasQmlInteractions(txt, {"On Click"})) {
+                    qml += "            onActiveFocusChanged: {\n";
+                    qml += "                if (activeFocus) {\n";
+                    appendQmlInteractions(qml, txt, m_scene, {"On Click"}, "                    ");
+                    qml += "                }\n";
+                    qml += "            }\n";
                 }
                 qml += "        }\n";
                 qml += "    }\n\n";
@@ -406,6 +510,39 @@ QString QtMcuGenerator::generateDesignQml() {
                     qml += QString("        border.color: \"%1\"\n").arg(circ->strokeColor().name());
                     qml += QString("        border.width: %1\n").arg(circ->strokeWidth());
                 }
+                qml += "    }\n\n";
+            } else if (auto path = dynamic_cast<PathComponent*>(comp)) {
+                const QList<PathAnchor> anchors = path->anchors();
+                if (anchors.size() < 3) continue;
+                qml += "    Shape {\n";
+                qml += QString("        id: %1\n").arg(path->componentId());
+                qml += QString("        x: %1; y: %2; width: %3; height: %4\n")
+                    .arg(static_cast<int>(path->pos().x()))
+                    .arg(static_cast<int>(path->pos().y()))
+                    .arg(static_cast<int>(path->compWidth()))
+                    .arg(static_cast<int>(path->compHeight()));
+                qml += QString("        opacity: %1\n").arg(path->opacityPercent() / 100.0, 0, 'f', 2);
+                qml += "        ShapePath {\n";
+                qml += QString("            strokeColor: \"%1\"\n").arg(path->strokeColor().name());
+                qml += "            fillColor: \"transparent\"\n";
+                qml += QString("            strokeWidth: %1\n").arg(path->strokeThickness());
+                qml += QString("            startX: %1; startY: %2\n")
+                    .arg(anchors.first().position.x()).arg(anchors.first().position.y());
+                for (int index = 0; index < anchors.size(); ++index) {
+                    const PathAnchor& start = anchors.at(index);
+                    const PathAnchor& end = anchors.at((index + 1) % anchors.size());
+                    if (start.hasHandleOut || end.hasHandleIn) {
+                        const QPointF control1 = start.hasHandleOut ? start.position + start.handleOut : start.position;
+                        const QPointF control2 = end.hasHandleIn ? end.position + end.handleIn : end.position;
+                        qml += QString("            PathCubic { x: %1; y: %2; control1X: %3; control1Y: %4; control2X: %5; control2Y: %6 }\n")
+                            .arg(end.position.x()).arg(end.position.y())
+                            .arg(control1.x()).arg(control1.y()).arg(control2.x()).arg(control2.y());
+                    } else {
+                        qml += QString("            PathLine { x: %1; y: %2 }\n")
+                            .arg(end.position.x()).arg(end.position.y());
+                    }
+                }
+                qml += "        }\n";
                 qml += "    }\n\n";
             } else if (comp) {
                 // Fallback for unsupported / unrecognized types

@@ -25,6 +25,20 @@ find_package(Qt6 6.5 OPTIONAL_COMPONENTS
     SerialPort
 )
 
+# ── Clipper2 (Boolean path operations) ────────────────────────────────────
+# Fetched at configure time; provides Clipper2Lib::Clipper2 target.
+include(FetchContent)
+FetchContent_Declare(
+    Clipper2
+    GIT_REPOSITORY https://github.com/AngusJohnson/Clipper2.git
+    GIT_TAG        Clipper2_1.3.0
+    SOURCE_SUBDIR  CPP
+)
+set(CLIPPER2_UTILS OFF CACHE BOOL "" FORCE)
+set(CLIPPER2_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(CLIPPER2_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(Clipper2)
+
 # Common Source files (excluding main.cpp)
 set(COMMON_SOURCES
     src/MainWindow.cpp
@@ -32,6 +46,8 @@ set(COMMON_SOURCES
 
     src/dialogs/FlashDialog.cpp
     src/dialogs/FlashDialog.h
+    src/dialogs/SerialMonitorDialog.cpp
+    src/dialogs/SerialMonitorDialog.h
     src/dialogs/NewProjectDialog.cpp
     src/dialogs/NewProjectDialog.h
 
@@ -81,6 +97,8 @@ set(COMMON_SOURCES
     src/commands/PropertyChangeCommand.h
     src/commands/AlignDistributeCommand.cpp
     src/commands/AlignDistributeCommand.h
+    src/commands/BooleanPathCommand.cpp
+    src/commands/BooleanPathCommand.h
 
     # Code Generators
     src/codegen/CodeGenerator.cpp
@@ -107,6 +125,8 @@ set(COMMON_SOURCES
     src/panels/ComponentPalette.h
     src/panels/PropertiesPanel.cpp
     src/panels/PropertiesPanel.h
+    src/panels/PrototypePanel.cpp
+    src/panels/PrototypePanel.h
     src/panels/ColorPickerDialog.cpp
     src/panels/ColorPickerDialog.h
     src/panels/LayerPanel.cpp
@@ -178,6 +198,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Clipper2
 )
 
 if(Qt6SerialPort_FOUND)
@@ -258,6 +279,7 @@ target_link_libraries(test_all_cases PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Test
+    Clipper2
 )
 
 if(Qt6SerialPort_FOUND)
@@ -299,6 +321,7 @@ target_link_libraries(test_functional_runner PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Clipper2
 )
 
 if(Qt6SerialPort_FOUND)

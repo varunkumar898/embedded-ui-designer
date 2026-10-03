@@ -1,5 +1,6 @@
 #include "SwitchComponent.h"
 #include <QPainterPath>
+#include <QVariantAnimation>
 
 SwitchComponent::SwitchComponent(const QString& id, QGraphicsItem* parent)
     : UIComponent(id, "Switch", parent)
@@ -9,11 +10,51 @@ SwitchComponent::SwitchComponent(const QString& id, QGraphicsItem* parent)
 }
 
 void SwitchComponent::setChecked(bool checked) {
+    if (m_transitionAnimation) {
+        m_transitionAnimation->stop();
+        m_transitionAnimation->deleteLater();
+        m_transitionAnimation = nullptr;
+    }
+    m_transitionType = "Instant";
+    m_transitionProgress = checked ? 1.0 : 0.0;
     if (m_checked != checked) {
         m_checked = checked;
         update();
         emit propertyChanged(this);
+        emit interactionTriggered("On Change");
+        emit interactionTriggered("On Value Changed");
     }
+}
+
+void SwitchComponent::animateChecked(bool checked, const QString& transition, int durationMs) {
+    if (transition == "Instant" || durationMs <= 0 || m_checked == checked) {
+        setChecked(checked);
+        return;
+    }
+    if (m_transitionAnimation) {
+        m_transitionAnimation->stop();
+        m_transitionAnimation->deleteLater();
+    }
+    m_animationFromChecked = m_checked;
+    m_transitionType = transition;
+    m_transitionProgress = 0.0;
+    m_checked = checked;
+    emit propertyChanged(this);
+    m_transitionAnimation = new QVariantAnimation(this);
+    m_transitionAnimation->setDuration(durationMs);
+    m_transitionAnimation->setStartValue(0.0);
+    m_transitionAnimation->setEndValue(1.0);
+    connect(m_transitionAnimation, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+        m_transitionProgress = value.toReal();
+        update();
+    });
+    connect(m_transitionAnimation, &QVariantAnimation::finished, this, [this]() {
+        m_transitionProgress = 1.0;
+        update();
+        m_transitionAnimation->deleteLater();
+        m_transitionAnimation = nullptr;
+    });
+    m_transitionAnimation->start();
 }
 
 void SwitchComponent::setOnColor(const QColor& color) {
@@ -57,19 +98,43 @@ void SwitchComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 void SwitchComponent::paintComponent(QPainter* painter) {
     painter->setRenderHint(QPainter::Antialiasing);
     qreal radius = m_height / 2.0;
-
-    // 1. Pill track background
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(m_checked ? m_onColor : m_offColor);
-    painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), radius, radius);
-
-    // 2. Thumb circle
     qreal thumbDiameter = m_height - 6.0;
     qreal thumbY = 3.0;
-    qreal thumbX = m_checked ? (m_width - thumbDiameter - 3.0) : 3.0;
-
-    painter->setBrush(m_thumbColor);
-    painter->drawEllipse(QRectF(thumbX, thumbY, thumbDiameter, thumbDiameter));
+    const bool animating = m_transitionAnimation != nullptr;
+    const qreal progress = animating ? m_transitionProgress : 1.0;
+    const bool fromChecked = animating ? m_animationFromChecked : m_checked;
+    const QColor fromColor = fromChecked ? m_onColor : m_offColor;
+    const QColor toColor = m_checked ? m_onColor : m_offColor;
+    painter->setPen(Qt::NoPen);
+    if (m_transitionType == "Dissolve") {
+        const qreal fromX = fromChecked ? (m_width - thumbDiameter - 3.0) : 3.0;
+        const qreal toX = m_checked ? (m_width - thumbDiameter - 3.0) : 3.0;
+        painter->setOpacity(1.0 - progress);
+        painter->setBrush(fromColor);
+        painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), radius, radius);
+        painter->setOpacity(progress);
+        painter->setBrush(toColor);
+        painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), radius, radius);
+        painter->setOpacity(1.0 - progress);
+        painter->setBrush(m_thumbColor);
+        painter->drawEllipse(QRectF(fromX, thumbY, thumbDiameter, thumbDiameter));
+        painter->setOpacity(progress);
+        painter->drawEllipse(QRectF(toX, thumbY, thumbDiameter, thumbDiameter));
+    } else {
+        const QColor blendedColor = QColor::fromRgbF(
+            fromColor.redF() + (toColor.redF() - fromColor.redF()) * progress,
+            fromColor.greenF() + (toColor.greenF() - fromColor.greenF()) * progress,
+            fromColor.blueF() + (toColor.blueF() - fromColor.blueF()) * progress);
+        painter->setOpacity(1.0);
+        painter->setBrush(blendedColor);
+        painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), radius, radius);
+        const qreal fromX = fromChecked ? (m_width - thumbDiameter - 3.0) : 3.0;
+        const qreal toX = m_checked ? (m_width - thumbDiameter - 3.0) : 3.0;
+        const qreal thumbX = fromX + (toX - fromX) * progress;
+        painter->setBrush(m_thumbColor);
+        painter->drawEllipse(QRectF(thumbX, thumbY, thumbDiameter, thumbDiameter));
+    }
+    painter->setOpacity(1.0);
 }
 
 QJsonObject SwitchComponent::toJson() const {
