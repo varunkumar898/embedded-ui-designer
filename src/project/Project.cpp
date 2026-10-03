@@ -23,6 +23,7 @@ Project::Project(CanvasScene* scene, QObject* parent)
     , m_scene(scene)
 {
     m_displayConfig = DisplayConfig();
+    initDefaultStyles();
 
     if (m_scene) {
         connect(m_scene, &CanvasScene::componentChanged, this, [this]() { setDirty(true); });
@@ -100,6 +101,9 @@ void Project::newProject(const QString& name, int width, int height) {
         m_scene->setScreenBackgroundColor(Qt::white);
     }
 
+    initDefaultStyles();
+    emit colorStylesChanged();
+
     m_dirty = false;
     emit projectLoaded();
 }
@@ -110,6 +114,12 @@ QJsonObject Project::toJson() const {
     root["name"] = m_name;
     root["target"] = m_targetFramework;
     root["display"] = m_displayConfig.toJson();
+
+    // ── Named color styles ────────────────────────────────────────────────
+    QJsonArray stylesArr;
+    for (const ColorStyle& s : m_colorStyles)
+        stylesArr.append(s.toJson());
+    root["colorStyles"] = stylesArr;
 
     QJsonArray pages;
     QJsonObject mainPage;
@@ -158,6 +168,16 @@ bool Project::fromJson(const QJsonObject& root) {
         m_displayConfig = DisplayConfig::fromJson(root.value("display").toObject());
     }
 
+    // ── Named color styles ────────────────────────────────────────────────
+    m_colorStyles.clear();
+    if (root.contains("colorStyles") && root.value("colorStyles").isArray()) {
+        for (const QJsonValue& v : root.value("colorStyles").toArray())
+            m_colorStyles.append(ColorStyle::fromJson(v.toObject()));
+    } else {
+        initDefaultStyles();
+    }
+    emit colorStylesChanged();
+
     if (m_scene) {
         m_scene->clearComponents();
         m_scene->setDisplayConfig(m_displayConfig);
@@ -190,6 +210,16 @@ bool Project::fromJson(const QJsonObject& root) {
                         }
                     }
                 }
+            }
+        }
+
+        // Resolve all style refs on canvas components (apply the loaded colors).
+        for (UIComponent* comp : m_scene->uiComponents()) {
+            const auto& refs = comp->colorStyleRefs();
+            for (auto it = refs.begin(); it != refs.end(); ++it) {
+                const QString styleName = it.value();
+                if (hasColorStyle(styleName))
+                    comp->applyColorStyle(styleName, resolveColor(styleName));
             }
         }
     }
@@ -355,4 +385,82 @@ void Project::updateVariantsForDefinition(const QString& id, const QList<Compone
             return;
         }
     }
+}
+
+// ── Named Color Styles ────────────────────────────────────────────────────
+
+void Project::initDefaultStyles() {
+    m_colorStyles = {
+        { "Primary",    QColor("#2196F3") },
+        { "Background", QColor("#1E2026") },
+        { "Accent",     QColor("#FF5722") },
+        { "Text",       QColor("#FFFFFF") }
+    };
+}
+
+void Project::addColorStyle(const ColorStyle& style) {
+    for (int i = 0; i < m_colorStyles.size(); ++i) {
+        if (m_colorStyles[i].name == style.name) {
+            updateColorStyle(style.name, style.color);
+            return;
+        }
+    }
+    m_colorStyles.append(style);
+    setDirty(true);
+    emit colorStylesChanged();
+}
+
+void Project::updateColorStyle(const QString& name, const QColor& newColor) {
+    bool found = false;
+    for (auto& s : m_colorStyles) {
+        if (s.name == name) {
+            s.color = newColor;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        m_colorStyles.append({name, newColor});
+    }
+    setDirty(true);
+    emit colorStylesChanged();
+
+    // Live propagation: immediately update every component on the canvas
+    // that references this style — no reload required.
+    if (m_scene) {
+        for (UIComponent* comp : m_scene->uiComponents()) {
+            comp->applyColorStyle(name, newColor);
+        }
+    }
+}
+
+void Project::removeColorStyle(const QString& name) {
+    for (int i = 0; i < m_colorStyles.size(); ++i) {
+        if (m_colorStyles[i].name == name) {
+            m_colorStyles.removeAt(i);
+            setDirty(true);
+            emit colorStylesChanged();
+            break;
+        }
+    }
+}
+
+QColor Project::resolveColor(const QString& styleName, const QColor& defaultColor) const {
+    for (const ColorStyle& s : m_colorStyles) {
+        if (s.name == styleName) return s.color;
+    }
+    return defaultColor;
+}
+
+bool Project::hasColorStyle(const QString& name) const {
+    for (const ColorStyle& s : m_colorStyles) {
+        if (s.name == name) return true;
+    }
+    return false;
+}
+
+void Project::setColorStyles(const QList<ColorStyle>& styles) {
+    m_colorStyles = styles;
+    setDirty(true);
+    emit colorStylesChanged();
 }

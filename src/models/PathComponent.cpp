@@ -236,6 +236,14 @@ void PathComponent::setStrokeColor(const QColor& color) {
     }
 }
 
+void PathComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    if (colorStyleRef("strokeColor") == styleName) {
+        m_strokeColor = color;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 void PathComponent::setStrokeThickness(qreal thickness) {
     thickness = std::clamp(thickness, 0.5, 64.0);
     if (!qFuzzyCompare(m_strokeThickness, thickness)) {
@@ -349,7 +357,7 @@ QJsonObject PathComponent::toJson() const {
         json["anchors"] = anchorsJson;
     }
 
-    json["strokeColor"]       = m_strokeColor.name(QColor::HexArgb);
+    json["strokeColor"]       = serializeColor(m_strokeColor, colorStyleRef("strokeColor"));
     json["strokeThickness"]   = m_strokeThickness;
     json["opacity"]           = m_opacityPercent;
     json["flattenSubdivisions"] = m_flattenSubdivisions;
@@ -393,7 +401,13 @@ void PathComponent::fromJson(const QJsonObject& json) {
     if (m_contours.isEmpty())
         m_contours.append(PathContour()); // always keep at least one slot
 
-    m_strokeColor        = QColor(json.value("strokeColor").toString(m_strokeColor.name(QColor::HexArgb)));
+    if (json.contains("strokeColor")) {
+        QString ref;
+        deserializeColor(json.value("strokeColor"), m_strokeColor, ref);
+        if (ref.isEmpty())
+            m_strokeColor = QColor(json.value("strokeColor").toString(m_strokeColor.name(QColor::HexArgb)));
+        setColorStyleRef("strokeColor", ref);
+    }
     m_strokeThickness    = json.value("strokeThickness").toDouble(m_strokeThickness);
     m_opacityPercent     = json.value("opacity").toInt(m_opacityPercent);
     m_flattenSubdivisions = std::clamp(

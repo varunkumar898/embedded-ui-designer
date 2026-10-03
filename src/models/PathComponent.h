@@ -74,6 +74,8 @@ public:
     // ── Code generation ───────────────────────────────────────────────────
     QString toQmlSnippet(int indentSpaces = 8) const override;
 
+    void applyColorStyle(const QString& styleName, const QColor& color) override;
+
 protected:
     void paintComponent(QPainter* painter) override;
 

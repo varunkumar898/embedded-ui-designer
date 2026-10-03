@@ -12,6 +12,7 @@
 #include "PropertiesPanel.h"
 #include "PrototypePanel.h"
 #include "LayerPanel.h"
+#include "StylesPanel.h"
 #include "Project.h"
 
 class DeviceManager;
@@ -86,6 +87,7 @@ private:
     PropertiesPanel* m_propertiesPanel = nullptr;
     PrototypePanel* m_prototypePanel = nullptr;
     LayerPanel* m_layerPanel = nullptr;
+    StylesPanel* m_stylesPanel = nullptr;
 
     // UI Chrome
     QComboBox* m_resolutionCombo = nullptr;

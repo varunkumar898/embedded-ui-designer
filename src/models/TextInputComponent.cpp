@@ -141,10 +141,10 @@ QJsonObject TextInputComponent::toJson() const {
     QJsonObject json = UIComponent::toJson();
     json["text"] = m_text;
     json["placeholder"] = m_placeholder;
-    json["textColor"] = m_textColor.name();
-    json["placeholderColor"] = m_placeholderColor.name();
-    json["backgroundColor"] = m_backgroundColor.name();
-    json["borderColor"] = m_borderColor.name();
+    json["textColor"] = serializeColor(m_textColor, colorStyleRef("textColor"));
+    json["placeholderColor"] = serializeColor(m_placeholderColor, colorStyleRef("placeholderColor"));
+    json["backgroundColor"] = serializeColor(m_backgroundColor, colorStyleRef("backgroundColor"));
+    json["borderColor"] = serializeColor(m_borderColor, colorStyleRef("borderColor"));
     json["borderWidth"] = m_borderWidth;
     json["cornerRadius"] = m_cornerRadius;
     json["pixelSize"] = m_pixelSize;
@@ -157,15 +157,55 @@ void TextInputComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     m_text = json.value("text").toString();
     m_placeholder = json.value("placeholder").toString("Enter text...");
-    if (json.contains("textColor")) m_textColor = QColor(json.value("textColor").toString());
-    if (json.contains("placeholderColor")) m_placeholderColor = QColor(json.value("placeholderColor").toString());
-    if (json.contains("backgroundColor")) m_backgroundColor = QColor(json.value("backgroundColor").toString());
-    if (json.contains("borderColor")) m_borderColor = QColor(json.value("borderColor").toString());
+    if (json.contains("textColor")) {
+        QString ref;
+        deserializeColor(json.value("textColor"), m_textColor, ref);
+        setColorStyleRef("textColor", ref);
+    }
+    if (json.contains("placeholderColor")) {
+        QString ref;
+        deserializeColor(json.value("placeholderColor"), m_placeholderColor, ref);
+        setColorStyleRef("placeholderColor", ref);
+    }
+    if (json.contains("backgroundColor")) {
+        QString ref;
+        deserializeColor(json.value("backgroundColor"), m_backgroundColor, ref);
+        setColorStyleRef("backgroundColor", ref);
+    }
+    if (json.contains("borderColor")) {
+        QString ref;
+        deserializeColor(json.value("borderColor"), m_borderColor, ref);
+        setColorStyleRef("borderColor", ref);
+    }
     m_borderWidth = json.value("borderWidth").toInt(1);
     m_cornerRadius = json.value("cornerRadius").toInt(4);
     m_pixelSize = json.value("pixelSize").toInt(13);
     m_readOnly = json.value("readOnly").toBool(false);
     m_onTextChangedHandler = json.value("onTextChanged").toString();
+}
+
+void TextInputComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("textColor") == styleName) {
+        m_textColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("placeholderColor") == styleName) {
+        m_placeholderColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("backgroundColor") == styleName) {
+        m_backgroundColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("borderColor") == styleName) {
+        m_borderColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
 }
 
 QString TextInputComponent::toQmlSnippet(int indentSpaces) const {

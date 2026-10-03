@@ -79,8 +79,8 @@ void ButtonComponent::paintComponent(QPainter* painter) {
 QJsonObject ButtonComponent::toJson() const {
     QJsonObject obj = UIComponent::toJson();
     obj["text"] = m_text;
-    obj["backgroundColor"] = m_backgroundColor.name();
-    obj["textColor"] = m_textColor.name();
+    obj["backgroundColor"] = serializeColor(m_backgroundColor, colorStyleRef("backgroundColor"));
+    obj["textColor"] = serializeColor(m_textColor, colorStyleRef("textColor"));
     obj["cornerRadius"] = m_cornerRadius;
     obj["onClicked"] = m_onClickedHandler;
     if (!m_targetScreenId.isEmpty()) {
@@ -93,15 +93,35 @@ void ButtonComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     m_text = json.value("text").toString(m_text);
     if (json.contains("backgroundColor")) {
-        m_backgroundColor = QColor(json.value("backgroundColor").toString());
+        QString ref;
+        deserializeColor(json.value("backgroundColor"), m_backgroundColor, ref);
+        setColorStyleRef("backgroundColor", ref);
     }
     if (json.contains("textColor")) {
-        m_textColor = QColor(json.value("textColor").toString());
+        QString ref;
+        deserializeColor(json.value("textColor"), m_textColor, ref);
+        setColorStyleRef("textColor", ref);
     }
     m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
     m_onClickedHandler = json.value("onClicked").toString(m_onClickedHandler);
     m_targetScreenId = json.value("targetScreenId").toString();
     update();
+}
+
+void ButtonComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("backgroundColor") == styleName) {
+        m_backgroundColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("textColor") == styleName) {
+        m_textColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
 }
 
 QString ButtonComponent::toQmlSnippet(int indentSpaces) const {

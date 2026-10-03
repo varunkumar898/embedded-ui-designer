@@ -142,6 +142,9 @@ set(COMMON_SOURCES
     src/panels/ColorPickerDialog.h
     src/panels/LayerPanel.cpp
     src/panels/LayerPanel.h
+    src/panels/StylesPanel.cpp
+    src/panels/StylesPanel.h
+    src/models/ColorStyle.h
     src/project/Project.cpp
     src/project/Project.h
 )

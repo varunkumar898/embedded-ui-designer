@@ -59,8 +59,8 @@ void RectangleComponent::paintComponent(QPainter* painter) {
 
 QJsonObject RectangleComponent::toJson() const {
     QJsonObject obj = UIComponent::toJson();
-    obj["fillColor"] = m_fillColor.name();
-    obj["strokeColor"] = m_strokeColor.name();
+    obj["fillColor"] = serializeColor(m_fillColor, colorStyleRef("fillColor"));
+    obj["strokeColor"] = serializeColor(m_strokeColor, colorStyleRef("strokeColor"));
     obj["strokeWidth"] = m_strokeWidth;
     obj["cornerRadius"] = m_cornerRadius;
     return obj;
@@ -69,14 +69,34 @@ QJsonObject RectangleComponent::toJson() const {
 void RectangleComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     if (json.contains("fillColor")) {
-        m_fillColor = QColor(json.value("fillColor").toString());
+        QString ref;
+        deserializeColor(json.value("fillColor"), m_fillColor, ref);
+        setColorStyleRef("fillColor", ref);
     }
     if (json.contains("strokeColor")) {
-        m_strokeColor = QColor(json.value("strokeColor").toString());
+        QString ref;
+        deserializeColor(json.value("strokeColor"), m_strokeColor, ref);
+        setColorStyleRef("strokeColor", ref);
     }
     m_strokeWidth = json.value("strokeWidth").toInt(m_strokeWidth);
     m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
     update();
+}
+
+void RectangleComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
+    if (colorStyleRef("fillColor") == styleName) {
+        m_fillColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("strokeColor") == styleName) {
+        m_strokeColor = color;
+        changed = true;
+    }
+    if (changed) {
+        update();
+        emit propertyChanged(this);
+    }
 }
 
 QString RectangleComponent::toQmlSnippet(int indentSpaces) const {

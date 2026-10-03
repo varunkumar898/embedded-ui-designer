@@ -353,6 +353,7 @@ void MainWindow::setupDocks() {
     propDock->setTitleBarWidget(createDockTitleBar("Properties", propDock));
     m_propertiesPanel = new PropertiesPanel(propDock);
     m_propertiesPanel->setUndoStack(m_undoStack);
+    m_propertiesPanel->setProject(m_project);
     propDock->setWidget(m_propertiesPanel);
     addDockWidget(Qt::RightDockWidgetArea, propDock);
 
@@ -373,8 +374,17 @@ void MainWindow::setupDocks() {
     layerDock->setWidget(m_layerPanel);
     addDockWidget(Qt::RightDockWidgetArea, layerDock);
 
+    // Right Dock: Named Color Styles (tabified with Layers)
+    QDockWidget* stylesDock = new QDockWidget("Color Styles", this);
+    stylesDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    stylesDock->setTitleBarWidget(createDockTitleBar("Color Styles", stylesDock));
+    m_stylesPanel = new StylesPanel(m_project, stylesDock);
+    stylesDock->setWidget(m_stylesPanel);
+    addDockWidget(Qt::RightDockWidgetArea, stylesDock);
+    tabifyDockWidget(layerDock, stylesDock);
+
     resizeDocks({paletteDock}, {210}, Qt::Horizontal);
-    resizeDocks({propDock, prototypeDock, layerDock}, {260, 260, 260}, Qt::Horizontal);
+    resizeDocks({propDock, prototypeDock, layerDock, stylesDock}, {260, 260, 260, 260}, Qt::Horizontal);
     resizeDocks({propDock, layerDock}, {550, 330}, Qt::Vertical);
 }
 

@@ -7,6 +7,7 @@
 #include "DisplayConfig.h"
 #include "CanvasScene.h"
 #include "ComponentDefinition.h"
+#include "ColorStyle.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -46,6 +47,17 @@ public:
     const ComponentDefinition* findDefinition(const QString& id) const;
     void updateVariantsForDefinition(const QString& id, const QList<ComponentVariant>& variants);
 
+    // ── Named Color Styles ────────────────────────────────────────────────
+    QList<ColorStyle> colorStyles() const { return m_colorStyles; }
+    void addColorStyle(const ColorStyle& style);
+    /// Change a style's color and immediately re-apply it to every canvas
+    /// component that references it (live propagation, no reload).
+    void updateColorStyle(const QString& name, const QColor& newColor);
+    void removeColorStyle(const QString& name);
+    QColor resolveColor(const QString& styleName, const QColor& defaultColor = QColor()) const;
+    bool hasColorStyle(const QString& name) const;
+    void setColorStyles(const QList<ColorStyle>& styles);
+
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject& root);
 
@@ -56,6 +68,7 @@ signals:
     void projectModified();
     void projectLoaded();
     void projectSaved(const QString& filePath);
+    void colorStylesChanged();
 
 private:
     CanvasScene* m_scene = nullptr;
@@ -65,4 +78,7 @@ private:
     DisplayConfig m_displayConfig;
     bool m_dirty = false;
     QList<ComponentDefinition> m_componentLibrary;
+
+    QList<ColorStyle> m_colorStyles;
+    void initDefaultStyles();
 };

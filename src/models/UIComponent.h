@@ -3,6 +3,7 @@
 #include <QGraphicsObject>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QMap>
 #include <QColor>
 #include <QFont>
 #include <QPainter>
@@ -86,6 +87,24 @@ public:
     // Selection & Resize Handle helpers
     static constexpr qreal HANDLE_SIZE = 7.0;
 
+    // ── Named Color Style References ──────────────────────────────────────
+    /// Bind a color property (e.g. "fillColor") to a named style. Empty name
+    /// clears the binding and reverts to a direct color.
+    void setColorStyleRef(const QString& propertyKey, const QString& styleName);
+    QString colorStyleRef(const QString& propertyKey) const;
+    bool hasColorStyleRef(const QString& propertyKey) const;
+    void clearColorStyleRef(const QString& propertyKey);
+    const QMap<QString, QString>& colorStyleRefs() const { return m_colorStyleRefs; }
+
+    /// Re-apply a style's color to this component if any property references it.
+    /// Components override this; the base is a no-op.
+    virtual void applyColorStyle(const QString& styleName, const QColor& color);
+
+    /// Serialize a color as either a plain hex string (no ref) or a
+    /// {"styleRef": "<name>"} object. Deserialization restores both.
+    static QJsonValue serializeColor(const QColor& color, const QString& styleRef = QString());
+    static void deserializeColor(const QJsonValue& val, QColor& colorOut, QString& styleRefOut);
+
 signals:
     void propertyChanged(UIComponent* comp);
     void geometryChangedSignal(UIComponent* comp);
@@ -118,4 +137,6 @@ protected:
     bool m_draggingRadius = false;
     CornerRadiusHandle m_activeRadiusHandle = CornerRadiusHandle::None;
     int m_dragStartRadius = 0;
+
+    QMap<QString, QString> m_colorStyleRefs;
 };

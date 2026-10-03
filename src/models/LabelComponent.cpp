@@ -107,10 +107,18 @@ void LabelComponent::paintComponent(QPainter* painter) {
     painter->drawText(QRectF(0, 0, m_width, m_height), m_alignment, m_text);
 }
 
+void LabelComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    if (colorStyleRef("color") == styleName || colorStyleRef("textColor") == styleName) {
+        m_color = color;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 QJsonObject LabelComponent::toJson() const {
     QJsonObject obj = UIComponent::toJson();
     obj["text"] = m_text;
-    obj["color"] = m_color.name();
+    obj["color"] = serializeColor(m_color, colorStyleRef("color").isEmpty() ? colorStyleRef("textColor") : colorStyleRef("color"));
 
     QJsonObject fontObj;
     fontObj["family"]        = m_fontFamily;
@@ -136,7 +144,9 @@ void LabelComponent::fromJson(const QJsonObject& json) {
     UIComponent::fromJson(json);
     m_text = json.value("text").toString(m_text);
     if (json.contains("color")) {
-        m_color = QColor(json.value("color").toString());
+        QString ref;
+        deserializeColor(json.value("color"), m_color, ref);
+        setColorStyleRef("color", ref);
     }
     if (json.contains("font") && json.value("font").isObject()) {
         QJsonObject fontObj = json.value("font").toObject();

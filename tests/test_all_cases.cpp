@@ -93,6 +93,7 @@ private slots:
     // 7. Project Serialization Full Roundtrip
     void testProjectFullSaveAndLoad();
     void testProjectImportMergesComponents();
+    void testNamedColorStylesLivePropagation();
     void testPrototypeInteractionTransition();
     void testSerialMonitorPortListing();
     void testToolbarDecluttered();
@@ -976,6 +977,66 @@ void TestAllCases::testProjectImportMergesComponents() {
     QVERIFY(merged);
     QCOMPARE(merged->componentId(), QString("shared_2"));
     QCOMPARE(merged->pos(), QPointF(30, 40));
+}
+
+// Named Color Styles: one style change must immediately update every
+// component that references it, without a reload, and the reference must
+// survive a save/load round-trip.
+void TestAllCases::testNamedColorStylesLivePropagation() {
+    CanvasScene scene;
+    Project project(&scene);
+
+    auto* btn = new ButtonComponent("btn_style");
+    btn->setColorStyleRef("backgroundColor", "Primary");
+    btn->setBackgroundColor(project.resolveColor("Primary"));
+    scene.addUIComponent(btn);
+
+    auto* rect = new RectangleComponent("rect_style");
+    rect->setColorStyleRef("fillColor", "Primary");
+    rect->setFillColor(project.resolveColor("Primary"));
+    scene.addUIComponent(rect);
+
+    auto* accentRect = new RectangleComponent("rect_accent");
+    accentRect->setColorStyleRef("fillColor", "Accent");
+    accentRect->setFillColor(project.resolveColor("Accent"));
+    scene.addUIComponent(accentRect);
+
+    const QColor accentBefore = accentRect->fillColor();
+    QCOMPARE(btn->backgroundColor(), QColor("#2196f3"));
+    QCOMPARE(rect->fillColor(), QColor("#2196f3"));
+
+    // One style change -> both referencing components update live.
+    project.updateColorStyle("Primary", QColor("#123456"));
+    QCOMPARE(btn->backgroundColor(), QColor("#123456"));
+    QCOMPARE(rect->fillColor(), QColor("#123456"));
+    QCOMPARE(accentRect->fillColor(), accentBefore); // different style untouched
+
+    // The reference (not just the resolved value) round-trips.
+    const QString file = m_tempDir.filePath("named_styles.euiproj");
+    QVERIFY(project.saveToFile(file));
+
+    CanvasScene scene2;
+    Project project2(&scene2);
+    QVERIFY(project2.loadFromFile(file));
+
+    ButtonComponent* btn2 = nullptr;
+    RectangleComponent* rect2 = nullptr;
+    for (UIComponent* c : scene2.uiComponents()) {
+        if (auto* b = dynamic_cast<ButtonComponent*>(c)) btn2 = b;
+        if (auto* r = dynamic_cast<RectangleComponent*>(c)) {
+            if (r->componentId() == "rect_style") rect2 = r;
+        }
+    }
+    QVERIFY(btn2);
+    QVERIFY(rect2);
+    QCOMPARE(btn2->colorStyleRef("backgroundColor"), QString("Primary"));
+    QCOMPARE(rect2->colorStyleRef("fillColor"), QString("Primary"));
+    QCOMPARE(btn2->backgroundColor(), QColor("#123456"));
+
+    // A further change in the reloaded project re-propagates.
+    project2.updateColorStyle("Primary", QColor("#00ff00"));
+    QCOMPARE(btn2->backgroundColor(), QColor("#00ff00"));
+    QCOMPARE(rect2->fillColor(), QColor("#00ff00"));
 }
 
 void TestAllCases::testSerialMonitorPortListing() {

@@ -16,11 +16,16 @@
 #include "UIComponent.h"
 #include "ComponentDefinition.h"
 
+class Project;
+
 class PropertiesPanel : public QWidget {
     Q_OBJECT
 
 public:
     explicit PropertiesPanel(QWidget* parent = nullptr);
+
+    void setProject(Project* project) { m_project = project; }
+    Project* project() const { return m_project; }
 
     void setTargetComponent(UIComponent* comp);
     UIComponent* targetComponent() const { return m_targetComponent; }
@@ -60,6 +65,7 @@ private slots:
 
 private:
     UIComponent* m_targetComponent = nullptr;
+    class Project* m_project = nullptr;
     bool m_updatingFromComponent = false;
     QJsonObject m_lastSavedState;
 
