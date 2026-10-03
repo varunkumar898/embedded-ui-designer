@@ -14,6 +14,7 @@
 #include <QJsonObject>
 #include <QList>
 #include "UIComponent.h"
+#include "ComponentDefinition.h"
 
 class PropertiesPanel : public QWidget {
     Q_OBJECT
@@ -114,6 +115,10 @@ private:
     QCheckBox* m_chkReadOnly = nullptr;
     QCheckBox* m_chkFilled = nullptr;
     QSpinBox* m_spinPathFlatten = nullptr;
+
+    // Variant row (shown only for CustomComponentInstance)
+    QWidget*  m_variantRow   = nullptr;
+    QComboBox* m_variantCombo = nullptr;
 
     // Alignment buttons (LabelComponent)
     QPushButton* m_btnAlignLeft = nullptr;

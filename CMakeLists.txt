@@ -90,6 +90,10 @@ set(COMMON_SOURCES
     src/models/CircleComponent.h
     src/models/PathComponent.cpp
     src/models/PathComponent.h
+    src/models/ComponentDefinition.cpp
+    src/models/ComponentDefinition.h
+    src/models/CustomComponentInstance.cpp
+    src/models/CustomComponentInstance.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddComponentCommand.cpp

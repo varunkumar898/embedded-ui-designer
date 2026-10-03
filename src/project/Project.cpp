@@ -10,6 +10,7 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "PathComponent.h"
+#include "CustomComponentInstance.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -140,6 +141,12 @@ QJsonObject Project::toJson() const {
     QJsonArray assets;
     root["assets"] = assets;
 
+    // Custom component library
+    QJsonArray libArr;
+    for (const ComponentDefinition& def : m_componentLibrary)
+        libArr.append(def.toJson());
+    root["componentLibrary"] = libArr;
+
     return root;
 }
 
@@ -189,6 +196,12 @@ bool Project::fromJson(const QJsonObject& root) {
 
     m_dirty = false;
     emit projectLoaded();
+
+    // Restore component library
+    m_componentLibrary.clear();
+    for (const QJsonValue& v : root.value("componentLibrary").toArray())
+        m_componentLibrary.append(ComponentDefinition::fromJson(v.toObject()));
+
     return true;
 }
 
@@ -299,6 +312,47 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new CircleComponent(id);
     } else if (type == "Path") {
         return new PathComponent(id);
+    } else if (type == "CustomInstance") {
+        return new CustomComponentInstance(id);
     }
     return nullptr;
+}
+
+// ── ComponentDefinition library ──────────────────────────────────────────────────────
+
+void Project::addComponentDefinition(const ComponentDefinition& def) {
+    // Replace if same ID already exists
+    for (ComponentDefinition& existing : m_componentLibrary) {
+        if (existing.definitionId() == def.definitionId()) {
+            existing = def;
+            setDirty(true);
+            return;
+        }
+    }
+    m_componentLibrary.append(def);
+    setDirty(true);
+}
+
+void Project::removeComponentDefinition(const QString& id) {
+    m_componentLibrary.removeIf([&id](const ComponentDefinition& d) {
+        return d.definitionId() == id;
+    });
+    setDirty(true);
+}
+
+const ComponentDefinition* Project::findDefinition(const QString& id) const {
+    for (const ComponentDefinition& d : m_componentLibrary) {
+        if (d.definitionId() == id) return &d;
+    }
+    return nullptr;
+}
+
+void Project::updateVariantsForDefinition(const QString& id, const QList<ComponentVariant>& variants) {
+    for (ComponentDefinition& d : m_componentLibrary) {
+        if (d.definitionId() == id) {
+            d.setVariants(variants);
+            setDirty(true);
+            return;
+        }
+    }
 }

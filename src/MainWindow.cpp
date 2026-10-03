@@ -16,6 +16,8 @@
 #include "AlignDistributeCommand.h"
 #include "BooleanPathCommand.h"
 #include "PathComponent.h"
+#include "CustomComponentInstance.h"
+#include "ComponentDefinition.h"
 #include <QUndoStack>
 #include <QMenuBar>
 #include <QToolBar>
@@ -251,7 +253,7 @@ void MainWindow::setupMenusAndToolbars() {
     QAction* zoomInAction = toolbar->addAction("+", m_view, &CanvasView::zoomIn);
     zoomInAction->setToolTip("Zoom in");
     toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
-
+}
 
 static QWidget* createDockTitleBar(const QString& titleText, QDockWidget* dock) {
     QWidget* bar = new QWidget(dock);
@@ -295,6 +297,18 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::LeftDockWidgetArea, paletteDock);
 
     connect(m_palette, &ComponentPalette::componentDoubleClicked, this, [this](const QString& type) {
+        // Custom component instances are prefixed "CustomInstance::<defId>"
+        if (type.startsWith("CustomInstance::")) {
+            const QString defId = type.mid(16);
+            auto* ci = new CustomComponentInstance(defId.toLower() + "_inst", defId);
+            const auto variants = ComponentDefinition::defaultVariants();
+            if (!variants.isEmpty()) ci->applyVariant(variants.first());
+            QPointF center = m_scene->displayRect().center();
+            ci->setPos(m_scene->snapPoint(center - QPointF(ci->compWidth()/2.0, ci->compHeight()/2.0)));
+            m_scene->clearSelection();
+            if (m_undoStack) m_undoStack->push(new AddComponentCommand(m_scene, ci));
+            return;
+        }
         QPointF center = m_scene->displayRect().center();
         UIComponent* comp = Project::createComponentInstance(type, type.toLower() + "_new");
         if (comp) {
@@ -309,6 +323,29 @@ void MainWindow::setupDocks() {
         }
     });
     connect(m_palette, &ComponentPalette::shapeToolSelected, m_view, &CanvasView::setActiveDrawingTool);
+    connect(m_palette, &ComponentPalette::saveAsComponentRequested, this, [this]() {
+        const auto selected = m_scene->selectedItems();
+        if (selected.isEmpty()) {
+            QMessageBox::information(this, "Save as Component",
+                "Select at least one component on the canvas first.");
+            return;
+        }
+        bool ok = false;
+        const QString name = QInputDialog::getText(this, "Save as Component",
+            "Component name:", QLineEdit::Normal, "MyComponent", &ok);
+        if (!ok || name.trimmed().isEmpty()) return;
+        const QString defId = name.trimmed().replace(' ', '_');
+        ComponentDefinition def(defId, name.trimmed());
+        def.setVariants(ComponentDefinition::defaultVariants());
+        if (auto* comp = dynamic_cast<UIComponent*>(selected.first()))
+            def.setBaseShapeJson(comp->toJson());
+        m_project->addComponentDefinition(def);
+        QStringList names;
+        for (const ComponentDefinition& d : m_project->componentLibrary())
+            names << d.displayName();
+        m_palette->refreshCustomComponents(names);
+        m_statusLabel->setText(QString("Saved \"%1\" to My Components").arg(name.trimmed()));
+    });
 
     // Right Top Dock: Properties Panel
     QDockWidget* propDock = new QDockWidget("Properties", this);

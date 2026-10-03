@@ -220,8 +220,58 @@ void ComponentPalette::setupUi() {
         }
     });
 
+    // ── My Components section ──────────────────────────────────────────────
+    QFrame* separator = new QFrame(this);
+    separator->setFrameShape(QFrame::HLine);
+    separator->setStyleSheet("color:#252a35; margin: 6px 0;");
+    layout->addWidget(separator);
+
+    QWidget* myCompHeader = new QWidget(this);
+    QHBoxLayout* myCompHeaderLayout = new QHBoxLayout(myCompHeader);
+    myCompHeaderLayout->setContentsMargins(6, 0, 6, 0);
+    myCompHeaderLayout->setSpacing(4);
+
+    QLabel* myCompTitle = new QLabel("MY COMPONENTS", this);
+    myCompTitle->setStyleSheet("color:#5a6475;font-size:10px;font-weight:bold;letter-spacing:0.5px;");
+    myCompHeaderLayout->addWidget(myCompTitle, 1);
+
+    QPushButton* saveAsBtn = new QPushButton("+ Save", this);
+    saveAsBtn->setToolTip("Save selected canvas component as a reusable component");
+    saveAsBtn->setCursor(Qt::PointingHandCursor);
+    saveAsBtn->setStyleSheet(
+        "QPushButton { background:#1c2a1e; color:#34a853; border:1px solid #2e4a32; "
+        "border-radius:5px; padding:2px 8px; font-size:10px; font-weight:bold; }"
+        "QPushButton:hover { background:#243628; }"
+    );
+    connect(saveAsBtn, &QPushButton::clicked, this, &ComponentPalette::saveAsComponentRequested);
+    myCompHeaderLayout->addWidget(saveAsBtn);
+    layout->addWidget(myCompHeader);
+
+    m_customListWidget = new DraggableListWidget(this);
+    layout->addWidget(m_customListWidget);
+    connect(m_customListWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        if (item) emit componentDoubleClicked(item->data(Qt::UserRole).toString());
+    });
+
     QLabel* hint = new QLabel("Tip: Drag item onto canvas", this);
-    hint->setStyleSheet("color: #566070; font-size: 11px; padding: 10px 4px 6px 4px;");
+    hint->setStyleSheet("color:#566070;font-size:11px;padding:10px 4px 6px 4px;");
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
+}
+
+void ComponentPalette::refreshCustomComponents(const QStringList& definitionNames) {
+    if (!m_customListWidget) return;
+    m_customListWidget->clear();
+    for (const QString& name : definitionNames) {
+        QListWidgetItem* item = new QListWidgetItem(
+            createBadgeIcon("CustomInstance", "C", QColor(100, 60, 200)),
+            name, m_customListWidget);
+        item->setData(Qt::UserRole, QString("CustomInstance::%1").arg(name));
+        item->setToolTip(QString("Double-click or drag to place \"%1\"").arg(name));
+    }
+    if (definitionNames.isEmpty()) {
+        QListWidgetItem* placeholder = new QListWidgetItem("No custom components yet", m_customListWidget);
+        placeholder->setFlags(Qt::NoItemFlags);
+        placeholder->setForeground(QColor("#4a5568"));
+    }
 }

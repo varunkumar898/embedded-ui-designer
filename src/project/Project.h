@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include "DisplayConfig.h"
 #include "CanvasScene.h"
+#include "ComponentDefinition.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -38,6 +39,13 @@ public:
     bool autoSave();
     bool loadSampleProject();
 
+    // Custom component library
+    const QList<ComponentDefinition>& componentLibrary() const { return m_componentLibrary; }
+    void addComponentDefinition(const ComponentDefinition& def);
+    void removeComponentDefinition(const QString& id);
+    const ComponentDefinition* findDefinition(const QString& id) const;
+    void updateVariantsForDefinition(const QString& id, const QList<ComponentVariant>& variants);
+
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject& root);
 
@@ -56,4 +64,5 @@ private:
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
     DisplayConfig m_displayConfig;
     bool m_dirty = false;
+    QList<ComponentDefinition> m_componentLibrary;
 };

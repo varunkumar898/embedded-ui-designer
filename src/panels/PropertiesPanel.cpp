@@ -10,6 +10,7 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "PathComponent.h"
+#include "CustomComponentInstance.h"
 #include "PropertyChangeCommand.h"
 #include "ColorPickerDialog.h"
 #include <QUndoStack>
@@ -1076,6 +1077,46 @@ void PropertiesPanel::rebuildSpecificEditors() {
             commitPropertyChange("Change Path Flattening");
         });
         form->addRow("Flatten subdivisions:", m_spinPathFlatten);
+
+    } else if (auto ci = dynamic_cast<CustomComponentInstance*>(m_targetComponent)) {
+        // ── Definition info (read-only) ────────────────────────────────────
+        QLabel* defLabel = new QLabel(ci->definitionId(), m_specificContainer);
+        defLabel->setStyleSheet("color:#8a9bb0;font-size:11px;");
+        form->addRow("Definition:", defLabel);
+
+        // ── Variant dropdown ────────────────────────────────────────────────
+        m_variantCombo = new QComboBox(m_specificContainer);
+        m_variantCombo->setStyleSheet(
+            "QComboBox { background:#1c1f26; color:#e4ecf7; border:1px solid #2b2f38; "
+            "border-radius:5px; padding:4px 10px; font-size:12px; } "
+            "QComboBox QAbstractItemView { background:#1a1d24; color:#e0e5ee; "
+            "selection-background-color:#1a73e8; selection-color:#fff; border:1px solid #2c313e; }"
+        );
+        // Populate from project-level definitions if available; fall back to defaults
+        const QStringList defaultNames = {"Primary", "Secondary", "Danger"};
+        m_variantCombo->addItems(defaultNames);
+        m_variantCombo->setCurrentText(ci->activeVariantName());
+        connect(m_variantCombo, &QComboBox::currentTextChanged,
+                this, [this, ci](const QString& variantName) {
+            if (m_updatingFromComponent) return;
+            ci->setActiveVariantName(variantName);
+            // Apply color overrides from built-in palette
+            ComponentVariant v;
+            v.name        = variantName;
+            v.useFill     = true;
+            v.useStroke   = true;
+            v.useAccent   = true;
+            if (variantName == "Primary") {
+                v.fillColor = QColor("#1a73e8"); v.strokeColor = QColor("#0d47a1"); v.accentColor = Qt::white;
+            } else if (variantName == "Secondary") {
+                v.fillColor = QColor("#34a853"); v.strokeColor = QColor("#1b6e2e"); v.accentColor = Qt::white;
+            } else if (variantName == "Danger") {
+                v.fillColor = QColor("#ea4335"); v.strokeColor = QColor("#b31412"); v.accentColor = Qt::white;
+            }
+            ci->applyVariant(v);
+            commitPropertyChange("Change Variant");
+        });
+        form->addRow("Variant:", m_variantCombo);
     }
 
     containerLayout->addLayout(form);

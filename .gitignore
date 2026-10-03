@@ -64,3 +64,4 @@ desktop.ini
 # Output dumps and logs
 *.log
 *.tmp
+build2/
