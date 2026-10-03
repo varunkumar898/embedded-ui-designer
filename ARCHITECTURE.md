@@ -44,12 +44,12 @@ embedded-ui-designer/
 | **Properties panel** | `src/panels/PropertiesPanel.{h,cpp}` | Dock panel showing geometry, ID, and component-specific properties (text, colors, radii, font, handler name, etc.) for the selected component; also exposes alignment/distribute buttons |
 | **Styles / color picking** | `src/panels/ColorPickerDialog.{h,cpp}` | Custom color-wheel dialog with HSV wheel, hex input, RGB-565 preview, and harmony swatches; invoked by color buttons inside `PropertiesPanel` — there is no separate "Styles panel" |
 | **Layers panel** | `src/panels/LayerPanel.{h,cpp}` | Dock panel listing all components in z-order with move-up / move-down / delete controls; syncs selection with `CanvasScene` |
-| **Component palette** | `src/panels/ComponentPalette.{h,cpp}` | Left-dock widget listing available component types; emits `componentDoubleClicked` and `shapeToolSelected` signals consumed by `MainWindow` / `CanvasView` |
+| **Component palette** | `src/panels/ComponentPalette.{h,cpp}` | Left-dock widget listing built-in component types + "MY COMPONENTS" section; "+ Save" button emits `saveAsComponentRequested`; `refreshCustomComponents(QStringList)` slot rebuilds the custom list; drag and double-click handled by `MainWindow` |
 | **Prototype / interaction panel** | `src/panels/PrototypePanel.{h,cpp}` | Right-dock panel for defining on-component event→target interactions (e.g., "on click → show component X"); stores interactions as JSON on the component |
 | **Component data model (base)** | `src/models/UIComponent.{h,cpp}` | Abstract `QGraphicsObject` base for all widgets; owns id, type, geometry, resize/corner-radius handles, interaction array, and the `toJson`/`fromJson`/`toQmlSnippet`/`toUgfxSnippet` virtual interface |
 | **Display configuration** | `src/models/DisplayConfig.h` | Plain struct holding screen width, height, color depth, type (LCD/OLED/E-Ink), DPI, round flag; serializes to/from JSON |
 | **Custom components – Button** | `src/models/ButtonComponent.{h,cpp}` | Clickable button with fill/border/text colors and corner radius |
-| **Custom components – Label** | `src/models/LabelComponent.{h,cpp}` | Text label with font size, bold/italic, color, and horizontal alignment |
+| **Custom components – Label** | `src/models/LabelComponent.{h,cpp}` | Text label with font family (dropdown, 18 options), size, bold/italic, color, alignment, letter-spacing, and line-height; codegen maps to QML font.letterSpacing/lineHeight and LVGL text_letter_space/text_line_space |
 | **Custom components – Checkbox** | `src/models/CheckboxComponent.{h,cpp}` | Checkbox widget with checked-state, fill, and accent colors |
 | **Custom components – Switch** | `src/models/SwitchComponent.{h,cpp}` | Toggle switch with on/off state and track/thumb colors |
 | **Custom components – Slider** | `src/models/SliderComponent.{h,cpp}` | Horizontal slider with min/max/value and track/thumb colors |
@@ -59,12 +59,14 @@ embedded-ui-designer/
 | **Custom components – Circle** | `src/models/CircleComponent.{h,cpp}` | Filled ellipse/circle with fill and border colors |
 | **Custom components – Image** | `src/models/ImageComponent.{h,cpp}` | Image widget referencing an external file path and pixel format (RGB565/Mono/RGB888) |
 | **Custom components – Path** | `src/models/PathComponent.{h,cpp}` | Bézier-path shape with anchor points, control handles, stroke/fill, and flattening for export |
+| **Custom component library – Definition** | `src/models/ComponentDefinition.{h,cpp}` | Stores a reusable component template: unique ID, display name, base-shape JSON, and a list of named `ComponentVariant`s (fill/stroke/accent color overrides); `defaultVariants()` provides Primary/Secondary/Danger presets; serialises into the project's `componentLibrary` JSON array |
+| **Custom component library – Instance** | `src/models/CustomComponentInstance.{h,cpp}` | `UIComponent` subclass that references a `ComponentDefinition` by ID; `applyVariant()` swaps fill/stroke/accent colors; renders a rounded-rect with variant label; persists definitionId + variant name in `.euiproj` |
 | **Image-to-C-array conversion** | `src/assets/ImageAssetProcessor.{h,cpp}` | Static utility that converts a `QImage` to a packed C `uint8_t` array string (RGB565, Monochrome, or RGB888) for embedding in firmware |
 | **Code generator – abstract base** | `src/codegen/CodeGenerator.{h,cpp}` | Pure-virtual `generate(outputDir)` interface plus a `writeFile` helper; all concrete generators inherit from this |
 | **Code generator – µGFX** | `src/codegen/UgfxGenerator.{h,cpp}` | Emits a complete µGFX C project: `CMakeLists.txt`, `gfxconf.h`, `ui.h`, `ui.c`, `main.c`, `README.md` |
 | **Code generator – Qt for MCU (QUL)** | `src/codegen/QtMcuGenerator.{h,cpp}` | Emits a Qt for MCU QML project: `CMakeLists.txt`, `.qmlproject`, `Design.qml`, `README.md` |
 | **Code generator – LVGL** | `src/codegen/LvglGenerator.{h,cpp}` | Emits a full LVGL C project: `CMakeLists.txt`, `lv_conf.h`, `ui.h`, `ui.c`, `main.c`, `idf_component.yml`, `platformio.ini`, `README.md` |
-| **Project save / load** | `src/project/Project.{h,cpp}` | Owns project name, file path, target framework, `DisplayConfig`, and dirty flag; serializes the entire scene to JSON; handles autosave to app-data directory and sample-project loading |
+| **Project save / load** | `src/project/Project.{h,cpp}` | Owns project name, file path, target framework, `DisplayConfig`, component library (`QList<ComponentDefinition>`), and dirty flag; serializes entire scene + library to JSON; autosave and sample-project loading |
 | **Device manager** | `src/hardware/DeviceManager.{h,cpp}` | Polls serial/COM/tty ports on a timer; exposes port list, vendor details, board-type detection, and flash-command lookup; emits connect/disconnect signals |
 | **Firmware flashing** | `src/hardware/FlashController.{h,cpp}` | Launches OpenOCD, ST-Link, or esptool as a `QProcess`; streams real-time console output; supports STM32, RISC-V, and ESP32 targets |
 | **Flash dialog** | `src/dialogs/FlashDialog.{h,cpp}` | Modal dialog for selecting port, binary path, and triggering `FlashController`; shows live console log |
