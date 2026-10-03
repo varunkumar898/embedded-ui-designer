@@ -124,6 +124,16 @@ QJsonObject Project::toJson() const {
         }
     }
     mainPage["components"] = compsArray;
+
+    // ── Ruler guides ──────────────────────────────────────────────────────
+    if (m_scene) {
+        QJsonArray hg, vg;
+        for (qreal y : m_scene->hGuides()) hg.append(y);
+        for (qreal x : m_scene->vGuides()) vg.append(x);
+        mainPage["hGuides"] = hg;
+        mainPage["vGuides"] = vg;
+    }
+
     pages.append(mainPage);
     root["pages"] = pages;
 
@@ -152,6 +162,12 @@ bool Project::fromJson(const QJsonObject& root) {
                 if (mainPage.contains("backgroundColor")) {
                     m_scene->setScreenBackgroundColor(QColor(mainPage.value("backgroundColor").toString()));
                 }
+
+                // Restore ruler guides
+                QList<qreal> hg, vg;
+                for (const QJsonValue& v : mainPage.value("hGuides").toArray()) hg.append(v.toDouble());
+                for (const QJsonValue& v : mainPage.value("vGuides").toArray()) vg.append(v.toDouble());
+                m_scene->setGuides(hg, vg);
 
                 if (mainPage.contains("components") && mainPage.value("components").isArray()) {
                     QJsonArray compsArray = mainPage.value("components").toArray();

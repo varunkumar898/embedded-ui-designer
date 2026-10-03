@@ -1,6 +1,7 @@
 #include "CanvasScene.h"
 #include <QPainter>
 #include <cmath>
+#include <algorithm>
 
 CanvasScene::CanvasScene(QObject* parent)
     : QGraphicsScene(parent)
@@ -78,11 +79,101 @@ void CanvasScene::clearComponents() {
     }
 }
 
-QPointF CanvasScene::snapPoint(const QPointF& pt) const {
-    if (!m_snapToGrid || m_gridSize <= 1) return pt;
-    qreal sx = std::round(pt.x() / m_gridSize) * m_gridSize;
-    qreal sy = std::round(pt.y() / m_gridSize) * m_gridSize;
-    return QPointF(sx, sy);
+static constexpr qreal SNAP_TOLERANCE = 6.0;  ///< Scene-pixel radius for smart snapping
+
+QPointF CanvasScene::snapPoint(const QPointF& pt, UIComponent* ignore) const {
+    qreal rx = pt.x();
+    qreal ry = pt.y();
+
+    // 1. Grid snap (existing behaviour)
+    if (m_snapToGrid && m_gridSize > 1) {
+        rx = std::round(rx / m_gridSize) * m_gridSize;
+        ry = std::round(ry / m_gridSize) * m_gridSize;
+    }
+
+    // 2. Guide snap — overrides grid if closer
+    for (qreal gx : m_vGuides) {
+        if (std::abs(pt.x() - gx) < SNAP_TOLERANCE)
+            rx = gx;
+    }
+    for (qreal gy : m_hGuides) {
+        if (std::abs(pt.y() - gy) < SNAP_TOLERANCE)
+            ry = gy;
+    }
+
+    // 3. Component edge/centre snap
+    qreal bestDx = SNAP_TOLERANCE, bestDy = SNAP_TOLERANCE;
+    for (UIComponent* comp : uiComponents()) {
+        if (comp == ignore) continue;
+        const qreal left   = comp->pos().x();
+        const qreal right  = left + comp->compWidth();
+        const qreal top    = comp->pos().y();
+        const qreal bottom = top  + comp->compHeight();
+        const qreal cx     = (left + right)  / 2.0;
+        const qreal cy     = (top  + bottom) / 2.0;
+
+        for (qreal ex : {left, right, cx}) {
+            if (std::abs(pt.x() - ex) < bestDx) {
+                bestDx = std::abs(pt.x() - ex);
+                rx = ex;
+            }
+        }
+        for (qreal ey : {top, bottom, cy}) {
+            if (std::abs(pt.y() - ey) < bestDy) {
+                bestDy = std::abs(pt.y() - ey);
+                ry = ey;
+            }
+        }
+    }
+
+    return QPointF(rx, ry);
+}
+
+// ── Guide management ──────────────────────────────────────────────────
+
+void CanvasScene::addHGuide(qreal y) {
+    m_hGuides.append(y);
+    update();
+}
+void CanvasScene::addVGuide(qreal x) {
+    m_vGuides.append(x);
+    update();
+}
+void CanvasScene::removeHGuide(qreal y) {
+    auto it = std::min_element(m_hGuides.begin(), m_hGuides.end(),
+        [y](qreal a, qreal b){ return std::abs(a-y) < std::abs(b-y); });
+    if (it != m_hGuides.end() && std::abs(*it - y) < 12.0)
+        m_hGuides.erase(it);
+    update();
+}
+void CanvasScene::removeVGuide(qreal x) {
+    auto it = std::min_element(m_vGuides.begin(), m_vGuides.end(),
+        [x](qreal a, qreal b){ return std::abs(a-x) < std::abs(b-x); });
+    if (it != m_vGuides.end() && std::abs(*it - x) < 12.0)
+        m_vGuides.erase(it);
+    update();
+}
+void CanvasScene::clearGuides() {
+    m_hGuides.clear();
+    m_vGuides.clear();
+    update();
+}
+void CanvasScene::setGuides(const QList<qreal>& hg, const QList<qreal>& vg) {
+    m_hGuides = hg;
+    m_vGuides = vg;
+    update();
+}
+
+// ── Snap-highlight ────────────────────────────────────────────────────────
+
+void CanvasScene::showSnapHighlight(const QLineF& line) {
+    m_snapHighlightLine   = line;
+    m_snapHighlightActive = true;
+    update();
+}
+void CanvasScene::clearSnapHighlight() {
+    m_snapHighlightActive = false;
+    update();
 }
 
 void CanvasScene::setPathPreview(const QList<QPointF>& points, const QPointF& cursor, bool visible) {
@@ -184,7 +275,35 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
     Q_UNUSED(rect);
     QRectF sRect = displayRect();
 
-    // Nameplate Badge floating and overlapping top edge of target display
+    // ── Ruler guides (drawn behind the nameplate badge) ──────────────────
+    if (!m_hGuides.isEmpty() || !m_vGuides.isEmpty()) {
+        painter->save();
+        QPen guidePen(QColor(0, 200, 180, 220), 1.0, Qt::DashLine);
+        guidePen.setDashPattern({6, 4});
+        painter->setPen(guidePen);
+        for (qreal gy : m_hGuides) {
+            painter->drawLine(QPointF(sceneRect().left(), gy),
+                              QPointF(sceneRect().right(), gy));
+        }
+        for (qreal gx : m_vGuides) {
+            painter->drawLine(QPointF(gx, sceneRect().top()),
+                              QPointF(gx, sceneRect().bottom()));
+        }
+        painter->restore();
+    }
+
+    // ── Snap-highlight (one-shot pink line while dragging) ──────────────
+    if (m_snapHighlightActive) {
+        painter->save();
+        QPen hlPen(QColor(255, 65, 130, 210), 1.5);
+        painter->setPen(hlPen);
+        painter->drawLine(m_snapHighlightLine);
+        painter->restore();
+        // Clear the one-shot flag so it doesn't persist
+        m_snapHighlightActive = false;
+    }
+
+    // ── Nameplate badge (existing code) ───────────────────────────────
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setRenderHint(QPainter::TextAntialiasing);
@@ -205,17 +324,14 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
     qreal bh = 24.0;
     QRectF badgeRect(sRect.center().x() - bw / 2.0, sRect.top() - bh + 4.0, bw, bh);
 
-    // Subtle drop shadow under badge
     painter->setPen(Qt::NoPen);
     painter->setBrush(QColor(0, 0, 0, 70));
     painter->drawRoundedRect(badgeRect.translated(0, 2), 8, 8);
 
-    // Badge pill body
     painter->setBrush(QColor(26, 29, 36));
     painter->setPen(QPen(QColor(42, 47, 58), 1.0));
     painter->drawRoundedRect(badgeRect, 8, 8);
 
-    // Crisp text
     painter->setPen(QColor(220, 228, 238));
     painter->drawText(badgeRect.adjusted(0, -1, 0, -1), Qt::AlignCenter, label);
     painter->restore();

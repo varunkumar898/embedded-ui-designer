@@ -38,8 +38,8 @@ embedded-ui-designer/
 
 | Feature | File path(s) | One-line purpose |
 |---------|-------------|-----------------|
-| **Canvas – rendering surface** | `src/canvas/CanvasScene.{h,cpp}` | `QGraphicsScene` subclass; owns the component list, grid, snap-to-grid, display boundary, and emits selection/change signals |
-| **Canvas – interaction & zoom** | `src/canvas/CanvasView.{h,cpp}` | `QGraphicsView` subclass; handles mouse events, rubber-band drag-select, zoom, panning, drag-drop from palette, pen path drawing mode, and context menu |
+| **Canvas – rendering surface** | `src/canvas/CanvasScene.{h,cpp}` | `QGraphicsScene` subclass; owns the component list, grid, snap-to-grid, ruler guides (h/v), snap-to-guides+edges, snap-highlight, display boundary, and emits selection/change signals |
+| **Canvas – interaction & zoom** | `src/canvas/CanvasView.{h,cpp}` | `QGraphicsView` subclass; handles mouse events, rubber-band drag-select, zoom, panning, drag-drop from palette, pen path drawing mode, ruler strips (20 px, tick-marked), guide drag-from-ruler, guide move/delete, smart-snap highlight overlay, and context menu |
 | **Selection (single & multi)** | `src/canvas/CanvasScene.{h,cpp}` + `src/canvas/CanvasView.{h,cpp}` | Scene emits `selectionListChanged`; View drives rubber-band multi-select and propagates it; handled together |
 | **Properties panel** | `src/panels/PropertiesPanel.{h,cpp}` | Dock panel showing geometry, ID, and component-specific properties (text, colors, radii, font, handler name, etc.) for the selected component; also exposes alignment/distribute buttons |
 | **Styles / color picking** | `src/panels/ColorPickerDialog.{h,cpp}` | Custom color-wheel dialog with HSV wheel, hex input, RGB-565 preview, and harmony swatches; invoked by color buttons inside `PropertiesPanel` — there is no separate "Styles panel" |

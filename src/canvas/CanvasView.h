@@ -7,6 +7,7 @@
 #include <QMouseEvent>
 #include <QPolygonF>
 #include <QRubberBand>
+#include <QTimer>
 #include "CanvasScene.h"
 #include "PathComponent.h"
 
@@ -38,11 +39,14 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
 
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragMoveEvent(QDragMoveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
+
+    static constexpr int RULER_SIZE = 20; ///< px width/height of ruler strips
 
 private:
     CanvasScene* m_canvasScene = nullptr;
@@ -68,10 +72,22 @@ private:
     QPoint m_rubberBandOrigin;
     QRubberBand* m_rubberBand = nullptr;
 
+    // ── Ruler guide drag state ──────────────────────────────────────────
+    enum class GuideDragMode { None, DraggingH, DraggingV, MovingH, MovingV };
+    GuideDragMode m_guideDragMode = GuideDragMode::None;
+    qreal m_guideDragPos = 0.0;   ///< Current scene-coord position of guide being dragged
+    qreal m_guideOrigPos = 0.0;   ///< Original position (for move operations)
+    bool m_guideOnCanvas = false; ///< Whether the guide has been dragged onto the canvas
+
+    // Snap-highlight auto-clear timer
+    QTimer* m_snapHighlightTimer = nullptr;
+
     void applyZoom(qreal factor);
     UIComponent* createComponentByType(const QString& compType, const QPointF& pos);
     void finishCustomPath();
     void cancelCustomPath();
     void finishShapeDrag(const QPointF& end);
+    void drawRulers(QPainter* painter);
+    bool hitTestGuide(const QPoint& viewPos, bool* isHorizontal, qreal* guidePos) const;
     class QUndoStack* m_undoStack = nullptr;
 };

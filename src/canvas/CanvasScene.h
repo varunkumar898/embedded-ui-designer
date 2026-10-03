@@ -3,6 +3,7 @@
 #include <QGraphicsScene>
 #include <QColor>
 #include <QList>
+#include <QLineF>
 #include "DisplayConfig.h"
 #include "UIComponent.h"
 
@@ -26,6 +27,20 @@ public:
     void setGridSize(int size);
     int gridSize() const { return m_gridSize; }
 
+    // ── Ruler guides ──────────────────────────────────────────────────────
+    void addHGuide(qreal y);          ///< Add a horizontal guide at scene y
+    void addVGuide(qreal x);          ///< Add a vertical guide at scene x
+    void removeHGuide(qreal y);       ///< Remove the nearest horizontal guide
+    void removeVGuide(qreal x);       ///< Remove the nearest vertical guide
+    void clearGuides();
+    const QList<qreal>& hGuides() const { return m_hGuides; }
+    const QList<qreal>& vGuides() const { return m_vGuides; }
+    void setGuides(const QList<qreal>& hg, const QList<qreal>& vg);
+
+    // ── Snap-highlight (one-frame feedback line drawn in drawForeground) ──
+    void showSnapHighlight(const QLineF& line); ///< Set and arm the highlight
+    void clearSnapHighlight();
+
     void setScreenBackgroundColor(const QColor& color);
     QColor screenBackgroundColor() const { return m_screenBackgroundColor; }
 
@@ -34,7 +49,7 @@ public:
     QList<UIComponent*> uiComponents() const;
     void clearComponents();
 
-    QPointF snapPoint(const QPointF& pt) const;
+    QPointF snapPoint(const QPointF& pt, UIComponent* ignore = nullptr) const;
     void setPathPreview(const QList<QPointF>& points, const QPointF& cursor, bool visible);
 
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
@@ -65,4 +80,12 @@ private:
     QPointF m_pathPreviewCursor;
     bool m_pathPreviewVisible = false;
     class QUndoStack* m_undoStack = nullptr;
+
+    // Ruler guides
+    QList<qreal> m_hGuides;   ///< Horizontal guide y-positions (scene coords)
+    QList<qreal> m_vGuides;   ///< Vertical guide x-positions (scene coords)
+
+    // Snap-highlight (one-shot: cleared after first drawForeground call)
+    QLineF m_snapHighlightLine;
+    bool m_snapHighlightActive = false;
 };
