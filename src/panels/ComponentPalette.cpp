@@ -1,6 +1,9 @@
 #include "ComponentPalette.h"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QFrame>
+#include <QPushButton>
 #include <QDrag>
 #include <QMimeData>
 #include <QMouseEvent>

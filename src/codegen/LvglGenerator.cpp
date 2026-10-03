@@ -822,6 +822,17 @@ QString LvglGenerator::generateUiSource() {
                 } else if (lbl->alignment().testFlag(Qt::AlignRight)) {
                     code += QString("    lv_obj_set_style_text_align(ui_lbl_%1, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
                 }
+                // Task 5: Letter spacing and line height
+                if (lbl->letterSpacing() != 0.0) {
+                    code += QString("    lv_obj_set_style_text_letter_space(ui_lbl_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                            .arg(id).arg(static_cast<int>(lbl->letterSpacing()));
+                }
+                if (lbl->lineHeight() > 0) {
+                    int lineSpace = static_cast<int>(lbl->pixelSize() * (lbl->lineHeight() / 100.0 - 1.0));
+                    if (lineSpace > 0)
+                        code += QString("    lv_obj_set_style_text_line_space(ui_lbl_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n")
+                                .arg(id).arg(lineSpace);
+                }
                 code += "\n";
             }
         }

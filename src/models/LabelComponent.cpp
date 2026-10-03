@@ -66,6 +66,32 @@ void LabelComponent::setAlignment(Qt::Alignment align) {
     }
 }
 
+void LabelComponent::setLetterSpacing(qreal sp) {
+    if (!qFuzzyCompare(m_letterSpacing, sp)) {
+        m_letterSpacing = sp;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void LabelComponent::setLineHeight(int pct) {
+    if (m_lineHeight != pct) {
+        m_lineHeight = pct;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+const QStringList& LabelComponent::availableFonts() {
+    static const QStringList fonts = {
+        "Roboto", "Roboto Mono", "Noto Sans", "Open Sans", "Lato",
+        "Raleway", "Oswald", "Merriweather", "Ubuntu", "PT Sans",
+        "Fira Sans", "Inter", "Source Sans Pro", "Montserrat",
+        "Arial", "Helvetica", "Segoe UI", "Tahoma"
+    };
+    return fonts;
+}
+
 void LabelComponent::paintComponent(QPainter* painter) {
     painter->setRenderHint(QPainter::TextAntialiasing);
 
@@ -73,6 +99,8 @@ void LabelComponent::paintComponent(QPainter* painter) {
     font.setPixelSize(m_pixelSize);
     font.setBold(m_bold);
     font.setItalic(m_italic);
+    if (m_letterSpacing != 0.0)
+        font.setLetterSpacing(QFont::AbsoluteSpacing, m_letterSpacing);
     painter->setFont(font);
 
     painter->setPen(QPen(m_color));
@@ -85,10 +113,12 @@ QJsonObject LabelComponent::toJson() const {
     obj["color"] = m_color.name();
 
     QJsonObject fontObj;
-    fontObj["family"] = m_fontFamily;
-    fontObj["pixelSize"] = m_pixelSize;
-    fontObj["bold"] = m_bold;
-    fontObj["italic"] = m_italic;
+    fontObj["family"]        = m_fontFamily;
+    fontObj["pixelSize"]     = m_pixelSize;
+    fontObj["bold"]          = m_bold;
+    fontObj["italic"]        = m_italic;
+    fontObj["letterSpacing"] = m_letterSpacing;
+    fontObj["lineHeight"]    = m_lineHeight;
     obj["font"] = fontObj;
 
     if (m_alignment & Qt::AlignHCenter) {
@@ -110,10 +140,12 @@ void LabelComponent::fromJson(const QJsonObject& json) {
     }
     if (json.contains("font") && json.value("font").isObject()) {
         QJsonObject fontObj = json.value("font").toObject();
-        m_fontFamily = fontObj.value("family").toString(m_fontFamily);
-        m_pixelSize = fontObj.value("pixelSize").toInt(m_pixelSize);
-        m_bold = fontObj.value("bold").toBool(m_bold);
-        m_italic = fontObj.value("italic").toBool(m_italic);
+        m_fontFamily    = fontObj.value("family").toString(m_fontFamily);
+        m_pixelSize     = fontObj.value("pixelSize").toInt(m_pixelSize);
+        m_bold          = fontObj.value("bold").toBool(m_bold);
+        m_italic        = fontObj.value("italic").toBool(m_italic);
+        m_letterSpacing = fontObj.value("letterSpacing").toDouble(0.0);
+        m_lineHeight    = fontObj.value("lineHeight").toInt(0);
     }
     if (json.contains("alignment")) {
         QString a = json.value("alignment").toString().toLower();
@@ -140,15 +172,14 @@ QString LabelComponent::toQmlSnippet(int indentSpaces) const {
     qml += QString("%1    text: \"%2\"\n").arg(indent, m_text);
     qml += QString("%1    color: \"%2\"\n").arg(indent, m_color.name());
     qml += QString("%1    font.pixelSize: %2\n").arg(indent).arg(m_pixelSize);
-    if (m_bold) {
-        qml += QString("%1    font.bold: true\n").arg(indent);
-    }
-    if (m_italic) {
-        qml += QString("%1    font.italic: true\n").arg(indent);
-    }
-    if (!m_fontFamily.isEmpty() && m_fontFamily != "Roboto") {
+    if (m_bold)   qml += QString("%1    font.bold: true\n").arg(indent);
+    if (m_italic) qml += QString("%1    font.italic: true\n").arg(indent);
+    if (!m_fontFamily.isEmpty() && m_fontFamily != "Roboto")
         qml += QString("%1    font.family: \"%2\"\n").arg(indent, m_fontFamily);
-    }
+    if (m_letterSpacing != 0.0)
+        qml += QString("%1    font.letterSpacing: %2\n").arg(indent).arg(m_letterSpacing, 0, 'f', 2);
+    if (m_lineHeight > 0)
+        qml += QString("%1    lineHeight: %2\n").arg(indent).arg(m_lineHeight / 100.0, 0, 'f', 2);
     if (m_alignment & Qt::AlignHCenter) {
         qml += QString("%1    horizontalAlignment: Text.AlignHCenter\n").arg(indent);
     } else if (m_alignment & Qt::AlignRight) {
@@ -165,6 +196,8 @@ QString LabelComponent::toUgfxSnippet(int indentSpaces) const {
     QString indent(indentSpaces, ' ');
     QString code;
     code += QString("%1// Label: %2\n").arg(indent, m_id);
+    if (m_letterSpacing != 0.0 || m_lineHeight > 0)
+        code += QString("%1// Note: letterSpacing/lineHeight not natively supported in µGFX\n").arg(indent);
     code += QString("%1wi.g.x = %2; wi.g.y = %3;\n").arg(indent).arg(static_cast<int>(pos().x())).arg(static_cast<int>(pos().y()));
     code += QString("%1wi.g.width = %2; wi.g.height = %3;\n").arg(indent).arg(static_cast<int>(m_width)).arg(static_cast<int>(m_height));
     code += QString("%1wi.text = \"%2\";\n").arg(indent, m_text);

@@ -29,6 +29,15 @@ public:
     Qt::Alignment alignment() const { return m_alignment; }
     void setAlignment(Qt::Alignment align);
 
+    // ── Extended typography (Task 5) ───────────────────────────────────────────
+    qreal letterSpacing() const { return m_letterSpacing; }
+    void  setLetterSpacing(qreal sp);
+
+    int lineHeight() const { return m_lineHeight; } ///< 0=default; else % of pixel-size
+    void setLineHeight(int pct);
+
+    static const QStringList& availableFonts(); ///< Curated embedded font list
+
     QJsonObject toJson() const override;
     void fromJson(const QJsonObject& json) override;
 
@@ -46,4 +55,6 @@ private:
     bool m_bold = false;
     bool m_italic = false;
     Qt::Alignment m_alignment = Qt::AlignLeft | Qt::AlignVCenter;
+    qreal m_letterSpacing = 0.0;  ///< Extra px between chars (QFont::AbsoluteSpacing)
+    int   m_lineHeight    = 0;    ///< 0=default, else % of pixelSize
 };

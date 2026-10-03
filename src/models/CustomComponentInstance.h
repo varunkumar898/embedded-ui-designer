@@ -34,7 +34,7 @@ public:
     QString activeVariantName() const           { return m_variantName; }
     void    setActiveVariantName(const QString& name);
 
-    /// Apply the colors from the given variant (or the definition's first variant).
+    /// Apply the colors from the given variant.
     void applyVariant(const ComponentVariant& variant);
 
     // ── Effective colors (after variant override) ─────────────────────────
@@ -42,19 +42,18 @@ public:
     QColor effectiveStrokeColor() const { return m_effectiveStroke; }
 
     // ── UIComponent interface ─────────────────────────────────────────────
-    QString componentType() const override { return "CustomInstance"; }
+    // componentType() is non-virtual, set to "CustomInstance" in constructor
     QJsonObject toJson()    const override;
     void fromJson(const QJsonObject& json)  override;
     QString toQmlSnippet(int indentSpaces = 8)   const override;
-    QString toUgfxSnippet(int indentSpaces = 0)  const override;
-    QString toLvglSnippet(int indentSpaces = 0)  const override;
+    QString toUgfxSnippet(int indentSpaces = 4)  const override;
 
 protected:
     void paintComponent(QPainter* painter) override;
 
 private:
     QString m_definitionId;
-    QString m_variantName;
+    QString m_variantName  = "Primary";
     QColor  m_effectiveFill   = QColor("#1a73e8");
     QColor  m_effectiveStroke = QColor("#0d47a1");
     QColor  m_effectiveAccent = QColor("#ffffff");

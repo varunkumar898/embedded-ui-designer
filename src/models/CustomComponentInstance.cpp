@@ -5,9 +5,8 @@
 CustomComponentInstance::CustomComponentInstance(const QString& id,
                                                  const QString& definitionId,
                                                  QGraphicsItem* parent)
-    : UIComponent(id, parent)
+    : UIComponent(id, "CustomInstance", parent)
     , m_definitionId(definitionId)
-    , m_variantName("Primary")
 {
     setCompSize(100, 40);
 }
@@ -16,7 +15,7 @@ void CustomComponentInstance::setActiveVariantName(const QString& name) {
     if (m_variantName != name) {
         m_variantName = name;
         update();
-        emit propertyChanged();
+        emit propertyChanged(this);
     }
 }
 
@@ -26,7 +25,7 @@ void CustomComponentInstance::applyVariant(const ComponentVariant& variant) {
     if (variant.useStroke) m_effectiveStroke = variant.strokeColor;
     if (variant.useAccent) m_effectiveAccent = variant.accentColor;
     update();
-    emit propertyChanged();
+    emit propertyChanged(this);
 }
 
 // ── Painting ──────────────────────────────────────────────────────────────
@@ -74,18 +73,14 @@ void CustomComponentInstance::fromJson(const QJsonObject& json) {
     m_variantName  = json.value("variant").toString("Primary");
 }
 
-// ── Code generation (placeholders — real output depends on base shape) ────
+// ── Code generation ───────────────────────────────────────────────────────
 
 QString CustomComponentInstance::toQmlSnippet(int indentSpaces) const {
     const QString indent(indentSpaces, ' ');
     return indent + QString("// CustomInstance \"%1\" variant \"%2\" — expand base shape\n")
                     .arg(m_definitionId, m_variantName);
 }
-QString CustomComponentInstance::toUgfxSnippet(int) const {
-    return QString("// CustomInstance \"%1\" variant \"%2\" — expand base shape\n")
-           .arg(m_definitionId, m_variantName);
-}
-QString CustomComponentInstance::toLvglSnippet(int) const {
+QString CustomComponentInstance::toUgfxSnippet(int /*indentSpaces*/) const {
     return QString("// CustomInstance \"%1\" variant \"%2\" — expand base shape\n")
            .arg(m_definitionId, m_variantName);
 }

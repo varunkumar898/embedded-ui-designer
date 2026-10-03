@@ -755,6 +755,56 @@ void PropertiesPanel::rebuildSpecificEditors() {
         alignLayout->addStretch(1);
         form->addRow("Alignment:", alignLayout);
 
+        // ── Task 5: Font family dropdown ──────────────────────────────────
+        QComboBox* fontCombo = new QComboBox(m_specificContainer);
+        fontCombo->setStyleSheet(
+            "QComboBox { background:#1c1f26; color:#e4ecf7; border:1px solid #2b2f38; "
+            "border-radius:5px; padding:3px 8px; font-size:12px; } "
+            "QComboBox QAbstractItemView { background:#1a1d24; color:#e0e5ee; "
+            "selection-background-color:#1a73e8; selection-color:#fff; border:1px solid #2c313e; }"
+        );
+        for (const QString& f : LabelComponent::availableFonts())
+            fontCombo->addItem(f);
+        fontCombo->setCurrentText(lbl->fontFamily());
+        connect(fontCombo, &QComboBox::currentTextChanged, this, [this, lbl](const QString& fam) {
+            if (!m_updatingFromComponent) {
+                lbl->setFontFamily(fam);
+                commitPropertyChange("Change Font Family");
+            }
+        });
+        form->addRow("Font Family:", fontCombo);
+
+        // ── Task 5: Letter Spacing ────────────────────────────────────────
+        QDoubleSpinBox* spinLetterSp = new QDoubleSpinBox(m_specificContainer);
+        spinLetterSp->setRange(-5.0, 20.0);
+        spinLetterSp->setSingleStep(0.5);
+        spinLetterSp->setDecimals(1);
+        spinLetterSp->setSuffix(" px");
+        spinLetterSp->setValue(lbl->letterSpacing());
+        connect(spinLetterSp, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                this, [this, lbl](double v) {
+            if (!m_updatingFromComponent) lbl->setLetterSpacing(v);
+        });
+        connect(spinLetterSp, &QDoubleSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Letter Spacing");
+        });
+        form->addRow("Letter Spacing:", spinLetterSp);
+
+        // ── Task 5: Line Height ───────────────────────────────────────────
+        QSpinBox* spinLineH = new QSpinBox(m_specificContainer);
+        spinLineH->setRange(0, 400);
+        spinLineH->setSuffix(" %");
+        spinLineH->setSpecialValueText("Default");
+        spinLineH->setValue(lbl->lineHeight());
+        connect(spinLineH, QOverload<int>::of(&QSpinBox::valueChanged),
+                this, [this, lbl](int v) {
+            if (!m_updatingFromComponent) lbl->setLineHeight(v);
+        });
+        connect(spinLineH, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Line Height");
+        });
+        form->addRow("Line Height:", spinLineH);
+
     } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
         m_colorBtn1 = addColorRow("Fill Color:", rect->fillColor(), [rect](const QColor& c) { rect->setFillColor(c); }, "Change Fill Color");
         m_colorBtn2 = addColorRow("Stroke Color:", rect->strokeColor(), [rect](const QColor& c) { rect->setStrokeColor(c); }, "Change Stroke Color");
