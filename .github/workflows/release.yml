@@ -37,8 +37,8 @@ jobs:
 
       - name: Build
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release --parallel
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build build --config Release --target ${{ env.APP_NAME }} --parallel
 
       - name: Test Headless Code Generation (CLI Mode)
         shell: bash
@@ -98,8 +98,8 @@ jobs:
 
       - name: Build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build build --target ${{ env.APP_NAME }} --parallel
 
       - name: Test Headless Code Generation (CLI Mode)
         run: |
@@ -144,7 +144,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-15          # Apple Silicon (M1/M2/M3/M4)
+          - runner: macos-14          # Apple Silicon (M1/M2/M3)
             label: macos-apple-silicon
           - runner: macos-15-intel    # Intel Macs
             label: macos-intel
@@ -159,10 +159,13 @@ jobs:
           modules: qtserialport
           cache: true
 
+      - name: Install Ninja
+        run: brew install ninja
+
       - name: Build
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build build --target ${{ env.APP_NAME }} --parallel 4
 
       - name: Test Headless Code Generation (CLI Mode)
         run: |

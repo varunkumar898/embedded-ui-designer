@@ -276,7 +276,9 @@ include(CPack)
 # ============================================================================
 # Automated Testing Suite
 # ============================================================================
-enable_testing()
+option(BUILD_TESTING "Build the testing tree." ON)
+if(BUILD_TESTING)
+    enable_testing()
 
 if(COMMAND qt_add_executable)
     qt_add_executable(test_all_cases
@@ -359,5 +361,6 @@ if(Qt6SerialPort_FOUND)
     target_link_libraries(test_functional_runner PRIVATE Qt6::SerialPort)
     target_compile_definitions(test_functional_runner PRIVATE HAVE_QT_SERIALPORT)
 endif()
+endif() # BUILD_TESTING
 
 
