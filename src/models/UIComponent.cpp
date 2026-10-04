@@ -494,6 +494,12 @@ QJsonObject UIComponent::toJson() const {
     obj["width"] = static_cast<int>(std::round(m_width));
     obj["height"] = static_cast<int>(std::round(m_height));
     obj["interactions"] = m_interactions;
+    obj["protocol"] = m_protocol.isEmpty() ? QString("None") : m_protocol;
+    QJsonObject pinObj;
+    for (auto it = m_protocolPins.constBegin(); it != m_protocolPins.constEnd(); ++it) {
+        pinObj[it.key()] = it.value();
+    }
+    obj["protocolPins"] = pinObj;
     return obj;
 }
 
@@ -501,6 +507,14 @@ void UIComponent::fromJson(const QJsonObject& json) {
     m_id = json.value("id").toString(m_id);
     m_componentType = json.value("type").toString(m_componentType);
     m_interactions = json.value("interactions").toArray();
+    m_protocol = json.value("protocol").toString("None");
+    m_protocolPins.clear();
+    if (json.contains("protocolPins") && json.value("protocolPins").isObject()) {
+        QJsonObject pinObj = json.value("protocolPins").toObject();
+        for (auto it = pinObj.constBegin(); it != pinObj.constEnd(); ++it) {
+            m_protocolPins[it.key()] = it.value().toString();
+        }
+    }
     qreal x = json.value("x").toDouble(pos().x());
     qreal y = json.value("y").toDouble(pos().y());
     setCompPos(x, y);
@@ -557,5 +571,34 @@ void UIComponent::deserializeColor(const QJsonValue& val, QColor& colorOut, QStr
     } else if (val.isString()) {
         colorOut = QColor(val.toString());
         styleRefOut.clear();
+    }
+}
+
+void UIComponent::setProtocol(const QString& proto) {
+    if (m_protocol != proto) {
+        m_protocol = proto;
+        emit propertyChanged(this);
+    }
+}
+
+void UIComponent::setProtocolPin(const QString& role, const QString& pin) {
+    if (m_protocolPins.value(role) != pin) {
+        m_protocolPins[role] = pin;
+        emit propertyChanged(this);
+    }
+}
+
+void UIComponent::setProtocolPins(const QMap<QString, QString>& pins) {
+    if (m_protocolPins != pins) {
+        m_protocolPins = pins;
+        emit propertyChanged(this);
+    }
+}
+
+void UIComponent::clearProtocol() {
+    if (m_protocol != "None" || !m_protocolPins.isEmpty()) {
+        m_protocol = "None";
+        m_protocolPins.clear();
+        emit propertyChanged(this);
     }
 }

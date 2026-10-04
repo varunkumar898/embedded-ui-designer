@@ -10,6 +10,11 @@ CanvasScene::CanvasScene(QObject* parent)
     connect(this, &QGraphicsScene::selectionChanged, this, &CanvasScene::onSelectionChanged);
 }
 
+CanvasScene::~CanvasScene() {
+    disconnect(this, nullptr, this, nullptr);
+    clear();
+}
+
 void CanvasScene::setDisplayConfig(const DisplayConfig& config) {
     m_displayConfig = config;
     qreal margin = 100.0;

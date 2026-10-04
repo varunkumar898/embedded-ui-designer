@@ -100,6 +100,16 @@ public:
     /// Components override this; the base is a no-op.
     virtual void applyColorStyle(const QString& styleName, const QColor& color);
 
+    // ── Hardware Protocol & Pin Binding ──────────────────────────────────
+    QString protocol() const { return m_protocol; }
+    void setProtocol(const QString& proto);
+
+    QMap<QString, QString> protocolPins() const { return m_protocolPins; }
+    QString protocolPin(const QString& role, const QString& defaultVal = QString()) const { return m_protocolPins.value(role, defaultVal); }
+    void setProtocolPin(const QString& role, const QString& pin);
+    void setProtocolPins(const QMap<QString, QString>& pins);
+    void clearProtocol();
+
     /// Serialize a color as either a plain hex string (no ref) or a
     /// {"styleRef": "<name>"} object. Deserialization restores both.
     static QJsonValue serializeColor(const QColor& color, const QString& styleRef = QString());
@@ -139,4 +149,6 @@ protected:
     int m_dragStartRadius = 0;
 
     QMap<QString, QString> m_colorStyleRefs;
+    QString m_protocol = "None";
+    QMap<QString, QString> m_protocolPins;
 };

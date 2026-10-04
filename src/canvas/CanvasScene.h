@@ -12,6 +12,7 @@ class CanvasScene : public QGraphicsScene {
 
 public:
     explicit CanvasScene(QObject* parent = nullptr);
+    ~CanvasScene() override;
 
     void setDisplayConfig(const DisplayConfig& config);
     DisplayConfig displayConfig() const { return m_displayConfig; }

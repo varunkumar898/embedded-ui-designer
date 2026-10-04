@@ -55,6 +55,8 @@ set(COMMON_SOURCES
     src/dialogs/FlashDialog.h
     src/dialogs/SerialMonitorDialog.cpp
     src/dialogs/SerialMonitorDialog.h
+    src/dialogs/PinBindingDialog.cpp
+    src/dialogs/PinBindingDialog.h
     src/dialogs/NewProjectDialog.cpp
     src/dialogs/NewProjectDialog.h
 
@@ -122,6 +124,10 @@ set(COMMON_SOURCES
     src/codegen/LvglGenerator.h
 
     # Hardware Bridge & Flashing Subsystem
+    src/hardware/HardwareBridge.cpp
+    src/hardware/HardwareBridge.h
+    src/hardware/BoardConfigParser.cpp
+    src/hardware/BoardConfigParser.h
     src/hardware/DeviceManager.cpp
     src/hardware/DeviceManager.h
     src/hardware/FlashController.cpp
@@ -147,6 +153,8 @@ set(COMMON_SOURCES
     src/models/ColorStyle.h
     src/project/Project.cpp
     src/project/Project.h
+    src/project/QmlImporter.cpp
+    src/project/QmlImporter.h
 )
 
 set(SOURCES

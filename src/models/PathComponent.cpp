@@ -339,22 +339,28 @@ static PathAnchor anchorFromJson(const QJsonObject& o) {
 QJsonObject PathComponent::toJson() const {
     QJsonObject json = UIComponent::toJson();
 
-    // Write the new multi-contour format
-    QJsonArray contoursJson;
-    for (const PathContour& contour : m_contours) {
-        QJsonArray contourJson;
-        for (const PathAnchor& a : contour)
-            contourJson.append(anchorToJson(a));
-        contoursJson.append(contourJson);
+    // Write the new multi-contour format if more than one contour
+    if (m_contours.size() > 1) {
+        QJsonArray contoursJson;
+        for (const PathContour& contour : m_contours) {
+            QJsonArray contourJson;
+            for (const PathAnchor& a : contour)
+                contourJson.append(anchorToJson(a));
+            contoursJson.append(contourJson);
+        }
+        json["contours"] = contoursJson;
     }
-    json["contours"] = contoursJson;
 
-    // Also emit legacy "anchors" for contour 0 so older readers don't break
+    // Also emit legacy "anchors" and "points" for contour 0 so older readers don't break
     if (!m_contours.isEmpty()) {
         QJsonArray anchorsJson;
-        for (const PathAnchor& a : m_contours.first())
+        QJsonArray pointsJson;
+        for (const PathAnchor& a : m_contours.first()) {
             anchorsJson.append(anchorToJson(a));
+            pointsJson.append(pointToArray(a.position));
+        }
         json["anchors"] = anchorsJson;
+        json["points"] = pointsJson;
     }
 
     json["strokeColor"]       = serializeColor(m_strokeColor, colorStyleRef("strokeColor"));

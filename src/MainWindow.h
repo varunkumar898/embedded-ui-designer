@@ -38,6 +38,9 @@ private slots:
     void onExportLvgl();
     void onFlashFirmware();
     void onSerialMonitor();
+    void onPinConfiguration();
+    void onImportBoardConfig();
+    void onImportQmlDesign();
 
     // Edit Actions
     void onDeleteSelected();

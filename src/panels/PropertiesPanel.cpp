@@ -15,6 +15,7 @@
 #include "ColorPickerDialog.h"
 #include "Project.h"
 #include "ColorStyle.h"
+#include "HardwareBridge.h"
 #include <QUndoStack>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -309,6 +310,191 @@ void PropertiesPanel::setupUi() {
     m_specificLayout->setSpacing(8);
     mainLayout->addWidget(m_specificGroup);
 
+    // ── Hardware Protocol Binding Group ──────────────────────────────────
+    m_protocolGroup = new QGroupBox("Hardware Protocol Binding", m_contentWidget);
+    m_protocolGroup->setObjectName("hardwareProtocolGroup");
+    m_protocolGroup->setStyleSheet(
+        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
+        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
+        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+    );
+    QVBoxLayout* protoLayout = new QVBoxLayout(m_protocolGroup);
+    protoLayout->setSpacing(8);
+
+    // Protocol selector row
+    QHBoxLayout* protoRow = new QHBoxLayout();
+    QLabel* lblProto = new QLabel("Protocol:", m_protocolGroup);
+    lblProto->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: bold; min-width: 52px;");
+    m_protocolCombo = new QComboBox(m_protocolGroup);
+    m_protocolCombo->setObjectName("protocolCombo");
+    m_protocolCombo->setStyleSheet(
+        "QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; font-weight: bold; "
+        "border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #1C1F26; color: #FFFFFF; selection-background-color: #2196F3; }"
+    );
+    m_protocolCombo->addItems({"None", "GPIO", "PWM", "ADC", "I2C", "SPI"});
+    protoRow->addWidget(lblProto);
+    protoRow->addWidget(m_protocolCombo, 1);
+    protoLayout->addLayout(protoRow);
+
+    auto makePinCombo = [](QWidget* parent, const QString& objName) {
+        QComboBox* cb = new QComboBox(parent);
+        cb->setObjectName(objName);
+        cb->setStyleSheet(
+            "QComboBox { background: #16181F; color: #FFFFFF; font-size: 11px; font-weight: bold; "
+            "border: 1px solid #2F3543; border-radius: 4px; padding: 3px 6px; } "
+            "QComboBox::drop-down { border: none; } "
+            "QComboBox QAbstractItemView { background: #16181F; color: #FFFFFF; selection-background-color: #0b82ec; }"
+        );
+        return cb;
+    };
+    auto makeFieldLabel = [](const QString& text, QWidget* parent) {
+        QLabel* lbl = new QLabel(text, parent);
+        lbl->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: bold; min-width: 52px;");
+        return lbl;
+    };
+
+    // 1. None
+    m_protocolNoneWidget = new QWidget(m_protocolGroup);
+    QVBoxLayout* noneLayout = new QVBoxLayout(m_protocolNoneWidget);
+    noneLayout->setContentsMargins(0, 4, 0, 4);
+    QLabel* lblNone = new QLabel("No hardware protocol bound. Select GPIO, PWM, ADC, I2C, or SPI to map hardware pins.", m_protocolNoneWidget);
+    lblNone->setStyleSheet("color: #64748b; font-size: 10px; font-style: italic;");
+    lblNone->setWordWrap(true);
+    noneLayout->addWidget(lblNone);
+    protoLayout->addWidget(m_protocolNoneWidget);
+
+    // 2. GPIO
+    m_gpioWidget = new QWidget(m_protocolGroup);
+    m_gpioWidget->setVisible(false);
+    QHBoxLayout* gpioLayout = new QHBoxLayout(m_gpioWidget);
+    gpioLayout->setContentsMargins(0, 2, 0, 2);
+    gpioLayout->addWidget(makeFieldLabel("Pin:", m_gpioWidget));
+    m_comboGpioPin = makePinCombo(m_gpioWidget, "gpioPinCombo");
+    gpioLayout->addWidget(m_comboGpioPin, 1);
+    protoLayout->addWidget(m_gpioWidget);
+
+    // 3. PWM
+    m_pwmWidget = new QWidget(m_protocolGroup);
+    m_pwmWidget->setVisible(false);
+    QHBoxLayout* pwmLayout = new QHBoxLayout(m_pwmWidget);
+    pwmLayout->setContentsMargins(0, 2, 0, 2);
+    pwmLayout->addWidget(makeFieldLabel("Pin:", m_pwmWidget));
+    m_comboPwmPin = makePinCombo(m_pwmWidget, "pwmPinCombo");
+    pwmLayout->addWidget(m_comboPwmPin, 1);
+    protoLayout->addWidget(m_pwmWidget);
+
+    // 4. ADC
+    m_adcWidget = new QWidget(m_protocolGroup);
+    m_adcWidget->setVisible(false);
+    QHBoxLayout* adcLayout = new QHBoxLayout(m_adcWidget);
+    adcLayout->setContentsMargins(0, 2, 0, 2);
+    adcLayout->addWidget(makeFieldLabel("Pin:", m_adcWidget));
+    m_comboAdcPin = makePinCombo(m_adcWidget, "adcPinCombo");
+    adcLayout->addWidget(m_comboAdcPin, 1);
+    protoLayout->addWidget(m_adcWidget);
+
+    // 5. SPI (MISO, MOSI, SCK, SS - raw transfer)
+    m_spiWidget = new QWidget(m_protocolGroup);
+    m_spiWidget->setVisible(false);
+    QVBoxLayout* spiVLayout = new QVBoxLayout(m_spiWidget);
+    spiVLayout->setContentsMargins(0, 2, 0, 2);
+    spiVLayout->setSpacing(6);
+
+    QLabel* spiNotice = new QLabel("SPI Raw Transfer (byte in/out)", m_spiWidget);
+    spiNotice->setStyleSheet("color: #38bdf8; background-color: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; padding: 4px 6px; font-size: 10px; font-weight: bold;");
+    spiVLayout->addWidget(spiNotice);
+
+    QGridLayout* spiGrid = new QGridLayout();
+    spiGrid->setSpacing(6);
+    spiGrid->addWidget(makeFieldLabel("MISO:", m_spiWidget), 0, 0);
+    m_comboSpiMiso = makePinCombo(m_spiWidget, "spiMisoCombo");
+    spiGrid->addWidget(m_comboSpiMiso, 0, 1);
+
+    spiGrid->addWidget(makeFieldLabel("MOSI:", m_spiWidget), 1, 0);
+    m_comboSpiMosi = makePinCombo(m_spiWidget, "spiMosiCombo");
+    spiGrid->addWidget(m_comboSpiMosi, 1, 1);
+
+    spiGrid->addWidget(makeFieldLabel("SCK:", m_spiWidget), 2, 0);
+    m_comboSpiSck = makePinCombo(m_spiWidget, "spiSckCombo");
+    spiGrid->addWidget(m_comboSpiSck, 2, 1);
+
+    spiGrid->addWidget(makeFieldLabel("SS:", m_spiWidget), 3, 0);
+    m_comboSpiSs = makePinCombo(m_spiWidget, "spiSsCombo");
+    spiGrid->addWidget(m_comboSpiSs, 3, 1);
+    spiVLayout->addLayout(spiGrid);
+    protoLayout->addWidget(m_spiWidget);
+
+    // 6. I2C (SCL, SDA, Device Address - UI/config only)
+    m_i2cWidget = new QWidget(m_protocolGroup);
+    m_i2cWidget->setVisible(false);
+    QVBoxLayout* i2cVLayout = new QVBoxLayout(m_i2cWidget);
+    i2cVLayout->setContentsMargins(0, 2, 0, 2);
+    i2cVLayout->setSpacing(6);
+
+    QLabel* i2cNotice = new QLabel(
+        "⚠ Configuration Only (Firmware export)\n"
+        "Live OpenOCD polling disabled (unreliable over JTAG/SWD latency)",
+        m_i2cWidget);
+    i2cNotice->setWordWrap(true);
+    i2cNotice->setStyleSheet(
+        "color: #fbbf24; background-color: rgba(245, 158, 11, 0.12); "
+        "border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; "
+        "padding: 5px 8px; font-size: 10px; font-weight: bold; line-height: 1.3;"
+    );
+    i2cVLayout->addWidget(i2cNotice);
+
+    QGridLayout* i2cGrid = new QGridLayout();
+    i2cGrid->setSpacing(6);
+    i2cGrid->addWidget(makeFieldLabel("SCL:", m_i2cWidget), 0, 0);
+    m_comboI2cScl = makePinCombo(m_i2cWidget, "i2cSclCombo");
+    i2cGrid->addWidget(m_comboI2cScl, 0, 1);
+
+    i2cGrid->addWidget(makeFieldLabel("SDA:", m_i2cWidget), 1, 0);
+    m_comboI2cSda = makePinCombo(m_i2cWidget, "i2cSdaCombo");
+    i2cGrid->addWidget(m_comboI2cSda, 1, 1);
+
+    i2cGrid->addWidget(makeFieldLabel("Address:", m_i2cWidget), 2, 0);
+    m_editI2cAddress = new QLineEdit(m_i2cWidget);
+    m_editI2cAddress->setObjectName("i2cAddressEdit");
+    m_editI2cAddress->setPlaceholderText("0x48");
+    m_editI2cAddress->setText("0x48");
+    m_editI2cAddress->setStyleSheet(
+        "QLineEdit { background: #16181F; color: #FFFFFF; font-size: 11px; font-weight: bold; "
+        "border: 1px solid #2F3543; border-radius: 4px; padding: 3px 6px; }"
+    );
+    i2cGrid->addWidget(m_editI2cAddress, 2, 1);
+    i2cVLayout->addLayout(i2cGrid);
+    protoLayout->addWidget(m_i2cWidget);
+
+    mainLayout->addWidget(m_protocolGroup);
+
+    // Connect signals
+    connect(m_protocolCombo, &QComboBox::currentTextChanged, this, &PropertiesPanel::onProtocolChanged);
+    auto connectPin = [this](QComboBox* cb) {
+        connect(cb, &QComboBox::currentTextChanged, this, &PropertiesPanel::onProtocolPinChanged);
+    };
+    connectPin(m_comboGpioPin);
+    connectPin(m_comboPwmPin);
+    connectPin(m_comboAdcPin);
+    connectPin(m_comboSpiMiso);
+    connectPin(m_comboSpiMosi);
+    connectPin(m_comboSpiSck);
+    connectPin(m_comboSpiSs);
+    connectPin(m_comboI2cScl);
+    connectPin(m_comboI2cSda);
+    connect(m_editI2cAddress, &QLineEdit::textChanged, this, &PropertiesPanel::onProtocolPinChanged);
+    connect(m_editI2cAddress, &QLineEdit::editingFinished, this, [this]() {
+        commitPropertyChange("Change I2C Address");
+    });
+
+    updateBoardPins();
+    connect(&HardwareBridge::instance(), &HardwareBridge::boardChanged, this, [this](const QString&) {
+        updateBoardPins();
+    });
+
     mainLayout->addStretch(1);
     scrollArea->setWidget(m_contentWidget);
     rootLayout->addWidget(scrollArea);
@@ -329,6 +515,7 @@ void PropertiesPanel::showSingle() {
     m_contentWidget->setVisible(true);
     m_headerWidget->setVisible(true);
     m_specificGroup->setVisible(true);
+    if (m_protocolGroup) m_protocolGroup->setVisible(true);
     m_geometryGroup->setEnabled(true);
     m_alignmentRow->setVisible(false);
     m_booleanOpsRow->setVisible(false);
@@ -340,6 +527,7 @@ void PropertiesPanel::showMulti(int count) {
     m_multiLabel->setText(QString("%1 components selected").arg(count));
     m_headerWidget->setVisible(false);
     m_specificGroup->setVisible(false);
+    if (m_protocolGroup) m_protocolGroup->setVisible(false);
     m_geometryGroup->setEnabled(false);
     m_alignmentRow->setVisible(count >= 2);
     m_booleanOpsRow->setVisible(count >= 2);
@@ -499,6 +687,52 @@ void PropertiesPanel::refreshValues() {
         if (m_spinStrokeW) m_spinStrokeW->setValue(qRound(path->strokeThickness()));
         if (m_spinOpacity) m_spinOpacity->setValue(path->opacityPercent());
         if (m_spinPathFlatten) m_spinPathFlatten->setValue(path->flattenSubdivisions());
+    }
+
+    // ── Synchronize Hardware Protocol Binding ─────────────────────────
+    if (m_protocolCombo && m_targetComponent) {
+        QString proto = m_targetComponent->protocol();
+        if (proto.isEmpty()) proto = "None";
+        int idx = m_protocolCombo->findText(proto);
+        if (idx >= 0) m_protocolCombo->setCurrentIndex(idx);
+        else m_protocolCombo->setCurrentIndex(0);
+
+        updateProtocolFieldsVisibility(proto);
+
+        auto setComboVal = [](QComboBox* cb, const QString& val) {
+            if (!cb) return;
+            bool b = cb->blockSignals(true);
+            int i = cb->findText(val);
+            if (i >= 0) cb->setCurrentIndex(i);
+            else if (!val.isEmpty()) {
+                cb->addItem(val);
+                cb->setCurrentText(val);
+            } else {
+                cb->setCurrentIndex(0);
+            }
+            cb->blockSignals(b);
+        };
+
+        if (proto == "GPIO") {
+            setComboVal(m_comboGpioPin, m_targetComponent->protocolPin("pin"));
+        } else if (proto == "PWM") {
+            setComboVal(m_comboPwmPin, m_targetComponent->protocolPin("pin"));
+        } else if (proto == "ADC") {
+            setComboVal(m_comboAdcPin, m_targetComponent->protocolPin("pin"));
+        } else if (proto == "SPI") {
+            setComboVal(m_comboSpiMiso, m_targetComponent->protocolPin("miso"));
+            setComboVal(m_comboSpiMosi, m_targetComponent->protocolPin("mosi"));
+            setComboVal(m_comboSpiSck,  m_targetComponent->protocolPin("sck"));
+            setComboVal(m_comboSpiSs,   m_targetComponent->protocolPin("ss"));
+        } else if (proto == "I2C") {
+            setComboVal(m_comboI2cScl, m_targetComponent->protocolPin("scl"));
+            setComboVal(m_comboI2cSda, m_targetComponent->protocolPin("sda"));
+            if (m_editI2cAddress) {
+                bool b = m_editI2cAddress->blockSignals(true);
+                m_editI2cAddress->setText(m_targetComponent->protocolPin("address", "0x48"));
+                m_editI2cAddress->blockSignals(b);
+            }
+        }
     }
 
     m_lastSavedState = m_targetComponent->toJson();
@@ -1288,5 +1522,126 @@ void PropertiesPanel::onSpecificPropertyChanged() {
 
 int PropertiesPanel::specificEditorsLayoutCount() const {
     return m_specificLayout ? m_specificLayout->count() : 0;
+}
+
+void PropertiesPanel::updateBoardPins() {
+    QStringList pins = HardwareBridge::instance().availablePins();
+    QStringList items;
+    items << "[None]";
+    items << pins;
+
+    auto updateCombo = [&items](QComboBox* cb) {
+        if (!cb) return;
+        QString cur = cb->currentText();
+        bool b = cb->blockSignals(true);
+        cb->clear();
+        cb->addItems(items);
+        int idx = cb->findText(cur);
+        if (idx >= 0) cb->setCurrentIndex(idx);
+        else cb->setCurrentIndex(0);
+        cb->blockSignals(b);
+    };
+
+    updateCombo(m_comboGpioPin);
+    updateCombo(m_comboPwmPin);
+    updateCombo(m_comboAdcPin);
+    updateCombo(m_comboSpiMiso);
+    updateCombo(m_comboSpiMosi);
+    updateCombo(m_comboSpiSck);
+    updateCombo(m_comboSpiSs);
+    updateCombo(m_comboI2cScl);
+    updateCombo(m_comboI2cSda);
+}
+
+void PropertiesPanel::updateProtocolFieldsVisibility(const QString& protocol) {
+    if (m_protocolNoneWidget) m_protocolNoneWidget->setVisible(protocol == "None");
+    if (m_gpioWidget) m_gpioWidget->setVisible(protocol == "GPIO");
+    if (m_pwmWidget) m_pwmWidget->setVisible(protocol == "PWM");
+    if (m_adcWidget) m_adcWidget->setVisible(protocol == "ADC");
+    if (m_spiWidget) m_spiWidget->setVisible(protocol == "SPI");
+    if (m_i2cWidget) m_i2cWidget->setVisible(protocol == "I2C");
+}
+
+void PropertiesPanel::onProtocolChanged(const QString& newProtocol) {
+    if (m_updatingFromComponent || !m_targetComponent) return;
+
+    m_targetComponent->setProtocol(newProtocol);
+    updateProtocolFieldsVisibility(newProtocol);
+
+    // Provide sensible defaults for freshly chosen protocol if pins not yet assigned
+    if (newProtocol == "GPIO") {
+        if (m_targetComponent->protocolPin("pin").isEmpty() && m_comboGpioPin) {
+            m_targetComponent->setProtocolPin("pin", m_comboGpioPin->currentText());
+        }
+    } else if (newProtocol == "PWM") {
+        if (m_targetComponent->protocolPin("pin").isEmpty() && m_comboPwmPin) {
+            m_targetComponent->setProtocolPin("pin", m_comboPwmPin->currentText());
+        }
+    } else if (newProtocol == "ADC") {
+        if (m_targetComponent->protocolPin("pin").isEmpty() && m_comboAdcPin) {
+            m_targetComponent->setProtocolPin("pin", m_comboAdcPin->currentText());
+        }
+    } else if (newProtocol == "SPI") {
+        if (m_targetComponent->protocolPin("miso").isEmpty() && m_comboSpiMiso) {
+            int idx = m_comboSpiMiso->findText("PA6");
+            if (idx >= 0) m_comboSpiMiso->setCurrentIndex(idx);
+            m_targetComponent->setProtocolPin("miso", m_comboSpiMiso->currentText());
+        }
+        if (m_targetComponent->protocolPin("mosi").isEmpty() && m_comboSpiMosi) {
+            int idx = m_comboSpiMosi->findText("PA7");
+            if (idx >= 0) m_comboSpiMosi->setCurrentIndex(idx);
+            m_targetComponent->setProtocolPin("mosi", m_comboSpiMosi->currentText());
+        }
+        if (m_targetComponent->protocolPin("sck").isEmpty() && m_comboSpiSck) {
+            int idx = m_comboSpiSck->findText("PA5");
+            if (idx >= 0) m_comboSpiSck->setCurrentIndex(idx);
+            m_targetComponent->setProtocolPin("sck", m_comboSpiSck->currentText());
+        }
+        if (m_targetComponent->protocolPin("ss").isEmpty() && m_comboSpiSs) {
+            int idx = m_comboSpiSs->findText("PA4");
+            if (idx >= 0) m_comboSpiSs->setCurrentIndex(idx);
+            m_targetComponent->setProtocolPin("ss", m_comboSpiSs->currentText());
+        }
+    } else if (newProtocol == "I2C") {
+        if (m_targetComponent->protocolPin("scl").isEmpty() && m_comboI2cScl) {
+            int idx = m_comboI2cScl->findText("PB8");
+            if (idx >= 0) m_comboI2cScl->setCurrentIndex(idx);
+            m_targetComponent->setProtocolPin("scl", m_comboI2cScl->currentText());
+        }
+        if (m_targetComponent->protocolPin("sda").isEmpty() && m_comboI2cSda) {
+            int idx = m_comboI2cSda->findText("PB9");
+            if (idx >= 0) m_comboI2cSda->setCurrentIndex(idx);
+            m_targetComponent->setProtocolPin("sda", m_comboI2cSda->currentText());
+        }
+        if (m_targetComponent->protocolPin("address").isEmpty() && m_editI2cAddress) {
+            m_targetComponent->setProtocolPin("address", m_editI2cAddress->text().trimmed());
+        }
+    }
+
+    commitPropertyChange("Change Protocol");
+}
+
+void PropertiesPanel::onProtocolPinChanged() {
+    if (m_updatingFromComponent || !m_targetComponent) return;
+
+    QString proto = m_protocolCombo ? m_protocolCombo->currentText() : "None";
+    if (proto == "GPIO") {
+        if (m_comboGpioPin) m_targetComponent->setProtocolPin("pin", m_comboGpioPin->currentText());
+    } else if (proto == "PWM") {
+        if (m_comboPwmPin) m_targetComponent->setProtocolPin("pin", m_comboPwmPin->currentText());
+    } else if (proto == "ADC") {
+        if (m_comboAdcPin) m_targetComponent->setProtocolPin("pin", m_comboAdcPin->currentText());
+    } else if (proto == "SPI") {
+        if (m_comboSpiMiso) m_targetComponent->setProtocolPin("miso", m_comboSpiMiso->currentText());
+        if (m_comboSpiMosi) m_targetComponent->setProtocolPin("mosi", m_comboSpiMosi->currentText());
+        if (m_comboSpiSck)  m_targetComponent->setProtocolPin("sck",  m_comboSpiSck->currentText());
+        if (m_comboSpiSs)   m_targetComponent->setProtocolPin("ss",   m_comboSpiSs->currentText());
+    } else if (proto == "I2C") {
+        if (m_comboI2cScl) m_targetComponent->setProtocolPin("scl", m_comboI2cScl->currentText());
+        if (m_comboI2cSda) m_targetComponent->setProtocolPin("sda", m_comboI2cSda->currentText());
+        if (m_editI2cAddress) m_targetComponent->setProtocolPin("address", m_editI2cAddress->text().trimmed());
+    }
+
+    commitPropertyChange("Change Protocol Pin Mapping");
 }
 

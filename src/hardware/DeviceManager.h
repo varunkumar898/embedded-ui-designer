@@ -41,8 +41,11 @@ public:
     Q_INVOKABLE QVariantMap getPortDetails(const QString& portName) const;
     Q_INVOKABLE QString detectBoardType(const QString& portName) const;
     Q_INVOKABLE QString getFlashCommand(const QString& boardType, const QString& binaryPath) const;
+    Q_INVOKABLE QStringList availablePins() const;
+    Q_INVOKABLE bool importBoardConfig(const QString& filePath, QString* outError = nullptr);
 
 signals:
+    void availablePinsChanged();
     void portsChanged();
     void selectedPortChanged(const QString& port);
     void autoScanningChanged(bool isScanning);

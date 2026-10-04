@@ -182,7 +182,6 @@ void ComponentPalette::setupUi() {
     QListWidgetItem* shapeItem = new QListWidgetItem(m_listWidget);
     shapeItem->setData(Qt::UserRole, "Shape");
     shapeItem->setFlags(Qt::ItemIsEnabled);
-    shapeItem->setSizeHint(QSize(180, 46));
     m_shapeButton = new QToolButton(m_listWidget);
     m_shapeButton->setObjectName("shapeToolButton");
     m_shapeButton->setText("Shape");
@@ -194,10 +193,10 @@ void ComponentPalette::setupUi() {
     m_shapeButton->setToolTip("Choose a shape drawing tool");
     m_shapeButton->setStyleSheet(
         "QToolButton { background: #1c1f26; color: #e4ecf7; border: 1px solid #252933; "
-        "border-radius: 10px; padding: 6px 10px; text-align: left; font-size: 12.5px; font-weight: 500; }"
+        "border-radius: 10px; padding: 7px 12px; text-align: left; font-size: 12.5px; font-weight: 500; }"
         "QToolButton:hover { background: #232731; border-color: #323746; color: #ffffff; }"
         "QToolButton::menu-indicator { image: url(:/combo_arrow.png); subcontrol-origin: padding; "
-        "subcontrol-position: top right; width: 26px; height: 7px; }"
+        "subcontrol-position: top right; width: 12px; height: 7px; margin-right: 6px; }"
     );
     QMenu* shapeMenu = new QMenu(m_shapeButton);
     const QStringList shapes = {"Circle", "Triangle", "Square", "Rectangle", "Custom"};

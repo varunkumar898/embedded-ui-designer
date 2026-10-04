@@ -153,3 +153,24 @@ QString DeviceManager::getFlashCommand(const QString& boardType, const QString& 
     }
     return QString("// Select specific device profile to generate flash command");
 }
+
+#include "HardwareBridge.h"
+#include "BoardConfigParser.h"
+
+QStringList DeviceManager::availablePins() const {
+    return HardwareBridge::instance().availablePins();
+}
+
+bool DeviceManager::importBoardConfig(const QString& filePath, QString* outError) {
+    auto res = BoardConfigParser::parseFile(filePath);
+    if (!res.success) {
+        if (outError) *outError = res.errorMessage;
+        return false;
+    }
+
+    BoardProfile bp = res.toBoardProfile();
+    HardwareBridge::instance().addBoard(bp);
+    HardwareBridge::instance().setBoard(bp.id);
+    emit availablePinsChanged();
+    return true;
+}

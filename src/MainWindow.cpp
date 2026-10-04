@@ -4,6 +4,7 @@
 #include "LvglGenerator.h"
 #include "FlashDialog.h"
 #include "SerialMonitorDialog.h"
+#include "PinBindingDialog.h"
 #include "NewProjectDialog.h"
 #include "DeviceManager.h"
 #include "ButtonComponent.h"
@@ -18,6 +19,7 @@
 #include "PathComponent.h"
 #include "CustomComponentInstance.h"
 #include "ComponentDefinition.h"
+#include "project/QmlImporter.h"
 #include <QUndoStack>
 #include <QMenuBar>
 #include <QToolBar>
@@ -132,6 +134,8 @@ void MainWindow::setupMenusAndToolbars() {
     fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
     fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
     fileMenu->addAction("Import...", this, &MainWindow::onImportProject, QKeySequence(Qt::CTRL | Qt::Key_I));
+    fileMenu->addAction("Import Board Config...", this, &MainWindow::onImportBoardConfig);
+    fileMenu->addAction("Import QML Design...", this, &MainWindow::onImportQmlDesign);
     fileMenu->addSeparator();
     fileMenu->addAction("Save", this, &MainWindow::onSaveProject, QKeySequence::Save);
     fileMenu->addAction("Save As...", this, &MainWindow::onSaveProjectAs, QKeySequence::SaveAs);
@@ -174,6 +178,7 @@ void MainWindow::setupMenusAndToolbars() {
     projectMenu->addAction("Export...", this, &MainWindow::onExport);
 
     QMenu* deviceMenu = menuBar()->addMenu("Device");
+    deviceMenu->addAction("Pin Configuration & Binding...", this, &MainWindow::onPinConfiguration);
     deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
     deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
 
@@ -595,6 +600,11 @@ void MainWindow::onSerialMonitor() {
     dialog.exec();
 }
 
+void MainWindow::onPinConfiguration() {
+    PinBindingDialog dialog(m_scene, this);
+    dialog.exec();
+}
+
 void MainWindow::onOpenProject() {
     QString defaultDir = Project::appDataDirectory();
     QString file = QFileDialog::getOpenFileName(this, "Open Embedded UI Project", defaultDir, "Embedded UI Project (*.euiproj);;All Files (*)");
@@ -633,6 +643,66 @@ void MainWindow::onImportProject() {
     if (m_propertiesPanel) m_propertiesPanel->setSelectedComponents({});
     if (m_layerPanel) m_layerPanel->refreshLayers();
     statusBar()->showMessage(QString("Imported %1 component(s) from %2").arg(count).arg(file), 5000);
+}
+
+void MainWindow::onImportBoardConfig() {
+    QString filter = "Board Config Files (*.ioc sdkconfig* *.h *.ini *.txt);;STM32CubeMX (*.ioc);;ESP-IDF (sdkconfig*);;All Files (*)";
+    QString filePath = QFileDialog::getOpenFileName(this, "Import Board Configuration (.ioc / sdkconfig)", QString(), filter);
+    if (filePath.isEmpty()) return;
+
+    QString errorMsg;
+    if (!m_deviceManager->importBoardConfig(filePath, &errorMsg)) {
+        QMessageBox::warning(this, "Board Configuration Import Failed", errorMsg);
+        return;
+    }
+
+    statusBar()->showMessage(QString("Successfully imported board configuration from %1").arg(QFileInfo(filePath).fileName()), 5000);
+    onPinConfiguration();
+}
+
+void MainWindow::onImportQmlDesign() {
+    QString filter = "QML Files (*.qml);;All Files (*)";
+    QString filePath = QFileDialog::getOpenFileName(this, "Import QML Design", QString(), filter);
+    if (filePath.isEmpty()) return;
+
+    QmlImportResult result = QmlImporter::importFromFile(filePath);
+    if (!result.errorMessage.isEmpty()) {
+        QMessageBox::warning(this, "QML Import Failed", result.errorMessage);
+        return;
+    }
+
+    QSet<QString> existingIds;
+    for (UIComponent* c : m_scene->uiComponents()) {
+        existingIds.insert(c->componentId());
+    }
+
+    for (UIComponent* comp : result.components) {
+        QString originalId = comp->componentId();
+        QString uniqueId = originalId;
+        int suffix = 2;
+        while (existingIds.contains(uniqueId)) {
+            uniqueId = QString("%1_%2").arg(originalId).arg(suffix++);
+        }
+        comp->setComponentId(uniqueId);
+        existingIds.insert(uniqueId);
+        m_scene->addUIComponent(comp);
+    }
+
+    if (m_layerPanel) m_layerPanel->refreshLayers();
+
+    if (result.rejectedCount() > 0) {
+        QString summary = QString("QML Import completed with %1 component(s) imported.\n\n%2 item(s) were out of scope and rejected:")
+                              .arg(result.importedCount())
+                              .arg(result.rejectedCount());
+        QMessageBox box(result.importedCount() > 0 ? QMessageBox::Information : QMessageBox::Warning,
+                        "QML Import Report", summary, QMessageBox::Ok, this);
+        box.setDetailedText(result.rejectedItems.join("\n"));
+        box.exec();
+    } else {
+        statusBar()->showMessage(QString("Successfully imported %1 component(s) from %2")
+                                     .arg(result.importedCount())
+                                     .arg(QFileInfo(filePath).fileName()), 5000);
+    }
 }
 
 void MainWindow::onSaveProject() {

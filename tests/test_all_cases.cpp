@@ -41,6 +41,10 @@
 #include "PropertiesPanel.h"
 #include "PrototypePanel.h"
 #include "SerialMonitorDialog.h"
+#include "PinBindingDialog.h"
+#include "HardwareBridge.h"
+#include "BoardConfigParser.h"
+#include "QmlImporter.h"
 #include "DeviceManager.h"
 #include "MainWindow.h"
 #include "LayerPanel.h"
@@ -106,6 +110,21 @@ private slots:
     // 9. Canvas View & Display Presets
     void testDisplayPresetsAndCanvasView();
     void testCanvasZoomInteractions();
+
+    // 10. Hardware ADC & SPI Pin Modes and Binding (Task A & C)
+    void testAdcSetupAndPollingPattern();
+    void testSpiRawTransferMode();
+    void testAdcBindingToProgressBarAndNumericDisplay();
+    void testPinBindingDialogUiAndPotentiometerSlider();
+    void testComponentProtocolConfigurationAndScreenshots();
+
+    // 11. Board Configuration Import (STM32 .ioc / ESP-IDF sdkconfig)
+    void testBoardConfigImportIoc();
+    void testBoardConfigImportSdkConfig();
+
+    // 12. QML Design Import (Literal properties only, strict rejection of bindings/anchors/etc.)
+    void testQmlImportBasic();
+    void testQmlImportComplexRejected();
 
     void cleanupTestCase();
 
@@ -1240,5 +1259,614 @@ void TestAllCases::testCanvasZoomInteractions() {
     QCOMPARE(view.zoomFactor(), 1.0);
 }
 
+void TestAllCases::testAdcSetupAndPollingPattern() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+
+    // 1. Valid ADC pin: PA0 (ADC1_IN0, 12-bit)
+    QVERIFY(bridge.isModeAvailable("PA0", PinMode::AnalogIn));
+    const PinProfile pa0 = bridge.pinProfile("PA0");
+    QCOMPARE(pa0.adc.available, true);
+    QCOMPARE(pa0.adc.peripheral, QString("ADC1"));
+    QCOMPARE(pa0.adc.channel, 0);
+    QCOMPARE(pa0.adc.resolutionBits, 12);
+
+    // Setup and poll
+    QVERIFY(bridge.setupAdc("PA0"));
+    QVERIFY(bridge.setPinMode("PA0", PinMode::AnalogIn));
+    quint32 rawVal = 0;
+    bridge.setSimulatedAdcCount("PA0", 2048);
+    QVERIFY(bridge.pollAdc("PA0", &rawVal));
+    QCOMPARE(rawVal, 2048u);
+
+    // 2. Non-ADC pin: PA5 (SPI1_SCK, GPIO)
+    // Caveat: unavailable on boards without this data, not silently broken
+    QVERIFY(!bridge.isModeAvailable("PA5", PinMode::AnalogIn));
+    QVERIFY(!bridge.setupAdc("PA5"));
+    QVERIFY(!bridge.setPinMode("PA5", PinMode::AnalogIn));
+
+    // 3. Bare dev board profile (ESP32-S3 without SWD register-poke profile)
+    QVERIFY(bridge.setBoard("esp32s3"));
+    QVERIFY(!bridge.isModeAvailable("IO0", PinMode::AnalogIn));
+    QVERIFY(!bridge.setPinMode("IO0", PinMode::AnalogIn));
+
+    // Restore F0 board
+    bridge.setBoard("stm32f030r8");
+}
+
+void TestAllCases::testSpiRawTransferMode() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+
+    // Honest labeling: "SPI Raw Transfer (byte in/out)", not "SPI Sensor"
+    QCOMPARE(pinModeToString(PinMode::SpiRawTransfer), QString("SPI Raw Transfer (byte in/out)"));
+
+    // PA5 is SPI1_SCK
+    QVERIFY(bridge.isModeAvailable("PA5", PinMode::SpiRawTransfer));
+    QVERIFY(!bridge.isModeAvailable("PC13", PinMode::SpiRawTransfer));
+
+    // Setup and manual single-byte transfer
+    QVERIFY(bridge.setupSpi("SPI1"));
+    quint8 byteIn = 0;
+    QString logMsg;
+    QVERIFY(bridge.spiRawTransfer("SPI1", 0x55, &byteIn, &logMsg));
+    QCOMPARE(byteIn, 0xAA); // 0x55 ^ 0xFF inverted loopback in simulation mode
+    QVERIFY(logMsg.contains("SPI Raw Transfer"));
+    QVERIFY(logMsg.contains("0x55"));
+    QVERIFY(logMsg.contains("0xAA"));
+
+    // Verify another byte
+    QVERIFY(bridge.spiRawTransfer("SPI1", 0x12, &byteIn, &logMsg));
+    QCOMPARE(byteIn, static_cast<quint8>(0x12 ^ 0xFF));
+}
+
+void TestAllCases::testAdcBindingToProgressBarAndNumericDisplay() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+
+    CanvasScene scene;
+    auto* pb = new ProgressBarComponent("sensor_progress");
+    auto* lbl = new LabelComponent("raw_count_numeric");
+    scene.addUIComponent(pb);
+    scene.addUIComponent(lbl);
+
+    // Bind both to ADC pin PA0
+    bridge.bindComponent(pb, "PA0", PinMode::AnalogIn);
+    bridge.bindComponent(lbl, "PA0", PinMode::AnalogIn);
+    QCOMPARE(bridge.boundPinForComponent(pb), QString("PA0"));
+    QCOMPARE(bridge.boundPinForComponent(lbl), QString("PA0"));
+
+    // 1. Set simulated potentiometer to 1024 (out of 4095)
+    bridge.setSimulatedAdcCount("PA0", 1024);
+    QVERIFY(qAbs(pb->value() - (1024.0 / 4095.0)) < 0.002);
+    // Shows raw ADC count (0 to 2^resolution - 1), NOT a calibrated engineering value
+    QCOMPARE(lbl->text(), QString("1024"));
+
+    // 2. Set simulated potentiometer to 3072 (out of 4095)
+    bridge.setSimulatedAdcCount("PA0", 3072);
+    QVERIFY(qAbs(pb->value() - (3072.0 / 4095.0)) < 0.002);
+    QCOMPARE(lbl->text(), QString("3072"));
+
+    // 3. Set to 0 and max (4095)
+    bridge.setSimulatedAdcCount("PA0", 0);
+    QVERIFY(qAbs(pb->value() - 0.0) < 0.001);
+    QCOMPARE(lbl->text(), QString("0"));
+
+    bridge.setSimulatedAdcCount("PA0", 4095);
+    QVERIFY(qAbs(pb->value() - 1.0) < 0.001);
+    QCOMPARE(lbl->text(), QString("4095"));
+
+    // Cleanup bindings
+    bridge.unbindComponent(pb);
+    bridge.unbindComponent(lbl);
+}
+
+void TestAllCases::testPinBindingDialogUiAndPotentiometerSlider() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setBoard("stm32f030r8");
+
+    CanvasScene scene;
+    auto* pb = new ProgressBarComponent("test_bar");
+    auto* lbl = new LabelComponent("test_num");
+    scene.addUIComponent(pb);
+    scene.addUIComponent(lbl);
+
+    PinBindingDialog dialog(&scene);
+    dialog.resize(920, 720);
+    dialog.show();
+    QApplication::processEvents();
+
+    auto* slider = dialog.findChild<QSlider*>("potentiometerSlider");
+    auto* rawLabel = dialog.findChild<QLabel*>("adcRawCountLabel");
+    auto* spiBtn = dialog.findChild<QPushButton*>("spiTransferButton");
+    auto* spiInLabel = dialog.findChild<QLabel*>("spiByteInLabel");
+    QVERIFY(slider);
+    QVERIFY(rawLabel);
+    QVERIFY(spiBtn);
+    QVERIFY(spiInLabel);
+
+    // Bind PA0 to ProgressBar and Label
+    bridge.bindComponent(pb, "PA0", PinMode::AnalogIn);
+    bridge.bindComponent(lbl, "PA0", PinMode::AnalogIn);
+
+    // Vary potentiometer slider to 2800
+    slider->setValue(2800);
+    QApplication::processEvents();
+    QVERIFY(rawLabel->text().contains("2800"));
+    QCOMPARE(lbl->text(), QString("2800"));
+    QVERIFY(qAbs(pb->value() - (2800.0 / 4095.0)) < 0.002);
+
+    // Trigger SPI raw transfer
+    auto* spiOutSpin = dialog.findChild<QSpinBox*>("spiByteOutSpin");
+    QVERIFY(spiOutSpin);
+    spiOutSpin->setValue(0xA5);
+    spiBtn->click();
+    QApplication::processEvents();
+    QVERIFY(spiInLabel->text().contains("0x5A")); // 0xA5 ^ 0xFF = 0x5A
+
+    // Capture verification screenshot of dialog with SPI and ADC
+    const QString shotPath = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_adc_spi_binding.png");
+    QVERIFY(dialog.grab().save(shotPath));
+
+    // Capture canvas view screenshot showing bound components with initial 1200 count
+    slider->setValue(1200);
+    QApplication::processEvents();
+    CanvasView view(&scene);
+    view.resize(500, 300);
+    pb->setCompPos(40, 40);
+    pb->setCompSize(260, 28);
+    lbl->setCompPos(40, 90);
+    lbl->setPixelSize(26);
+    lbl->setColor(QColor("#00e5ff"));
+    view.show();
+    QApplication::processEvents();
+
+    const QString canvasShotPath1 = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_adc_raw_count_1200.png");
+    QVERIFY(view.grab().save(canvasShotPath1));
+
+    // Vary potentiometer to 3200 and save second screenshot
+    slider->setValue(3200);
+    QApplication::processEvents();
+    QCOMPARE(lbl->text(), QString("3200"));
+    const QString canvasShotPath2 = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_adc_raw_count_3200.png");
+    QVERIFY(view.grab().save(canvasShotPath2));
+
+    bridge.unbindComponent(pb);
+    bridge.unbindComponent(lbl);
+}
+
+void TestAllCases::testComponentProtocolConfigurationAndScreenshots() {
+    SliderComponent slider("slider_protocol");
+    slider.setCompPos(20, 20);
+    slider.setCompSize(200, 36);
+
+    // Initial state
+    QCOMPARE(slider.protocol(), QString("None"));
+    QVERIFY(slider.protocolPins().isEmpty());
+
+    // JSON serialization roundtrip
+    QJsonObject json1 = slider.toJson();
+    QCOMPARE(json1.value("protocol").toString(), QString("None"));
+
+    SliderComponent roundtripSlider("slider_rt");
+    roundtripSlider.fromJson(json1);
+    QCOMPARE(roundtripSlider.protocol(), QString("None"));
+
+    // Set up PropertiesPanel
+    PropertiesPanel panel;
+    QUndoStack undoStack;
+    panel.setUndoStack(&undoStack);
+    panel.setFixedWidth(360);
+    panel.resize(360, 720);
+    panel.setTargetComponent(&slider);
+    panel.show();
+    QApplication::processEvents();
+
+    QComboBox* protoCombo = panel.findChild<QComboBox*>("protocolCombo");
+    QVERIFY(protoCombo);
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 1. Select I2C on SliderComponent
+    // ────────────────────────────────────────────────────────────────────────
+    protoCombo->setCurrentText("I2C");
+    QApplication::processEvents();
+
+    QComboBox* sclCombo = panel.findChild<QComboBox*>("i2cSclCombo");
+    QComboBox* sdaCombo = panel.findChild<QComboBox*>("i2cSdaCombo");
+    QLineEdit* addrEdit = panel.findChild<QLineEdit*>("i2cAddressEdit");
+    QWidget* i2cWidget  = panel.findChild<QWidget*>("hardwareProtocolGroup")->findChild<QWidget*>("i2cAddressEdit")->parentWidget();
+
+    QVERIFY(sclCombo != nullptr);
+    QVERIFY(sdaCombo != nullptr);
+    QVERIFY(addrEdit != nullptr);
+    QVERIFY(sclCombo->isVisible());
+    QVERIFY(sdaCombo->isVisible());
+    QVERIFY(addrEdit->isVisible());
+
+    // Set standard I2C pins and address
+    int sclIdx = sclCombo->findText("PB8");
+    if (sclIdx >= 0) sclCombo->setCurrentIndex(sclIdx);
+    int sdaIdx = sdaCombo->findText("PB9");
+    if (sdaIdx >= 0) sdaCombo->setCurrentIndex(sdaIdx);
+    addrEdit->setText("0x48");
+    QApplication::processEvents();
+
+    QCOMPARE(slider.protocol(), QString("I2C"));
+    QCOMPARE(slider.protocolPin("scl"), QString("PB8"));
+    QCOMPARE(slider.protocolPin("sda"), QString("PB9"));
+    QCOMPARE(slider.protocolPin("address"), QString("0x48"));
+
+    // Screenshot 1: Protocol dropdown with I2C selected showing SCL/SDA/Address fields
+    const QString i2cScreenshotPath = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_protocol_slider_i2c.png");
+    QVERIFY(panel.grab().save(i2cScreenshotPath));
+    QVERIFY(QFile::exists(i2cScreenshotPath));
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 2. Select SPI on SliderComponent
+    // ────────────────────────────────────────────────────────────────────────
+    protoCombo->setCurrentText("SPI");
+    QApplication::processEvents();
+
+    QComboBox* misoCombo = panel.findChild<QComboBox*>("spiMisoCombo");
+    QComboBox* mosiCombo = panel.findChild<QComboBox*>("spiMosiCombo");
+    QComboBox* sckCombo  = panel.findChild<QComboBox*>("spiSckCombo");
+    QComboBox* ssCombo   = panel.findChild<QComboBox*>("spiSsCombo");
+
+    QVERIFY(misoCombo != nullptr);
+    QVERIFY(mosiCombo != nullptr);
+    QVERIFY(sckCombo != nullptr);
+    QVERIFY(ssCombo != nullptr);
+    QVERIFY(misoCombo->isVisible());
+    QVERIFY(mosiCombo->isVisible());
+    QVERIFY(sckCombo->isVisible());
+    QVERIFY(ssCombo->isVisible());
+
+    // Set 4 SPI pins
+    int misoIdx = misoCombo->findText("PA6");
+    if (misoIdx >= 0) misoCombo->setCurrentIndex(misoIdx);
+    int mosiIdx = mosiCombo->findText("PA7");
+    if (mosiIdx >= 0) mosiCombo->setCurrentIndex(mosiIdx);
+    int sckIdx  = sckCombo->findText("PA5");
+    if (sckIdx >= 0) sckCombo->setCurrentIndex(sckIdx);
+    int ssIdx   = ssCombo->findText("PA4");
+    if (ssIdx >= 0) ssCombo->setCurrentIndex(ssIdx);
+    QApplication::processEvents();
+
+    QCOMPARE(slider.protocol(), QString("SPI"));
+    QCOMPARE(slider.protocolPin("miso"), QString("PA6"));
+    QCOMPARE(slider.protocolPin("mosi"), QString("PA7"));
+    QCOMPARE(slider.protocolPin("sck"), QString("PA5"));
+    QCOMPARE(slider.protocolPin("ss"), QString("PA4"));
+
+    // Screenshot 2: Protocol dropdown with SPI selected showing all 4 SPI pins
+    const QString spiScreenshotPath = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_protocol_slider_spi.png");
+    QVERIFY(panel.grab().save(spiScreenshotPath));
+    QVERIFY(QFile::exists(spiScreenshotPath));
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 3. Project roundtrip serialization test
+    // ────────────────────────────────────────────────────────────────────────
+    CanvasScene scene;
+    scene.addUIComponent(&slider);
+    Project proj(&scene);
+    QString projFile = m_tempDir.filePath("protocol_test.euiproj");
+    QVERIFY(proj.saveToFile(projFile));
+
+    CanvasScene loadedScene;
+    Project loadedProj(&loadedScene);
+    QVERIFY(loadedProj.loadFromFile(projFile));
+    UIComponent* loadedComp = nullptr;
+    for (UIComponent* c : loadedScene.uiComponents()) {
+        if (c->componentId() == "slider_protocol") {
+            loadedComp = c;
+            break;
+        }
+    }
+    QVERIFY(loadedComp != nullptr);
+    QCOMPARE(loadedComp->protocol(), QString("SPI"));
+    QCOMPARE(loadedComp->protocolPin("miso"), QString("PA6"));
+    QCOMPARE(loadedComp->protocolPin("mosi"), QString("PA7"));
+    QCOMPARE(loadedComp->protocolPin("sck"), QString("PA5"));
+    QCOMPARE(loadedComp->protocolPin("ss"), QString("PA4"));
+
+    scene.removeUIComponent(&slider);
+}
+
+void TestAllCases::testBoardConfigImportIoc() {
+    const QString iocPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/stm32f401_nucleo.ioc");
+    QVERIFY2(QFile::exists(iocPath), qPrintable(QString("Missing .ioc sample file at %1").arg(iocPath)));
+
+    auto res = BoardConfigParser::parseFile(iocPath);
+    QVERIFY(res.success);
+    QCOMPARE(res.format, BoardConfigParser::ConfigFormat::Stm32CubeIoc);
+    QCOMPARE(res.mcuFamily, QString("STM32F4"));
+    QVERIFY(res.boardName.contains("STM32F401"));
+
+    // Find and cross-check pins against source .ioc file
+    QMap<QString, BoardConfigParser::InferredPin> pinMap;
+    for (const auto& p : res.pins) {
+        pinMap[p.pinName] = p;
+    }
+
+    // PA0: ADC1_IN0
+    QVERIFY(pinMap.contains("PA0"));
+    const auto& pa0 = pinMap["PA0"];
+    QCOMPARE(pa0.rawSignal, QString("ADC1_IN0"));
+    QCOMPARE(pa0.inferredRole, QString("ADC"));
+    QVERIFY(pa0.supportedModes.contains(PinMode::AnalogIn));
+    QCOMPARE(pa0.defaultMode, PinMode::AnalogIn);
+    QVERIFY(pa0.adc.available);
+    QCOMPARE(pa0.adc.channel, 0);
+
+    // PA1: GPIO_Output
+    QVERIFY(pinMap.contains("PA1"));
+    const auto& pa1 = pinMap["PA1"];
+    QCOMPARE(pa1.rawSignal, QString("GPIO_Output"));
+    QCOMPARE(pa1.inferredRole, QString("GPIO Output"));
+    QVERIFY(pa1.supportedModes.contains(PinMode::DigitalOut));
+    QCOMPARE(pa1.defaultMode, PinMode::DigitalOut);
+
+    // PA5: SPI1_SCK
+    QVERIFY(pinMap.contains("PA5"));
+    const auto& pa5 = pinMap["PA5"];
+    QCOMPARE(pa5.rawSignal, QString("SPI1_SCK"));
+    QCOMPARE(pa5.inferredRole, QString("SPI"));
+    QVERIFY(pa5.supportedModes.contains(PinMode::SpiRawTransfer));
+    QCOMPARE(pa5.defaultMode, PinMode::SpiRawTransfer);
+    QVERIFY(pa5.spi.available);
+
+    // PB0: S_TIM3_CH3 (PWM)
+    QVERIFY(pinMap.contains("PB0"));
+    const auto& pb0 = pinMap["PB0"];
+    QCOMPARE(pb0.rawSignal, QString("S_TIM3_CH3"));
+    QCOMPARE(pb0.inferredRole, QString("PWM"));
+    QVERIFY(pb0.supportedModes.contains(PinMode::PwmOutput));
+    QCOMPARE(pb0.defaultMode, PinMode::PwmOutput);
+    QVERIFY(pb0.pwm.available);
+    QCOMPARE(pb0.pwm.timer, QString("TIM3"));
+    QCOMPARE(pb0.pwm.channel, 3);
+
+    // PB6: I2C1_SCL
+    QVERIFY(pinMap.contains("PB6"));
+    const auto& pb6 = pinMap["PB6"];
+    QCOMPARE(pb6.rawSignal, QString("I2C1_SCL"));
+    QCOMPARE(pb6.inferredRole, QString("I2C"));
+
+    // PC13: GPIO_Input
+    QVERIFY(pinMap.contains("PC13"));
+    const auto& pc13 = pinMap["PC13"];
+    QCOMPARE(pc13.rawSignal, QString("GPIO_Input"));
+    QCOMPARE(pc13.inferredRole, QString("GPIO Input"));
+    QVERIFY(pc13.supportedModes.contains(PinMode::DigitalIn));
+    QCOMPARE(pc13.defaultMode, PinMode::DigitalIn);
+
+    // System / Debug pins must be marked Unused / Unknown and gated
+    QVERIFY(pinMap.contains("PA13"));
+    const auto& pa13 = pinMap["PA13"];
+    QVERIFY(pa13.inferredRole.startsWith("Unused / Unknown"));
+    QCOMPARE(pa13.supportedModes.size(), 1);
+    QCOMPARE(pa13.supportedModes.first(), PinMode::None);
+
+    QVERIFY(pinMap.contains("PA2"));
+    const auto& pa2 = pinMap["PA2"];
+    QVERIFY(pa2.inferredRole.startsWith("Unused / Unknown"));
+
+    // Register into HardwareBridge and activate
+    BoardProfile bp = res.toBoardProfile();
+    QVERIFY(HardwareBridge::instance().addBoard(bp));
+    QVERIFY(HardwareBridge::instance().setBoard(bp.id));
+    QCOMPARE(HardwareBridge::instance().currentBoardId(), bp.id);
+
+    // Verify in PinBindingDialog UI & Capture Screenshot
+    CanvasScene scene;
+    PinBindingDialog dlg(&scene);
+    dlg.resize(960, 720);
+    dlg.show();
+    QApplication::processEvents();
+
+    QComboBox* boardCombo = dlg.findChild<QComboBox*>("boardProfileCombo");
+    QVERIFY(boardCombo);
+    QCOMPARE(boardCombo->currentData().toString(), bp.id);
+
+    QTableWidget* table = dlg.findChild<QTableWidget*>("pinTable");
+    QVERIFY(table);
+    QCOMPARE(table->rowCount(), res.pins.size());
+
+    const QString iocScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_board_config_import_ioc.png");
+    QVERIFY(dlg.grab().save(iocScreenshot));
+    QVERIFY(QFile::exists(iocScreenshot));
+}
+
+void TestAllCases::testBoardConfigImportSdkConfig() {
+    const QString sdkPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/esp32_devkit.sdkconfig");
+    QVERIFY2(QFile::exists(sdkPath), qPrintable(QString("Missing sdkconfig sample file at %1").arg(sdkPath)));
+
+    auto res = BoardConfigParser::parseFile(sdkPath);
+    QVERIFY(res.success);
+    QCOMPARE(res.format, BoardConfigParser::ConfigFormat::EspIdfSdkConfig);
+    QCOMPARE(res.mcuFamily, QString("ESP32"));
+
+    QMap<QString, BoardConfigParser::InferredPin> pinMap;
+    for (const auto& p : res.pins) {
+        pinMap[p.pinName] = p;
+    }
+
+    // IO34: ADC
+    QVERIFY(pinMap.contains("IO34"));
+    QCOMPARE(pinMap["IO34"].inferredRole, QString("ADC"));
+    QVERIFY(pinMap["IO34"].supportedModes.contains(PinMode::AnalogIn));
+
+    // IO16: PWM
+    QVERIFY(pinMap.contains("IO16"));
+    QCOMPARE(pinMap["IO16"].inferredRole, QString("PWM"));
+    QVERIFY(pinMap["IO16"].supportedModes.contains(PinMode::PwmOutput));
+
+    // IO18: SPI CLK
+    QVERIFY(pinMap.contains("IO18"));
+    QCOMPARE(pinMap["IO18"].inferredRole, QString("SPI"));
+
+    // IO22: I2C SCL
+    QVERIFY(pinMap.contains("IO22"));
+    QCOMPARE(pinMap["IO22"].inferredRole, QString("I2C"));
+
+    // IO23: SPI MOSI
+    QVERIFY(pinMap.contains("IO23"));
+    QCOMPARE(pinMap["IO23"].inferredRole, QString("SPI"));
+    QVERIFY(pinMap["IO23"].supportedModes.contains(PinMode::SpiRawTransfer));
+
+    // IO2: GPIO Output (Blink)
+    QVERIFY(pinMap.contains("IO2"));
+    QCOMPARE(pinMap["IO2"].inferredRole, QString("GPIO Output"));
+    QVERIFY(pinMap["IO2"].supportedModes.contains(PinMode::DigitalOut));
+
+    // IO0: GPIO Input (Button)
+    QVERIFY(pinMap.contains("IO0"));
+    QCOMPARE(pinMap["IO0"].inferredRole, QString("GPIO Input"));
+    QVERIFY(pinMap["IO0"].supportedModes.contains(PinMode::DigitalIn));
+
+    // Register into HardwareBridge and activate
+    BoardProfile bp = res.toBoardProfile();
+    QVERIFY(HardwareBridge::instance().addBoard(bp));
+    QVERIFY(HardwareBridge::instance().setBoard(bp.id));
+    QCOMPARE(HardwareBridge::instance().currentBoardId(), bp.id);
+
+    // Verify in PinBindingDialog UI & Capture Screenshot
+    CanvasScene scene;
+    PinBindingDialog dlg(&scene);
+    dlg.resize(960, 720);
+    dlg.show();
+    QApplication::processEvents();
+
+    const QString sdkScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_board_config_import_sdkconfig.png");
+    QVERIFY(dlg.grab().save(sdkScreenshot));
+    QVERIFY(QFile::exists(sdkScreenshot));
+}
+
+void TestAllCases::testQmlImportBasic() {
+    const QString qmlPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/simple_dashboard.qml");
+    QVERIFY2(QFile::exists(qmlPath), qPrintable("Missing sample QML file: " + qmlPath));
+
+    QmlImportResult res = QmlImporter::importFromFile(qmlPath);
+    QVERIFY(res.success);
+    QCOMPARE(res.components.size(), 4);
+    QVERIFY2(res.rejectedItems.isEmpty(), qPrintable("Unexpected rejections: " + res.rejectedItems.join("; ")));
+
+    // Verify Rectangle
+    auto* rect = dynamic_cast<RectangleComponent*>(res.components[0]);
+    QVERIFY(rect != nullptr);
+    QCOMPARE(rect->componentId(), QString("statusCard"));
+    QCOMPARE(rect->compX(), 40.0);
+    QCOMPARE(rect->compY(), 40.0);
+    QCOMPARE(rect->compWidth(), 320.0);
+    QCOMPARE(rect->compHeight(), 220.0);
+    QCOMPARE(rect->fillColor(), QColor("#1E293B"));
+    QCOMPARE(rect->cornerRadius(), 8);
+
+    // Verify Label (Text)
+    auto* label = dynamic_cast<LabelComponent*>(res.components[1]);
+    QVERIFY(label != nullptr);
+    QCOMPARE(label->componentId(), QString("titleLabel"));
+    QCOMPARE(label->text(), QString("Sensor Telemetry"));
+    QCOMPARE(label->color(), QColor("#38BDF8"));
+    QCOMPARE(label->pixelSize(), 18);
+    QVERIFY(label->bold());
+
+    // Verify Button
+    auto* btn = dynamic_cast<ButtonComponent*>(res.components[2]);
+    QVERIFY(btn != nullptr);
+    QCOMPARE(btn->componentId(), QString("actionButton"));
+    QCOMPARE(btn->text(), QString("Calibrate"));
+    QCOMPARE(btn->backgroundColor(), QColor("#2563EB"));
+    QCOMPARE(btn->cornerRadius(), 6);
+
+    // Verify ProgressBar
+    auto* bar = dynamic_cast<ProgressBarComponent*>(res.components[3]);
+    QVERIFY(bar != nullptr);
+    QCOMPARE(bar->componentId(), QString("levelGauge"));
+    QVERIFY(qAbs(bar->value() - 0.72) < 0.001);
+
+    // Render to Canvas and Capture Screenshot
+    CanvasScene scene;
+    scene.setSceneRect(0, 0, 480, 320);
+    for (UIComponent* comp : res.components) {
+        scene.addUIComponent(comp);
+    }
+
+    CanvasView view(&scene);
+    view.resize(560, 380);
+    view.setBackgroundBrush(QColor("#0F172A"));
+    view.show();
+    QApplication::processEvents();
+
+    const QString basicScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_qml_import_basic.png");
+    QVERIFY(view.grab().save(basicScreenshot));
+    QVERIFY(QFile::exists(basicScreenshot));
+}
+
+void TestAllCases::testQmlImportComplexRejected() {
+    const QString qmlPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/complex_unsupported.qml");
+    QVERIFY2(QFile::exists(qmlPath), qPrintable("Missing complex QML file: " + qmlPath));
+
+    QmlImportResult res = QmlImporter::importFromFile(qmlPath);
+    QVERIFY(res.success);
+    
+    // The valid literal components (Rectangle 'bgPanel') should be imported
+    QVERIFY(res.components.size() >= 1);
+    
+    // All unsupported items must be reported in rejectedItems
+    QVERIFY(res.rejectedItems.size() >= 10);
+    
+    const QString allRejections = res.rejectedItems.join("\n");
+    QVERIFY2(allRejections.contains("Item"), "Missing Item rejection");
+    QVERIFY2(allRejections.contains("parent.width - 60"), "Missing expression binding rejection");
+    QVERIFY2(allRejections.contains("anchors.fill: parent"), "Missing anchor rejection");
+    QVERIFY2(allRejections.contains("Loader"), "Missing Loader rejection");
+    QVERIFY2(allRejections.contains("Repeater"), "Missing Repeater rejection");
+    QVERIFY2(allRejections.contains("states"), "Missing states rejection");
+    QVERIFY2(allRejections.contains("transitions"), "Missing transitions rejection");
+    QVERIFY2(allRejections.contains("MouseArea"), "Missing MouseArea rejection");
+    QVERIFY2(allRejections.contains("onClicked"), "Missing onClicked rejection");
+
+    // Display a Diagnostic Rejection Report Widget & Capture Screenshot
+    QDialog reportDlg;
+    reportDlg.setWindowTitle("File > Import QML Design — Rejection Diagnostics");
+    reportDlg.resize(920, 600);
+    reportDlg.setStyleSheet(
+        "QDialog { background-color: #111827; color: #E5E7EB; font-family: monospace; }"
+        "QLabel { color: #E5E7EB; }"
+        "QTextEdit { background-color: #1F2937; color: #F87171; border: 1px solid #374151; font-size: 13px; font-family: monospace; padding: 10px; }"
+    );
+
+    auto* layout = new QVBoxLayout(&reportDlg);
+    auto* header = new QLabel(QString(
+        "<h2><font color='#38BDF8'>QML Import Diagnostics: Out-of-Scope Features Rejected</font></h2>"
+        "<p style='color:#9CA3AF;'>File: <b>complex_unsupported.qml</b> &nbsp;|&nbsp; "
+        "Imported literal components: <b style='color:#34D399;'>%1</b> &nbsp;|&nbsp; "
+        "Rejected out-of-scope items: <b style='color:#F87171;'>%2</b></p>"
+        "<p style='color:#CBD5E1;'>The following constructs were explicitly rejected and not silently dropped:</p>"
+    ).arg(res.components.size()).arg(res.rejectedItems.size()), &reportDlg);
+    layout->addWidget(header);
+
+    auto* textEdit = new QTextEdit(&reportDlg);
+    QStringList formatted;
+    for (const QString& item : res.rejectedItems) {
+        formatted.append("• " + item);
+    }
+    textEdit->setPlainText(formatted.join("\n\n"));
+    textEdit->setReadOnly(true);
+    layout->addWidget(textEdit);
+
+    reportDlg.show();
+    QApplication::processEvents();
+
+    const QString reportScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_qml_import_rejected_report.png");
+    QVERIFY(reportDlg.grab().save(reportScreenshot));
+    QVERIFY(QFile::exists(reportScreenshot));
+
+    qDeleteAll(res.components);
+}
+
 QTEST_MAIN(TestAllCases)
 #include "test_all_cases.moc"
+
+

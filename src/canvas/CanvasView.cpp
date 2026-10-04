@@ -220,10 +220,7 @@ void CanvasView::mousePressEvent(QMouseEvent* event) {
             if (!hitComp->isSelected()) {
                 scene()->clearSelection();
                 hitComp->setSelected(true);
-                event->accept();
-                return;
             }
-            // Already selected: fall through to base class so the item can be dragged.
             QGraphicsView::mousePressEvent(event);
             return;
         }

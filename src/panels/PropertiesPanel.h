@@ -131,11 +131,36 @@ private:
     QPushButton* m_btnAlignCenter = nullptr;
     QPushButton* m_btnAlignRight = nullptr;
 
+    // Hardware Protocol Binding
+    QGroupBox* m_protocolGroup = nullptr;
+    QComboBox* m_protocolCombo = nullptr;
+    QWidget* m_protocolNoneWidget = nullptr;
+    QWidget* m_gpioWidget = nullptr;
+    QComboBox* m_comboGpioPin = nullptr;
+    QWidget* m_pwmWidget = nullptr;
+    QComboBox* m_comboPwmPin = nullptr;
+    QWidget* m_adcWidget = nullptr;
+    QComboBox* m_comboAdcPin = nullptr;
+    QWidget* m_spiWidget = nullptr;
+    QComboBox* m_comboSpiMiso = nullptr;
+    QComboBox* m_comboSpiMosi = nullptr;
+    QComboBox* m_comboSpiSck = nullptr;
+    QComboBox* m_comboSpiSs = nullptr;
+    QWidget* m_i2cWidget = nullptr;
+    QComboBox* m_comboI2cScl = nullptr;
+    QComboBox* m_comboI2cSda = nullptr;
+    QLineEdit* m_editI2cAddress = nullptr;
+
     class QUndoStack* m_undoStack = nullptr;
 
     void setupUi();
     void rebuildSpecificEditors();
     void updateColorButton(QPushButton* btn, const QColor& color);
+
+    void updateBoardPins();
+    void updateProtocolFieldsVisibility(const QString& protocol);
+    void onProtocolChanged(const QString& newProtocol);
+    void onProtocolPinChanged();
 
     void showEmpty();
     void showSingle();
