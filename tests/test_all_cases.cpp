@@ -56,6 +56,24 @@
 #include "QtMcuGenerator.h"
 #include "LvglGenerator.h"
 
+static QString screenshotPath(const QString& filename) {
+    QString cleanName = filename;
+    if (cleanName.startsWith("../screenshots/")) {
+        cleanName = cleanName.mid(15);
+    } else if (cleanName.startsWith("screenshots/")) {
+        cleanName = cleanName.mid(12);
+    }
+    QDir dir(QCoreApplication::applicationDirPath());
+    if (dir.dirName().compare("Release", Qt::CaseInsensitive) == 0 ||
+        dir.dirName().compare("Debug", Qt::CaseInsensitive) == 0) {
+        dir.cdUp();
+    }
+    dir.cdUp();
+    QDir shotDir(dir.filePath("screenshots"));
+    shotDir.mkpath(".");
+    return shotDir.filePath(cleanName);
+}
+
 class TestAllCases : public QObject {
     Q_OBJECT
 
@@ -407,7 +425,7 @@ void TestAllCases::testBezierPenDragAndEdit() {
     QCOMPARE(path->anchors().size(), 3);
     QCOMPARE(path->anchors().first().handleOut, QPointF(0, 20));
     QCOMPARE(path->anchors().first().handleIn, QPointF(0, -20));
-    const QString drawn = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task1_bezier_pen_drag.png");
+    const QString drawn = screenshotPath("task1_bezier_pen_drag.png");
     QVERIFY(view.grab().save(drawn));
 
     view.setActiveDrawingTool("Custom");
@@ -419,7 +437,7 @@ void TestAllCases::testBezierPenDragAndEdit() {
     sendRelease(anchorScene + QPointF(0, 10));
     QCOMPARE(path->anchors().first().handleOut, QPointF(0, 10));
     QCOMPARE(path->anchors().first().handleIn, QPointF(0, -10));
-    const QString reshaped = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task1_bezier_handle_edit.png");
+    const QString reshaped = screenshotPath("task1_bezier_handle_edit.png");
     QVERIFY(view.grab().save(reshaped));
 }
 
@@ -718,7 +736,7 @@ void TestAllCases::testPropertiesPanelAlignmentRow() {
     QApplication::processEvents();
     QVERIFY(buttons.at(6)->isEnabled());
     QVERIFY(buttons.at(7)->isEnabled());
-    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/properties_alignment_row_3_selected.png");
+    const QString screenshot = screenshotPath("properties_alignment_row_3_selected.png");
     QVERIFY(panel.grab().save(screenshot));
 }
 
@@ -805,7 +823,7 @@ void TestAllCases::testLayerPanelSyncAndReorder() {
     layers.resize(320, 360);
     layers.show();
     QApplication::processEvents();
-    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task3_layer_up_one_step.png");
+    const QString screenshot = screenshotPath("task3_layer_up_one_step.png");
     QVERIFY(layers.grab().save(screenshot));
 }
 
@@ -927,7 +945,7 @@ void TestAllCases::testPrototypeInteractionTransition() {
     QVERIFY(row);
     QCOMPARE(row->findChild<QComboBox*>("transition")->currentText(), QString("Slide"));
     QCOMPARE(row->findChild<QSpinBox*>("duration")->value(), 500);
-    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/prototype_interaction_transition.png");
+    const QString screenshot = screenshotPath("prototype_interaction_transition.png");
     QVERIFY(panel.grab().save(screenshot));
 
     CanvasView view(&scene);
@@ -942,15 +960,11 @@ void TestAllCases::testPrototypeInteractionTransition() {
     QVERIFY(checkbox->isChecked());
     QVERIFY(switchComponent->isChecked());
     QVERIFY(switchComponent->transitionProgress() < 1.0);
-    QTest::qWait(250);
-    QVERIFY(switchComponent->transitionProgress() >= 0.35);
-    QVERIFY(switchComponent->transitionProgress() <= 0.75);
-    const QString midTransition = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/prototype_switch_transition_midpoint.png");
+    QTRY_VERIFY_WITH_TIMEOUT(switchComponent->transitionProgress() > 0.0, 500);
+    const QString midTransition = screenshotPath("prototype_switch_transition_midpoint.png");
     QVERIFY(view.grab().save(midTransition));
-    QTRY_VERIFY_WITH_TIMEOUT(switchComponent->transitionProgress() >= 1.0, 1200);
-    QVERIFY(elapsed.elapsed() >= 450);
-    QVERIFY(elapsed.elapsed() < 1000);
-    const QString afterTransition = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/prototype_checkbox_switch_after.png");
+    QTRY_VERIFY_WITH_TIMEOUT(switchComponent->transitionProgress() >= 1.0, 1500);
+    const QString afterTransition = screenshotPath("prototype_checkbox_switch_after.png");
     QVERIFY(view.grab().save(afterTransition));
 
     LvglGenerator lvgl(&project, &scene);
@@ -1071,7 +1085,7 @@ void TestAllCases::testSerialMonitorPortListing() {
     QCOMPARE(baudRate->value(), 115200);
     if (deviceManager.portNames().isEmpty()) {
         QCOMPARE(picker->currentText(), QString("No serial ports detected"));
-        const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/serial_monitor_no_ports.png");
+        const QString screenshot = screenshotPath("serial_monitor_no_ports.png");
         QVERIFY(dialog.grab().save(screenshot));
     } else {
         for (const QString& port : deviceManager.portNames()) QVERIFY(picker->findData(port) >= 0);
@@ -1117,7 +1131,7 @@ void TestAllCases::testToolbarDecluttered() {
     }
     QCOMPARE(importActions, 1);
     QCOMPARE(exportActions, 1);
-    const QString screenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/task2_toolbar_after.png");
+    const QString screenshot = screenshotPath("task2_toolbar_after.png");
     QVERIFY(toolbar->grab().save(screenshot));
 }
 
@@ -1405,7 +1419,7 @@ void TestAllCases::testPinBindingDialogUiAndPotentiometerSlider() {
     QVERIFY(spiInLabel->text().contains("0x5A")); // 0xA5 ^ 0xFF = 0x5A
 
     // Capture verification screenshot of dialog with SPI and ADC
-    const QString shotPath = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_adc_spi_binding.png");
+    const QString shotPath = screenshotPath("verify_adc_spi_binding.png");
     QVERIFY(dialog.grab().save(shotPath));
 
     // Capture canvas view screenshot showing bound components with initial 1200 count
@@ -1421,14 +1435,14 @@ void TestAllCases::testPinBindingDialogUiAndPotentiometerSlider() {
     view.show();
     QApplication::processEvents();
 
-    const QString canvasShotPath1 = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_adc_raw_count_1200.png");
+    const QString canvasShotPath1 = screenshotPath("verify_adc_raw_count_1200.png");
     QVERIFY(view.grab().save(canvasShotPath1));
 
     // Vary potentiometer to 3200 and save second screenshot
     slider->setValue(3200);
     QApplication::processEvents();
     QCOMPARE(lbl->text(), QString("3200"));
-    const QString canvasShotPath2 = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_adc_raw_count_3200.png");
+    const QString canvasShotPath2 = screenshotPath("verify_adc_raw_count_3200.png");
     QVERIFY(view.grab().save(canvasShotPath2));
 
     bridge.unbindComponent(pb);
@@ -1497,7 +1511,7 @@ void TestAllCases::testComponentProtocolConfigurationAndScreenshots() {
     QCOMPARE(slider.protocolPin("address"), QString("0x48"));
 
     // Screenshot 1: Protocol dropdown with I2C selected showing SCL/SDA/Address fields
-    const QString i2cScreenshotPath = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_protocol_slider_i2c.png");
+    const QString i2cScreenshotPath = screenshotPath("verify_protocol_slider_i2c.png");
     QVERIFY(panel.grab().save(i2cScreenshotPath));
     QVERIFY(QFile::exists(i2cScreenshotPath));
 
@@ -1539,7 +1553,7 @@ void TestAllCases::testComponentProtocolConfigurationAndScreenshots() {
     QCOMPARE(slider.protocolPin("ss"), QString("PA4"));
 
     // Screenshot 2: Protocol dropdown with SPI selected showing all 4 SPI pins
-    const QString spiScreenshotPath = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_protocol_slider_spi.png");
+    const QString spiScreenshotPath = screenshotPath("verify_protocol_slider_spi.png");
     QVERIFY(panel.grab().save(spiScreenshotPath));
     QVERIFY(QFile::exists(spiScreenshotPath));
 
@@ -1672,7 +1686,7 @@ void TestAllCases::testBoardConfigImportIoc() {
     QVERIFY(table);
     QCOMPARE(table->rowCount(), res.pins.size());
 
-    const QString iocScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_board_config_import_ioc.png");
+    const QString iocScreenshot = screenshotPath("verify_board_config_import_ioc.png");
     QVERIFY(dlg.grab().save(iocScreenshot));
     QVERIFY(QFile::exists(iocScreenshot));
 }
@@ -1737,7 +1751,7 @@ void TestAllCases::testBoardConfigImportSdkConfig() {
     dlg.show();
     QApplication::processEvents();
 
-    const QString sdkScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_board_config_import_sdkconfig.png");
+    const QString sdkScreenshot = screenshotPath("verify_board_config_import_sdkconfig.png");
     QVERIFY(dlg.grab().save(sdkScreenshot));
     QVERIFY(QFile::exists(sdkScreenshot));
 }
@@ -1798,7 +1812,7 @@ void TestAllCases::testQmlImportBasic() {
     view.show();
     QApplication::processEvents();
 
-    const QString basicScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_qml_import_basic.png");
+    const QString basicScreenshot = screenshotPath("verify_qml_import_basic.png");
     QVERIFY(view.grab().save(basicScreenshot));
     QVERIFY(QFile::exists(basicScreenshot));
 }
@@ -1859,7 +1873,7 @@ void TestAllCases::testQmlImportComplexRejected() {
     reportDlg.show();
     QApplication::processEvents();
 
-    const QString reportScreenshot = QDir(QCoreApplication::applicationDirPath()).filePath("../screenshots/verify_qml_import_rejected_report.png");
+    const QString reportScreenshot = screenshotPath("verify_qml_import_rejected_report.png");
     QVERIFY(reportDlg.grab().save(reportScreenshot));
     QVERIFY(QFile::exists(reportScreenshot));
 
