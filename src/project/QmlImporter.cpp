@@ -12,6 +12,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QDebug>
+#include <functional>
 
 namespace {
 
@@ -355,7 +356,7 @@ QmlImportResult QmlImporter::importFromString(const QString& qmlContent) {
 
     // Recursive helper to traverse ParsedNodes and instantiate UIComponents
     int autoIdSeq = 1;
-    auto processNode = [&](auto self, const ParsedNode& node) -> void {
+    std::function<void(const ParsedNode&)> processNode = [&](const ParsedNode& node) -> void {
         const QString& type = node.typeName;
         QString compId = node.id.isEmpty() ? QString("%1_%2").arg(type.toLower()).arg(autoIdSeq++) : node.id;
 
@@ -447,12 +448,12 @@ QmlImportResult QmlImporter::importFromString(const QString& qmlContent) {
 
         // Traverse children
         for (const ParsedNode& child : node.children) {
-            self(self, child);
+            processNode(child);
         }
     };
 
     for (const ParsedNode& rootNode : topNodes) {
-        processNode(processNode, rootNode);
+        processNode(rootNode);
     }
 
     result.success = (!result.components.isEmpty() || !result.rejectedItems.isEmpty());

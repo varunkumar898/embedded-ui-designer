@@ -38,13 +38,15 @@ set(CLIPPER2_UTILS OFF CACHE BOOL "" FORCE)
 set(CLIPPER2_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(CLIPPER2_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(Clipper2)
-# Suppress -Werror/-Wpedantic on third-party Clipper2 targets
-foreach(_clipper_tgt IN ITEMS Clipper2 Clipper2Z)
-    if(TARGET ${_clipper_tgt})
-        target_compile_options(${_clipper_tgt} PRIVATE
-            -Wno-error -Wno-pedantic -Wno-template-id-cdtor)
-    endif()
-endforeach()
+# Suppress -Werror/-Wpedantic on third-party Clipper2 targets (GCC/Clang only)
+if(NOT MSVC)
+    foreach(_clipper_tgt IN ITEMS Clipper2 Clipper2Z)
+        if(TARGET ${_clipper_tgt})
+            target_compile_options(${_clipper_tgt} PRIVATE
+                -Wno-error -Wno-pedantic -Wno-template-id-cdtor)
+        endif()
+    endforeach()
+endif()
 
 # Common Source files (excluding main.cpp)
 set(COMMON_SOURCES
