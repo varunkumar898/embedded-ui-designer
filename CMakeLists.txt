@@ -321,9 +321,6 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 add_test(NAME AllCases COMMAND test_all_cases)
-set_tests_properties(AllCases PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-)
 
 # Functional Validation Runner
 if(COMMAND qt_add_executable)
