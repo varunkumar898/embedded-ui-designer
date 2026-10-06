@@ -115,6 +115,17 @@ private:
     QTableWidget* m_deviceTable = nullptr;
     QTableWidget* m_boardTable = nullptr;
 
+    QLineEdit* m_mcuSearchEdit = nullptr;
+    QLineEdit* m_boardSearchEdit = nullptr;
+    QComboBox* m_mcuVendorCombo = nullptr;
+    QComboBox* m_mcuFamilyCombo = nullptr;
+    QComboBox* m_mcuArchCombo = nullptr;
+    QComboBox* m_mcuCoreCombo = nullptr;
+    QComboBox* m_mcuPackageCombo = nullptr;
+    QComboBox* m_boardVendorCombo = nullptr;
+    QComboBox* m_boardFamilyCombo = nullptr;
+    QComboBox* m_boardArchCombo = nullptr;
+
     // Custom HW Editor
     QLineEdit* m_customVendorEdit = nullptr;
     QLineEdit* m_customFamilyEdit = nullptr;

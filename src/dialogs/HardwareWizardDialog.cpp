@@ -98,14 +98,34 @@ void HardwareWizardDialog::setupUi() {
     rootLayout->setContentsMargins(16, 16, 16, 16);
     rootLayout->setSpacing(12);
 
-    // Header step indicator
-    m_stepIndicatorLabel = new QLabel("STEP 1: Target Hardware Selection (MCU / Board / Custom)", this);
-    QFont stepFont = font();
-    stepFont.setBold(true);
-    stepFont.setPointSize(11);
-    m_stepIndicatorLabel->setFont(stepFont);
-    m_stepIndicatorLabel->setStyleSheet("color: #38bdf8; padding-bottom: 4px; border-bottom: 1px solid #27272a;");
-    rootLayout->addWidget(m_stepIndicatorLabel);
+    // Top Title & Subtitle Header
+    QWidget* headerBox = new QWidget(this);
+    QVBoxLayout* headerLayout = new QVBoxLayout(headerBox);
+    headerLayout->setContentsMargins(0, 0, 0, 2);
+    headerLayout->setSpacing(2);
+
+    QLabel* titleLabel = new QLabel("Create Embedded Project", headerBox);
+    QFont titleFont = font();
+    titleFont.setPointSize(13);
+    titleFont.setBold(true);
+    titleLabel->setFont(titleFont);
+    titleLabel->setStyleSheet("color: #ffffff;");
+    headerLayout->addWidget(titleLabel);
+
+    m_stepIndicatorLabel = new QLabel("Select hardware to start project creation", headerBox);
+    QFont subFont = font();
+    subFont.setPointSize(10);
+    m_stepIndicatorLabel->setFont(subFont);
+    m_stepIndicatorLabel->setStyleSheet("color: #94a3b8;");
+    headerLayout->addWidget(m_stepIndicatorLabel);
+
+    rootLayout->addWidget(headerBox);
+
+    QFrame* headerLine = new QFrame(this);
+    headerLine->setFrameShape(QFrame::HLine);
+    headerLine->setFrameShadow(QFrame::Plain);
+    headerLine->setStyleSheet("background-color: #27272a; max-height: 1px; margin-bottom: 2px;");
+    rootLayout->addWidget(headerLine);
 
     // Central stack for steps
     m_stepsStack = new QStackedWidget(this);
@@ -143,117 +163,22 @@ void HardwareWizardDialog::setupUi() {
 
 QWidget* HardwareWizardDialog::createHardwareSelectionPage() {
     QWidget* page = new QWidget(this);
-    QHBoxLayout* mainLayout = new QHBoxLayout(page);
+    QVBoxLayout* mainLayout = new QVBoxLayout(page);
     mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(10);
+    mainLayout->setSpacing(8);
 
-    // ── LEFT SIDE: FILTERING SIDEBAR ──
-    QWidget* filterPanel = new QWidget(page);
-    filterPanel->setFixedWidth(230);
-    QVBoxLayout* filterLayout = new QVBoxLayout(filterPanel);
-    filterLayout->setContentsMargins(4, 4, 4, 4);
-    filterLayout->setSpacing(6);
-
-    QLabel* searchLbl = new QLabel("Hardware Search:", filterPanel);
-    searchLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px;");
-    filterLayout->addWidget(searchLbl);
-
-    m_searchHardwareEdit = new QLineEdit(filterPanel);
-    m_searchHardwareEdit->setObjectName("searchHardwareEdit");
-    m_searchHardwareEdit->setPlaceholderText("Search MCU, MPU, Board...");
-    m_searchHardwareEdit->setStyleSheet("background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 6px 8px; color: #f4f4f5; font-size: 11.5px;");
-    filterLayout->addWidget(m_searchHardwareEdit);
-
-    QLabel* typeLbl = new QLabel("Device Type:", filterPanel);
-    typeLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px; margin-top: 4px;");
-    filterLayout->addWidget(typeLbl);
-
-    m_typeFilterCombo = new QComboBox(filterPanel);
-    m_typeFilterCombo->addItems({"All Types", "MCU", "MPU", "SBC", "BOARD", "CUSTOM"});
-    filterLayout->addWidget(m_typeFilterCombo);
-
-    QLabel* vendorLbl = new QLabel("Vendor:", filterPanel);
-    vendorLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px; margin-top: 4px;");
-    filterLayout->addWidget(vendorLbl);
-
-    m_vendorFilterCombo = new QComboBox(filterPanel);
-    m_vendorFilterCombo->addItem("All Vendors");
-    for (const QString& v : m_db.allVendors()) m_vendorFilterCombo->addItem(v);
-    filterLayout->addWidget(m_vendorFilterCombo);
-
-    QLabel* familyLbl = new QLabel("Family / Series:", filterPanel);
-    familyLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px; margin-top: 4px;");
-    filterLayout->addWidget(familyLbl);
-
-    m_familyFilterCombo = new QComboBox(filterPanel);
-    m_familyFilterCombo->addItem("All Families");
-    for (const QString& f : m_db.allFamilies()) m_familyFilterCombo->addItem(f);
-    filterLayout->addWidget(m_familyFilterCombo);
-
-    QLabel* archLbl = new QLabel("Architecture:", filterPanel);
-    archLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px; margin-top: 4px;");
-    filterLayout->addWidget(archLbl);
-
-    m_archFilterCombo = new QComboBox(filterPanel);
-    m_archFilterCombo->addItem("All Architectures");
-    for (const QString& a : m_db.allArchitectures()) m_archFilterCombo->addItem(a);
-    filterLayout->addWidget(m_archFilterCombo);
-
-    QLabel* coreLbl = new QLabel("Core:", filterPanel);
-    coreLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px; margin-top: 4px;");
-    filterLayout->addWidget(coreLbl);
-
-    m_coreFilterCombo = new QComboBox(filterPanel);
-    m_coreFilterCombo->addItem("All Cores");
-    for (const QString& c : m_db.allCores()) m_coreFilterCombo->addItem(c);
-    filterLayout->addWidget(m_coreFilterCombo);
-
-    QLabel* pkgLbl = new QLabel("Package:", filterPanel);
-    pkgLbl->setStyleSheet("font-weight: bold; color: #a1a1aa; font-size: 11px; margin-top: 4px;");
-    filterLayout->addWidget(pkgLbl);
-
-    m_packageFilterCombo = new QComboBox(filterPanel);
-    m_packageFilterCombo->addItem("All Packages");
-    for (const QString& p : m_db.allPackages()) m_packageFilterCombo->addItem(p);
-    filterLayout->addWidget(m_packageFilterCombo);
-
-    m_btnResetFilters = new QPushButton("Reset Filters", filterPanel);
-    m_btnResetFilters->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
-    filterLayout->addWidget(m_btnResetFilters);
-
-    filterLayout->addStretch(1);
-    mainLayout->addWidget(filterPanel);
-
-    // ── RIGHT SIDE: TABS AND BANNER ──
-    QWidget* rightArea = new QWidget(page);
-    QVBoxLayout* rightLayout = new QVBoxLayout(rightArea);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(8);
-
-    m_hwTabs = new QTabWidget(rightArea);
+    m_hwTabs = new QTabWidget(page);
     m_hwTabs->addTab(createAllSelectorTab(), "All");
     m_hwTabs->addTab(createMcuSelectorTab(), "MCU / MPU");
     m_hwTabs->addTab(createBoardSelectorTab(), "Boards");
     m_hwTabs->addTab(createCustomConfigTab(), "Custom Configuration");
     m_hwTabs->setCurrentIndex(0); // "All" tab MUST be selected by default!
-    rightLayout->addWidget(m_hwTabs, 1);
+    mainLayout->addWidget(m_hwTabs, 1);
 
     // Selected Target Banner
-    m_targetBanner = new QLabel("Selected Hardware: None", rightArea);
-    m_targetBanner->setStyleSheet("background-color: #1e1e24; border: 1px solid #3f3f46; border-radius: 4px; padding: 8px 12px; color: #f4f4f5; font-weight: bold; font-size: 11.5px;");
-    rightLayout->addWidget(m_targetBanner);
-
-    mainLayout->addWidget(rightArea, 1);
-
-    // Filter connections
-    connect(m_searchHardwareEdit, &QLineEdit::textChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_typeFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_vendorFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_familyFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_archFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_coreFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_packageFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
-    connect(m_btnResetFilters, &QPushButton::clicked, this, &HardwareWizardDialog::resetFilters);
+    m_targetBanner = new QLabel("Selected Hardware: None", page);
+    m_targetBanner->setStyleSheet("background-color: #1e1e24; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-weight: bold; font-size: 11.5px;");
+    mainLayout->addWidget(m_targetBanner);
 
     connect(m_hwTabs, &QTabWidget::currentChanged, this, [this](int idx) {
         if (idx == 0) {
@@ -275,11 +200,106 @@ QWidget* HardwareWizardDialog::createHardwareSelectionPage() {
 
 QWidget* HardwareWizardDialog::createAllSelectorTab() {
     QWidget* widget = new QWidget(this);
-    QVBoxLayout* layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(4, 8, 4, 4);
-    layout->setSpacing(6);
+    QHBoxLayout* tabLayout = new QHBoxLayout(widget);
+    tabLayout->setContentsMargins(8, 8, 8, 8);
+    tabLayout->setSpacing(12);
 
-    m_allTable = new QTableWidget(widget);
+    // ── LEFT: FILTERS PANEL ──
+    QWidget* filterPanel = new QWidget(widget);
+    filterPanel->setFixedWidth(200);
+    QVBoxLayout* filterLayout = new QVBoxLayout(filterPanel);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    filterLayout->setSpacing(6);
+
+    QLabel* filterHeader = new QLabel("Filters", filterPanel);
+    QFont fhFont = font();
+    fhFont.setPointSize(11);
+    fhFont.setBold(true);
+    filterHeader->setFont(fhFont);
+    filterHeader->setStyleSheet("color: #ffffff; padding-bottom: 2px; border-bottom: 1px solid #3f3f46;");
+    filterLayout->addWidget(filterHeader);
+
+    // Vendor
+    QLabel* lblVendor = new QLabel("Vendor", filterPanel);
+    lblVendor->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblVendor);
+    m_vendorFilterCombo = new QComboBox(filterPanel);
+    m_vendorFilterCombo->addItem("All");
+    for (const QString& v : m_db.allVendors()) m_vendorFilterCombo->addItem(v);
+    filterLayout->addWidget(m_vendorFilterCombo);
+
+    // Family
+    QLabel* lblFamily = new QLabel("Family", filterPanel);
+    lblFamily->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblFamily);
+    m_familyFilterCombo = new QComboBox(filterPanel);
+    m_familyFilterCombo->addItem("All");
+    for (const QString& f : m_db.allFamilies()) m_familyFilterCombo->addItem(f);
+    filterLayout->addWidget(m_familyFilterCombo);
+
+    // Architecture
+    QLabel* lblArch = new QLabel("Architecture", filterPanel);
+    lblArch->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblArch);
+    m_archFilterCombo = new QComboBox(filterPanel);
+    m_archFilterCombo->addItem("All");
+    for (const QString& a : m_db.allArchitectures()) m_archFilterCombo->addItem(a);
+    filterLayout->addWidget(m_archFilterCombo);
+
+    // Core
+    QLabel* lblCore = new QLabel("Core", filterPanel);
+    lblCore->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblCore);
+    m_coreFilterCombo = new QComboBox(filterPanel);
+    m_coreFilterCombo->addItem("All");
+    for (const QString& c : m_db.allCores()) m_coreFilterCombo->addItem(c);
+    filterLayout->addWidget(m_coreFilterCombo);
+
+    // Package
+    QLabel* lblPackage = new QLabel("Package", filterPanel);
+    lblPackage->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblPackage);
+    m_packageFilterCombo = new QComboBox(filterPanel);
+    m_packageFilterCombo->addItem("All");
+    for (const QString& p : m_db.allPackages()) m_packageFilterCombo->addItem(p);
+    filterLayout->addWidget(m_packageFilterCombo);
+
+    // Device Type
+    QLabel* lblType = new QLabel("Device Type", filterPanel);
+    lblType->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblType);
+    m_typeFilterCombo = new QComboBox(filterPanel);
+    for (const QString& t : m_db.allDeviceTypes()) m_typeFilterCombo->addItem(t);
+    filterLayout->addWidget(m_typeFilterCombo);
+
+    m_btnResetFilters = new QPushButton("Reset Filters", filterPanel);
+    m_btnResetFilters->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
+    filterLayout->addWidget(m_btnResetFilters);
+
+    filterLayout->addStretch(1);
+    tabLayout->addWidget(filterPanel);
+
+    // ── VERTICAL DIVIDER LINE ──
+    QFrame* vSep = new QFrame(widget);
+    vSep->setFrameShape(QFrame::VLine);
+    vSep->setFrameShadow(QFrame::Plain);
+    vSep->setStyleSheet("background-color: #27272a; max-width: 1px;");
+    tabLayout->addWidget(vSep);
+
+    // ── RIGHT: SEARCH BOX + MASTER TABLE ──
+    QWidget* rightArea = new QWidget(widget);
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightArea);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(8);
+
+    m_searchHardwareEdit = new QLineEdit(rightArea);
+    m_searchHardwareEdit->setObjectName("searchHardwareEdit");
+    m_searchHardwareEdit->setPlaceholderText("Search MCU, MPU, Board...");
+    m_searchHardwareEdit->setClearButtonEnabled(true);
+    m_searchHardwareEdit->setStyleSheet("QLineEdit { background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-size: 12px; } QLineEdit:focus { border: 1px solid #38bdf8; }");
+    rightLayout->addWidget(m_searchHardwareEdit);
+
+    m_allTable = new QTableWidget(rightArea);
     m_allTable->setObjectName("allHardwareTable");
     m_allTable->setColumnCount(8);
     m_allTable->setHorizontalHeaderLabels({"Reference", "Vendor", "Type", "Core / Architecture", "Package", "Flash", "RAM", "Connectivity"});
@@ -295,8 +315,19 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
     m_allTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_allTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_allTable->setStyleSheet("QTableWidget { background-color: #121214; gridline-color: #27272a; selection-background-color: #1e3a5f; selection-color: #ffffff; }");
-    layout->addWidget(m_allTable, 1);
+    rightLayout->addWidget(m_allTable, 1);
 
+    tabLayout->addWidget(rightArea, 1);
+
+    // Event connections
+    connect(m_searchHardwareEdit, &QLineEdit::textChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_typeFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_vendorFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_familyFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_archFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_coreFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_packageFilterCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_btnResetFilters, &QPushButton::clicked, this, &HardwareWizardDialog::resetFilters);
     connect(m_allTable, &QTableWidget::itemSelectionChanged, this, &HardwareWizardDialog::onAllTableRowSelected);
 
     return widget;
@@ -304,11 +335,93 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
 
 QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     QWidget* widget = new QWidget(this);
-    QVBoxLayout* layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(4, 8, 4, 4);
-    layout->setSpacing(6);
+    QHBoxLayout* tabLayout = new QHBoxLayout(widget);
+    tabLayout->setContentsMargins(8, 8, 8, 8);
+    tabLayout->setSpacing(12);
 
-    m_deviceTable = new QTableWidget(widget);
+    // Left Filters
+    QWidget* filterPanel = new QWidget(widget);
+    filterPanel->setFixedWidth(200);
+    QVBoxLayout* filterLayout = new QVBoxLayout(filterPanel);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    filterLayout->setSpacing(6);
+
+    QLabel* filterHeader = new QLabel("Filters", filterPanel);
+    QFont fhFont = font();
+    fhFont.setPointSize(11);
+    fhFont.setBold(true);
+    filterHeader->setFont(fhFont);
+    filterHeader->setStyleSheet("color: #ffffff; padding-bottom: 2px; border-bottom: 1px solid #3f3f46;");
+    filterLayout->addWidget(filterHeader);
+
+    QLabel* lblVendor = new QLabel("Vendor", filterPanel);
+    lblVendor->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblVendor);
+    m_mcuVendorCombo = new QComboBox(filterPanel);
+    m_mcuVendorCombo->addItem("All");
+    for (const QString& v : m_db.allVendors()) m_mcuVendorCombo->addItem(v);
+    filterLayout->addWidget(m_mcuVendorCombo);
+
+    QLabel* lblFamily = new QLabel("Family", filterPanel);
+    lblFamily->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblFamily);
+    m_mcuFamilyCombo = new QComboBox(filterPanel);
+    m_mcuFamilyCombo->addItem("All");
+    for (const QString& f : m_db.allFamilies()) m_mcuFamilyCombo->addItem(f);
+    filterLayout->addWidget(m_mcuFamilyCombo);
+
+    QLabel* lblArch = new QLabel("Architecture", filterPanel);
+    lblArch->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblArch);
+    m_mcuArchCombo = new QComboBox(filterPanel);
+    m_mcuArchCombo->addItem("All");
+    for (const QString& a : m_db.allArchitectures()) m_mcuArchCombo->addItem(a);
+    filterLayout->addWidget(m_mcuArchCombo);
+
+    QLabel* lblCore = new QLabel("Core", filterPanel);
+    lblCore->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblCore);
+    m_mcuCoreCombo = new QComboBox(filterPanel);
+    m_mcuCoreCombo->addItem("All");
+    for (const QString& c : m_db.allCores()) m_mcuCoreCombo->addItem(c);
+    filterLayout->addWidget(m_mcuCoreCombo);
+
+    QLabel* lblPackage = new QLabel("Package", filterPanel);
+    lblPackage->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblPackage);
+    m_mcuPackageCombo = new QComboBox(filterPanel);
+    m_mcuPackageCombo->addItem("All");
+    for (const QString& p : m_db.allPackages()) m_mcuPackageCombo->addItem(p);
+    filterLayout->addWidget(m_mcuPackageCombo);
+
+    QPushButton* btnResetMcu = new QPushButton("Reset Filters", filterPanel);
+    btnResetMcu->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
+    filterLayout->addWidget(btnResetMcu);
+    connect(btnResetMcu, &QPushButton::clicked, this, &HardwareWizardDialog::resetFilters);
+
+    filterLayout->addStretch(1);
+    tabLayout->addWidget(filterPanel);
+
+    // Divider
+    QFrame* vSep = new QFrame(widget);
+    vSep->setFrameShape(QFrame::VLine);
+    vSep->setFrameShadow(QFrame::Plain);
+    vSep->setStyleSheet("background-color: #27272a; max-width: 1px;");
+    tabLayout->addWidget(vSep);
+
+    // Right Content
+    QWidget* rightArea = new QWidget(widget);
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightArea);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(8);
+
+    m_mcuSearchEdit = new QLineEdit(rightArea);
+    m_mcuSearchEdit->setPlaceholderText("Search MCU, MPU...");
+    m_mcuSearchEdit->setClearButtonEnabled(true);
+    m_mcuSearchEdit->setStyleSheet("QLineEdit { background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-size: 12px; } QLineEdit:focus { border: 1px solid #38bdf8; }");
+    rightLayout->addWidget(m_mcuSearchEdit);
+
+    m_deviceTable = new QTableWidget(rightArea);
     m_deviceTable->setObjectName("mcuHardwareTable");
     m_deviceTable->setColumnCount(7);
     m_deviceTable->setHorizontalHeaderLabels({"Part Number", "Vendor", "Core / Arch", "Package", "Flash", "RAM", "Clock"});
@@ -323,8 +436,22 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     m_deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_deviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_deviceTable->setStyleSheet("QTableWidget { background-color: #121214; gridline-color: #27272a; selection-background-color: #1e3a5f; selection-color: #ffffff; }");
-    layout->addWidget(m_deviceTable, 1);
+    rightLayout->addWidget(m_deviceTable, 1);
 
+    tabLayout->addWidget(rightArea, 1);
+
+    connect(m_mcuSearchEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (m_searchHardwareEdit && m_searchHardwareEdit->text() != text) {
+            m_searchHardwareEdit->setText(text);
+        } else {
+            onFilterChanged();
+        }
+    });
+    connect(m_mcuVendorCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_mcuFamilyCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_mcuArchCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_mcuCoreCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_mcuPackageCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
     connect(m_deviceTable, &QTableWidget::itemSelectionChanged, this, &HardwareWizardDialog::onDeviceSelected);
 
     return widget;
@@ -332,11 +459,77 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
 
 QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     QWidget* widget = new QWidget(this);
-    QVBoxLayout* layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(4, 8, 4, 4);
-    layout->setSpacing(6);
+    QHBoxLayout* tabLayout = new QHBoxLayout(widget);
+    tabLayout->setContentsMargins(8, 8, 8, 8);
+    tabLayout->setSpacing(12);
 
-    m_boardTable = new QTableWidget(widget);
+    // Left Filters
+    QWidget* filterPanel = new QWidget(widget);
+    filterPanel->setFixedWidth(200);
+    QVBoxLayout* filterLayout = new QVBoxLayout(filterPanel);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    filterLayout->setSpacing(6);
+
+    QLabel* filterHeader = new QLabel("Filters", filterPanel);
+    QFont fhFont = font();
+    fhFont.setPointSize(11);
+    fhFont.setBold(true);
+    filterHeader->setFont(fhFont);
+    filterHeader->setStyleSheet("color: #ffffff; padding-bottom: 2px; border-bottom: 1px solid #3f3f46;");
+    filterLayout->addWidget(filterHeader);
+
+    QLabel* lblVendor = new QLabel("Manufacturer", filterPanel);
+    lblVendor->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblVendor);
+    m_boardVendorCombo = new QComboBox(filterPanel);
+    m_boardVendorCombo->addItem("All");
+    for (const QString& v : m_db.allVendors()) m_boardVendorCombo->addItem(v);
+    filterLayout->addWidget(m_boardVendorCombo);
+
+    QLabel* lblFamily = new QLabel("Board Family", filterPanel);
+    lblFamily->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblFamily);
+    m_boardFamilyCombo = new QComboBox(filterPanel);
+    m_boardFamilyCombo->addItem("All");
+    for (const QString& f : m_db.allFamilies()) m_boardFamilyCombo->addItem(f);
+    filterLayout->addWidget(m_boardFamilyCombo);
+
+    QLabel* lblArch = new QLabel("Architecture", filterPanel);
+    lblArch->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    filterLayout->addWidget(lblArch);
+    m_boardArchCombo = new QComboBox(filterPanel);
+    m_boardArchCombo->addItem("All");
+    for (const QString& a : m_db.allArchitectures()) m_boardArchCombo->addItem(a);
+    filterLayout->addWidget(m_boardArchCombo);
+
+    QPushButton* btnResetBoard = new QPushButton("Reset Filters", filterPanel);
+    btnResetBoard->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
+    filterLayout->addWidget(btnResetBoard);
+    connect(btnResetBoard, &QPushButton::clicked, this, &HardwareWizardDialog::resetFilters);
+
+    filterLayout->addStretch(1);
+    tabLayout->addWidget(filterPanel);
+
+    // Divider
+    QFrame* vSep = new QFrame(widget);
+    vSep->setFrameShape(QFrame::VLine);
+    vSep->setFrameShadow(QFrame::Plain);
+    vSep->setStyleSheet("background-color: #27272a; max-width: 1px;");
+    tabLayout->addWidget(vSep);
+
+    // Right Content
+    QWidget* rightArea = new QWidget(widget);
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightArea);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(8);
+
+    m_boardSearchEdit = new QLineEdit(rightArea);
+    m_boardSearchEdit->setPlaceholderText("Search Boards, SBCs...");
+    m_boardSearchEdit->setClearButtonEnabled(true);
+    m_boardSearchEdit->setStyleSheet("QLineEdit { background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-size: 12px; } QLineEdit:focus { border: 1px solid #38bdf8; }");
+    rightLayout->addWidget(m_boardSearchEdit);
+
+    m_boardTable = new QTableWidget(rightArea);
     m_boardTable->setObjectName("boardHardwareTable");
     m_boardTable->setColumnCount(6);
     m_boardTable->setHorizontalHeaderLabels({"Board Name", "Manufacturer", "Target MCU", "Architecture", "Debug Probe", "Supply"});
@@ -350,8 +543,20 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     m_boardTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_boardTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_boardTable->setStyleSheet("QTableWidget { background-color: #121214; gridline-color: #27272a; selection-background-color: #1e3a5f; selection-color: #ffffff; }");
-    layout->addWidget(m_boardTable, 1);
+    rightLayout->addWidget(m_boardTable, 1);
 
+    tabLayout->addWidget(rightArea, 1);
+
+    connect(m_boardSearchEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (m_searchHardwareEdit && m_searchHardwareEdit->text() != text) {
+            m_searchHardwareEdit->setText(text);
+        } else {
+            onFilterChanged();
+        }
+    });
+    connect(m_boardVendorCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_boardFamilyCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
+    connect(m_boardArchCombo, &QComboBox::currentIndexChanged, this, &HardwareWizardDialog::onFilterChanged);
     connect(m_boardTable, &QTableWidget::itemSelectionChanged, this, &HardwareWizardDialog::onBoardSelected);
 
     return widget;
@@ -876,12 +1081,12 @@ void HardwareWizardDialog::populateAllTable() {
     m_allTable->setRowCount(0);
 
     QString search = m_searchHardwareEdit ? m_searchHardwareEdit->text().trimmed() : "";
-    QString typeFilter = m_typeFilterCombo ? m_typeFilterCombo->currentText() : "All Types";
-    QString vendorFilter = m_vendorFilterCombo ? m_vendorFilterCombo->currentText() : "All Vendors";
-    QString familyFilter = m_familyFilterCombo ? m_familyFilterCombo->currentText() : "All Families";
-    QString archFilter = m_archFilterCombo ? m_archFilterCombo->currentText() : "All Architectures";
-    QString coreFilter = m_coreFilterCombo ? m_coreFilterCombo->currentText() : "All Cores";
-    QString packageFilter = m_packageFilterCombo ? m_packageFilterCombo->currentText() : "All Packages";
+    QString typeFilter = m_typeFilterCombo ? m_typeFilterCombo->currentText() : "All";
+    QString vendorFilter = m_vendorFilterCombo ? m_vendorFilterCombo->currentText() : "All";
+    QString familyFilter = m_familyFilterCombo ? m_familyFilterCombo->currentText() : "All";
+    QString archFilter = m_archFilterCombo ? m_archFilterCombo->currentText() : "All";
+    QString coreFilter = m_coreFilterCombo ? m_coreFilterCombo->currentText() : "All";
+    QString packageFilter = m_packageFilterCombo ? m_packageFilterCombo->currentText() : "All";
 
     const auto items = m_db.allCatalogItems();
     for (const auto& item : items) {
@@ -897,14 +1102,14 @@ void HardwareWizardDialog::populateAllTable() {
             if (!matches) continue;
         }
 
-        if (typeFilter != "All Types" && typeFilter != "All") {
+        if (typeFilter != "All" && typeFilter != "All Types") {
             if (item.deviceType.compare(typeFilter, Qt::CaseInsensitive) != 0) continue;
         }
-        if (vendorFilter != "All Vendors" && item.vendor.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
-        if (familyFilter != "All Families" && item.family.compare(familyFilter, Qt::CaseInsensitive) != 0 && item.series.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
-        if (archFilter != "All Architectures" && item.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
-        if (coreFilter != "All Cores" && item.core.compare(coreFilter, Qt::CaseInsensitive) != 0) continue;
-        if (packageFilter != "All Packages" && !item.package.contains(packageFilter, Qt::CaseInsensitive)) continue;
+        if (vendorFilter != "All" && vendorFilter != "All Vendors" && item.vendor.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
+        if (familyFilter != "All" && familyFilter != "All Families" && item.family.compare(familyFilter, Qt::CaseInsensitive) != 0 && item.series.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
+        if (archFilter != "All" && archFilter != "All Architectures" && item.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
+        if (coreFilter != "All" && coreFilter != "All Cores" && item.core.compare(coreFilter, Qt::CaseInsensitive) != 0) continue;
+        if (packageFilter != "All" && packageFilter != "All Packages" && !item.package.contains(packageFilter, Qt::CaseInsensitive)) continue;
 
         int r = m_allTable->rowCount();
         m_allTable->insertRow(r);
@@ -961,13 +1166,13 @@ void HardwareWizardDialog::populateAllTable() {
 void HardwareWizardDialog::populateDeviceTable() {
     if (!m_deviceTable) return;
     m_deviceTable->setRowCount(0);
-    QString search = m_searchHardwareEdit ? m_searchHardwareEdit->text().trimmed() : "";
-    QString typeFilter = m_typeFilterCombo ? m_typeFilterCombo->currentText() : "All Types";
-    QString vendorFilter = m_vendorFilterCombo ? m_vendorFilterCombo->currentText() : "All Vendors";
-    QString archFilter = m_archFilterCombo ? m_archFilterCombo->currentText() : "All Architectures";
-    QString familyFilter = m_familyFilterCombo ? m_familyFilterCombo->currentText() : "All Families";
-    QString coreFilter = m_coreFilterCombo ? m_coreFilterCombo->currentText() : "All Cores";
-    QString packageFilter = m_packageFilterCombo ? m_packageFilterCombo->currentText() : "All Packages";
+    QString search = (m_mcuSearchEdit && !m_mcuSearchEdit->text().isEmpty()) ? m_mcuSearchEdit->text().trimmed() : (m_searchHardwareEdit ? m_searchHardwareEdit->text().trimmed() : "");
+    QString typeFilter = m_typeFilterCombo ? m_typeFilterCombo->currentText() : "All";
+    QString vendorFilter = (m_mcuVendorCombo && m_mcuVendorCombo->currentIndex() > 0) ? m_mcuVendorCombo->currentText() : (m_vendorFilterCombo ? m_vendorFilterCombo->currentText() : "All");
+    QString archFilter = (m_mcuArchCombo && m_mcuArchCombo->currentIndex() > 0) ? m_mcuArchCombo->currentText() : (m_archFilterCombo ? m_archFilterCombo->currentText() : "All");
+    QString familyFilter = (m_mcuFamilyCombo && m_mcuFamilyCombo->currentIndex() > 0) ? m_mcuFamilyCombo->currentText() : (m_familyFilterCombo ? m_familyFilterCombo->currentText() : "All");
+    QString coreFilter = (m_mcuCoreCombo && m_mcuCoreCombo->currentIndex() > 0) ? m_mcuCoreCombo->currentText() : (m_coreFilterCombo ? m_coreFilterCombo->currentText() : "All");
+    QString packageFilter = (m_mcuPackageCombo && m_mcuPackageCombo->currentIndex() > 0) ? m_mcuPackageCombo->currentText() : (m_packageFilterCombo ? m_packageFilterCombo->currentText() : "All");
 
     for (const auto& dev : m_db.allDevices()) {
         if (!search.isEmpty()) {
@@ -982,11 +1187,11 @@ void HardwareWizardDialog::populateDeviceTable() {
         if (typeFilter == "MPU" && !dev.architecture.contains("Cortex-A") && !dev.partNumber.contains("BCM")) continue;
         if (typeFilter == "MCU" && (dev.architecture.contains("Cortex-A") || dev.partNumber.contains("BCM"))) continue;
         if (typeFilter == "BOARD" || typeFilter == "SBC") continue;
-        if (vendorFilter != "All Vendors" && dev.vendor.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
-        if (archFilter != "All Architectures" && dev.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
-        if (familyFilter != "All Families" && dev.family.compare(familyFilter, Qt::CaseInsensitive) != 0 && dev.series.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
-        if (coreFilter != "All Cores" && dev.core.compare(coreFilter, Qt::CaseInsensitive) != 0) continue;
-        if (packageFilter != "All Packages" && !dev.package.contains(packageFilter, Qt::CaseInsensitive)) continue;
+        if (vendorFilter != "All" && vendorFilter != "All Vendors" && dev.vendor.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
+        if (archFilter != "All" && archFilter != "All Architectures" && dev.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
+        if (familyFilter != "All" && familyFilter != "All Families" && dev.family.compare(familyFilter, Qt::CaseInsensitive) != 0 && dev.series.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
+        if (coreFilter != "All" && coreFilter != "All Cores" && dev.core.compare(coreFilter, Qt::CaseInsensitive) != 0) continue;
+        if (packageFilter != "All" && packageFilter != "All Packages" && !dev.package.contains(packageFilter, Qt::CaseInsensitive)) continue;
 
         int r = m_deviceTable->rowCount();
         m_deviceTable->insertRow(r);
@@ -1010,11 +1215,11 @@ void HardwareWizardDialog::populateDeviceTable() {
 void HardwareWizardDialog::populateBoardTable() {
     if (!m_boardTable) return;
     m_boardTable->setRowCount(0);
-    QString search = m_searchHardwareEdit ? m_searchHardwareEdit->text().trimmed() : "";
-    QString typeFilter = m_typeFilterCombo ? m_typeFilterCombo->currentText() : "All Types";
-    QString vendorFilter = m_vendorFilterCombo ? m_vendorFilterCombo->currentText() : "All Vendors";
-    QString familyFilter = m_familyFilterCombo ? m_familyFilterCombo->currentText() : "All Families";
-    QString archFilter = m_archFilterCombo ? m_archFilterCombo->currentText() : "All Architectures";
+    QString search = (m_boardSearchEdit && !m_boardSearchEdit->text().isEmpty()) ? m_boardSearchEdit->text().trimmed() : (m_searchHardwareEdit ? m_searchHardwareEdit->text().trimmed() : "");
+    QString typeFilter = m_typeFilterCombo ? m_typeFilterCombo->currentText() : "All";
+    QString vendorFilter = (m_boardVendorCombo && m_boardVendorCombo->currentIndex() > 0) ? m_boardVendorCombo->currentText() : (m_vendorFilterCombo ? m_vendorFilterCombo->currentText() : "All");
+    QString familyFilter = (m_boardFamilyCombo && m_boardFamilyCombo->currentIndex() > 0) ? m_boardFamilyCombo->currentText() : (m_familyFilterCombo ? m_familyFilterCombo->currentText() : "All");
+    QString archFilter = (m_boardArchCombo && m_boardArchCombo->currentIndex() > 0) ? m_boardArchCombo->currentText() : (m_archFilterCombo ? m_archFilterCombo->currentText() : "All");
 
     for (const auto& b : m_db.allBoards()) {
         if (!search.isEmpty()) {
@@ -1030,9 +1235,9 @@ void HardwareWizardDialog::populateBoardTable() {
         if (typeFilter == "MCU" || typeFilter == "MPU") continue;
         if (typeFilter == "BOARD" && isSbc) continue;
         if (typeFilter == "SBC" && !isSbc) continue;
-        if (vendorFilter != "All Vendors" && b.manufacturer.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
-        if (familyFilter != "All Families" && b.boardFamily.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
-        if (archFilter != "All Architectures" && b.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
+        if (vendorFilter != "All" && vendorFilter != "All Vendors" && b.manufacturer.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
+        if (familyFilter != "All" && familyFilter != "All Families" && b.boardFamily.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
+        if (archFilter != "All" && archFilter != "All Architectures" && b.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
 
         int r = m_boardTable->rowCount();
         m_boardTable->insertRow(r);
@@ -1058,12 +1263,22 @@ void HardwareWizardDialog::onFilterChanged() {
 
 void HardwareWizardDialog::resetFilters() {
     if (m_searchHardwareEdit) m_searchHardwareEdit->clear();
+    if (m_mcuSearchEdit) m_mcuSearchEdit->clear();
+    if (m_boardSearchEdit) m_boardSearchEdit->clear();
     if (m_typeFilterCombo) m_typeFilterCombo->setCurrentIndex(0);
     if (m_vendorFilterCombo) m_vendorFilterCombo->setCurrentIndex(0);
     if (m_familyFilterCombo) m_familyFilterCombo->setCurrentIndex(0);
     if (m_archFilterCombo) m_archFilterCombo->setCurrentIndex(0);
     if (m_coreFilterCombo) m_coreFilterCombo->setCurrentIndex(0);
     if (m_packageFilterCombo) m_packageFilterCombo->setCurrentIndex(0);
+    if (m_mcuVendorCombo) m_mcuVendorCombo->setCurrentIndex(0);
+    if (m_mcuFamilyCombo) m_mcuFamilyCombo->setCurrentIndex(0);
+    if (m_mcuArchCombo) m_mcuArchCombo->setCurrentIndex(0);
+    if (m_mcuCoreCombo) m_mcuCoreCombo->setCurrentIndex(0);
+    if (m_mcuPackageCombo) m_mcuPackageCombo->setCurrentIndex(0);
+    if (m_boardVendorCombo) m_boardVendorCombo->setCurrentIndex(0);
+    if (m_boardFamilyCombo) m_boardFamilyCombo->setCurrentIndex(0);
+    if (m_boardArchCombo) m_boardArchCombo->setCurrentIndex(0);
     onFilterChanged();
 }
 
