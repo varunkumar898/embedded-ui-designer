@@ -149,6 +149,31 @@ The MCP server provides **27 tools** across 7 functional categories:
 | `export_project` | `outputDir` (str), `framework` (str: `lvgl`, `qul`, or `ugfx`) | Generates ready-to-flash C/C++/QML firmware project |
 | `export_component` | `id` (str), `target` (str: `qml` or `ugfx`) | Emits snippet code for a single component |
 
+### Universal Hardware & Pinmux Tools (Phases 22, 23, 24)
+| Tool | Parameters | Description |
+|---|---|---|
+| `get_target` | None | Returns active project hardware target, memory & pin counts |
+| `set_target` | `targetType` (str), `id` (str) | Sets active target MCU (`STM32F407VG`, `ESP32-S3`, `RP2040`) or Board (`STM32F407G-DISC1`, `ESP32-S3-DevKitC-1`, `Raspberry Pi Pico`) |
+| `list_devices` | `vendor`, `family`, `search` | Discovers microcontrollers with optional filtering |
+| `list_boards` | `vendor`, `mcu`, `search` | Discovers supported development boards with connectors and pin mappings |
+| `get_device_info` | `deviceId` (str) | Returns full authoritative datasheet specifications for a microcontroller |
+| `get_board_info` | `boardId` (str) | Returns board physical pin labels, connectors, power rails, and debug interface |
+| `get_pinout` | `deviceId` (str, opt) | Returns physical package pinout, positions, and alternate functions |
+| `list_pins` | None | Lists all physical pins with active mode, functional label, pull, speed, and state |
+| `get_pin` | `pin` (str) | Inspects single pin configuration and alternate function capabilities |
+| `configure_pin` | `pin`, `config` (dict), `force` (bool, opt) | Configures mode, label, pull, speed, interrupt with conflict detection |
+| `configure_pins` | `assignments` (list), `force` (bool, opt) | Batch configures physical pins, checking pinmux rules |
+| `list_peripherals` | None | Lists communication and control peripherals with enabled status |
+| `get_peripheral` | `name` (str) | Retrieves peripheral signals, defaults, and assigned pins |
+| `configure_peripheral`| `name`, `config` (dict), `force` (bool, opt) | Enables peripheral, sets parameters (baudRate), and routes pins |
+| `get_available_pins` | `peripheral`, `signal` | Queries pins capable of serving a given peripheral signal (e.g. `SPI1`, `SCK`) |
+| `get_free_pins` | None | Returns all unassigned general-purpose I/O pins |
+| `validate_hardware_configuration` | None | Runs pinmux validation engine to check conflicts or missing pins |
+| `get_hardware_configuration` | None | Returns full project hardware JSON |
+| `create_custom_hardware` | `definition` (dict) | Registers a custom MCU or Board definition in the database |
+| `save_hardware_definition` | `id`, `filePath` | Exports a hardware target definition to an external JSON pack |
+| `load_hardware_definition` | `filePath` | Imports an external hardware definition JSON file |
+
 ---
 
 ## 4. MCP Resources

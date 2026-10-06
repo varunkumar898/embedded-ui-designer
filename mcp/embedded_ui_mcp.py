@@ -324,6 +324,254 @@ TOOLS_DEFINITION = [
             },
             "required": ["id"]
         }
+    },
+
+    # ── UNIVERSAL HARDWARE & PINMUX TOOLS (PHASES 22, 23, 24) ──
+    {
+        "name": "get_target",
+        "description": "Get current active hardware target (MCU, Board, or Custom) configured in the project, including vendor, family, architecture, core, flash, RAM, and counts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "set_target",
+        "description": "Select and configure an MCU or development board target for the active project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "targetType": {"type": "string", "enum": ["device", "board", "custom"], "description": "'device' (MCU) or 'board'"},
+                "id": {"type": "string", "description": "Device partNumber (e.g. 'STM32F407VG', 'ESP32-S3', 'RP2040') or Board ID (e.g. 'STM32F407G-DISC1', 'ESP32-S3-DevKitC-1', 'Raspberry Pi Pico')"}
+            },
+            "required": ["id"]
+        }
+    },
+    {
+        "name": "list_devices",
+        "description": "Discover supported microcontrollers and microprocessors with optional filtering by vendor, family, or keyword search.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "vendor": {"type": "string", "description": "Filter by vendor (e.g. 'STMicroelectronics', 'Espressif', 'Raspberry Pi')"},
+                "family": {"type": "string", "description": "Filter by family (e.g. 'STM32', 'ESP32', 'RP2040')"},
+                "search": {"type": "string", "description": "Keyword search string (part number, core, architecture)"}
+            }
+        }
+    },
+    {
+        "name": "list_boards",
+        "description": "Discover supported development boards with physical headers, connectors, and onboard peripherals.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "vendor": {"type": "string", "description": "Filter by manufacturer"},
+                "mcu": {"type": "string", "description": "Filter by MCU part number"},
+                "search": {"type": "string", "description": "Search board name, family, or architecture"}
+            }
+        }
+    },
+    {
+        "name": "get_device_info",
+        "description": "Retrieve comprehensive authoritative datasheet specifications for a microcontroller (pins, alternate functions, peripherals, clock, package, memory).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "deviceId": {"type": "string", "description": "Part number, e.g. 'STM32F407VG', 'ESP32-S3', 'RP2040'"}
+            },
+            "required": ["deviceId"]
+        }
+    },
+    {
+        "name": "get_board_info",
+        "description": "Retrieve comprehensive board specifications including physical headers, pin labels, power rails, LEDs, buttons, and debug interfaces.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "boardId": {"type": "string", "description": "Board identifier, e.g. 'STM32F407G-DISC1', 'ESP32-S3-DevKitC-1', 'Raspberry Pi Pico'"}
+            },
+            "required": ["boardId"]
+        }
+    },
+    {
+        "name": "get_pinout",
+        "description": "Retrieve complete physical pinout with alternate functions and package positions for a device or current project target.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "deviceId": {"type": "string", "description": "Optional device ID. If omitted, uses active project device."}
+            }
+        }
+    },
+    {
+        "name": "list_pins",
+        "description": "List all physical pins for the active project target with their current configuration status (mode, label, pull, speed, alternate function, assigned).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "get_pin",
+        "description": "Inspect single pin configuration, alternate function options, and conflict state on the active target.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pin": {"type": "string", "description": "Pin name (e.g. 'PA5', 'GPIO4', 'GP16')"}
+            },
+            "required": ["pin"]
+        }
+    },
+    {
+        "name": "configure_pin",
+        "description": "Configure GPIO/alternate function properties for a physical pin with authoritative conflict detection.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pin": {"type": "string", "description": "Pin identifier (e.g. 'PA5', 'PB6', 'GPIO4')"},
+                "config": {
+                    "type": "object",
+                    "properties": {
+                        "mode": {"type": "string", "description": "'GPIO_Input', 'GPIO_Output', 'Analog', 'AlternateFunction', 'None'"},
+                        "label": {"type": "string", "description": "Custom functional label, e.g. 'STATUS_LED' or 'TOUCH_CS'"},
+                        "alternateFunction": {"type": "string", "description": "Alternate function name, e.g. 'SPI1_SCK', 'I2C1_SCL'"},
+                        "pull": {"type": "string", "enum": ["NoPull", "PullUp", "PullDown"], "description": "Internal pull resistor"},
+                        "speed": {"type": "string", "enum": ["Low", "Medium", "High", "VeryHigh"], "description": "Slew rate / output speed"},
+                        "outputType": {"type": "string", "enum": ["PushPull", "OpenDrain"], "description": "Output stage"},
+                        "initialOutput": {"type": "string", "enum": ["Low", "High"], "description": "Initial state"},
+                        "interrupt": {"type": "string", "enum": ["None", "RisingEdge", "FallingEdge", "BothEdges"], "description": "Interrupt trigger"}
+                    }
+                },
+                "force": {"type": "boolean", "description": "Force assignment, replacing conflicting owner if already assigned"}
+            },
+            "required": ["pin", "config"]
+        }
+    },
+    {
+        "name": "configure_pins",
+        "description": "Batch configure multiple physical pins at once, validating pinmux constraints.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "assignments": {
+                    "type": "array",
+                    "description": "List of pin configuration objects (pin, mode, label, alternateFunction, pull, speed)",
+                    "items": {"type": "object"}
+                },
+                "force": {"type": "boolean", "description": "Force assignment if conflicts occur"}
+            },
+            "required": ["assignments"]
+        }
+    },
+    {
+        "name": "list_peripherals",
+        "description": "List all on-chip communication and control peripherals (UART, SPI, I2C, CAN, ADC, Timers, USB, etc.) for the current target with enabled status.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "get_peripheral",
+        "description": "Retrieve peripheral configuration, supported signals, and mapped pins for a specific peripheral (e.g. 'USART1', 'SPI1', 'I2C1').",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Peripheral name (e.g. 'USART1', 'SPI1', 'I2C1')"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "configure_peripheral",
+        "description": "Configure peripheral communication parameters (baudRate, clockSpeedHz, mode) and map peripheral signals to pins.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Peripheral name (e.g. 'USART1', 'SPI1', 'I2C1')"},
+                "config": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {"type": "boolean", "description": "Enable or disable this peripheral"},
+                        "type": {"type": "string", "description": "Peripheral type (e.g. 'USART', 'SPI', 'I2C')"},
+                        "pins": {"type": "object", "description": "Signal to pin mappings, e.g. {'TX': 'PA9', 'RX': 'PA10'}"},
+                        "parameters": {"type": "object", "description": "Bus parameters, e.g. {'baudRate': 115200, 'dataBits': 8}"}
+                    }
+                },
+                "force": {"type": "boolean", "description": "Force pin reallocation if pins are occupied"}
+            },
+            "required": ["name", "config"]
+        }
+    },
+    {
+        "name": "get_available_pins",
+        "description": "Query which pins are capable of serving a given peripheral signal on the active microcontroller (e.g. peripheral 'SPI1', signal 'SCK').",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "peripheral": {"type": "string", "description": "Peripheral name (e.g. 'SPI1', 'USART1')"},
+                "signal": {"type": "string", "description": "Signal name (e.g. 'SCK', 'MOSI', 'TX', 'SCL')"}
+            },
+            "required": ["peripheral", "signal"]
+        }
+    },
+    {
+        "name": "get_free_pins",
+        "description": "Get list of all general-purpose I/O pins that are currently unassigned and available for components or peripherals.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "validate_hardware_configuration",
+        "description": "Run pinmux validation engine to detect conflicts, reserved/power pin violations, duplicate peripherals, or missing required pins.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "get_hardware_configuration",
+        "description": "Get complete active hardware configuration JSON (target, pins, peripherals, clock, toolchain).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "create_custom_hardware",
+        "description": "Register a new custom MCU or Board definition in the database.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "definition": {"type": "object", "description": "Device or Board JSON definition"}
+            },
+            "required": ["definition"]
+        }
+    },
+    {
+        "name": "save_hardware_definition",
+        "description": "Export a hardware device or board definition to an external JSON pack file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Target ID or part number"},
+                "filePath": {"type": "string", "description": "Destination file path ending in .json"}
+            },
+            "required": ["id", "filePath"]
+        }
+    },
+    {
+        "name": "load_hardware_definition",
+        "description": "Import an external hardware definition JSON file into the database.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "filePath": {"type": "string", "description": "Path to hardware definition JSON file"}
+            },
+            "required": ["filePath"]
+        }
     }
 ]
 
@@ -332,6 +580,24 @@ RESOURCES_DEFINITION = [
         "uri": "project://current",
         "name": "Current Embedded Project",
         "description": "Complete state of the active embedded project, metadata, and components",
+        "mimeType": "application/json"
+    },
+    {
+        "uri": "hardware://target",
+        "name": "Active Hardware Target",
+        "description": "Current active MCU, board, architecture, memory, and pin counts",
+        "mimeType": "application/json"
+    },
+    {
+        "uri": "hardware://pins",
+        "name": "Hardware Pinout State",
+        "description": "Current pin assignments, alternate functions, and available GPIOs",
+        "mimeType": "application/json"
+    },
+    {
+        "uri": "hardware://peripherals",
+        "name": "Hardware Peripherals State",
+        "description": "Configured communications interfaces (UART, SPI, I2C, CAN, etc.)",
         "mimeType": "application/json"
     },
     {
@@ -490,6 +756,12 @@ def handle_request(req: dict, client: DesignerClient) -> dict:
             data = client.send_command("get_component_schema")
         elif uri == "types://components":
             data = client.send_command("list_component_types")
+        elif uri == "hardware://target":
+            data = client.send_command("get_target")
+        elif uri == "hardware://pins":
+            data = client.send_command("list_pins")
+        elif uri == "hardware://peripherals":
+            data = client.send_command("list_peripherals")
         else:
             return {
                 "jsonrpc": "2.0",

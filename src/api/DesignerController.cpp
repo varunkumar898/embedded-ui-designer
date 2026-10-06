@@ -983,8 +983,887 @@ QJsonObject DesignerController::dispatch(const QString& method, const QJsonObjec
         return exportComponent(params["id"].toString(), params.value("target").toString("qml"));
     }
 
+    // Hardware & Pinmux (Phases 22, 23, 24)
+    if (m == "get_target") return getTarget();
+    if (m == "set_target") {
+        return setTarget(
+            params.value("targetType").toString("device"),
+            params.contains("id") ? params["id"].toString() : (params.contains("targetId") ? params["targetId"].toString() : params["deviceId"].toString())
+        );
+    }
+    if (m == "list_devices") {
+        return listDevices(
+            params["vendor"].toString(),
+            params["family"].toString(),
+            params["search"].toString()
+        );
+    }
+    if (m == "list_boards") {
+        return listBoards(
+            params["vendor"].toString(),
+            params["mcu"].toString(),
+            params["search"].toString()
+        );
+    }
+    if (m == "get_device_info") {
+        return getDeviceInfo(
+            params.contains("deviceId") ? params["deviceId"].toString() : params["id"].toString()
+        );
+    }
+    if (m == "get_board_info") {
+        return getBoardInfo(
+            params.contains("boardId") ? params["boardId"].toString() : params["id"].toString()
+        );
+    }
+    if (m == "get_pinout") {
+        return getPinout(
+            params.contains("deviceId") ? params["deviceId"].toString() : params["id"].toString()
+        );
+    }
+    if (m == "list_pins") return listPins();
+    if (m == "get_pin") {
+        return getPin(params.contains("pin") ? params["pin"].toString() : params["pinName"].toString());
+    }
+    if (m == "configure_pin") {
+        return configurePin(
+            params.contains("pin") ? params["pin"].toString() : params["pinName"].toString(),
+            params.value("config").toObject(),
+            params.value("force").toBool(false)
+        );
+    }
+    if (m == "configure_pins") {
+        return configurePins(
+            params.value("assignments").toArray(),
+            params.value("force").toBool(false)
+        );
+    }
+    if (m == "list_peripherals") return listPeripherals();
+    if (m == "get_peripheral") return getPeripheral(params["name"].toString());
+    if (m == "configure_peripheral") {
+        return configurePeripheral(
+            params["name"].toString(),
+            params.value("config").toObject(),
+            params.value("force").toBool(false)
+        );
+    }
+    if (m == "get_available_pins") {
+        return getAvailablePins(params["peripheral"].toString(), params["signal"].toString());
+    }
+    if (m == "get_free_pins") return getFreePins();
+    if (m == "validate_hardware_configuration") return validateHardwareConfiguration();
+    if (m == "get_hardware_configuration") return getHardwareConfiguration();
+    if (m == "create_custom_hardware") {
+        return createCustomHardware(
+            params.contains("definition") ? params["definition"].toObject() : params
+        );
+    }
+    if (m == "save_hardware_definition") {
+        return saveHardwareDefinition(params["id"].toString(), params["filePath"].toString());
+    }
+    if (m == "load_hardware_definition") {
+        return loadHardwareDefinition(params["filePath"].toString());
+    }
+
     QJsonObject err;
     err["success"] = false;
     err["error"] = "Unknown method: " + method;
     return err;
 }
+
+// -----------------------------------------------------------------------------
+// Hardware & Pinmux Implementation
+// -----------------------------------------------------------------------------
+
+QJsonObject DesignerController::getTarget() const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    res["success"] = true;
+    res["targetType"] = hw.targetType;
+    res["targetId"] = hw.deviceId.isEmpty() ? hw.boardId : hw.deviceId;
+    res["vendor"] = hw.vendor;
+    res["family"] = hw.family;
+    res["series"] = hw.series;
+    res["deviceId"] = hw.deviceId;
+    res["boardId"] = hw.boardId;
+    res["architecture"] = hw.architecture;
+    res["core"] = hw.core;
+    res["package"] = hw.package;
+    res["flashBytes"] = static_cast<qint64>(hw.flashBytes);
+    res["ramBytes"] = static_cast<qint64>(hw.ramBytes);
+    res["pinCount"] = hw.pins.size();
+    res["peripheralCount"] = hw.peripherals.size();
+    return res;
+}
+
+QJsonObject DesignerController::setTarget(const QString& targetType, const QString& targetId) {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+
+    auto& db = Hardware::DeviceDatabase::instance();
+    auto hw = m_project->hardwareConfig();
+    QString tType = targetType.trimmed().toLower();
+
+    if (tType == "board") {
+        Hardware::BoardDefinition board = db.findBoard(targetId);
+        if (board.id.isEmpty()) {
+            for (const auto& b : db.allBoards()) {
+                if (b.id.compare(targetId, Qt::CaseInsensitive) == 0 ||
+                    b.name.compare(targetId, Qt::CaseInsensitive) == 0) {
+                    board = b;
+                    break;
+                }
+            }
+        }
+        if (board.id.isEmpty()) {
+            res["success"] = false;
+            res["error"] = "Board not found: " + targetId;
+            return res;
+        }
+
+        hw.targetType = "board";
+        hw.boardId = board.id;
+        hw.deviceId = board.mcuPartNumber;
+        hw.vendor = board.manufacturer;
+        hw.family = board.boardFamily;
+        hw.architecture = board.architecture;
+
+        Hardware::DeviceDefinition mcu = db.findDevice(board.mcuPartNumber);
+        if (!mcu.partNumber.isEmpty()) {
+            hw.core = mcu.core;
+            hw.package = mcu.package;
+            hw.flashBytes = mcu.flashBytes;
+            hw.ramBytes = mcu.ramBytes;
+            hw.series = mcu.series;
+        }
+
+        hw.pins.clear();
+        if (!mcu.partNumber.isEmpty()) {
+            for (const auto& p : mcu.pins) {
+                Hardware::PinConfiguration pcfg;
+                pcfg.pin = p.name;
+                pcfg.label = board.physicalPinLabels.value(p.name, p.name);
+                pcfg.gpio = p.name;
+                pcfg.mode = (p.isPower ? "power" : (p.isGround ? "ground" : "None"));
+                hw.pins.insert(p.name, pcfg);
+            }
+        }
+        hw.peripherals.clear();
+
+        m_project->setHardwareConfig(hw);
+        m_project->setDirty(true);
+        emit m_project->hardwareConfigChanged();
+
+        res["success"] = true;
+        res["target"] = getTarget();
+        return res;
+    } else { // "device" or "mcu"
+        Hardware::DeviceDefinition dev = db.findDevice(targetId);
+        if (dev.partNumber.isEmpty()) {
+            for (const auto& d : db.allDevices()) {
+                if (d.partNumber.compare(targetId, Qt::CaseInsensitive) == 0) {
+                    dev = d;
+                    break;
+                }
+            }
+        }
+        if (dev.partNumber.isEmpty()) {
+            res["success"] = false;
+            res["error"] = "Device not found: " + targetId;
+            return res;
+        }
+
+        hw.targetType = "device";
+        hw.boardId.clear();
+        hw.deviceId = dev.partNumber;
+        hw.vendor = dev.vendor;
+        hw.family = dev.family;
+        hw.series = dev.series;
+        hw.architecture = dev.architecture;
+        hw.core = dev.core;
+        hw.package = dev.package;
+        hw.flashBytes = dev.flashBytes;
+        hw.ramBytes = dev.ramBytes;
+
+        hw.pins.clear();
+        for (const auto& p : dev.pins) {
+            Hardware::PinConfiguration pcfg;
+            pcfg.pin = p.name;
+            pcfg.label = p.name;
+            pcfg.gpio = p.name;
+            pcfg.mode = (p.isPower ? "power" : (p.isGround ? "ground" : "None"));
+            hw.pins.insert(p.name, pcfg);
+        }
+        hw.peripherals.clear();
+
+        m_project->setHardwareConfig(hw);
+        m_project->setDirty(true);
+        emit m_project->hardwareConfigChanged();
+
+        res["success"] = true;
+        res["target"] = getTarget();
+        return res;
+    }
+}
+
+QJsonObject DesignerController::listDevices(const QString& vendor, const QString& family, const QString& search) const {
+    QJsonObject res;
+    auto& db = Hardware::DeviceDatabase::instance();
+    auto allDevs = db.allDevices();
+    QJsonArray arr;
+    for (const auto& d : allDevs) {
+        if (!vendor.isEmpty() && d.vendor.compare(vendor, Qt::CaseInsensitive) != 0) continue;
+        if (!family.isEmpty() && d.family.compare(family, Qt::CaseInsensitive) != 0) continue;
+        if (!search.isEmpty()) {
+            QString q = search.toLower();
+            if (!d.partNumber.toLower().contains(q) &&
+                !d.vendor.toLower().contains(q) &&
+                !d.family.toLower().contains(q) &&
+                !d.core.toLower().contains(q)) {
+                continue;
+            }
+        }
+        QJsonObject o;
+        o["partNumber"] = d.partNumber;
+        o["vendor"] = d.vendor;
+        o["family"] = d.family;
+        o["series"] = d.series;
+        o["architecture"] = d.architecture;
+        o["core"] = d.core;
+        o["package"] = d.package;
+        o["flashBytes"] = static_cast<qint64>(d.flashBytes);
+        o["ramBytes"] = static_cast<qint64>(d.ramBytes);
+        o["pinCount"] = d.pins.size();
+        arr.append(o);
+    }
+    res["success"] = true;
+    res["count"] = arr.size();
+    res["devices"] = arr;
+    return res;
+}
+
+QJsonObject DesignerController::listBoards(const QString& vendor, const QString& mcu, const QString& search) const {
+    QJsonObject res;
+    auto& db = Hardware::DeviceDatabase::instance();
+    auto allBoards = db.allBoards();
+    QJsonArray arr;
+    for (const auto& b : allBoards) {
+        if (!vendor.isEmpty() && b.manufacturer.compare(vendor, Qt::CaseInsensitive) != 0) continue;
+        if (!mcu.isEmpty() && b.mcuPartNumber.compare(mcu, Qt::CaseInsensitive) != 0) continue;
+        if (!search.isEmpty()) {
+            QString q = search.toLower();
+            if (!b.name.toLower().contains(q) &&
+                !b.manufacturer.toLower().contains(q) &&
+                !b.mcuPartNumber.toLower().contains(q) &&
+                !b.boardFamily.toLower().contains(q)) {
+                continue;
+            }
+        }
+        QJsonObject o;
+        o["id"] = b.id;
+        o["name"] = b.name;
+        o["manufacturer"] = b.manufacturer;
+        o["boardFamily"] = b.boardFamily;
+        o["mcu"] = b.mcuPartNumber;
+        o["architecture"] = b.architecture;
+        o["connectorsCount"] = b.connectors.size();
+        arr.append(o);
+    }
+    res["success"] = true;
+    res["count"] = arr.size();
+    res["boards"] = arr;
+    return res;
+}
+
+QJsonObject DesignerController::getDeviceInfo(const QString& deviceId) const {
+    QJsonObject res;
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(deviceId);
+    if (dev.partNumber.isEmpty()) {
+        res["success"] = false;
+        res["error"] = "Device not found: " + deviceId;
+        return res;
+    }
+    res["success"] = true;
+    res["device"] = dev.toJson();
+    return res;
+}
+
+QJsonObject DesignerController::getBoardInfo(const QString& boardId) const {
+    QJsonObject res;
+    auto board = Hardware::DeviceDatabase::instance().findBoard(boardId);
+    if (board.id.isEmpty()) {
+        res["success"] = false;
+        res["error"] = "Board not found: " + boardId;
+        return res;
+    }
+    res["success"] = true;
+    res["board"] = board.toJson();
+    return res;
+}
+
+QJsonObject DesignerController::getPinout(const QString& deviceId) const {
+    QJsonObject res;
+    QString targetDev = deviceId;
+    if (targetDev.isEmpty() && m_project) {
+        targetDev = m_project->hardwareConfig().deviceId;
+    }
+    if (targetDev.isEmpty()) {
+        res["success"] = false;
+        res["error"] = "No device specified or active in project";
+        return res;
+    }
+
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(targetDev);
+    if (dev.partNumber.isEmpty()) {
+        res["success"] = false;
+        res["error"] = "Device not found: " + targetDev;
+        return res;
+    }
+
+    QJsonArray pinsArr;
+    for (const auto& p : dev.pins) {
+        QJsonObject pObj;
+        pObj["pin"] = p.name;
+        pObj["name"] = p.name;
+        pObj["physicalPin"] = p.physicalPin;
+        pObj["description"] = p.description;
+        pObj["type"] = (p.isPower ? "power" : (p.isGround ? "ground" : (p.isReset ? "reset" : (p.isReserved ? "reserved" : "io"))));
+        QJsonArray afs;
+        for (const auto& af : p.alternateFunctions) afs.append(af);
+        pObj["alternateFunctions"] = afs;
+        pinsArr.append(pObj);
+    }
+
+    res["success"] = true;
+    res["deviceId"] = dev.partNumber;
+    res["package"] = dev.package;
+    res["pinCount"] = dev.pins.size();
+    res["pins"] = pinsArr;
+    return res;
+}
+
+QJsonObject DesignerController::listPins() const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    QJsonArray pinsArr;
+    for (const auto& p : dev.pins) {
+        QJsonObject pObj;
+        pObj["pin"] = p.name;
+        pObj["name"] = p.name;
+        pObj["physicalPin"] = p.physicalPin;
+        pObj["description"] = p.description;
+        pObj["type"] = (p.isPower ? "power" : (p.isGround ? "ground" : (p.isReset ? "reset" : (p.isReserved ? "reserved" : "io"))));
+
+        if (hw.pins.contains(p.name)) {
+            const auto& cfg = hw.pins[p.name];
+            pObj["label"] = cfg.label;
+            pObj["mode"] = cfg.mode;
+            pObj["pull"] = cfg.pull;
+            pObj["speed"] = cfg.speed;
+            pObj["outputType"] = cfg.outputType;
+            pObj["initialOutput"] = cfg.initialOutput;
+            pObj["interrupt"] = cfg.interrupt;
+            pObj["alternateFunction"] = cfg.alternateFunction;
+            bool isAssigned = (cfg.mode != "None" && cfg.mode != "Unassigned" &&
+                               cfg.mode != "power" && cfg.mode != "ground");
+            pObj["isAssigned"] = isAssigned;
+        } else {
+            pObj["label"] = p.name;
+            pObj["mode"] = "None";
+            pObj["isAssigned"] = false;
+        }
+
+        QJsonArray afs;
+        for (const auto& af : p.alternateFunctions) afs.append(af);
+        pObj["alternateFunctions"] = afs;
+
+        pinsArr.append(pObj);
+    }
+
+    res["success"] = true;
+    res["count"] = pinsArr.size();
+    res["pins"] = pinsArr;
+    return res;
+}
+
+QJsonObject DesignerController::getPin(const QString& pinName) const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+    const auto* pinDef = dev.findPin(pinName);
+    if (!pinDef) {
+        res["success"] = false;
+        res["error"] = "Pin not found on active device: " + pinName;
+        return res;
+    }
+
+    res["success"] = true;
+    res["pin"] = pinDef->name;
+    res["name"] = pinDef->name;
+    res["physicalPin"] = pinDef->physicalPin;
+    res["description"] = pinDef->description;
+    res["type"] = (pinDef->isPower ? "power" : (pinDef->isGround ? "ground" : (pinDef->isReset ? "reset" : (pinDef->isReserved ? "reserved" : "io"))));
+
+    QJsonArray afs;
+    for (const auto& af : pinDef->alternateFunctions) afs.append(af);
+    res["alternateFunctions"] = afs;
+
+    if (hw.pins.contains(pinName)) {
+        res["configuration"] = hw.pins[pinName].toJson();
+    } else {
+        Hardware::PinConfiguration defCfg;
+        defCfg.pin = pinDef->name;
+        defCfg.label = pinDef->name;
+        res["configuration"] = defCfg.toJson();
+    }
+    return res;
+}
+
+QJsonObject DesignerController::configurePin(const QString& pinName, const QJsonObject& config, bool force) {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+
+    auto hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+    if (dev.partNumber.isEmpty() && !hw.boardId.isEmpty()) {
+        auto b = Hardware::DeviceDatabase::instance().findBoard(hw.boardId);
+        dev = Hardware::DeviceDatabase::instance().findDevice(b.mcuPartNumber);
+    }
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+    engine.loadConfig(hw);
+
+    Hardware::PinConfiguration pcfg;
+    if (hw.pins.contains(pinName)) {
+        pcfg = hw.pins[pinName];
+    } else {
+        pcfg.pin = pinName;
+    }
+
+    if (config.contains("mode")) {
+        pcfg.mode = config["mode"].toString();
+        if (pcfg.mode != "AlternateFunction" && !config.contains("alternateFunction")) {
+            pcfg.alternateFunction.clear();
+        }
+    }
+    if (config.contains("label")) pcfg.label = config["label"].toString();
+    if (config.contains("pull")) pcfg.pull = config["pull"].toString();
+    if (config.contains("speed")) pcfg.speed = config["speed"].toString();
+    if (config.contains("alternateFunction")) pcfg.alternateFunction = config["alternateFunction"].toString();
+    if (config.contains("outputType")) pcfg.outputType = config["outputType"].toString();
+    if (config.contains("initialOutput")) pcfg.initialOutput = config["initialOutput"].toString();
+    if (config.contains("interrupt")) pcfg.interrupt = config["interrupt"].toString();
+    if (config.contains("locked")) pcfg.locked = config["locked"].toBool();
+
+    Hardware::ConflictInfo conflict;
+    bool assigned = engine.assignPin(pinName, pcfg, force, &conflict);
+    if (!assigned) {
+        res["success"] = false;
+        res["conflict"] = true;
+        res["error"] = conflict.reason;
+        res["currentOwner"] = conflict.currentOwner;
+        res["proposedOwner"] = conflict.proposedOwner;
+        return res;
+    }
+
+    hw = engine.currentConfig();
+    m_project->setHardwareConfig(hw);
+    m_project->setDirty(true);
+    emit m_project->hardwareConfigChanged();
+
+    res["success"] = true;
+    res["pin"] = pinName;
+    res["config"] = pcfg.toJson();
+    return res;
+}
+
+QJsonObject DesignerController::configurePins(const QJsonArray& assignments, bool force) {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+
+    auto hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+    if (dev.partNumber.isEmpty() && !hw.boardId.isEmpty()) {
+        auto b = Hardware::DeviceDatabase::instance().findBoard(hw.boardId);
+        dev = Hardware::DeviceDatabase::instance().findDevice(b.mcuPartNumber);
+    }
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+    engine.loadConfig(hw);
+
+    QJsonArray configured;
+    QJsonArray conflicts;
+
+    for (const auto& val : assignments) {
+        QJsonObject item = val.toObject();
+        QString pinName = item["pin"].toString();
+        if (pinName.isEmpty()) continue;
+
+        Hardware::PinConfiguration pcfg;
+        if (hw.pins.contains(pinName)) pcfg = hw.pins[pinName];
+        else pcfg.pin = pinName;
+
+        if (item.contains("mode")) {
+            pcfg.mode = item["mode"].toString();
+            if (pcfg.mode != "AlternateFunction" && !item.contains("alternateFunction")) {
+                pcfg.alternateFunction.clear();
+            }
+        }
+        if (item.contains("label")) pcfg.label = item["label"].toString();
+        if (item.contains("pull")) pcfg.pull = item["pull"].toString();
+        if (item.contains("speed")) pcfg.speed = item["speed"].toString();
+        if (item.contains("alternateFunction")) pcfg.alternateFunction = item["alternateFunction"].toString();
+        if (item.contains("outputType")) pcfg.outputType = item["outputType"].toString();
+        if (item.contains("initialOutput")) pcfg.initialOutput = item["initialOutput"].toString();
+        if (item.contains("interrupt")) pcfg.interrupt = item["interrupt"].toString();
+        if (item.contains("locked")) pcfg.locked = item["locked"].toBool();
+
+        Hardware::ConflictInfo conflict;
+        if (engine.assignPin(pinName, pcfg, force, &conflict)) {
+            configured.append(pcfg.toJson());
+        } else {
+            QJsonObject confObj;
+            confObj["pin"] = pinName;
+            confObj["reason"] = conflict.reason;
+            confObj["currentOwner"] = conflict.currentOwner;
+            confObj["proposedOwner"] = conflict.proposedOwner;
+            conflicts.append(confObj);
+        }
+    }
+
+    hw = engine.currentConfig();
+    m_project->setHardwareConfig(hw);
+    m_project->setDirty(true);
+    emit m_project->hardwareConfigChanged();
+
+    res["success"] = conflicts.isEmpty();
+    res["configured"] = configured;
+    if (!conflicts.isEmpty()) {
+        res["conflicts"] = conflicts;
+    }
+    return res;
+}
+
+QJsonObject DesignerController::listPeripherals() const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    QJsonArray arr;
+    for (const auto& periph : dev.peripheralDescriptors) {
+        QJsonObject pObj;
+        pObj["name"] = periph.name;
+        pObj["type"] = periph.type;
+        pObj["description"] = periph.defaults.value("description").toString();
+        bool enabled = false;
+        if (hw.peripherals.contains(periph.name)) {
+            enabled = hw.peripherals[periph.name].enabled;
+            pObj["configuredPins"] = QJsonObject::fromVariantMap([&](){
+                QVariantMap vm;
+                for (auto it = hw.peripherals[periph.name].assignedPins.begin(); it != hw.peripherals[periph.name].assignedPins.end(); ++it) {
+                    vm.insert(it.key(), it.value());
+                }
+                return vm;
+            }());
+            pObj["parameters"] = QJsonObject::fromVariantMap(hw.peripherals[periph.name].parameters);
+        } else {
+            pObj["configuredPins"] = QJsonObject();
+            pObj["parameters"] = QJsonObject();
+        }
+        pObj["enabled"] = enabled;
+        arr.append(pObj);
+    }
+
+    res["success"] = true;
+    res["count"] = arr.size();
+    res["peripherals"] = arr;
+    return res;
+}
+
+QJsonObject DesignerController::getPeripheral(const QString& name) const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    const Hardware::PeripheralDescriptor* foundDesc = dev.findPeripheral(name);
+    if (!foundDesc) {
+        res["success"] = false;
+        res["error"] = "Peripheral not found on active device: " + name;
+        return res;
+    }
+
+    res["success"] = true;
+    res["name"] = foundDesc->name;
+    res["type"] = foundDesc->type;
+    res["description"] = foundDesc->defaults.value("description").toString();
+
+    QJsonObject sigs;
+    for (auto it = foundDesc->signalOptions.begin(); it != foundDesc->signalOptions.end(); ++it) {
+        QJsonArray pinArr;
+        for (const auto& p : it.value()) pinArr.append(p);
+        sigs[it.key()] = pinArr;
+    }
+    res["signals"] = sigs;
+
+    if (hw.peripherals.contains(foundDesc->name)) {
+        res["configuration"] = hw.peripherals[foundDesc->name].toJson();
+    } else {
+        Hardware::PeripheralConfiguration defCfg;
+        defCfg.name = foundDesc->name;
+        defCfg.type = foundDesc->type;
+        defCfg.enabled = false;
+        res["configuration"] = defCfg.toJson();
+    }
+    return res;
+}
+
+QJsonObject DesignerController::configurePeripheral(const QString& name, const QJsonObject& config, bool force) {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+
+    auto hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+    engine.loadConfig(hw);
+
+    const auto* pDesc = dev.findPeripheral(name);
+    QString periphType = config.value("type").toString(pDesc ? pDesc->type : QString());
+
+    QMap<QString, QString> signalMap;
+    if (config.contains("pins") && config["pins"].isObject()) {
+        QJsonObject pinsObj = config["pins"].toObject();
+        for (auto it = pinsObj.begin(); it != pinsObj.end(); ++it) {
+            signalMap.insert(it.key(), it.value().toString());
+        }
+    }
+
+    QMap<QString, QVariant> params;
+    if (config.contains("parameters") && config["parameters"].isObject()) {
+        QJsonObject paramsObj = config["parameters"].toObject();
+        for (auto it = paramsObj.begin(); it != paramsObj.end(); ++it) {
+            params.insert(it.key(), it.value().toVariant());
+        }
+    }
+
+    bool enabled = config.value("enabled").toBool(true);
+    if (!enabled) {
+        engine.unassignPeripheral(name);
+        hw = engine.currentConfig();
+        if (hw.peripherals.contains(name)) {
+            hw.peripherals[name].enabled = false;
+        }
+    } else {
+        bool ok = engine.assignPeripheral(name, periphType, signalMap, params, force);
+        if (!ok) {
+            res["success"] = false;
+            res["error"] = "Failed to assign peripheral pins due to conflict or invalid mapping";
+            return res;
+        }
+        hw = engine.currentConfig();
+    }
+
+    m_project->setHardwareConfig(hw);
+    m_project->setDirty(true);
+    emit m_project->hardwareConfigChanged();
+
+    res["success"] = true;
+    res["peripheral"] = name;
+    if (hw.peripherals.contains(name)) {
+        res["configuration"] = hw.peripherals[name].toJson();
+    }
+    return res;
+}
+
+QJsonObject DesignerController::getAvailablePins(const QString& peripheral, const QString& signal) const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+    engine.loadConfig(hw);
+
+    QStringList pins = engine.availablePinsForSignal(peripheral, signal);
+    QJsonArray arr;
+    for (const auto& p : pins) arr.append(p);
+
+    res["success"] = true;
+    res["peripheral"] = peripheral;
+    res["signal"] = signal;
+    res["availablePins"] = arr;
+    return res;
+}
+
+QJsonObject DesignerController::getFreePins() const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+    engine.loadConfig(hw);
+
+    QStringList freePins = engine.getFreePins();
+    QJsonArray arr;
+    for (const auto& p : freePins) arr.append(p);
+
+    res["success"] = true;
+    res["count"] = arr.size();
+    res["freePins"] = arr;
+    return res;
+}
+
+QJsonObject DesignerController::validateHardwareConfiguration() const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    const auto& hw = m_project->hardwareConfig();
+    auto dev = Hardware::DeviceDatabase::instance().findDevice(hw.deviceId);
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+    engine.loadConfig(hw);
+
+    QStringList errors, warnings;
+    bool valid = engine.validateConfiguration(&errors, &warnings);
+
+    QJsonArray errArr, warnArr;
+    for (const auto& e : errors) errArr.append(e);
+    for (const auto& w : warnings) warnArr.append(w);
+
+    res["success"] = true;
+    res["valid"] = valid;
+    res["errors"] = errArr;
+    res["warnings"] = warnArr;
+    return res;
+}
+
+QJsonObject DesignerController::getHardwareConfiguration() const {
+    QJsonObject res;
+    if (!m_project) {
+        res["success"] = false;
+        res["error"] = "No active project";
+        return res;
+    }
+    res["success"] = true;
+    res["configuration"] = m_project->hardwareConfig().toJson();
+    return res;
+}
+
+QJsonObject DesignerController::createCustomHardware(const QJsonObject& definition) {
+    QJsonObject res;
+    auto& db = Hardware::DeviceDatabase::instance();
+    if (definition.contains("partNumber")) {
+        Hardware::DeviceDefinition dev = Hardware::DeviceDefinition::fromJson(definition);
+        if (dev.partNumber.isEmpty()) {
+            res["success"] = false;
+            res["error"] = "Custom device requires a partNumber";
+            return res;
+        }
+        bool ok = db.addCustomDevice(dev);
+        res["success"] = ok;
+        res["id"] = dev.partNumber;
+        return res;
+    } else if (definition.contains("id") || definition.contains("name")) {
+        Hardware::BoardDefinition board = Hardware::BoardDefinition::fromJson(definition);
+        if (board.id.isEmpty()) {
+            board.id = board.name.toLower().replace(" ", "_");
+        }
+        bool ok = db.addCustomBoard(board);
+        res["success"] = ok;
+        res["id"] = board.id;
+        return res;
+    }
+
+    res["success"] = false;
+    res["error"] = "Invalid custom hardware definition: must specify partNumber (MCU) or id/name (Board)";
+    return res;
+}
+
+QJsonObject DesignerController::saveHardwareDefinition(const QString& id, const QString& filePath) {
+    QJsonObject res;
+    QString err;
+    bool ok = Hardware::DeviceDatabase::instance().exportHardwareDefinition(id, filePath, &err);
+    res["success"] = ok;
+    if (ok) {
+        res["id"] = id;
+        res["filePath"] = filePath;
+    } else {
+        res["error"] = err;
+    }
+    return res;
+}
+
+QJsonObject DesignerController::loadHardwareDefinition(const QString& filePath) {
+    QJsonObject res;
+    QString id, err;
+    bool ok = Hardware::DeviceDatabase::instance().importHardwareDefinition(filePath, &id, &err);
+    res["success"] = ok;
+    if (ok) {
+        res["id"] = id;
+        res["filePath"] = filePath;
+    } else {
+        res["error"] = err;
+    }
+    return res;
+}
+

@@ -55,6 +55,11 @@
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
 #include "LvglGenerator.h"
+#include "HardwareModel.h"
+#include "HardwareProvider.h"
+#include "DeviceDatabase.h"
+#include "PinMuxEngine.h"
+#include "DesignerController.h"
 
 static QString repoPath(const QString& relPath) {
     QString cleanPath = relPath;
@@ -173,6 +178,24 @@ private slots:
 
     // 16. PC-Simulator Project Generation & Round Display Build (Task A)
     void testPcSimulator240x240RoundGenerationAndBuild();
+
+    // 17. Universal Hardware Architecture, Providers, Database & Packs (Phases 1-15, 30)
+    void testHardwareDatabaseAndPacks();
+    void testStm32DeviceAndBoardPacks();
+    void testEsp32DeviceAndBoardPacks();
+    void testRp2040AndRaspberryPiPacks();
+
+    // 18. Pin Multiplexer & Conflict Detection Engine (Phases 7, 8, 9)
+    void testPinMuxEngineConflictsAndValidation();
+
+    // 19. Custom Hardware Creation, Export & Import (Phases 6, 18)
+    void testCustomHardwareCreationAndImportExport();
+
+    // 20. Project HardwareConfig Persistence & Roundtrip (Phase 12)
+    void testProjectHardwarePersistence();
+
+    // 21. MCP Hardware Inspection & Configuration Tools (Phases 22, 23, 24)
+    void testMcpHardwareToolsDispatch();
 
     void cleanupTestCase();
 
@@ -2330,7 +2353,385 @@ void TestAllCases::testPcSimulator240x240RoundGenerationAndBuild() {
     QVERIFY(QFile::exists(shotPath));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 17. Universal Hardware Architecture, Providers, Database & Packs
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testHardwareDatabaseAndPacks() {
+    auto& db = Hardware::DeviceDatabase::instance();
+    db.initialize(repoPath("data/hardware_packs"));
+
+    QStringList vendors = db.allVendors();
+    QVERIFY(vendors.contains("STMicroelectronics"));
+    QVERIFY(vendors.contains("Espressif"));
+    QVERIFY(vendors.contains("Raspberry Pi"));
+
+    auto allDevices = db.allDevices();
+    QVERIFY(allDevices.size() >= 6);
+
+    auto allBoards = db.allBoards();
+    QVERIFY(allBoards.size() >= 6);
+
+    QStringList families = db.allFamilies();
+    QVERIFY(families.contains("STM32"));
+    QVERIFY(families.contains("ESP32"));
+    QVERIFY(families.contains("RP2000") || families.contains("RP2040"));
+}
+
+void TestAllCases::testStm32DeviceAndBoardPacks() {
+    auto& db = Hardware::DeviceDatabase::instance();
+
+    // 1. STM32F407VG MCU
+    auto dev = db.findDevice("STM32F407VG");
+    QCOMPARE(dev.partNumber, QString("STM32F407VG"));
+    QCOMPARE(dev.vendor, QString("STMicroelectronics"));
+    QCOMPARE(dev.family, QString("STM32"));
+    QCOMPARE(dev.series, QString("STM32F4"));
+    QCOMPARE(dev.architecture, QString("ARM Cortex-M4"));
+    QVERIFY(dev.core.contains("Cortex-M4"));
+    QCOMPARE(dev.package, QString("LQFP100"));
+    QCOMPARE(dev.flashBytes, static_cast<quint64>(1048576));
+    QCOMPARE(dev.ramBytes, static_cast<quint64>(196608));
+    QVERIFY(dev.pins.size() >= 40);
+
+    const auto* pa5 = dev.findPin("PA5");
+    QVERIFY(pa5 != nullptr);
+    QVERIFY(pa5->alternateFunctions.contains("SPI1_SCK"));
+    QVERIFY(pa5->alternateFunctions.contains("GPIO_Output"));
+
+    const auto* pb6 = dev.findPin("PB6");
+    QVERIFY(pb6 != nullptr);
+    QVERIFY(pb6->alternateFunctions.contains("I2C1_SCL"));
+
+    // 2. STM32F4 Discovery Board
+    auto board = db.findBoard("STM32F407G-DISC1");
+    QCOMPARE(board.id, QString("STM32F407G-DISC1"));
+    QCOMPARE(board.mcuPartNumber, QString("STM32F407VG"));
+    QCOMPARE(board.manufacturer, QString("STMicroelectronics"));
+    QVERIFY(!board.connectors.isEmpty());
+
+    // 3. Nucleo F401RE
+    auto nucleo = db.findBoard("NUCLEO-F401RE");
+    QCOMPARE(nucleo.id, QString("NUCLEO-F401RE"));
+    QCOMPARE(nucleo.mcuPartNumber, QString("STM32F401RE"));
+}
+
+void TestAllCases::testEsp32DeviceAndBoardPacks() {
+    auto& db = Hardware::DeviceDatabase::instance();
+
+    // 1. ESP32-S3
+    auto espS3 = db.findDevice("ESP32-S3");
+    QCOMPARE(espS3.partNumber, QString("ESP32-S3"));
+    QCOMPARE(espS3.vendor, QString("Espressif"));
+    QCOMPARE(espS3.family, QString("ESP32"));
+    QVERIFY(espS3.pins.size() >= 20);
+
+    const auto* gpio4 = espS3.findPin("GPIO4");
+    QVERIFY(gpio4 != nullptr);
+    QVERIFY(gpio4->alternateFunctions.contains("SPI2_MOSI") || gpio4->alternateFunctions.contains("GPIO_Output"));
+
+    // 2. ESP32-S3-DevKitC-1 Board
+    auto boardS3 = db.findBoard("ESP32-S3-DevKitC-1");
+    QCOMPARE(boardS3.id, QString("ESP32-S3-DevKitC-1"));
+    QCOMPARE(boardS3.mcuPartNumber, QString("ESP32-S3"));
+
+    // 3. ESP32-WROOM-32
+    auto espClassic = db.findDevice("ESP32-WROOM-32");
+    QCOMPARE(espClassic.partNumber, QString("ESP32-WROOM-32"));
+}
+
+void TestAllCases::testRp2040AndRaspberryPiPacks() {
+    auto& db = Hardware::DeviceDatabase::instance();
+
+    // 1. RP2040 MCU
+    auto rp = db.findDevice("RP2040");
+    QCOMPARE(rp.partNumber, QString("RP2040"));
+    QCOMPARE(rp.vendor, QString("Raspberry Pi"));
+    QCOMPARE(rp.package, QString("QFN-56"));
+    QCOMPARE(rp.ramBytes, static_cast<quint64>(264 * 1024));
+
+    // 2. Raspberry Pi Pico Board
+    auto pico = db.findBoard("Raspberry-Pi-Pico");
+    QVERIFY(pico.id == "Raspberry-Pi-Pico" || pico.name == "Raspberry Pi Pico");
+    QCOMPARE(pico.mcuPartNumber, QString("RP2040"));
+
+    // 3. Raspberry Pi 4 Model B
+    auto rpi4 = db.findBoard("Raspberry-Pi-4B");
+    QVERIFY(rpi4.id == "Raspberry-Pi-4B" || rpi4.name == "Raspberry Pi 4 Model B");
+    QCOMPARE(rpi4.mcuPartNumber, QString("BCM2711"));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 18. Pin Multiplexer & Conflict Detection Engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testPinMuxEngineConflictsAndValidation() {
+    auto& db = Hardware::DeviceDatabase::instance();
+    auto dev = db.findDevice("STM32F407VG");
+    QVERIFY(!dev.partNumber.isEmpty());
+
+    Hardware::PinMuxEngine engine;
+    engine.setDevice(dev);
+
+    // 1. Power pin protection
+    Hardware::ConflictInfo cPower = engine.checkPinConflict("VDD", "GPIO_Output");
+    QVERIFY(cPower.hasConflict);
+    QVERIFY(cPower.reason.contains("power supply rail", Qt::CaseInsensitive));
+
+    // 2. Ground pin protection
+    Hardware::ConflictInfo cGnd = engine.checkPinConflict("VSS", "GPIO_Output");
+    QVERIFY(cGnd.hasConflict);
+    QVERIFY(cGnd.reason.contains("ground reference", Qt::CaseInsensitive));
+
+    // 3. Reset pin protection
+    Hardware::ConflictInfo cReset = engine.checkPinConflict("NRST", "GPIO_Output");
+    QVERIFY(cReset.hasConflict);
+    QVERIFY(cReset.reason.contains("hardware reset signal", Qt::CaseInsensitive));
+
+    // 4. Assign PA5 to SPI1_SCK
+    Hardware::PinConfiguration pcfg;
+    pcfg.pin = "PA5";
+    pcfg.mode = "AlternateFunction";
+    pcfg.alternateFunction = "SPI1_SCK";
+    pcfg.label = "SPI_CLK";
+
+    Hardware::ConflictInfo cAssign;
+    bool ok = engine.assignPin("PA5", pcfg, false, &cAssign);
+    QVERIFY(ok);
+    QVERIFY(!cAssign.hasConflict);
+    QCOMPARE(engine.getPinOwner("PA5"), QString("SPI1_SCK"));
+
+    // 5. Attempt reassigning PA5 to GPIO_Output without force
+    Hardware::PinConfiguration pcfg2;
+    pcfg2.pin = "PA5";
+    pcfg2.mode = "GPIO_Output";
+    pcfg2.label = "STATUS_LED";
+
+    Hardware::ConflictInfo cConflict;
+    bool ok2 = engine.assignPin("PA5", pcfg2, false, &cConflict);
+    QVERIFY(!ok2);
+    QVERIFY(cConflict.hasConflict);
+    QCOMPARE(cConflict.currentOwner, QString("SPI1_SCK"));
+    QVERIFY(cConflict.reason.contains("already assigned to: SPI1_SCK"));
+
+    // 6. Force assignment
+    bool ok3 = engine.assignPin("PA5", pcfg2, true, &cConflict);
+    QVERIFY(ok3);
+    QCOMPARE(engine.getPinOwner("PA5"), QString("GPIO Output"));
+
+    // 7. Check available pins for peripheral signal
+    QStringList availPins = engine.availablePinsForSignal("I2C1", "SCL");
+    QVERIFY(availPins.contains("PB6") || availPins.contains("PB8"));
+
+    // 8. Validate configuration
+    QStringList errors, warnings;
+    QVERIFY(engine.validateConfiguration(&errors, &warnings));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 19. Custom Hardware Creation, Export & Import
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testCustomHardwareCreationAndImportExport() {
+    auto& db = Hardware::DeviceDatabase::instance();
+
+    // 1. Create custom device definition
+    Hardware::DeviceDefinition customDev;
+    customDev.partNumber = "TEST-CUSTOM-MCU";
+    customDev.vendor = "CustomVendor";
+    customDev.family = "CustomFamily";
+    customDev.series = "Custom100";
+    customDev.architecture = "RISC-V 32";
+    customDev.core = "RV32IMAC";
+    customDev.flashBytes = 512 * 1024;
+    customDev.ramBytes = 64 * 1024;
+    customDev.package = "QFP48";
+
+    Hardware::PinDefinition p1;
+    p1.name = "P1";
+    p1.physicalPin = 1;
+    p1.alternateFunctions = {"GPIO_Input", "GPIO_Output"};
+    customDev.pins.append(p1);
+
+    Hardware::PinDefinition p2;
+    p2.name = "VDD";
+    p2.physicalPin = 2;
+    p2.isPower = true;
+    customDev.pins.append(p2);
+
+    // 2. Add to database
+    QVERIFY(db.addCustomDevice(customDev));
+    auto found = db.findDevice("TEST-CUSTOM-MCU");
+    QCOMPARE(found.partNumber, QString("TEST-CUSTOM-MCU"));
+    QCOMPARE(found.vendor, QString("CustomVendor"));
+
+    // 3. Export to JSON
+    QString exportPath = m_tempDir.filePath("custom_mcu_export.json");
+    QString expErr;
+    QVERIFY(db.exportHardwareDefinition("TEST-CUSTOM-MCU", exportPath, &expErr));
+    QVERIFY(QFile::exists(exportPath));
+
+    // 4. Duplicate custom definition
+    QString dupErr;
+    QVERIFY(db.duplicateHardwareDefinition("TEST-CUSTOM-MCU", "TEST-CUSTOM-MCU-V2", &dupErr));
+    auto foundDup = db.findDevice("TEST-CUSTOM-MCU-V2");
+    QCOMPARE(foundDup.partNumber, QString("TEST-CUSTOM-MCU-V2"));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 20. Project HardwareConfig Persistence & Roundtrip
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testProjectHardwarePersistence() {
+    // 1. Setup project with hardware configuration
+    Project proj(nullptr);
+    proj.newProject("HardwarePersistenceApp", 480, 272);
+
+    Hardware::HardwareConfig hw;
+    hw.targetType = "board";
+    hw.boardId = "STM32F407G-DISC1";
+    hw.deviceId = "STM32F407VG";
+    hw.vendor = "STMicroelectronics";
+    hw.family = "STM32";
+    hw.series = "STM32F4";
+    hw.architecture = "ARM Cortex-M4";
+    hw.core = "Cortex-M4";
+    hw.flashBytes = 1048576;
+    hw.ramBytes = 196608;
+
+    Hardware::PinConfiguration pinCfg;
+    pinCfg.pin = "PA5";
+    pinCfg.label = "STATUS_LED";
+    pinCfg.mode = "GPIO_Output";
+    pinCfg.speed = "High";
+    hw.pins.insert("PA5", pinCfg);
+
+    Hardware::PeripheralConfiguration periphCfg;
+    periphCfg.name = "USART1";
+    periphCfg.type = "USART";
+    periphCfg.enabled = true;
+    periphCfg.assignedPins.insert("TX", "PA9");
+    periphCfg.assignedPins.insert("RX", "PA10");
+    periphCfg.parameters.insert("baudRate", 115200);
+    hw.peripherals.insert("USART1", periphCfg);
+
+    proj.setHardwareConfig(hw);
+
+    // 2. Save project to file
+    QString savePath = m_tempDir.filePath("test_hw_project.euiproj");
+    QVERIFY(proj.saveToFile(savePath));
+    QVERIFY(QFile::exists(savePath));
+
+    // 3. Load into a fresh project
+    Project loadedProj(nullptr);
+    QVERIFY(loadedProj.loadFromFile(savePath));
+
+    auto loadedHw = loadedProj.hardwareConfig();
+    QCOMPARE(loadedHw.targetType, QString("board"));
+    QCOMPARE(loadedHw.boardId, QString("STM32F407G-DISC1"));
+    QCOMPARE(loadedHw.deviceId, QString("STM32F407VG"));
+    QCOMPARE(loadedHw.vendor, QString("STMicroelectronics"));
+    QCOMPARE(loadedHw.core, QString("Cortex-M4"));
+    QVERIFY(loadedHw.pins.contains("PA5"));
+    QCOMPARE(loadedHw.pins["PA5"].label, QString("STATUS_LED"));
+    QCOMPARE(loadedHw.pins["PA5"].mode, QString("GPIO_Output"));
+    QVERIFY(loadedHw.peripherals.contains("USART1"));
+    QCOMPARE(loadedHw.peripherals["USART1"].enabled, true);
+    QCOMPARE(loadedHw.peripherals["USART1"].assignedPins.value("TX"), QString("PA9"));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 21. MCP Hardware Inspection & Configuration Tools
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testMcpHardwareToolsDispatch() {
+    MainWindow win;
+    DesignerController controller(&win);
+
+    // 1. list_devices
+    QJsonObject rListDev = controller.dispatch("list_devices", {});
+    QVERIFY(rListDev["success"].toBool());
+    QVERIFY(rListDev["count"].toInt() >= 6);
+
+    // 2. list_boards
+    QJsonObject rListBoards = controller.dispatch("list_boards", {});
+    QVERIFY(rListBoards["success"].toBool());
+    QVERIFY(rListBoards["count"].toInt() >= 6);
+
+    // 3. set_target (STM32F407VG)
+    QJsonObject rSetTarget = controller.dispatch("set_target", QJsonObject{
+        {"targetType", "device"},
+        {"id", "STM32F407VG"}
+    });
+    QVERIFY(rSetTarget["success"].toBool());
+
+    // 4. get_target
+    QJsonObject rGetTarget = controller.dispatch("get_target", {});
+    QVERIFY(rGetTarget["success"].toBool());
+    QCOMPARE(rGetTarget["deviceId"].toString(), QString("STM32F407VG"));
+    QCOMPARE(rGetTarget["vendor"].toString(), QString("STMicroelectronics"));
+
+    // 5. get_pin (PA5)
+    QJsonObject rGetPin = controller.dispatch("get_pin", QJsonObject{{"pin", "PA5"}});
+    QVERIFY(rGetPin["success"].toBool());
+    QVERIFY(rGetPin["alternateFunctions"].toArray().contains("SPI1_SCK"));
+
+    // 6. configure_pin (PA5 -> SPI1_SCK)
+    QJsonObject rCfgPin = controller.dispatch("configure_pin", QJsonObject{
+        {"pin", "PA5"},
+        {"config", QJsonObject{
+            {"mode", "AlternateFunction"},
+            {"alternateFunction", "SPI1_SCK"},
+            {"label", "SPI_SCLK"}
+        }}
+    });
+    QVERIFY(rCfgPin["success"].toBool());
+
+    // 7. configure_pin conflict check (PA5 -> GPIO_Output without force)
+    QJsonObject rConflict = controller.dispatch("configure_pin", QJsonObject{
+        {"pin", "PA5"},
+        {"config", QJsonObject{{"mode", "GPIO_Output"}}},
+        {"force", false}
+    });
+    QVERIFY(!rConflict["success"].toBool());
+    QVERIFY(rConflict["conflict"].toBool());
+
+    // 8. get_free_pins
+    QJsonObject rFreePins = controller.dispatch("get_free_pins", {});
+    QVERIFY(rFreePins["success"].toBool());
+    QVERIFY(!rFreePins["freePins"].toArray().isEmpty());
+
+    // 9. get_available_pins
+    QJsonObject rAvailPins = controller.dispatch("get_available_pins", QJsonObject{
+        {"peripheral", "I2C1"},
+        {"signal", "SCL"}
+    });
+    QVERIFY(rAvailPins["success"].toBool());
+    QVERIFY(rAvailPins["availablePins"].toArray().contains("PB6") || rAvailPins["availablePins"].toArray().contains("PB8"));
+
+    // 10. configure_peripheral
+    QJsonObject rCfgPeriph = controller.dispatch("configure_peripheral", QJsonObject{
+        {"name", "I2C1"},
+        {"config", QJsonObject{
+            {"enabled", true},
+            {"pins", QJsonObject{{"SCL", "PB6"}, {"SDA", "PB7"}}}
+        }}
+    });
+    QVERIFY(rCfgPeriph["success"].toBool());
+
+    // 11. validate_hardware_configuration
+    QJsonObject rValidate = controller.dispatch("validate_hardware_configuration", {});
+    QVERIFY(rValidate["success"].toBool());
+    QVERIFY(rValidate["valid"].toBool());
+
+    // 12. get_hardware_configuration
+    QJsonObject rGetHwCfg = controller.dispatch("get_hardware_configuration", {});
+    QVERIFY(rGetHwCfg["success"].toBool());
+    QVERIFY(rGetHwCfg["configuration"].isObject());
+}
+
 QTEST_MAIN(TestAllCases)
 #include "test_all_cases.moc"
+
 
 

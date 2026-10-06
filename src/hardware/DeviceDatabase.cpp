@@ -43,22 +43,28 @@ void DeviceDatabase::initialize(const QString& customPacksDir) {
         searchPaths.append(customPacksDir);
     }
 
-    // AppData packs directory
-    QString appDataPacks = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/hardware_packs";
-    QDir().mkpath(appDataPacks);
-    searchPaths.append(appDataPacks);
-
-    // Repo and executable relative paths
+    // Repo and executable relative paths (priority)
     searchPaths.append(QDir::current().filePath("data/hardware_packs"));
+    searchPaths.append(QDir::current().filePath("../data/hardware_packs"));
+    searchPaths.append(QDir::current().filePath("../../data/hardware_packs"));
     searchPaths.append(QCoreApplication::applicationDirPath() + "/data/hardware_packs");
     searchPaths.append(QCoreApplication::applicationDirPath() + "/../data/hardware_packs");
     searchPaths.append(QCoreApplication::applicationDirPath() + "/../../data/hardware_packs");
 
+    // AppData packs directory
+    QString appDataPacks = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/hardware_packs";
+    searchPaths.append(appDataPacks);
+
     for (const QString& path : searchPaths) {
-        if (QDir(path).exists()) {
-            discoverPacksInDirectory(path);
-            m_packsRootPath = path;
-            break;
+        QDir d(path);
+        if (d.exists()) {
+            QStringList subdirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            QStringList jsonFiles = d.entryList(QStringList() << "*.json", QDir::Files);
+            if (!subdirs.isEmpty() || !jsonFiles.isEmpty()) {
+                discoverPacksInDirectory(path);
+                m_packsRootPath = path;
+                break;
+            }
         }
     }
 
@@ -164,6 +170,11 @@ DeviceDefinition DeviceDatabase::findDevice(const QString& partNumber) const {
         DeviceDefinition dev = p->findDevice(partNumber);
         if (!dev.partNumber.isEmpty()) return dev;
     }
+    for (const auto& d : allDevices()) {
+        if (d.partNumber.compare(partNumber, Qt::CaseInsensitive) == 0) {
+            return d;
+        }
+    }
     return DeviceDefinition();
 }
 
@@ -171,6 +182,12 @@ BoardDefinition DeviceDatabase::findBoard(const QString& boardId) const {
     for (const auto& p : m_providers) {
         BoardDefinition b = p->findBoard(boardId);
         if (!b.id.isEmpty()) return b;
+    }
+    for (const auto& b : allBoards()) {
+        if (b.id.compare(boardId, Qt::CaseInsensitive) == 0 ||
+            b.name.compare(boardId, Qt::CaseInsensitive) == 0) {
+            return b;
+        }
     }
     return BoardDefinition();
 }
