@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Nordic Semiconductor nRF52840 Product Specification v1.7",
+    "vendor": "Nordic Semiconductor",
+    "partNumber": "nRF52840",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "vendor": "Nordic Semiconductor",
+    "family": "nRF52",
+    "series": "nRF52840",
+    "partNumber": "nRF52840",
+    "architecture": "ARM Cortex-M4",
+    "core": "Cortex-M4F",
+    "package": "QFN73",
+    "flash": 1048576,
+    "ram": 262144,
+    "eeprom": 0,
+    "minVoltage": 1.7,
+    "maxVoltage": 5.5,
+    "maxClockMhz": 64,
+    "gpioCount": 48
+  },
+  "peripherals": {
+    "uart": 2,
+    "spi": 4,
+    "i2c": 2,
+    "adc": 1,
+    "pwm": 4,
+    "usb": 1,
+    "ble": 1,
+    "thread": 1,
+    "zigbee": 1,
+    "nfc": 1,
+    "rtc": 3
+  },
+  "peripheralDescriptors": [
+    {
+      "name": "UARTE0",
+      "type": "UART",
+      "signals": { "TXD": ["P0.06"], "RXD": ["P0.08"], "CTS": ["P0.07"], "RTS": ["P0.05"] },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "SPIM0",
+      "type": "SPI",
+      "signals": { "SCK": ["P0.15"], "MOSI": ["P0.13"], "MISO": ["P0.14"], "CSN": ["P0.16"] },
+      "defaults": { "mode": "Master", "clockSpeedHz": 8000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "TWIM0",
+      "type": "I2C",
+      "signals": { "SCL": ["P0.27"], "SDA": ["P0.26"] },
+      "defaults": { "speed": "Fast (400 kHz)", "speedHz": 400000 }
+    },
+    {
+      "name": "SAADC",
+      "type": "ADC",
+      "signals": {
+        "CH0": ["P0.02"], "CH1": ["P0.03"], "CH2": ["P0.04"], "CH3": ["P0.05"],
+        "CH4": ["P0.28"], "CH5": ["P0.29"], "CH6": ["P0.30"], "CH7": ["P0.31"]
+      },
+      "defaults": { "resolution": 12, "gain": "1/6" }
+    }
+  ],
+  "pins": [
+    { "pin": "P0.02", "physicalPin": 4, "gpio": "P0.02", "alternateFunctions": ["AIN0"] },
+    { "pin": "P0.03", "physicalPin": 5, "gpio": "P0.03", "alternateFunctions": ["AIN1"] },
+    { "pin": "P0.04", "physicalPin": 6, "gpio": "P0.04", "alternateFunctions": ["AIN2"] },
+    { "pin": "P0.05", "physicalPin": 7, "gpio": "P0.05", "alternateFunctions": ["AIN3", "UARTE0_RTS"] },
+    { "pin": "P0.06", "physicalPin": 8, "gpio": "P0.06", "alternateFunctions": ["UARTE0_TXD"] },
+    { "pin": "P0.07", "physicalPin": 9, "gpio": "P0.07", "alternateFunctions": ["UARTE0_CTS"] },
+    { "pin": "P0.08", "physicalPin": 10, "gpio": "P0.08", "alternateFunctions": ["UARTE0_RXD"] },
+    { "pin": "P0.09", "physicalPin": 11, "gpio": "P0.09", "alternateFunctions": ["NFC1"] },
+    { "pin": "P0.10", "physicalPin": 12, "gpio": "P0.10", "alternateFunctions": ["NFC2"] },
+    { "pin": "P0.11", "physicalPin": 15, "gpio": "P0.11", "alternateFunctions": ["TRACEDATA2"] },
+    { "pin": "P0.12", "physicalPin": 16, "gpio": "P0.12", "alternateFunctions": ["TRACEDATA1"] },
+    { "pin": "P0.13", "physicalPin": 17, "gpio": "P0.13", "alternateFunctions": ["SPIM0_MOSI"] },
+    { "pin": "P0.14", "physicalPin": 18, "gpio": "P0.14", "alternateFunctions": ["SPIM0_MISO"] },
+    { "pin": "P0.15", "physicalPin": 19, "gpio": "P0.15", "alternateFunctions": ["SPIM0_SCK"] },
+    { "pin": "P0.16", "physicalPin": 20, "gpio": "P0.16", "alternateFunctions": ["SPIM0_CSN"] },
+    { "pin": "P0.17", "physicalPin": 23, "gpio": "P0.17", "alternateFunctions": ["QSPI_CSN"] },
+    { "pin": "P0.26", "physicalPin": 38, "gpio": "P0.26", "alternateFunctions": ["TWIM0_SDA"] },
+    { "pin": "P0.27", "physicalPin": 39, "gpio": "P0.27", "alternateFunctions": ["TWIM0_SCL"] },
+    { "pin": "P0.28", "physicalPin": 40, "gpio": "P0.28", "alternateFunctions": ["AIN4"] },
+    { "pin": "P0.29", "physicalPin": 41, "gpio": "P0.29", "alternateFunctions": ["AIN5"] },
+    { "pin": "P0.30", "physicalPin": 42, "gpio": "P0.30", "alternateFunctions": ["AIN6"] },
+    { "pin": "P0.31", "physicalPin": 43, "gpio": "P0.31", "alternateFunctions": ["AIN7"] },
+    { "pin": "P1.00", "physicalPin": 2, "gpio": "P1.00", "alternateFunctions": ["SWO", "TRACEDATA0"] },
+    { "pin": "P1.09", "physicalPin": 48, "gpio": "P1.09", "alternateFunctions": ["QSPI_IO0"] },
+    { "pin": "VDD", "physicalPin": 13, "isPower": true },
+    { "pin": "VDDH", "physicalPin": 24, "isPower": true },
+    { "pin": "VSS", "physicalPin": 73, "isGround": true },
+    { "pin": "RESET", "physicalPin": 21, "isReset": true }
+  ]
+}

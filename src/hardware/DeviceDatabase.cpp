@@ -245,6 +245,137 @@ QStringList DeviceDatabase::allPackages() const {
     return list;
 }
 
+QStringList DeviceDatabase::allCores() const {
+    QSet<QString> cores;
+    for (const auto& dev : allDevices()) {
+        if (!dev.core.isEmpty()) cores.insert(dev.core);
+    }
+    QStringList list = cores.values();
+    list.sort();
+    return list;
+}
+
+QStringList DeviceDatabase::allDeviceTypes() const {
+    return QStringList() << "All" << "MCU" << "MPU" << "SBC" << "BOARD" << "CUSTOM";
+}
+
+QList<HardwareItem> DeviceDatabase::allCatalogItems() const {
+    QList<HardwareItem> items;
+    QSet<QString> seenIds;
+
+    // 1. Devices (MCU / MPU / Custom)
+    for (const auto& dev : allDevices()) {
+        if (dev.partNumber.isEmpty() || seenIds.contains(dev.partNumber)) continue;
+        seenIds.insert(dev.partNumber);
+
+        HardwareItem item;
+        item.id = dev.partNumber;
+        item.reference = dev.partNumber;
+        item.vendor = dev.vendor;
+        item.family = dev.family;
+        item.series = dev.series;
+        item.architecture = dev.architecture;
+        item.core = dev.core;
+        item.package = dev.package;
+        item.flashBytes = dev.flashBytes;
+        item.ramBytes = dev.ramBytes;
+        item.maxClockMhz = dev.maxClockMhz;
+        item.isBoard = false;
+        item.isCustom = (dev.vendor == "Custom" || dev.sourceProvenance.contains("Custom", Qt::CaseInsensitive));
+        if (item.isCustom) {
+            item.deviceType = "CUSTOM";
+        } else if (dev.architecture.contains("Cortex-A", Qt::CaseInsensitive) || dev.architecture.contains("ARMv8", Qt::CaseInsensitive) || dev.partNumber.contains("BCM", Qt::CaseInsensitive)) {
+            item.deviceType = "MPU";
+        } else {
+            item.deviceType = "MCU";
+        }
+        item.associatedMcu = dev.partNumber;
+        item.sourceProvenance = dev.sourceProvenance;
+
+        // Connectivity summary
+        QStringList comms;
+        if (dev.peripheralsCount.value("usart", 0) > 0 || dev.peripheralsCount.value("uart", 0) > 0)
+            comms.append(QString("UART(%1)").arg(dev.peripheralsCount.value("usart", 0) + dev.peripheralsCount.value("uart", 0)));
+        if (dev.peripheralsCount.value("spi", 0) > 0)
+            comms.append(QString("SPI(%1)").arg(dev.peripheralsCount.value("spi", 0)));
+        if (dev.peripheralsCount.value("i2c", 0) > 0)
+            comms.append(QString("I2C(%1)").arg(dev.peripheralsCount.value("i2c", 0)));
+        if (dev.peripheralsCount.value("can", 0) > 0)
+            comms.append(QString("CAN(%1)").arg(dev.peripheralsCount.value("can", 0)));
+        if (dev.peripheralsCount.value("usb", 0) > 0)
+            comms.append("USB");
+        if (dev.peripheralsCount.value("ethernet", 0) > 0)
+            comms.append("ETH");
+        if (dev.peripheralsCount.value("wifi", 0) > 0)
+            comms.append("Wi-Fi");
+        if (dev.peripheralsCount.value("ble", 0) > 0 || dev.peripheralsCount.value("bluetooth", 0) > 0)
+            comms.append("BLE");
+        if (dev.peripheralsCount.value("adc", 0) > 0)
+            comms.append(QString("ADC(%1)").arg(dev.peripheralsCount.value("adc", 0)));
+        if (comms.isEmpty()) {
+            for (const auto& d : dev.peripheralDescriptors) {
+                if (!comms.contains(d.type)) comms.append(d.type);
+            }
+        }
+        item.connectivity = comms.join(", ");
+        items.append(item);
+    }
+
+    // 2. Boards (BOARD / SBC)
+    for (const auto& b : allBoards()) {
+        if (b.id.isEmpty() || seenIds.contains(b.id)) continue;
+        seenIds.insert(b.id);
+
+        HardwareItem item;
+        item.id = b.id;
+        item.reference = b.name.isEmpty() ? b.id : b.name;
+        item.vendor = b.manufacturer;
+        item.family = b.boardFamily;
+        item.series = b.boardFamily;
+        item.architecture = b.architecture;
+        item.isBoard = true;
+        item.associatedMcu = b.mcuPartNumber;
+        item.isCustom = (b.manufacturer == "Custom" || b.sourceProvenance.contains("Custom", Qt::CaseInsensitive));
+
+        if (item.isCustom) {
+            item.deviceType = "CUSTOM";
+        } else if (b.mcuPartNumber.contains("BCM2711", Qt::CaseInsensitive) || b.id.contains("Pi-4", Qt::CaseInsensitive)) {
+            item.deviceType = "SBC";
+        } else {
+            item.deviceType = "BOARD";
+        }
+
+        DeviceDefinition mcu = findDevice(b.mcuPartNumber);
+        if (!mcu.partNumber.isEmpty()) {
+            item.core = mcu.core;
+            if (item.architecture.isEmpty()) item.architecture = mcu.architecture;
+            item.flashBytes = mcu.flashBytes;
+            item.ramBytes = mcu.ramBytes;
+            item.maxClockMhz = mcu.maxClockMhz;
+        }
+
+        if (!b.connectors.isEmpty()) {
+            item.package = QString("%1 (%2-pin)").arg(b.connectors.first().name).arg(b.connectors.first().pinCount);
+        } else {
+            item.package = "Header / PCB";
+        }
+
+        QStringList comms;
+        if (!b.debugInterface.isEmpty()) comms.append(b.debugInterface);
+        if (b.id.contains("Pico", Qt::CaseInsensitive)) comms.append("USB 1.1, SWD");
+        else if (b.id.contains("4B", Qt::CaseInsensitive)) comms.append("Gigabit ETH, Wi-Fi 5, BT 5.0, 2x USB3");
+        else if (b.id.contains("DevKit", Qt::CaseInsensitive)) comms.append("Wi-Fi, Bluetooth, USB-UART");
+        else if (b.id.contains("DISC", Qt::CaseInsensitive)) comms.append("ST-LINK/V2, USB FS, Audio DAC");
+        else if (b.id.contains("Nucleo", Qt::CaseInsensitive)) comms.append("ST-LINK/V2-1, Morpho, Arduino V3");
+        item.connectivity = comms.join(", ");
+        item.sourceProvenance = b.sourceProvenance;
+
+        items.append(item);
+    }
+
+    return items;
+}
+
 bool DeviceDatabase::addCustomDevice(const DeviceDefinition& device) {
     if (device.partNumber.isEmpty()) return false;
     m_customProvider->addDevice(device);

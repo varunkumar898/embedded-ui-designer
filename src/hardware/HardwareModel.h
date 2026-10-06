@@ -95,6 +95,26 @@ struct BoardDefinition {
     static BoardDefinition fromJson(const QJsonObject& obj);
 };
 
+struct HardwareItem {
+    QString id;                 // e.g. "STM32F407VG" or "Raspberry-Pi-Pico"
+    QString reference;          // e.g. "STM32F407VG" or "Raspberry Pi Pico"
+    QString vendor;             // e.g. "STMicroelectronics"
+    QString deviceType;         // "MCU", "MPU", "SBC", "BOARD", "CUSTOM"
+    QString family;
+    QString series;
+    QString architecture;
+    QString core;
+    QString package;
+    quint64 flashBytes = 0;
+    quint64 ramBytes = 0;
+    int maxClockMhz = 0;
+    QString connectivity;
+    bool isBoard = false;
+    bool isCustom = false;
+    QString associatedMcu;
+    QString sourceProvenance;
+};
+
 // ── Live Project Hardware Configuration Structures ──
 
 struct PinConfiguration {

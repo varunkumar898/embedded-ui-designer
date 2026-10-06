@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Espressif Systems ESP32-C6 Datasheet v1.1",
+    "vendor": "Espressif",
+    "partNumber": "ESP32-C6",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "vendor": "Espressif",
+    "family": "ESP32",
+    "series": "ESP32-C6",
+    "partNumber": "ESP32-C6",
+    "architecture": "RISC-V 32-bit",
+    "core": "RISC-V RV32IMAC",
+    "package": "QFN32",
+    "flash": 4194304,
+    "ram": 524288,
+    "eeprom": 0,
+    "minVoltage": 3.0,
+    "maxVoltage": 3.6,
+    "maxClockMhz": 160,
+    "gpioCount": 22
+  },
+  "peripherals": {
+    "uart": 2,
+    "spi": 1,
+    "i2c": 1,
+    "i2s": 1,
+    "adc": 1,
+    "pwm": 6,
+    "wifi": 1,
+    "ble": 1,
+    "zigbee": 1,
+    "thread": 1
+  },
+  "peripheralDescriptors": [
+    {
+      "name": "UART0",
+      "type": "UART",
+      "signals": { "TX": ["IO16"], "RX": ["IO17"] },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "UART1",
+      "type": "UART",
+      "signals": { "TX": ["IO4", "IO5"], "RX": ["IO6", "IO7"] },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "SPI2",
+      "type": "SPI",
+      "signals": { "SCK": ["IO19"], "MOSI": ["IO20"], "MISO": ["IO21"], "CS": ["IO18"] },
+      "defaults": { "mode": "Master", "clockSpeedHz": 20000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "I2C0",
+      "type": "I2C",
+      "signals": { "SCL": ["IO9"], "SDA": ["IO8"] },
+      "defaults": { "speed": "Fast (400 kHz)", "speedHz": 400000 }
+    },
+    {
+      "name": "ADC1",
+      "type": "ADC",
+      "signals": { "CH0": ["IO0"], "CH1": ["IO1"], "CH2": ["IO2"], "CH3": ["IO3"], "CH4": ["IO4"], "CH5": ["IO5"], "CH6": ["IO6"] },
+      "defaults": { "resolution": 12, "attenuation": "11dB" }
+    }
+  ],
+  "pins": [
+    { "pin": "IO0", "physicalPin": 1, "gpio": "IO0", "alternateFunctions": ["ADC1_CH0", "XTAL_32K_P"] },
+    { "pin": "IO1", "physicalPin": 2, "gpio": "IO1", "alternateFunctions": ["ADC1_CH1", "XTAL_32K_N"] },
+    { "pin": "IO2", "physicalPin": 3, "gpio": "IO2", "alternateFunctions": ["ADC1_CH2", "FSPIQ"] },
+    { "pin": "IO3", "physicalPin": 4, "gpio": "IO3", "alternateFunctions": ["ADC1_CH3"] },
+    { "pin": "IO4", "physicalPin": 5, "gpio": "IO4", "alternateFunctions": ["ADC1_CH4", "UART1_TX", "LEDC_CH0"] },
+    { "pin": "IO5", "physicalPin": 6, "gpio": "IO5", "alternateFunctions": ["ADC1_CH5", "UART1_TX", "LEDC_CH1"] },
+    { "pin": "IO6", "physicalPin": 7, "gpio": "IO6", "alternateFunctions": ["ADC1_CH6", "UART1_RX", "LEDC_CH2"] },
+    { "pin": "IO7", "physicalPin": 8, "gpio": "IO7", "alternateFunctions": ["UART1_RX", "LEDC_CH3"] },
+    { "pin": "IO8", "physicalPin": 9, "gpio": "IO8", "alternateFunctions": ["I2C0_SDA", "LEDC_CH4"] },
+    { "pin": "IO9", "physicalPin": 10, "gpio": "IO9", "alternateFunctions": ["I2C0_SCL", "BOOT", "LEDC_CH5"] },
+    { "pin": "IO12", "physicalPin": 11, "gpio": "IO12", "alternateFunctions": ["USB_JTAG_TMS"] },
+    { "pin": "IO13", "physicalPin": 12, "gpio": "IO13", "alternateFunctions": ["USB_JTAG_TDI"] },
+    { "pin": "IO14", "physicalPin": 13, "gpio": "IO14", "alternateFunctions": ["USB_JTAG_TCK"] },
+    { "pin": "IO15", "physicalPin": 14, "gpio": "IO15", "alternateFunctions": ["USB_JTAG_TDO"] },
+    { "pin": "IO16", "physicalPin": 15, "gpio": "IO16", "alternateFunctions": ["UART0_TX"] },
+    { "pin": "IO17", "physicalPin": 16, "gpio": "IO17", "alternateFunctions": ["UART0_RX"] },
+    { "pin": "IO18", "physicalPin": 17, "gpio": "IO18", "alternateFunctions": ["SPI2_CS"] },
+    { "pin": "IO19", "physicalPin": 18, "gpio": "IO19", "alternateFunctions": ["SPI2_SCK"] },
+    { "pin": "IO20", "physicalPin": 19, "gpio": "IO20", "alternateFunctions": ["SPI2_MOSI"] },
+    { "pin": "IO21", "physicalPin": 20, "gpio": "IO21", "alternateFunctions": ["SPI2_MISO"] },
+    { "pin": "IO22", "physicalPin": 21, "gpio": "IO22", "alternateFunctions": ["I2S_MCLK"] },
+    { "pin": "IO23", "physicalPin": 22, "gpio": "IO23", "alternateFunctions": ["I2S_BCK"] },
+    { "pin": "VDD3P3", "physicalPin": 23, "isPower": true },
+    { "pin": "GND", "physicalPin": 33, "isGround": true },
+    { "pin": "CHIP_EN", "physicalPin": 24, "isReset": true }
+  ]
+}

@@ -58,6 +58,7 @@
 #include "HardwareModel.h"
 #include "HardwareProvider.h"
 #include "DeviceDatabase.h"
+#include "HardwareWizardDialog.h"
 #include "PinMuxEngine.h"
 #include "DesignerController.h"
 
@@ -196,6 +197,9 @@ private slots:
 
     // 21. MCP Hardware Inspection & Configuration Tools (Phases 22, 23, 24)
     void testMcpHardwareToolsDispatch();
+
+    // 22. Universal Hardware Selector - All Tab & Global Filtering (Phase 2A)
+    void testUniversalHardwareSelectorAllTabAndFiltering();
 
     void cleanupTestCase();
 
@@ -2728,6 +2732,146 @@ void TestAllCases::testMcpHardwareToolsDispatch() {
     QJsonObject rGetHwCfg = controller.dispatch("get_hardware_configuration", {});
     QVERIFY(rGetHwCfg["success"].toBool());
     QVERIFY(rGetHwCfg["configuration"].isObject());
+}
+
+void TestAllCases::testUniversalHardwareSelectorAllTabAndFiltering() {
+    Hardware::DeviceDatabase& db = Hardware::DeviceDatabase::instance();
+    db.reloadPacks();
+
+    const auto catalog = db.allCatalogItems();
+    QVERIFY(catalog.size() >= 12);
+
+    // 1. Verify all targets across vendors are indexed in catalog
+    QStringList references;
+    QStringList vendors;
+    QStringList types;
+    for (const auto& item : catalog) {
+        references.append(item.reference);
+        vendors.append(item.vendor);
+        types.append(item.deviceType);
+    }
+
+    // Verify ST targets
+    QVERIFY(references.contains("STM32F407VG"));
+    QVERIFY(references.contains("STM32F030R8"));
+    bool foundDiscovery = false;
+    for (const QString& r : references) {
+        if (r.contains("STM32F4 Discovery")) foundDiscovery = true;
+    }
+    QVERIFY(foundDiscovery);
+
+    // Verify Espressif targets
+    QVERIFY(references.contains("ESP32-S3"));
+    QVERIFY(references.contains("ESP32-C6"));
+    bool foundEspDevKit = false;
+    for (const QString& r : references) {
+        if (r.contains("ESP32-DevKitC")) foundEspDevKit = true;
+    }
+    QVERIFY(foundEspDevKit);
+
+    // Verify Raspberry Pi silicon and boards
+    QVERIFY(references.contains("RP2040"));
+    QVERIFY(references.contains("Raspberry Pi Pico"));
+    QVERIFY(references.contains("BCM2711"));
+    QVERIFY(references.contains("Raspberry Pi 4 Model B"));
+
+    // Verify Nordic target
+    QVERIFY(references.contains("nRF52840"));
+
+    // 2. Verify Hardware Type Indication
+    QVERIFY(types.contains("MCU"));
+    QVERIFY(types.contains("BOARD"));
+    QVERIFY(types.contains("MPU"));
+    QVERIFY(types.contains("SBC"));
+
+    // Check specific types
+    for (const auto& item : catalog) {
+        if (item.reference == "STM32F407VG") QCOMPARE(item.deviceType, QString("MCU"));
+        if (item.reference == "BCM2711") QCOMPARE(item.deviceType, QString("MPU"));
+        if (item.reference == "Raspberry Pi Pico") QCOMPARE(item.deviceType, QString("BOARD"));
+        if (item.reference == "Raspberry Pi 4 Model B") QCOMPARE(item.deviceType, QString("SBC"));
+    }
+
+    // 3. Test HardwareWizardDialog UI
+    HardwareWizardDialog wizard;
+    QTabWidget* tabs = wizard.findChild<QTabWidget*>();
+    QVERIFY(tabs != nullptr);
+    QCOMPARE(tabs->count(), 4);
+    QCOMPARE(tabs->tabText(0), QString("All"));
+    QCOMPARE(tabs->tabText(1), QString("MCU / MPU"));
+    QCOMPARE(tabs->tabText(2), QString("Boards"));
+    QCOMPARE(tabs->tabText(3), QString("Custom Configuration"));
+
+    // "All" tab MUST be selected by default
+    QCOMPARE(tabs->currentIndex(), 0);
+
+    QTableWidget* allTable = wizard.findChild<QTableWidget*>("allHardwareTable");
+    QVERIFY(allTable != nullptr);
+    QVERIFY(allTable->rowCount() >= 12);
+
+    // 4. Test Global Search
+    QLineEdit* searchEdit = wizard.findChild<QLineEdit*>("searchHardwareEdit");
+    QVERIFY(searchEdit != nullptr);
+
+    // Search STM32F407
+    searchEdit->setText("STM32F407");
+    QVERIFY(allTable->rowCount() >= 2); // STM32F407VG and Discovery board
+
+    // Search ESP32-S3
+    searchEdit->setText("ESP32-S3");
+    QVERIFY(allTable->rowCount() >= 2); // MCU and DevKit
+
+    // Search Pico
+    searchEdit->setText("Pico");
+    QVERIFY(allTable->rowCount() >= 1);
+
+    // Search Nordic / nRF
+    searchEdit->setText("nRF52840");
+    QCOMPARE(allTable->rowCount(), 1);
+
+    // 5. Test Filters and Reset
+    searchEdit->clear();
+    QComboBox* typeFilter = wizard.findChild<QComboBox*>();
+    QVERIFY(typeFilter != nullptr);
+
+    // 6. Test MCU Selection does not require a board
+    Hardware::DeviceDefinition dev = db.findDevice("STM32F407VG");
+    QVERIFY(!dev.partNumber.isEmpty());
+    QCOMPARE(dev.vendor, QString("STMicroelectronics"));
+
+    // 7. Test Board Selection links to Processor
+    Hardware::BoardDefinition pico = db.findBoard("Raspberry-Pi-Pico");
+    QVERIFY(!pico.id.isEmpty());
+    QCOMPARE(pico.mcuPartNumber, QString("RP2040"));
+
+    // 8. Test Custom target dynamic addition into All view
+    Hardware::DeviceDefinition customDev;
+    customDev.partNumber = "CUSTOM_TEST_MCU_01";
+    customDev.vendor = "Custom";
+    customDev.architecture = "ARM Cortex-M";
+    customDev.core = "Cortex-M4";
+    customDev.flashBytes = 256 * 1024;
+    customDev.ramBytes = 64 * 1024;
+    QVERIFY(db.addCustomDevice(customDev));
+
+    const auto updatedCatalog = db.allCatalogItems();
+    bool foundCustom = false;
+    for (const auto& item : updatedCatalog) {
+        if (item.reference == "CUSTOM_TEST_MCU_01") {
+            foundCustom = true;
+            QCOMPARE(item.deviceType, QString("CUSTOM"));
+            break;
+        }
+    }
+    QVERIFY(foundCustom);
+
+    // 9. Save verification screenshot of Universal Hardware Selection screen
+    HardwareWizardDialog captureWizard;
+    captureWizard.resize(1180, 750);
+    captureWizard.show();
+    QTest::qWait(100);
+    QDir().mkpath("screenshots");
+    QVERIFY(captureWizard.grab().save("screenshots/phase2a_universal_hardware_selector.png"));
 }
 
 QTEST_MAIN(TestAllCases)

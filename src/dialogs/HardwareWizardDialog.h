@@ -30,6 +30,8 @@ public:
     QString projectName() const;
     int displayWidth() const;
     int displayHeight() const;
+    bool isRound() const;
+    int colorDepth() const;
 
 private slots:
     void onNextStep();
@@ -38,6 +40,7 @@ private slots:
 
     // Step 1: Device / Board / Custom selection
     void onFilterChanged();
+    void onAllTableRowSelected();
     void onDeviceSelected();
     void onBoardSelected();
     void onSaveCustomHardware();
@@ -67,6 +70,7 @@ private:
 
     // Page Builders
     QWidget* createHardwareSelectionPage();
+    QWidget* createAllSelectorTab();
     QWidget* createMcuSelectorTab();
     QWidget* createBoardSelectorTab();
     QWidget* createCustomConfigTab();
@@ -78,6 +82,7 @@ private:
     QWidget* createReviewPage();
 
     // Refreshers
+    void populateAllTable();
     void populateDeviceTable();
     void populateBoardTable();
     void populatePinTable();
@@ -85,6 +90,7 @@ private:
     void updateSelectedTargetBanner();
     void updateReviewSummary();
     void syncEngineFromTarget();
+    void resetFilters();
 
     // Navigation & State
     QStackedWidget* m_stepsStack = nullptr;
@@ -96,14 +102,17 @@ private:
 
     // Step 1 Widgets
     QTabWidget* m_hwTabs = nullptr;
-    QLineEdit* m_searchDeviceEdit = nullptr;
+    QLineEdit* m_searchHardwareEdit = nullptr;
+    QComboBox* m_typeFilterCombo = nullptr;
     QComboBox* m_vendorFilterCombo = nullptr;
-    QComboBox* m_archFilterCombo = nullptr;
     QComboBox* m_familyFilterCombo = nullptr;
-    QTableWidget* m_deviceTable = nullptr;
+    QComboBox* m_archFilterCombo = nullptr;
+    QComboBox* m_coreFilterCombo = nullptr;
+    QComboBox* m_packageFilterCombo = nullptr;
+    QPushButton* m_btnResetFilters = nullptr;
 
-    QLineEdit* m_searchBoardEdit = nullptr;
-    QComboBox* m_boardVendorFilterCombo = nullptr;
+    QTableWidget* m_allTable = nullptr;
+    QTableWidget* m_deviceTable = nullptr;
     QTableWidget* m_boardTable = nullptr;
 
     // Custom HW Editor

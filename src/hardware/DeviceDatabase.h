@@ -28,13 +28,16 @@ public:
     // Queries
     QList<DeviceDefinition> allDevices() const;
     QList<BoardDefinition> allBoards() const;
+    QList<HardwareItem> allCatalogItems() const;
     DeviceDefinition findDevice(const QString& partNumber) const;
     BoardDefinition findBoard(const QString& boardId) const;
 
     QStringList allVendors() const;
     QStringList allFamilies(const QString& vendorFilter = QString()) const;
     QStringList allArchitectures() const;
+    QStringList allCores() const;
     QStringList allPackages() const;
+    QStringList allDeviceTypes() const;
 
     // Custom Hardware Management (Phase 6, 18)
     bool addCustomDevice(const DeviceDefinition& device);

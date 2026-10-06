@@ -195,8 +195,8 @@ void MainWindow::updateHardwareStatusBadge(bool connected, const QString& probeN
 void MainWindow::setupMenusAndToolbars() {
     // Top Menus
     QMenu* fileMenu = menuBar()->addMenu("File");
-    fileMenu->addAction("Create Embedded Project...", this, &MainWindow::onCreateEmbeddedProject, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
-    fileMenu->addAction("New Project", this, &MainWindow::onNewProject, QKeySequence::New);
+    fileMenu->addAction("New Project...", this, &MainWindow::onCreateEmbeddedProject, QKeySequence::New);
+    fileMenu->addAction("New Embedded Project...", this, &MainWindow::onCreateEmbeddedProject, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
     fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
     fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
     fileMenu->addAction("Import...", this, &MainWindow::onImportProject, QKeySequence(Qt::CTRL | Qt::Key_I));
@@ -620,41 +620,7 @@ void MainWindow::updateWindowTitle() {
 }
 
 void MainWindow::onNewProject() {
-    NewProjectDialog dialog(this);
-    if (dialog.exec() != QDialog::Accepted) {
-        return;
-    }
-
-    if (m_project->isDirty()) {
-        auto res = QMessageBox::question(this, "Unsaved Changes", "Save changes before creating a new project?", QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
-        if (res == QMessageBox::Yes) {
-            onSaveProject();
-        } else if (res == QMessageBox::Cancel) {
-            return;
-        }
-    }
-    if (dialog.startsFromTemplate()) {
-        if (!m_project->loadFromFile(dialog.templateResource())) {
-            QMessageBox::warning(this, "Template Error", "The selected project template could not be loaded.");
-            return;
-        }
-        m_project->setProjectName(dialog.projectName());
-        m_project->setProjectFilePath(QString());
-    } else {
-        m_project->newProject(dialog.projectName(), dialog.projectWidth(), dialog.projectHeight());
-        m_project->setTargetFramework(dialog.targetFramework());
-        DisplayConfig config = m_project->displayConfig();
-        config.colorDepth = dialog.colorDepth();
-        config.round = dialog.roundDisplay();
-        m_project->setDisplayConfig(config);
-    }
-    if (m_undoStack) m_undoStack->clear();
-    m_resolutionCombo->blockSignals(true);
-    m_resolutionCombo->setCurrentIndex(-1);
-    m_resolutionCombo->blockSignals(false);
-    statusBar()->showMessage(dialog.startsFromTemplate()
-                                 ? "Project created from template"
-                                 : "New project initialized", 3000);
+    onCreateEmbeddedProject();
 }
 
 void MainWindow::onCreateEmbeddedProject() {
@@ -673,6 +639,11 @@ void MainWindow::onCreateEmbeddedProject() {
     }
 
     m_project->newProject(dialog.projectName(), dialog.displayWidth(), dialog.displayHeight());
+    DisplayConfig config = m_project->displayConfig();
+    config.round = dialog.isRound();
+    config.colorDepth = dialog.colorDepth();
+    m_project->setDisplayConfig(config);
+
     Hardware::HardwareConfig hw = dialog.hardwareConfiguration();
     m_project->setHardwareConfig(hw);
     m_project->setTargetFramework(hw.toolchain.framework);
@@ -686,8 +657,8 @@ void MainWindow::onCreateEmbeddedProject() {
     m_resolutionCombo->blockSignals(true);
     m_resolutionCombo->setCurrentIndex(-1);
     m_resolutionCombo->blockSignals(false);
-    statusBar()->showMessage(QString("Embedded Project created: %1 (%2)")
-        .arg(hw.deviceId.isEmpty() ? hw.vendor : hw.deviceId, hw.architecture), 4000);
+    statusBar()->showMessage(QString("Embedded project '%1' created for %2")
+        .arg(dialog.projectName(), (hw.targetType == "board") ? hw.boardId : hw.deviceId), 3000);
 }
 
 void MainWindow::onFlashFirmware() {
