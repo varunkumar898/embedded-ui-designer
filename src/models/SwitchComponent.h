@@ -24,6 +24,16 @@ public:
     QColor thumbColor() const { return m_thumbColor; }
     void setThumbColor(const QColor& color);
 
+    QColor borderColor() const { return m_borderColor; }
+    void setBorderColor(const QColor& color);
+
+    int borderWidth() const { return m_borderWidth; }
+    void setBorderWidth(int width);
+
+    bool hasCornerRadius() const override { return true; }
+    int cornerRadius() const override { return m_cornerRadius; }
+    void setCornerRadius(int r) override;
+
     QString onToggledHandler() const { return m_onToggledHandler; }
     void setOnToggledHandler(const QString& handler);
 
@@ -43,9 +53,13 @@ protected:
 
 private:
     bool m_checked = false;
-    QColor m_onColor = QColor("#4CAF50");
-    QColor m_offColor = QColor("#3B404E");
+    QColor m_onColor = QColor("#10B981");
+    QColor m_offColor = QColor("#2A2F3B");
     QColor m_thumbColor = QColor("#FFFFFF");
+    QColor m_borderColor = QColor("#383E4D");
+    int m_borderWidth = 1;
+    int m_cornerRadius = 12;
+
     QString m_onToggledHandler;
     bool m_animationFromChecked = false;
     qreal m_transitionProgress = 0.0;

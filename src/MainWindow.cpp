@@ -6,7 +6,9 @@
 #include "SerialMonitorDialog.h"
 #include "PinBindingDialog.h"
 #include "NewProjectDialog.h"
+#include "HardwareWizardDialog.h"
 #include "DeviceManager.h"
+#include "HardwareBridge.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
@@ -20,6 +22,8 @@
 #include "CustomComponentInstance.h"
 #include "ComponentDefinition.h"
 #include "project/QmlImporter.h"
+#include "api/DesignerController.h"
+#include "api/DesignerLocalServer.h"
 #include <QUndoStack>
 #include <QMenuBar>
 #include <QToolBar>
@@ -101,8 +105,32 @@ MainWindow::MainWindow(QWidget *parent)
         m_propertiesPanel->setSelectedComponents({});
     });
 
+    // ── Live MCP Controller & Local IPC Server ──────────────────────────────
+    m_controller = new DesignerController(this, this);
+    m_localServer = new DesignerLocalServer(m_controller, this);
+    m_localServer->start(8765);
+
     resize(1380, 880);
 }
+
+MainWindow::~MainWindow() {
+    stopLocalMcpServer();
+}
+
+bool MainWindow::startLocalMcpServer(quint16 port) {
+    if (!m_localServer) {
+        if (!m_controller) m_controller = new DesignerController(this, this);
+        m_localServer = new DesignerLocalServer(m_controller, this);
+    }
+    return m_localServer->start(port);
+}
+
+void MainWindow::stopLocalMcpServer() {
+    if (m_localServer) {
+        m_localServer->stop();
+    }
+}
+
 void MainWindow::setupUi() {
     QWidget* statusWidget = new QWidget(this);
     QHBoxLayout* statusLayout = new QHBoxLayout(statusWidget);
@@ -116,8 +144,24 @@ void MainWindow::setupUi() {
     m_statusLabel = new QLabel("Ready", statusWidget);
     m_statusLabel->setStyleSheet("color: #e2e8f0; font-size: 12px; font-weight: 600;");
 
+    m_hardwareStatusBadge = new QLabel(statusWidget);
+    m_hardwareStatusBadge->setObjectName("hardwareStatusBadge");
+
     statusLayout->addWidget(greenDot);
     statusLayout->addWidget(m_statusLabel);
+    statusLayout->addSpacing(16);
+    statusLayout->addWidget(m_hardwareStatusBadge);
+
+    updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
+                              HardwareBridge::instance().connectedProbeName());
+
+    connect(&HardwareBridge::instance(), &HardwareBridge::connectionStatusChanged,
+            this, &MainWindow::updateHardwareStatusBadge);
+    connect(&HardwareBridge::instance(), &HardwareBridge::boardChanged,
+            this, [this](const QString&) {
+                updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
+                                          HardwareBridge::instance().connectedProbeName());
+            });
 
     statusBar()->setSizeGripEnabled(false);
     m_zoomLabel = new QLabel("Zoom: 100%", this);
@@ -127,9 +171,31 @@ void MainWindow::setupUi() {
     statusBar()->addPermanentWidget(m_zoomLabel);
 }
 
+void MainWindow::updateHardwareStatusBadge(bool connected, const QString& probeName) {
+    if (!m_hardwareStatusBadge) return;
+
+    if (connected) {
+        QString name = probeName.isEmpty() ? "Hardware Target" : probeName;
+        m_hardwareStatusBadge->setText(QString("● OpenOCD: Connected (%1 - %2)")
+            .arg(name, HardwareBridge::instance().currentBoardId()));
+        m_hardwareStatusBadge->setStyleSheet(
+            "color: #4ade80; background-color: #064e3b; border: 1px solid #059669; "
+            "border-radius: 4px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
+        );
+    } else {
+        m_hardwareStatusBadge->setText(QString("○ OpenOCD: Not Found (Simulated Mode - %1)")
+            .arg(HardwareBridge::instance().currentBoardId()));
+        m_hardwareStatusBadge->setStyleSheet(
+            "color: #f59e0b; background-color: #451a03; border: 1px solid #d97706; "
+            "border-radius: 4px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
+        );
+    }
+}
+
 void MainWindow::setupMenusAndToolbars() {
     // Top Menus
     QMenu* fileMenu = menuBar()->addMenu("File");
+    fileMenu->addAction("Create Embedded Project...", this, &MainWindow::onCreateEmbeddedProject, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
     fileMenu->addAction("New Project", this, &MainWindow::onNewProject, QKeySequence::New);
     fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
     fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
@@ -178,6 +244,7 @@ void MainWindow::setupMenusAndToolbars() {
     projectMenu->addAction("Export...", this, &MainWindow::onExport);
 
     QMenu* deviceMenu = menuBar()->addMenu("Device");
+    deviceMenu->addAction("Create Embedded Project / Target Selector...", this, &MainWindow::onCreateEmbeddedProject);
     deviceMenu->addAction("Pin Configuration & Binding...", this, &MainWindow::onPinConfiguration);
     deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
     deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
@@ -588,6 +655,39 @@ void MainWindow::onNewProject() {
     statusBar()->showMessage(dialog.startsFromTemplate()
                                  ? "Project created from template"
                                  : "New project initialized", 3000);
+}
+
+void MainWindow::onCreateEmbeddedProject() {
+    HardwareWizardDialog dialog(this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    if (m_project->isDirty()) {
+        auto res = QMessageBox::question(this, "Unsaved Changes", "Save changes before creating a new project?", QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+        if (res == QMessageBox::Yes) {
+            onSaveProject();
+        } else if (res == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
+    m_project->newProject(dialog.projectName(), dialog.displayWidth(), dialog.displayHeight());
+    Hardware::HardwareConfig hw = dialog.hardwareConfiguration();
+    m_project->setHardwareConfig(hw);
+    m_project->setTargetFramework(hw.toolchain.framework);
+
+    // Sync HardwareBridge to newly configured hardware
+    if (!hw.deviceId.isEmpty()) {
+        HardwareBridge::instance().setBoard(hw.boardId.isEmpty() ? hw.deviceId.toLower() : hw.boardId.toLower());
+    }
+
+    if (m_undoStack) m_undoStack->clear();
+    m_resolutionCombo->blockSignals(true);
+    m_resolutionCombo->setCurrentIndex(-1);
+    m_resolutionCombo->blockSignals(false);
+    statusBar()->showMessage(QString("Embedded Project created: %1 (%2)")
+        .arg(hw.deviceId.isEmpty() ? hw.vendor : hw.deviceId, hw.architecture), 4000);
 }
 
 void MainWindow::onFlashFirmware() {

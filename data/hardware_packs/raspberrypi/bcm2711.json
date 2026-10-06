@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Raspberry Pi BCM2711 ARM Peripherals Datasheet (Raspberry Pi Ltd)",
+    "vendor": "Raspberry Pi",
+    "partNumber": "BCM2711",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "vendor": "Raspberry Pi",
+    "family": "BCM2835",
+    "series": "BCM2711",
+    "partNumber": "BCM2711",
+    "architecture": "ARM Cortex-A72 (ARMv8-A 64-bit)",
+    "core": "Quad-Core Cortex-A72",
+    "package": "BGA",
+    "flash": 0,
+    "ram": 4294967296,
+    "eeprom": 0,
+    "minVoltage": 3.3,
+    "maxVoltage": 5.0,
+    "maxClockMhz": 1500,
+    "gpioCount": 28
+  },
+  "peripherals": {
+    "uart": 6,
+    "spi": 6,
+    "i2c": 6,
+    "pwm": 4,
+    "ethernet": 1,
+    "usb": 4,
+    "pcie": 1,
+    "hdmi": 2,
+    "dsi": 1,
+    "csi": 1,
+    "sdio": 2
+  },
+  "peripheralDescriptors": [
+    {
+      "name": "UART0",
+      "type": "UART",
+      "signals": { "TX": ["GPIO14"], "RX": ["GPIO15"] },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "I2C1",
+      "type": "I2C",
+      "signals": { "SDA": ["GPIO2"], "SCL": ["GPIO3"] },
+      "defaults": { "speed": "Standard (100 kHz)", "speedHz": 100000 }
+    },
+    {
+      "name": "SPI0",
+      "type": "SPI",
+      "signals": { "MOSI": ["GPIO10"], "MISO": ["GPIO9"], "SCLK": ["GPIO11"], "CE0": ["GPIO8"], "CE1": ["GPIO7"] },
+      "defaults": { "mode": "Master", "clockSpeedHz": 32000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "PWM0",
+      "type": "PWM",
+      "signals": { "CH0": ["GPIO12", "GPIO18"], "CH1": ["GPIO13", "GPIO19"] },
+      "defaults": { "frequencyHz": 1000 }
+    }
+  ],
+  "clockTree": {
+    "defaultSysClockMhz": 1500,
+    "maxSysClockMhz": 1800,
+    "coreClockMhz": 500
+  },
+  "pins": [
+    { "name": "GPIO2", "physicalPin": 3, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "I2C1_SDA"] },
+    { "name": "GPIO3", "physicalPin": 5, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "I2C1_SCL"] },
+    { "name": "GPIO4", "physicalPin": 7, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "GPCLK0"] },
+    { "name": "GPIO14", "physicalPin": 8, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "TXD0"] },
+    { "name": "GPIO15", "physicalPin": 10, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "RXD0"] },
+    { "name": "GPIO17", "physicalPin": 11, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO18", "physicalPin": 12, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PWM0"] },
+    { "name": "GPIO27", "physicalPin": 13, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO22", "physicalPin": 15, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO23", "physicalPin": 16, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO24", "physicalPin": 18, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO10", "physicalPin": 19, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_MOSI"] },
+    { "name": "GPIO9", "physicalPin": 21, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_MISO"] },
+    { "name": "GPIO25", "physicalPin": 22, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO11", "physicalPin": 23, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_SCLK"] },
+    { "name": "GPIO8", "physicalPin": 24, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_CE0_N"] },
+    { "name": "GPIO7", "physicalPin": 26, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_CE1_N"] },
+    { "name": "GPIO5", "physicalPin": 29, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO6", "physicalPin": 31, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO12", "physicalPin": 32, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PWM0"] },
+    { "name": "GPIO13", "physicalPin": 33, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PWM1"] },
+    { "name": "GPIO19", "physicalPin": 35, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PCM_FS"] },
+    { "name": "GPIO16", "physicalPin": 36, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO26", "physicalPin": 37, "alternateFunctions": ["GPIO_Input", "GPIO_Output"] },
+    { "name": "GPIO20", "physicalPin": 38, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PCM_DIN"] },
+    { "name": "GPIO21", "physicalPin": 40, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PCM_DOUT"] }
+  ]
+}

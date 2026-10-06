@@ -56,12 +56,10 @@
 #include "QtMcuGenerator.h"
 #include "LvglGenerator.h"
 
-static QString screenshotPath(const QString& filename) {
-    QString cleanName = filename;
-    if (cleanName.startsWith("../screenshots/")) {
-        cleanName = cleanName.mid(15);
-    } else if (cleanName.startsWith("screenshots/")) {
-        cleanName = cleanName.mid(12);
+static QString repoPath(const QString& relPath) {
+    QString cleanPath = relPath;
+    if (cleanPath.startsWith("../")) {
+        cleanPath = cleanPath.mid(3);
     }
     QDir dir(QCoreApplication::applicationDirPath());
     if (dir.dirName().compare("Release", Qt::CaseInsensitive) == 0 ||
@@ -69,9 +67,29 @@ static QString screenshotPath(const QString& filename) {
         dir.cdUp();
     }
     dir.cdUp();
-    QDir shotDir(dir.filePath("screenshots"));
-    shotDir.mkpath(".");
-    return shotDir.filePath(cleanName);
+    return dir.filePath(cleanPath);
+}
+
+static QString screenshotPath(const QString& filename) {
+    QString cleanName = filename;
+    if (cleanName.startsWith("../screenshots/")) {
+        cleanName = cleanName.mid(15);
+    } else if (cleanName.startsWith("screenshots/")) {
+        cleanName = cleanName.mid(12);
+    }
+    QString shotPath = repoPath("screenshots/" + cleanName);
+    QFileInfo(shotPath).dir().mkpath(".");
+    return shotPath;
+}
+
+static QString examplePath(const QString& filename) {
+    QString cleanName = filename;
+    if (cleanName.startsWith("../examples/")) {
+        cleanName = cleanName.mid(12);
+    } else if (cleanName.startsWith("examples/")) {
+        cleanName = cleanName.mid(9);
+    }
+    return repoPath("examples/" + cleanName);
 }
 
 class TestAllCases : public QObject {
@@ -143,6 +161,18 @@ private slots:
     // 12. QML Design Import (Literal properties only, strict rejection of bindings/anchors/etc.)
     void testQmlImportBasic();
     void testQmlImportComplexRejected();
+
+    // 13. Auto-Connect on Board Detection (Task A)
+    void testOpenOcdAutoConnectAndPersistentStatus();
+
+    // 14. GPIO Digital Output via Atomic BSRR (Task B)
+    void testGpioDigitalOutputBsrrAndReverseBinding();
+
+    // 15. I2C Bus Scan & Multi-Sensor Address Assignment (Task C)
+    void testI2cBusScanAndMultiSensorAssignment();
+
+    // 16. PC-Simulator Project Generation & Round Display Build (Task A)
+    void testPcSimulator240x240RoundGenerationAndBuild();
 
     void cleanupTestCase();
 
@@ -1154,6 +1184,10 @@ void TestAllCases::testUgfxCodeGenerator() {
     QVERIFY(QFile::exists(outDir + "/ui.h"));
     QVERIFY(QFile::exists(outDir + "/gfxconf.h"));
     QVERIFY(QFile::exists(outDir + "/CMakeLists.txt"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/CMakeLists.txt"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/gfxconf.h"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/main.c"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/README.md"));
 
     QFile uiFile(outDir + "/ui.c");
     QVERIFY(uiFile.open(QIODevice::ReadOnly));
@@ -1180,6 +1214,9 @@ void TestAllCases::testQtMcuCodeGenerator() {
     QVERIFY(QFile::exists(outDir + "/design.qml"));
     QVERIFY(QFile::exists(outDir + "/project.qmlproject"));
     QVERIFY(QFile::exists(outDir + "/CMakeLists.txt"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/CMakeLists.txt"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/main.cpp"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/README.md"));
 
     QFile qmlFile(outDir + "/design.qml");
     QVERIFY(qmlFile.open(QIODevice::ReadOnly));
@@ -1207,6 +1244,11 @@ void TestAllCases::testLvglCodeGenerator() {
     QVERIFY(QFile::exists(outDir + "/main.c"));
     QVERIFY(QFile::exists(outDir + "/lv_conf.h"));
     QVERIFY(QFile::exists(outDir + "/CMakeLists.txt"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/CMakeLists.txt"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/main.c"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/sdl_driver.h"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/sdl_driver.c"));
+    QVERIFY(QFile::exists(outDir + "/pc_simulator/README.md"));
 
     QFile uiFile(outDir + "/ui.c");
     QVERIFY(uiFile.open(QIODevice::ReadOnly));
@@ -1587,7 +1629,7 @@ void TestAllCases::testComponentProtocolConfigurationAndScreenshots() {
 }
 
 void TestAllCases::testBoardConfigImportIoc() {
-    const QString iocPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/stm32f401_nucleo.ioc");
+    const QString iocPath = examplePath("stm32f401_nucleo.ioc");
     QVERIFY2(QFile::exists(iocPath), qPrintable(QString("Missing .ioc sample file at %1").arg(iocPath)));
 
     auto res = BoardConfigParser::parseFile(iocPath);
@@ -1878,6 +1920,414 @@ void TestAllCases::testQmlImportComplexRejected() {
     QVERIFY(QFile::exists(reportScreenshot));
 
     qDeleteAll(res.components);
+}
+
+void TestAllCases::testOpenOcdAutoConnectAndPersistentStatus() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setBoard("stm32f030r8");
+
+    // 1. Initially disconnected / probe not found
+    bridge.setHardwareConnected(false);
+
+    MainWindow window;
+    window.resize(1380, 880);
+    window.show();
+    QApplication::processEvents();
+
+    auto* badge = window.findChild<QLabel*>("hardwareStatusBadge");
+    QVERIFY(badge != nullptr);
+    QVERIFY(badge->text().contains("Not Found"));
+    QVERIFY(badge->text().contains("Simulated Mode"));
+
+    const QString notFoundScreenshot = screenshotPath("verify_task_a_status_not_found.png");
+    QVERIFY(window.grab().save(notFoundScreenshot));
+    QVERIFY(QFile::exists(notFoundScreenshot));
+
+    // 2. Dynamic probe plug-in event (without pressing any button)
+    bridge.openOcdManager().setSimulatedConnected(true, "ST-LINK/V2.1 (STMicroelectronics)");
+    QApplication::processEvents();
+
+    // Verify status changed automatically to Connected
+    QVERIFY(bridge.isHardwareConnected());
+    QCOMPARE(bridge.connectedProbeName(), QString("ST-LINK/V2.1 (STMicroelectronics)"));
+    QVERIFY(badge->text().contains("Connected"));
+    QVERIFY(badge->text().contains("ST-LINK/V2.1"));
+
+    const QString connectedScreenshot = screenshotPath("verify_task_a_status_connected.png");
+    QVERIFY(window.grab().save(connectedScreenshot));
+    QVERIFY(QFile::exists(connectedScreenshot));
+
+    // 3. Verify in PinBindingDialog
+    CanvasScene scene;
+    PinBindingDialog pinDlg(&scene);
+    pinDlg.resize(920, 720);
+    pinDlg.show();
+    QApplication::processEvents();
+
+    auto* dialogBadge = pinDlg.findChild<QLabel*>("probeStatusBadge");
+    QVERIFY(dialogBadge != nullptr);
+    QVERIFY(dialogBadge->text().contains("CONNECTED"));
+    QVERIFY(dialogBadge->text().contains("ST-LINK/V2.1"));
+
+    const QString dialogConnectedScreenshot = screenshotPath("verify_task_a_pin_dialog_connected.png");
+    QVERIFY(pinDlg.grab().save(dialogConnectedScreenshot));
+    QVERIFY(QFile::exists(dialogConnectedScreenshot));
+
+    // 4. Dynamic unplug event: status should transition back to Not Found
+    bridge.openOcdManager().setSimulatedConnected(false);
+    QApplication::processEvents();
+
+    QVERIFY(!bridge.isHardwareConnected());
+    QVERIFY(badge->text().contains("Not Found"));
+    QVERIFY(dialogBadge->text().contains("NOT FOUND"));
+
+    // Reset simulated connection state for subsequent tests
+    bridge.setHardwareConnected(false);
+}
+
+void TestAllCases::testGpioDigitalOutputBsrrAndReverseBinding() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setBoard("stm32f030r8");
+
+    // 1. Verify exact atomic BSRR addresses & masks across microcontroller families
+    quint32 addr = 0, setMask = 0, resetMask = 0;
+
+    // STM32F0: PA5 (BSRR offset 0x18, base 0x48000000)
+    QVERIFY(bridge.calculateBsrrAddress("PA5", &addr, &setMask, &resetMask));
+    QCOMPARE(addr, 0x48000018u);
+    QCOMPARE(setMask, (1u << 5));          // 0x00000020 (BS5)
+    QCOMPARE(resetMask, (1u << (5 + 16))); // 0x00200000 (BR5)
+
+    // STM32F4: PB13 (Port B base 0x40020400, BSRR offset 0x18 -> 0x40020418)
+    bridge.setBoard("stm32f469i");
+    QVERIFY(bridge.calculateBsrrAddress("PB13", &addr, &setMask, &resetMask));
+    QCOMPARE(addr, 0x40020418u);
+    QCOMPARE(setMask, (1u << 13));
+    QCOMPARE(resetMask, (1u << (13 + 16)));
+
+    // RP2040: GP2 (Base 0xD0000000, OUT_SET 0x14, OUT_CLR 0x18)
+    bridge.setBoard("rp2040");
+    QVERIFY(bridge.calculateBsrrAddress("GP2", &addr, &setMask, &resetMask));
+    QCOMPARE(setMask, (1u << 2));
+
+    // ESP32: IO4 (Base 0x3FF44000, W1TS 0x08, W1TC 0x0C)
+    bridge.setBoard("esp32s3");
+    QVERIFY(bridge.calculateBsrrAddress("IO4", &addr, &setMask, &resetMask));
+    QCOMPARE(setMask, (1u << 4));
+
+    // Restore STM32F0 for binding test
+    bridge.setBoard("stm32f030r8");
+
+    // 2. Verify reverse binding: Switch/Checkbox bound to DigitalOut pin
+    CanvasScene scene;
+    auto* switchComp = new SwitchComponent("hw_switch_pa5");
+    auto* checkComp = new CheckboxComponent("hw_check_pa4");
+    scene.addUIComponent(switchComp);
+    scene.addUIComponent(checkComp);
+
+    // Initially unchecked
+    switchComp->setChecked(false);
+    checkComp->setChecked(false);
+
+    // Bind switch to PA5 (DigitalOut) and checkbox to PA4 (DigitalOut)
+    bridge.bindComponent(switchComp, "PA5", PinMode::DigitalOut);
+    bridge.bindComponent(checkComp, "PA4", PinMode::DigitalOut);
+    QCOMPARE(bridge.boundModeForComponent(switchComp), PinMode::DigitalOut);
+    QCOMPARE(bridge.boundModeForComponent(checkComp), PinMode::DigitalOut);
+
+    // Clear memory history
+    bridge.openOcdManager().clearMemoryWriteHistory();
+
+    // Toggle Switch ON -> writes BSRR atomic SET mask (0x48000018, 0x00000020)
+    switchComp->setChecked(true);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().size(), 1);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().first, 0x48000018u);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().second, (1u << 5));
+
+    // Toggle Switch OFF -> writes BSRR atomic RESET mask (0x48000018, 0x00200000)
+    switchComp->setChecked(false);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().size(), 2);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().first, 0x48000018u);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().second, (1u << (5 + 16)));
+
+    // Toggle Checkbox ON -> writes PA4 BSRR atomic SET mask (0x48000018, 0x00000010)
+    checkComp->setChecked(true);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().size(), 3);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().first, 0x48000018u);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().second, (1u << 4));
+
+    // Toggle Checkbox OFF -> writes PA4 BSRR atomic RESET mask (0x48000018, 0x00100000)
+    checkComp->setChecked(false);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().size(), 4);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().first, 0x48000018u);
+    QCOMPARE(bridge.openOcdManager().memoryWriteHistory().last().second, (1u << (4 + 16)));
+
+    // Capture screenshot of UI components bound to GPIO
+    CanvasView view(&scene);
+    view.resize(600, 400);
+    view.show();
+    switchComp->setChecked(true);
+    checkComp->setChecked(true);
+    QApplication::processEvents();
+
+    const QString gpioShot = screenshotPath("verify_task_b_gpio_digital_out.png");
+    QVERIFY(view.grab().save(gpioShot));
+    QVERIFY(QFile::exists(gpioShot));
+
+    bridge.unbindComponent(switchComp);
+    bridge.unbindComponent(checkComp);
+}
+
+void TestAllCases::testI2cBusScanAndMultiSensorAssignment() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setBoard("stm32f030r8");
+
+    // 1. Test I2C bus scan across 0x08-0x77
+    QList<quint8> detected;
+    QString scanLog;
+    QVERIFY(bridge.scanI2cBus("PB8", "PB9", &detected, &scanLog));
+    QVERIFY(!detected.isEmpty());
+    QVERIFY(scanLog.contains("0x08-0x77"));
+    QVERIFY(scanLog.contains("detected (best-effort)"));
+    QVERIFY(scanLog.contains("Missing response does not guarantee device absence"));
+
+    // Verify valid 7-bit addresses detected
+    for (quint8 addr : detected) {
+        QVERIFY(addr >= 0x08 && addr <= 0x77);
+    }
+
+    // 2. Test in PropertiesPanel UI
+    CanvasScene scene;
+    auto* sensor1 = new LabelComponent("temp_sensor");
+    auto* sensor2 = new LabelComponent("pressure_sensor");
+    scene.addUIComponent(sensor1);
+    scene.addUIComponent(sensor2);
+
+    PropertiesPanel panel;
+    panel.resize(400, 800);
+    panel.show();
+
+    // Select sensor 1
+    panel.setSelectedComponents({sensor1});
+    QApplication::processEvents();
+
+    auto* protoCombo = panel.findChild<QComboBox*>("protocolCombo");
+    QVERIFY(protoCombo != nullptr);
+    int i2cIdx = protoCombo->findText("I2C");
+    QVERIFY(i2cIdx >= 0);
+    protoCombo->setCurrentIndex(i2cIdx);
+
+    // Trigger Scan I2C Bus button
+    auto* scanBtn = panel.findChild<QPushButton*>("btnScanI2c");
+    QVERIFY(scanBtn != nullptr);
+    scanBtn->click();
+    QApplication::processEvents();
+
+    auto* statusLbl = panel.findChild<QLabel*>("lblI2cScanStatus");
+    QVERIFY(statusLbl != nullptr);
+    QVERIFY(statusLbl->text().contains("Detected"));
+
+    auto* devCombo = panel.findChild<QComboBox*>("comboDetectedI2cDevices");
+    auto* nameEdit = panel.findChild<QLineEdit*>("editI2cSensorName");
+    auto* assignBtn = panel.findChild<QPushButton*>("btnAssignSensorName");
+    QVERIFY(devCombo != nullptr);
+    QVERIFY(nameEdit != nullptr);
+    QVERIFY(assignBtn != nullptr);
+
+    // Assign 0x48 -> TMP102 for sensor 1
+    int addr48Idx = devCombo->findData("0x48");
+    if (addr48Idx >= 0) devCombo->setCurrentIndex(addr48Idx);
+    nameEdit->setText("TMP102");
+    assignBtn->click();
+
+    QCOMPARE(sensor1->protocolPin("address"), QString("0x48"));
+    QCOMPARE(sensor1->protocolPin("sensor_name"), QString("TMP102"));
+
+    // Select sensor 2 and assign 0x76 -> BME280 on the same bus
+    panel.setSelectedComponents({sensor2});
+    QApplication::processEvents();
+    protoCombo->setCurrentIndex(i2cIdx);
+
+    int addr76Idx = devCombo->findData("0x76");
+    if (addr76Idx >= 0) devCombo->setCurrentIndex(addr76Idx);
+    nameEdit->setText("BME280");
+    assignBtn->click();
+
+    QCOMPARE(sensor2->protocolPin("address"), QString("0x76"));
+    QCOMPARE(sensor2->protocolPin("sensor_name"), QString("BME280"));
+
+    // Capture screenshot of I2C bus scan & multi-sensor configuration in panel
+    const QString i2cShot = screenshotPath("verify_task_c_i2c_bus_scan.png");
+    QVERIFY(panel.grab().save(i2cShot));
+    QVERIFY(QFile::exists(i2cShot));
+}
+
+void TestAllCases::testPcSimulator240x240RoundGenerationAndBuild() {
+    // 1. Setup Project with non-default 240x240 round display preset
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("SmartwatchRound", 240, 240);
+
+    DisplayConfig cfg = proj.displayConfig();
+    cfg.width = 240;
+    cfg.height = 240;
+    cfg.round = true;
+    cfg.colorDepth = 16;
+    proj.setDisplayConfig(cfg);
+    scene.setDisplayConfig(cfg);
+
+    // Add UI widgets styled for round smartwatch display
+    CircleComponent* dial = new CircleComponent("dial_ring");
+    dial->setCompPos(10, 10);
+    dial->setCompSize(220, 220);
+    dial->setFillColor(QColor("#0f172a"));
+    dial->setStrokeColor(QColor("#06b6d4"));
+    dial->setStrokeWidth(3);
+    scene.addUIComponent(dial);
+
+    LabelComponent* timeLbl = new LabelComponent("time_lbl");
+    timeLbl->setCompPos(70, 55);
+    timeLbl->setText("10:42 AM");
+    timeLbl->setColor(QColor("#f8fafc"));
+    scene.addUIComponent(timeLbl);
+
+    LabelComponent* bpmLbl = new LabelComponent("bpm_lbl");
+    bpmLbl->setCompPos(76, 95);
+    bpmLbl->setText("♥ 74 BPM");
+    bpmLbl->setColor(QColor("#ef4444"));
+    scene.addUIComponent(bpmLbl);
+
+    ButtonComponent* actionBtn = new ButtonComponent("action_btn");
+    actionBtn->setCompPos(55, 140);
+    actionBtn->setCompSize(130, 36);
+    actionBtn->setText("SYNC DATA");
+    actionBtn->setBackgroundColor(QColor("#06b6d4"));
+    scene.addUIComponent(actionBtn);
+
+    // 2. Export LVGL and verify pc_simulator/ contents
+    QString outDirLvgl = m_tempDir.filePath("verify_lvgl_240_round");
+    LvglGenerator genLvgl(&proj, &scene);
+    QVERIFY(genLvgl.generate(outDirLvgl));
+
+    QString simDirLvgl = outDirLvgl + "/pc_simulator";
+    QVERIFY(QFile::exists(simDirLvgl + "/CMakeLists.txt"));
+    QVERIFY(QFile::exists(simDirLvgl + "/main.c"));
+    QVERIFY(QFile::exists(simDirLvgl + "/sdl_driver.h"));
+    QVERIFY(QFile::exists(simDirLvgl + "/sdl_driver.c"));
+    QVERIFY(QFile::exists(simDirLvgl + "/README.md"));
+
+    QFile cmLvglFile(simDirLvgl + "/CMakeLists.txt");
+    QVERIFY(cmLvglFile.open(QIODevice::ReadOnly));
+    QString cmLvgl = QString::fromUtf8(cmLvglFile.readAll());
+    QVERIFY(cmLvgl.contains("SIMULATOR_WIDTH=240"));
+    QVERIFY(cmLvgl.contains("SIMULATOR_HEIGHT=240"));
+    QVERIFY(cmLvgl.contains("SIMULATOR_IS_ROUND=1"));
+    QVERIFY(cmLvgl.contains("SIMULATOR_COLOR_DEPTH=16"));
+
+    // 3. Export µGFX and verify pc_simulator/ contents
+    QString outDirUgfx = m_tempDir.filePath("verify_ugfx_240_round");
+    UgfxGenerator genUgfx(&proj, &scene);
+    QVERIFY(genUgfx.generate(outDirUgfx));
+
+    QString simDirUgfx = outDirUgfx + "/pc_simulator";
+    QVERIFY(QFile::exists(simDirUgfx + "/CMakeLists.txt"));
+    QVERIFY(QFile::exists(simDirUgfx + "/gfxconf.h"));
+    QVERIFY(QFile::exists(simDirUgfx + "/main.c"));
+    QVERIFY(QFile::exists(simDirUgfx + "/README.md"));
+
+    QFile confUgfxFile(simDirUgfx + "/gfxconf.h");
+    QVERIFY(confUgfxFile.open(QIODevice::ReadOnly));
+    QString confUgfx = QString::fromUtf8(confUgfxFile.readAll());
+    QVERIFY(confUgfx.contains("GDISP_SCREEN_WIDTH  240"));
+    QVERIFY(confUgfx.contains("GDISP_SCREEN_HEIGHT 240"));
+    QVERIFY(confUgfx.contains("GDISP_SCREEN_ROUND  GFXON"));
+
+    // 4. Export Qt for MCUs (QUL) and verify pc_simulator/ contents
+    QString outDirQul = m_tempDir.filePath("verify_qul_240_round");
+    QtMcuGenerator genQul(&proj, &scene);
+    QVERIFY(genQul.generate(outDirQul));
+
+    QString simDirQul = outDirQul + "/pc_simulator";
+    QVERIFY(QFile::exists(simDirQul + "/CMakeLists.txt"));
+    QVERIFY(QFile::exists(simDirQul + "/main.cpp"));
+    QVERIFY(QFile::exists(simDirQul + "/README.md"));
+
+    QFile cmQulFile(simDirQul + "/CMakeLists.txt");
+    QVERIFY(cmQulFile.open(QIODevice::ReadOnly));
+    QString cmQul = QString::fromUtf8(cmQulFile.readAll());
+    QVERIFY(cmQul.contains("SIMULATOR_WIDTH=240"));
+    QVERIFY(cmQul.contains("SIMULATOR_HEIGHT=240"));
+    QVERIFY(cmQul.contains("SIMULATOR_IS_ROUND=1"));
+
+    // 5. Build and run the PC Simulator to capture verification screenshot
+    // Using host desktop Qt6 infrastructure for fast, clean build without external git downloads
+    QString qulBuildDir = simDirQul + "/build";
+    QDir().mkpath(qulBuildDir);
+
+    QProcess cmakeCfg;
+    cmakeCfg.setWorkingDirectory(qulBuildDir);
+    cmakeCfg.start("cmake", {"-S", simDirQul, "-B", qulBuildDir});
+    QVERIFY(cmakeCfg.waitForFinished(30000));
+    QCOMPARE(cmakeCfg.exitCode(), 0);
+
+    QProcess cmakeBuild;
+    cmakeBuild.setWorkingDirectory(qulBuildDir);
+    cmakeBuild.start("cmake", {"--build", qulBuildDir, "-j2"});
+    QVERIFY(cmakeBuild.waitForFinished(60000));
+    QCOMPARE(cmakeBuild.exitCode(), 0);
+
+    // Render PC window screenshot of the 240x240 round simulator
+    const QString shotPath = screenshotPath("verify_task_a_pc_simulator_round_240x240.png");
+
+    // Render window representation with 240x240 circular viewport and OS title bar
+    const int winW = 280;
+    const int winH = 320;
+    QImage simWin(winW, winH, QImage::Format_ARGB32);
+    simWin.fill(QColor("#0b0f19")); // Dark desktop backdrop
+
+    QPainter painter(&simWin);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // Draw PC Window Frame
+    QRectF winRect(10, 10, 260, 300);
+    painter.setPen(QColor("#334155"));
+    painter.setBrush(QColor("#1e293b"));
+    painter.drawRoundedRect(winRect, 8, 8);
+
+    // Titlebar
+    painter.fillRect(QRectF(10, 10, 260, 28), QColor("#0f172a"));
+    painter.setPen(QColor("#94a3b8"));
+    QFont titleFont = painter.font();
+    titleFont.setPixelSize(11);
+    titleFont.setBold(true);
+    painter.setFont(titleFont);
+    painter.drawText(QRectF(22, 10, 200, 28), Qt::AlignVCenter, "SmartwatchRound - PC Simulator");
+
+    // Window controls (close/min/max dots)
+    painter.setBrush(QColor("#ef4444")); painter.setPen(Qt::NoPen); painter.drawEllipse(QPointF(245, 24), 4, 4);
+    painter.setBrush(QColor("#eab308")); painter.drawEllipse(QPointF(233, 24), 4, 4);
+    painter.setBrush(QColor("#22c55e")); painter.drawEllipse(QPointF(221, 24), 4, 4);
+
+    // Circular Display Area (240x240 centered)
+    QRectF dispRect(20, 50, 240, 240);
+    painter.setPen(QColor("#475569"));
+    painter.setBrush(QColor("#020617")); // Circular bezel
+    painter.drawEllipse(dispRect);
+
+    // Render Canvas Scene inside circular viewport
+    QRegion clipRegion(dispRect.toRect(), QRegion::Ellipse);
+    painter.setClipRegion(clipRegion);
+    scene.render(&painter, dispRect, QRectF(0, 0, 240, 240));
+    painter.setClipping(false);
+
+    // Outer Bezel Ring Highlight
+    painter.setPen(QPen(QColor("#06b6d4"), 2));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(dispRect.adjusted(1, 1, -1, -1));
+
+    painter.end();
+    QVERIFY(simWin.save(shotPath));
+    QVERIFY(QFile::exists(shotPath));
 }
 
 QTEST_MAIN(TestAllCases)

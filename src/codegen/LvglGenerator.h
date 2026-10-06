@@ -21,6 +21,13 @@ public:
     QString generateIdfComponentYml();
     QString generatePlatformioIni();
 
+    // PC-Simulator subfolder generators
+    QString generateSimulatorCMakeLists();
+    QString generateSimulatorMainSource();
+    QString generateSimulatorSdlDriverHeader();
+    QString generateSimulatorSdlDriverSource();
+    QString generateSimulatorReadme();
+
     bool hasButtons() const;
     bool hasLabels() const;
     bool hasProgressBars() const;

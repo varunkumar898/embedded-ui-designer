@@ -27,6 +27,15 @@ public:
     QColor borderColor() const { return m_borderColor; }
     void setBorderColor(const QColor& color);
 
+    int borderWidth() const { return m_borderWidth; }
+    void setBorderWidth(int width);
+
+    QString fontFamily() const { return m_fontFamily; }
+    void setFontFamily(const QString& family);
+
+    int pixelSize() const { return m_pixelSize; }
+    void setPixelSize(int size);
+
     QString onToggledHandler() const { return m_onToggledHandler; }
     void setOnToggledHandler(const QString& handler);
 
@@ -48,8 +57,11 @@ private:
     QString m_text = "Checkbox";
     bool m_checked = false;
     QColor m_textColor = QColor("#E0E0E0");
-    QColor m_checkColor = QColor("#4CAF50");
-    QColor m_boxColor = QColor("#22252F");
+    QColor m_checkColor = QColor("#10B981");
+    QColor m_boxColor = QColor("#1E222A");
     QColor m_borderColor = QColor("#4E5569");
+    int m_borderWidth = 1;
+    QString m_fontFamily = "Roboto";
+    int m_pixelSize = 13;
     QString m_onToggledHandler;
 };

@@ -66,6 +66,24 @@ void LabelComponent::setAlignment(Qt::Alignment align) {
     }
 }
 
+void LabelComponent::setBackgroundColor(const QColor& color) {
+    if (m_backgroundColor != color) {
+        m_backgroundColor = color;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void LabelComponent::setCornerRadius(int r) {
+    int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+    r = std::clamp(r, 0, std::max(0, maxR));
+    if (m_cornerRadius != r) {
+        m_cornerRadius = r;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 void LabelComponent::setLetterSpacing(qreal sp) {
     if (!qFuzzyCompare(m_letterSpacing, sp)) {
         m_letterSpacing = sp;
@@ -93,6 +111,13 @@ const QStringList& LabelComponent::availableFonts() {
 }
 
 void LabelComponent::paintComponent(QPainter* painter) {
+    if (m_backgroundColor.isValid() && m_backgroundColor.alpha() > 0) {
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QBrush(m_backgroundColor));
+        painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), m_cornerRadius, m_cornerRadius);
+    }
+
     painter->setRenderHint(QPainter::TextAntialiasing);
 
     QFont font(m_fontFamily);
@@ -108,8 +133,16 @@ void LabelComponent::paintComponent(QPainter* painter) {
 }
 
 void LabelComponent::applyColorStyle(const QString& styleName, const QColor& color) {
+    bool changed = false;
     if (colorStyleRef("color") == styleName || colorStyleRef("textColor") == styleName) {
         m_color = color;
+        changed = true;
+    }
+    if (colorStyleRef("backgroundColor") == styleName) {
+        m_backgroundColor = color;
+        changed = true;
+    }
+    if (changed) {
         update();
         emit propertyChanged(this);
     }
@@ -119,6 +152,8 @@ QJsonObject LabelComponent::toJson() const {
     QJsonObject obj = UIComponent::toJson();
     obj["text"] = m_text;
     obj["color"] = serializeColor(m_color, colorStyleRef("color").isEmpty() ? colorStyleRef("textColor") : colorStyleRef("color"));
+    obj["backgroundColor"] = serializeColor(m_backgroundColor, colorStyleRef("backgroundColor"));
+    obj["cornerRadius"] = m_cornerRadius;
 
     QJsonObject fontObj;
     fontObj["family"]        = m_fontFamily;
@@ -148,6 +183,12 @@ void LabelComponent::fromJson(const QJsonObject& json) {
         deserializeColor(json.value("color"), m_color, ref);
         setColorStyleRef("color", ref);
     }
+    if (json.contains("backgroundColor")) {
+        QString ref;
+        deserializeColor(json.value("backgroundColor"), m_backgroundColor, ref);
+        setColorStyleRef("backgroundColor", ref);
+    }
+    m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
     if (json.contains("font") && json.value("font").isObject()) {
         QJsonObject fontObj = json.value("font").toObject();
         m_fontFamily    = fontObj.value("family").toString(m_fontFamily);

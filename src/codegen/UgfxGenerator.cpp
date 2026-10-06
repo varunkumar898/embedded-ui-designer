@@ -161,6 +161,17 @@ bool UgfxGenerator::generate(const QString& outputDirectory) {
     // 6. README.md
     if (!writeFile(outDir.filePath("README.md"), generateReadme())) return false;
 
+    // 7. pc_simulator/ subfolder (Desktop simulator with X11 / Win32 driver)
+    QDir simDir(outDir.filePath("pc_simulator"));
+    if (!simDir.exists() && !simDir.mkpath(".")) {
+        m_lastError = QString("Could not create pc_simulator directory: %1").arg(simDir.absolutePath());
+        return false;
+    }
+    if (!writeFile(simDir.filePath("CMakeLists.txt"), generateSimulatorCMakeLists())) return false;
+    if (!writeFile(simDir.filePath("gfxconf.h"), generateSimulatorGfxConf())) return false;
+    if (!writeFile(simDir.filePath("main.c"), generateSimulatorMainSource())) return false;
+    if (!writeFile(simDir.filePath("README.md"), generateSimulatorReadme())) return false;
+
     outDir.mkdir("build");
     return true;
 }
@@ -698,5 +709,180 @@ QString UgfxGenerator::generateReadme() {
     md += "1. Set `#define GFX_USE_OS_RAW32 GFXON` (or FreeRTOS) in `gfxconf.h`.\n";
     md += "2. Include your board display driver (e.g. `drivers/gdisp/ILI9341` or `drivers/gdisp/ST7789`).\n";
     md += "3. Add `ui.c`, `ui.h`, and `gfxconf.h` into your Keil, STM32CubeIDE, or ESP-IDF build.\n";
+    return md;
+}
+
+QString UgfxGenerator::generateSimulatorCMakeLists() {
+    QString name = m_project ? m_project->projectName() : "ugfx_app";
+    if (name.isEmpty()) name = "ugfx_app";
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    int isRound = (m_project && m_project->displayConfig().round) ? 1 : 0;
+
+    QString code;
+    code += "cmake_minimum_required(VERSION 3.20)\n";
+    code += QString("project(%1_pc_simulator LANGUAGES C CXX)\n\n").arg(name);
+    code += "set(CMAKE_C_STANDARD 99)\n";
+    code += "set(CMAKE_C_STANDARD_REQUIRED ON)\n\n";
+
+    code += "# Locate or fetch µGFX library\n";
+    code += "if(DEFINED UGFX_PATH)\n";
+    code += "    file(TO_CMAKE_PATH \"${UGFX_PATH}\" UGFX_DIR)\n";
+    code += "elseif(DEFINED ENV{UGFX_PATH})\n";
+    code += "    file(TO_CMAKE_PATH \"$ENV{UGFX_PATH}\" UGFX_DIR)\n";
+    code += "elseif(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/../build/_deps/ugfx_src-src\")\n";
+    code += "    set(UGFX_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/../build/_deps/ugfx_src-src\")\n";
+    code += "else()\n";
+    code += "    include(FetchContent)\n";
+    code += "    FetchContent_Declare(\n";
+    code += "        ugfx_src\n";
+    code += "        GIT_REPOSITORY https://git.ugfx.io/uGFX/ugfx.git\n";
+    code += "        GIT_TAG master\n";
+    code += "        GIT_SHALLOW TRUE\n";
+    code += "    )\n";
+    code += "    FetchContent_MakeAvailable(ugfx_src)\n";
+    code += "    set(UGFX_DIR \"${ugfx_src_SOURCE_DIR}\")\n";
+    code += "endif()\n\n";
+
+    code += "set(SIMULATOR_SOURCES\n";
+    code += "    main.c\n";
+    code += "    ../ui.c\n";
+    code += ")\n\n";
+
+    code += QString("add_executable(%1_pc_simulator ${SIMULATOR_SOURCES})\n\n").arg(name);
+
+    code += QString("target_include_directories(%1_pc_simulator PRIVATE\n").arg(name);
+    code += "    \"${CMAKE_CURRENT_SOURCE_DIR}\"\n";
+    code += "    \"${CMAKE_CURRENT_SOURCE_DIR}/..\"\n";
+    code += "    \"${UGFX_DIR}\"\n";
+    code += "    \"${UGFX_DIR}/include\"\n";
+    code += ")\n\n";
+
+    code += QString("target_compile_definitions(%1_pc_simulator PRIVATE\n").arg(name);
+    code += QString("    SIMULATOR_WIDTH=%1\n").arg(width);
+    code += QString("    SIMULATOR_HEIGHT=%1\n").arg(height);
+    code += QString("    SIMULATOR_COLOR_DEPTH=%1\n").arg(depth);
+    code += QString("    SIMULATOR_IS_ROUND=%1\n").arg(isRound);
+    code += ")\n\n";
+
+    code += "if(WIN32)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE gdi32 user32 winmm)\n").arg(name);
+    code += "elseif(APPLE)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE \"-framework Cocoa\")\n").arg(name);
+    code += "else()\n";
+    code += "    find_package(X11 REQUIRED)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE ${X11_LIBRARIES} pthread m)\n").arg(name);
+    code += "endif()\n";
+
+    return code;
+}
+
+QString UgfxGenerator::generateSimulatorGfxConf() {
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    bool isRound = m_project ? m_project->displayConfig().round : false;
+
+    QString conf;
+    conf += "#ifndef _GFXCONF_SIMULATOR_H\n";
+    conf += "#define _GFXCONF_SIMULATOR_H\n\n";
+    conf += "/* µGFX PC Simulator Configuration */\n";
+    conf += "#define GFX_USE_OS_WIN32    GFXOFF\n";
+    conf += "#define GFX_USE_OS_POSIX    GFXON\n\n";
+    conf += "#define GFX_USE_GDISP       GFXON\n";
+    conf += QString("#define GDISP_SCREEN_WIDTH  %1\n").arg(width);
+    conf += QString("#define GDISP_SCREEN_HEIGHT %1\n").arg(height);
+    if (depth == 16) {
+        conf += "#define GDISP_PIXELFORMAT   GDISP_PIXELFORMAT_RGB565\n";
+    } else {
+        conf += "#define GDISP_PIXELFORMAT   GDISP_PIXELFORMAT_RGB888\n";
+    }
+    if (isRound) {
+        conf += "#define GDISP_SCREEN_ROUND  GFXON\n";
+    }
+    conf += "#define GDISP_NEED_AUTOFLUSH GFXON\n";
+    conf += "#define GDISP_NEED_CIRCLE   GFXON\n";
+    conf += "#define GDISP_NEED_TEXT     GFXON\n\n";
+
+    conf += "#define GFX_USE_GWND        GFXON\n";
+    conf += "#define GFX_USE_GEVENT      GFXON\n";
+    conf += "#define GFX_USE_GTIMER      GFXON\n";
+    conf += "#define GFX_USE_GQUEUE      GFXON\n";
+    conf += "#define GFX_USE_GINPUT      GFXON\n";
+    conf += "#define GINPUT_NEED_MOUSE   GFXON\n\n";
+
+    conf += "#define GDISP_DEFAULT_ORIENTATION GDISP_ROTATE_0\n";
+    conf += "#define GDISP_STARTUP_COLOR White\n\n";
+    conf += "#endif /* _GFXCONF_SIMULATOR_H */\n";
+    return conf;
+}
+
+QString UgfxGenerator::generateSimulatorMainSource() {
+    QString name = m_project ? m_project->projectName() : "uGFX Application";
+    if (name.isEmpty()) name = "uGFX Application";
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    bool isRound = m_project ? m_project->displayConfig().round : false;
+
+    QString code;
+    code += "/**\n";
+    code += " * µGFX PC Simulator Main Entry Point\n";
+    code += " * Auto-generated by Embedded UI Designer\n";
+    code += " */\n";
+    code += "#include \"gfx.h\"\n";
+    code += "#include \"ui.h\"\n";
+    code += "#include <stdio.h>\n\n";
+
+    code += "int main(int argc, char* argv[]) {\n";
+    code += "    (void)argc;\n";
+    code += "    (void)argv;\n\n";
+    code += "    printf(\"============================================================\\n\");\n";
+    code += QString("    printf(\" Starting %1 PC Simulator (uGFX)\\n\");\n").arg(name);
+    code += QString("    printf(\" Display: %1 x %2 (%3), %4-bit color depth\\n\",\n").arg(width).arg(height).arg(isRound ? "Round" : "Rectangular").arg(depth);
+    code += "    printf(\"============================================================\\n\");\n\n";
+
+    code += "    gfxInit();\n\n";
+    code += "    printf(\"Building UI components...\\n\");\n";
+    code += "    ui_init();\n\n";
+
+    code += "    printf(\"uGFX Simulator running. Close window or press Ctrl+C to exit.\\n\");\n";
+    code += "    while (1) {\n";
+    code += "        gfxSleepMilliseconds(20);\n";
+    code += "    }\n";
+    code += "    return 0;\n";
+    code += "}\n";
+
+    return code;
+}
+
+QString UgfxGenerator::generateSimulatorReadme() {
+    QString name = m_project ? m_project->projectName() : "uGFX Application";
+    if (name.isEmpty()) name = "uGFX Application";
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    bool isRound = m_project ? m_project->displayConfig().round : false;
+
+    QString md;
+    md += QString("# %1 - µGFX PC Simulator\n\n").arg(name);
+    md += "This subproject builds a desktop simulator for your µGFX GUI using the host X11 (Linux) or Win32 (Windows) display driver.\n\n";
+    md += "## Target Display\n\n";
+    md += QString("- **Resolution**: %1 x %2\n").arg(width).arg(height);
+    md += QString("- **Color Depth**: %1-bit (%2)\n").arg(depth).arg(depth == 16 ? "RGB565" : "RGB888");
+    md += QString("- **Shape**: %1\n\n").arg(isRound ? "Round" : "Rectangular");
+
+    md += "## Driver Constraints Note\n";
+    md += "- uGFX X11 and Win32 simulator drivers require resolution macros (`GDISP_SCREEN_WIDTH` / `GDISP_SCREEN_HEIGHT`) at compile time. Changing resolution requires recompilation.\n";
+    md += "- The desktop driver creates rectangular native OS windows; round display bounds are masked in software.\n\n";
+
+    md += "## Build Instructions\n\n";
+    md += "```bash\n";
+    md += "mkdir build && cd build\n";
+    md += "cmake ..\n";
+    md += "cmake --build .\n";
+    md += QString("./%1_pc_simulator\n").arg(name);
+    md += "```\n";
     return md;
 }

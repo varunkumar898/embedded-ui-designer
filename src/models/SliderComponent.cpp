@@ -1,6 +1,7 @@
 #include "SliderComponent.h"
 #include <QPainterPath>
 #include <algorithm>
+#include <cmath>
 
 SliderComponent::SliderComponent(const QString& id, QGraphicsItem* parent)
     : UIComponent(id, "Slider", parent)
@@ -36,6 +37,15 @@ void SliderComponent::setMaximum(int max) {
     }
 }
 
+void SliderComponent::setOrientation(const QString& orient) {
+    Qt::Orientation o = (orient.compare("Vertical", Qt::CaseInsensitive) == 0) ? Qt::Vertical : Qt::Horizontal;
+    if (m_orientation != o) {
+        m_orientation = o;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 void SliderComponent::setTrackColor(const QColor& color) {
     if (m_trackColor != color) {
         m_trackColor = color;
@@ -60,20 +70,54 @@ void SliderComponent::setHandleColor(const QColor& color) {
     }
 }
 
-void SliderComponent::updateValueFromPos(const QPointF& p) {
-    qreal trackMargin = 10.0;
-    qreal trackWidth = m_width - (2.0 * trackMargin);
-    if (trackWidth <= 0.0) return;
+void SliderComponent::setBorderColor(const QColor& color) {
+    if (m_borderColor != color) {
+        m_borderColor = color;
+        update();
+        emit propertyChanged(this);
+    }
+}
 
-    qreal relX = std::clamp(p.x() - trackMargin, 0.0, trackWidth);
-    qreal ratio = relX / trackWidth;
-    int newVal = m_minimum + static_cast<int>(ratio * (m_maximum - m_minimum) + 0.5);
-    setValue(newVal);
+void SliderComponent::setBorderWidth(int width) {
+    width = std::max(0, width);
+    if (m_borderWidth != width) {
+        m_borderWidth = width;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void SliderComponent::setCornerRadius(int r) {
+    r = std::max(0, r);
+    if (m_cornerRadius != r) {
+        m_cornerRadius = r;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void SliderComponent::updateValueFromPos(const QPointF& p) {
+    if (m_orientation == Qt::Horizontal) {
+        qreal trackMargin = 10.0;
+        qreal trackWidth = m_width - (2.0 * trackMargin);
+        if (trackWidth <= 0.0) return;
+        qreal relX = std::clamp(p.x() - trackMargin, 0.0, trackWidth);
+        qreal ratio = relX / trackWidth;
+        int newVal = m_minimum + static_cast<int>(ratio * (m_maximum - m_minimum) + 0.5);
+        setValue(newVal);
+    } else {
+        qreal trackMargin = 10.0;
+        qreal trackHeight = m_height - (2.0 * trackMargin);
+        if (trackHeight <= 0.0) return;
+        qreal relY = std::clamp(m_height - trackMargin - p.y(), 0.0, trackHeight);
+        qreal ratio = relY / trackHeight;
+        int newVal = m_minimum + static_cast<int>(ratio * (m_maximum - m_minimum) + 0.5);
+        setValue(newVal);
+    }
 }
 
 void SliderComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     if (m_activeHandle == ResizeHandle::None && event->button() == Qt::LeftButton) {
-        // Check if click is near track
         updateValueFromPos(event->pos());
     }
     UIComponent::mousePressEvent(event);
@@ -87,35 +131,72 @@ void SliderComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void SliderComponent::paintComponent(QPainter* painter) {
-    qreal trackMargin = 10.0;
-    qreal trackH = 6.0;
-    qreal trackY = (m_height - trackH) / 2.0;
-    qreal trackW = m_width - (2.0 * trackMargin);
+    painter->setRenderHint(QPainter::Antialiasing);
 
-    // 1. Inactive Track background
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(m_trackColor);
-    painter->drawRoundedRect(QRectF(trackMargin, trackY, trackW, trackH), 3.0, 3.0);
-
-    // 2. Active Fill
     qreal range = static_cast<qreal>(m_maximum - m_minimum);
     qreal ratio = range > 0 ? (m_value - m_minimum) / range : 0.0;
     ratio = std::clamp(ratio, 0.0, 1.0);
-    qreal fillW = trackW * ratio;
 
-    if (fillW > 0) {
-        painter->setBrush(m_fillColor);
-        painter->drawRoundedRect(QRectF(trackMargin, trackY, fillW, trackH), 3.0, 3.0);
+    if (m_orientation == Qt::Horizontal) {
+        qreal trackMargin = 10.0;
+        qreal trackH = 6.0;
+        qreal trackY = (m_height - trackH) / 2.0;
+        qreal trackW = m_width - (2.0 * trackMargin);
+
+        // 1. Inactive Track background
+        if (m_borderWidth > 0 && m_borderColor.alpha() > 0) {
+            painter->setPen(QPen(m_borderColor, m_borderWidth));
+        } else {
+            painter->setPen(Qt::NoPen);
+        }
+        painter->setBrush(m_trackColor);
+        painter->drawRoundedRect(QRectF(trackMargin, trackY, trackW, trackH), m_cornerRadius, m_cornerRadius);
+
+        // 2. Active Fill
+        qreal fillW = trackW * ratio;
+        if (fillW > 0) {
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(m_fillColor);
+            painter->drawRoundedRect(QRectF(trackMargin, trackY, fillW, trackH), m_cornerRadius, m_cornerRadius);
+        }
+
+        // 3. Thumb Handle
+        qreal thumbRadius = 7.0;
+        qreal thumbX = trackMargin + fillW;
+        qreal thumbY = m_height / 2.0;
+
+        painter->setBrush(m_handleColor);
+        painter->setPen(QPen(m_fillColor, 1.5));
+        painter->drawEllipse(QPointF(thumbX, thumbY), thumbRadius, thumbRadius);
+    } else {
+        qreal trackMargin = 10.0;
+        qreal trackW = 6.0;
+        qreal trackX = (m_width - trackW) / 2.0;
+        qreal trackH = m_height - (2.0 * trackMargin);
+
+        if (m_borderWidth > 0 && m_borderColor.alpha() > 0) {
+            painter->setPen(QPen(m_borderColor, m_borderWidth));
+        } else {
+            painter->setPen(Qt::NoPen);
+        }
+        painter->setBrush(m_trackColor);
+        painter->drawRoundedRect(QRectF(trackX, trackMargin, trackW, trackH), m_cornerRadius, m_cornerRadius);
+
+        qreal fillH = trackH * ratio;
+        if (fillH > 0) {
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(m_fillColor);
+            painter->drawRoundedRect(QRectF(trackX, trackMargin + (trackH - fillH), trackW, fillH), m_cornerRadius, m_cornerRadius);
+        }
+
+        qreal thumbRadius = 7.0;
+        qreal thumbX = m_width / 2.0;
+        qreal thumbY = trackMargin + (trackH - fillH);
+
+        painter->setBrush(m_handleColor);
+        painter->setPen(QPen(m_fillColor, 1.5));
+        painter->drawEllipse(QPointF(thumbX, thumbY), thumbRadius, thumbRadius);
     }
-
-    // 3. Thumb Handle
-    qreal thumbRadius = 7.0;
-    qreal thumbX = trackMargin + fillW;
-    qreal thumbY = m_height / 2.0;
-
-    painter->setBrush(m_handleColor);
-    painter->setPen(QPen(m_fillColor, 1.5));
-    painter->drawEllipse(QPointF(thumbX, thumbY), thumbRadius, thumbRadius);
 }
 
 QJsonObject SliderComponent::toJson() const {
@@ -123,9 +204,13 @@ QJsonObject SliderComponent::toJson() const {
     json["value"] = m_value;
     json["minimum"] = m_minimum;
     json["maximum"] = m_maximum;
+    json["orientation"] = orientation();
     json["trackColor"] = serializeColor(m_trackColor, colorStyleRef("trackColor"));
     json["fillColor"] = serializeColor(m_fillColor, colorStyleRef("fillColor"));
     json["handleColor"] = serializeColor(m_handleColor, colorStyleRef("handleColor"));
+    json["borderColor"] = serializeColor(m_borderColor, colorStyleRef("borderColor"));
+    json["borderWidth"] = m_borderWidth;
+    json["cornerRadius"] = m_cornerRadius;
     return json;
 }
 
@@ -134,6 +219,9 @@ void SliderComponent::fromJson(const QJsonObject& json) {
     m_minimum = json.value("minimum").toInt(0);
     m_maximum = json.value("maximum").toInt(100);
     m_value = json.value("value").toInt(50);
+    if (json.contains("orientation")) {
+        setOrientation(json.value("orientation").toString("Horizontal"));
+    }
     if (json.contains("trackColor")) {
         QString ref;
         deserializeColor(json.value("trackColor"), m_trackColor, ref);
@@ -148,7 +236,19 @@ void SliderComponent::fromJson(const QJsonObject& json) {
         QString ref;
         deserializeColor(json.value("handleColor"), m_handleColor, ref);
         setColorStyleRef("handleColor", ref);
+    } else if (json.contains("thumbColor")) {
+        QString ref;
+        deserializeColor(json.value("thumbColor"), m_handleColor, ref);
+        setColorStyleRef("handleColor", ref);
     }
+    if (json.contains("borderColor")) {
+        QString ref;
+        deserializeColor(json.value("borderColor"), m_borderColor, ref);
+        setColorStyleRef("borderColor", ref);
+    }
+    m_borderWidth = json.value("borderWidth").toInt(m_borderWidth);
+    m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
+    update();
 }
 
 void SliderComponent::applyColorStyle(const QString& styleName, const QColor& color) {
@@ -161,8 +261,12 @@ void SliderComponent::applyColorStyle(const QString& styleName, const QColor& co
         m_fillColor = color;
         changed = true;
     }
-    if (colorStyleRef("handleColor") == styleName) {
+    if (colorStyleRef("handleColor") == styleName || colorStyleRef("thumbColor") == styleName) {
         m_handleColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("borderColor") == styleName) {
+        m_borderColor = color;
         changed = true;
     }
     if (changed) {
@@ -172,49 +276,31 @@ void SliderComponent::applyColorStyle(const QString& styleName, const QColor& co
 }
 
 QString SliderComponent::toQmlSnippet(int indentSpaces) const {
-    QString ind(indentSpaces, ' ');
+    QString indent(indentSpaces, ' ');
     QString qml;
-    qml += ind + "Item {\n";
-    qml += ind + QString("    id: %1\n").arg(m_id);
-    qml += ind + QString("    x: %1; y: %2; width: %3; height: %4\n")
-        .arg(static_cast<int>(compX())).arg(static_cast<int>(compY()))
-        .arg(static_cast<int>(m_width)).arg(static_cast<int>(m_height));
-    qml += ind + QString("    property int value: %1\n").arg(m_value);
-    qml += ind + QString("    property int minimum: %1\n").arg(m_minimum);
-    qml += ind + QString("    property int maximum: %1\n").arg(m_maximum);
-    qml += ind + "    Rectangle {\n";
-    qml += ind + "        anchors.verticalCenter: parent.verticalCenter\n";
-    qml += ind + "        x: 10; width: parent.width - 20; height: 6; radius: 3\n";
-    qml += ind + QString("        color: \"%1\"\n").arg(m_trackColor.name());
-    qml += ind + "        Rectangle {\n";
-    qml += ind + "            height: parent.height; radius: 3\n";
-    qml += ind + QString("            width: (parent.width * (%1 - %2)) / (%3 - %2)\n")
-        .arg(m_value).arg(m_minimum).arg(m_maximum);
-    qml += ind + QString("            color: \"%1\"\n").arg(m_fillColor.name());
-    qml += ind + "        }\n";
-    qml += ind + "    }\n";
-    qml += ind + "    Rectangle {\n";
-    qml += ind + "        width: 14; height: 14; radius: 7\n";
-    qml += ind + QString("        x: 10 + ((parent.width - 20) * (%1 - %2)) / (%3 - %2) - 7\n")
-        .arg(m_value).arg(m_minimum).arg(m_maximum);
-    qml += ind + "        anchors.verticalCenter: parent.verticalCenter\n";
-    qml += ind + QString("        color: \"%1\"\n").arg(m_handleColor.name());
-    qml += ind + QString("        border.color: \"%1\"; border.width: 1\n").arg(m_fillColor.name());
-    qml += ind + "    }\n";
-    qml += ind + "}\n";
+    qml += QString("%1Slider {\n").arg(indent);
+    qml += QString("%1    id: %2\n").arg(indent, m_id);
+    qml += QString("%1    x: %2\n").arg(indent).arg(static_cast<int>(pos().x()));
+    qml += QString("%1    y: %2\n").arg(indent).arg(static_cast<int>(pos().y()));
+    qml += QString("%1    width: %2\n").arg(indent).arg(static_cast<int>(m_width));
+    qml += QString("%1    height: %2\n").arg(indent).arg(static_cast<int>(m_height));
+    qml += QString("%1    from: %2\n").arg(indent).arg(m_minimum);
+    qml += QString("%1    to: %2\n").arg(indent).arg(m_maximum);
+    qml += QString("%1    value: %2\n").arg(indent).arg(m_value);
+    qml += QString("%1}\n").arg(indent);
     return qml;
 }
 
 QString SliderComponent::toUgfxSnippet(int indentSpaces) const {
-    QString ind(indentSpaces, ' ');
+    QString indent(indentSpaces, ' ');
     QString code;
-    code += ind + QString("// Slider: %1\n").arg(m_id);
-    code += ind + "gwinWidgetClearInit(&wi);\n";
-    code += ind + "wi.g.show = gTrue;\n";
-    code += ind + QString("wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(compX())).arg(static_cast<int>(compY()));
-    code += ind + QString("wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(m_width)).arg(static_cast<int>(m_height));
-    code += ind + QString("ghSlider_%1 = gwinSliderCreate(0, &wi);\n").arg(m_id);
-    code += ind + QString("gwinSliderSetRange(ghSlider_%1, %2, %3);\n").arg(m_id).arg(m_minimum).arg(m_maximum);
-    code += ind + QString("gwinSliderSetPosition(ghSlider_%1, %2);\n").arg(m_id).arg(m_value);
+    code += QString("%1// Slider: %2\n").arg(indent, m_id);
+    code += QString("%1wi.g.x = %2; wi.g.y = %3;\n").arg(indent).arg(static_cast<int>(pos().x())).arg(static_cast<int>(pos().y()));
+    code += QString("%1wi.g.width = %2; wi.g.height = %3;\n").arg(indent).arg(static_cast<int>(m_width)).arg(static_cast<int>(m_height));
+    code += QString("%1wi.text = \"\";\n").arg(indent);
+    code += QString("%1GHandle slider_%2 = gwinSliderCreate(NULL, &wi);\n").arg(indent, m_id);
+    code += QString("%1gwinSliderSetRange(slider_%2, %3, %4);\n").arg(indent, m_id).arg(m_minimum).arg(m_maximum);
+    code += QString("%1gwinSliderSetPosition(slider_%2, %3);\n").arg(indent, m_id).arg(m_value);
+    code += QString("%1gwinSetVisible(slider_%2, gTrue);\n").arg(indent, m_id);
     return code;
 }

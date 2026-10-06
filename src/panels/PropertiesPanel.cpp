@@ -152,6 +152,20 @@ void PropertiesPanel::setupUi() {
     );
     headerLayout->addWidget(m_typeBadge);
     headerLayout->addWidget(m_idEdit, 1);
+
+    m_chkVisible = new QCheckBox("Visible", m_contentWidget);
+    m_chkVisible->setChecked(true);
+    m_chkVisible->setToolTip("Toggle component visibility on the canvas");
+    m_chkVisible->setStyleSheet("QCheckBox { color: #8fa0b8; font-size: 11px; margin-left: 6px; } QCheckBox::indicator { width: 14px; height: 14px; }");
+    headerLayout->addWidget(m_chkVisible);
+
+    connect(m_chkVisible, &QCheckBox::toggled, this, [this](bool v) {
+        if (m_targetComponent && !m_updatingFromComponent) {
+            m_targetComponent->setComponentVisible(v);
+            commitPropertyChange("Toggle Visibility");
+        }
+    });
+
     mainLayout->addWidget(m_headerWidget);
 
     connect(m_idEdit, &QLineEdit::textChanged, this, &PropertiesPanel::onIdChanged);
@@ -427,7 +441,7 @@ void PropertiesPanel::setupUi() {
     spiVLayout->addLayout(spiGrid);
     protoLayout->addWidget(m_spiWidget);
 
-    // 6. I2C (SCL, SDA, Device Address - UI/config only)
+    // 6. I2C (SCL, SDA, Device Address, Live Bus Scan & Multi-sensor Assignment)
     m_i2cWidget = new QWidget(m_protocolGroup);
     m_i2cWidget->setVisible(false);
     QVBoxLayout* i2cVLayout = new QVBoxLayout(m_i2cWidget);
@@ -435,13 +449,13 @@ void PropertiesPanel::setupUi() {
     i2cVLayout->setSpacing(6);
 
     QLabel* i2cNotice = new QLabel(
-        "⚠ Configuration Only (Firmware export)\n"
-        "Live OpenOCD polling disabled (unreliable over JTAG/SWD latency)",
+        "I2C Multi-Device Bus\n"
+        "Probes addresses 0x08-0x77. Detected devices are best-effort over debug probe.",
         m_i2cWidget);
     i2cNotice->setWordWrap(true);
     i2cNotice->setStyleSheet(
-        "color: #fbbf24; background-color: rgba(245, 158, 11, 0.12); "
-        "border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; "
+        "color: #38bdf8; background-color: rgba(56, 189, 248, 0.12); "
+        "border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; "
         "padding: 5px 8px; font-size: 10px; font-weight: bold; line-height: 1.3;"
     );
     i2cVLayout->addWidget(i2cNotice);
@@ -467,6 +481,63 @@ void PropertiesPanel::setupUi() {
     );
     i2cGrid->addWidget(m_editI2cAddress, 2, 1);
     i2cVLayout->addLayout(i2cGrid);
+
+    // I2C Bus Scan Button & Best-effort status (Task C)
+    m_btnScanI2c = new QPushButton("Scan I2C Bus (0x08-0x77)", m_i2cWidget);
+    m_btnScanI2c->setObjectName("btnScanI2c");
+    m_btnScanI2c->setStyleSheet(
+        "QPushButton { background: #0284c7; color: white; font-weight: bold; font-size: 11px; "
+        "border-radius: 4px; padding: 5px; } QPushButton:hover { background: #0369a1; }"
+    );
+    connect(m_btnScanI2c, &QPushButton::clicked, this, &PropertiesPanel::onScanI2cBusClicked);
+    i2cVLayout->addWidget(m_btnScanI2c);
+
+    m_lblI2cScanStatus = new QLabel("Click 'Scan I2C Bus' to detect devices on SCL/SDA", m_i2cWidget);
+    m_lblI2cScanStatus->setObjectName("lblI2cScanStatus");
+    m_lblI2cScanStatus->setWordWrap(true);
+    m_lblI2cScanStatus->setStyleSheet("color: #94a3b8; font-size: 10px; font-style: italic; padding: 2px 4px;");
+    i2cVLayout->addWidget(m_lblI2cScanStatus);
+
+    // Multi-sensor naming and assignment
+    QGroupBox* multiSensorGroup = new QGroupBox("Multi-Sensor Address Binding", m_i2cWidget);
+    multiSensorGroup->setStyleSheet(
+        "QGroupBox { font-size: 11px; font-weight: bold; color: #cbd5e1; border: 1px solid #334155; "
+        "border-radius: 4px; margin-top: 6px; padding-top: 8px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }"
+    );
+    QVBoxLayout* sensorLayout = new QVBoxLayout(multiSensorGroup);
+    sensorLayout->setSpacing(4);
+
+    QHBoxLayout* assignRow1 = new QHBoxLayout();
+    assignRow1->addWidget(makeFieldLabel("Detected:", multiSensorGroup));
+    m_comboDetectedI2cDevices = new QComboBox(multiSensorGroup);
+    m_comboDetectedI2cDevices->setObjectName("comboDetectedI2cDevices");
+    m_comboDetectedI2cDevices->setStyleSheet("QComboBox { background: #1e293b; color: #38bdf8; font-family: monospace; font-size: 11px; }");
+    m_comboDetectedI2cDevices->addItem("0x48 (Detected)", "0x48");
+    m_comboDetectedI2cDevices->addItem("0x76 (Detected)", "0x76");
+    assignRow1->addWidget(m_comboDetectedI2cDevices, 1);
+    sensorLayout->addLayout(assignRow1);
+
+    QHBoxLayout* assignRow2 = new QHBoxLayout();
+    assignRow2->addWidget(makeFieldLabel("Name:", multiSensorGroup));
+    m_editI2cSensorName = new QLineEdit(multiSensorGroup);
+    m_editI2cSensorName->setObjectName("editI2cSensorName");
+    m_editI2cSensorName->setPlaceholderText("e.g. BME280 / TMP102");
+    m_editI2cSensorName->setStyleSheet("QLineEdit { background: #16181F; color: #FFFFFF; font-size: 11px; border: 1px solid #2F3543; border-radius: 4px; padding: 3px 6px; }");
+    assignRow2->addWidget(m_editI2cSensorName, 1);
+
+    m_btnAssignSensorName = new QPushButton("Assign & Bind", multiSensorGroup);
+    m_btnAssignSensorName->setObjectName("btnAssignSensorName");
+    m_btnAssignSensorName->setStyleSheet("QPushButton { background: #334155; color: #38bdf8; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 4px 8px; } QPushButton:hover { background: #475569; }");
+    connect(m_btnAssignSensorName, &QPushButton::clicked, this, &PropertiesPanel::onAssignSensorNameClicked);
+    assignRow2->addWidget(m_btnAssignSensorName);
+    sensorLayout->addLayout(assignRow2);
+
+    QLabel* multiNote = new QLabel("Note: Multiple named sensors share the physical SCL/SDA bus, distinguished by address.", multiSensorGroup);
+    multiNote->setWordWrap(true);
+    multiNote->setStyleSheet("color: #64748b; font-size: 9px; font-style: italic;");
+    sensorLayout->addWidget(multiNote);
+
+    i2cVLayout->addWidget(multiSensorGroup);
     protoLayout->addWidget(m_i2cWidget);
 
     mainLayout->addWidget(m_protocolGroup);
@@ -597,10 +668,17 @@ void PropertiesPanel::refreshValues() {
     m_spinW->setValue(static_cast<int>(m_targetComponent->compWidth()));
     m_spinH->setValue(static_cast<int>(m_targetComponent->compHeight()));
 
+    if (m_chkVisible) m_chkVisible->setChecked(m_targetComponent->isComponentVisible());
+
     if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(btn->text());
-        if (m_colorBtn1) updateColorButton(m_colorBtn1, btn->backgroundColor());
-        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->textColor());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, btn->textColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->backgroundColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, btn->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(btn->borderWidth());
+        if (m_spinPixelSize) m_spinPixelSize->setValue(btn->pixelSize());
+        if (m_chkBold) m_chkBold->setChecked(btn->bold());
+        if (m_chkEnabled) m_chkEnabled->setChecked(btn->isEnabled());
         if (m_spinRadius) {
             int maxR = static_cast<int>(std::floor(std::min(btn->compWidth(), btn->compHeight()) / 2.0));
             m_spinRadius->setMaximum(std::max(50, maxR));
@@ -610,6 +688,7 @@ void PropertiesPanel::refreshValues() {
     } else if (auto lbl = dynamic_cast<LabelComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(lbl->text());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, lbl->color());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, lbl->backgroundColor());
         if (m_spinPixelSize) m_spinPixelSize->setValue(lbl->pixelSize());
         if (m_chkBold) m_chkBold->setChecked(lbl->bold());
         if (m_chkItalic) m_chkItalic->setChecked(lbl->italic());
@@ -633,9 +712,17 @@ void PropertiesPanel::refreshValues() {
             m_spinRadius->setValue(rect->cornerRadius());
         }
     } else if (auto prog = dynamic_cast<ProgressBarComponent*>(m_targetComponent)) {
-        if (m_spinProgressValue) m_spinProgressValue->setValue(prog->value());
+        if (m_spinProgressMin) m_spinProgressMin->setValue(prog->minimum());
+        if (m_spinProgressMax) m_spinProgressMax->setValue(prog->maximum());
+        if (m_spinProgressValue) {
+            m_spinProgressValue->setRange(prog->minimum(), prog->maximum());
+            m_spinProgressValue->setValue(prog->actualValue());
+        }
+        if (m_comboProgressOrientation) m_comboProgressOrientation->setCurrentText(prog->orientation());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, prog->barColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, prog->trackColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, prog->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(prog->borderWidth());
         if (m_spinRadius) {
             int maxR = static_cast<int>(std::floor(std::min(prog->compWidth(), prog->compHeight()) / 2.0));
             m_spinRadius->setMaximum(std::max(50, maxR));
@@ -644,18 +731,27 @@ void PropertiesPanel::refreshValues() {
     } else if (auto img = dynamic_cast<ImageComponent*>(m_targetComponent)) {
         if (m_imagePathEdit) m_imagePathEdit->setText(img->imagePath());
         if (m_comboImageFormat) m_comboImageFormat->setCurrentText(img->format());
+        if (m_spinOpacity) m_spinOpacity->setValue(img->opacityPercent());
+        if (m_comboScalingMode) m_comboScalingMode->setCurrentText(img->scalingMode());
     } else if (auto slider = dynamic_cast<SliderComponent*>(m_targetComponent)) {
         if (m_spinSliderVal) m_spinSliderVal->setValue(slider->value());
         if (m_spinSliderMin) m_spinSliderMin->setValue(slider->minimum());
         if (m_spinSliderMax) m_spinSliderMax->setValue(slider->maximum());
+        if (m_comboProgressOrientation) m_comboProgressOrientation->setCurrentText(slider->orientation());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, slider->trackColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, slider->fillColor());
         if (m_colorBtn3) updateColorButton(m_colorBtn3, slider->handleColor());
+        if (m_colorBtn4) updateColorButton(m_colorBtn4, slider->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(slider->borderWidth());
+        if (m_spinRadius) m_spinRadius->setValue(slider->cornerRadius());
     } else if (auto sw = dynamic_cast<SwitchComponent*>(m_targetComponent)) {
         if (m_chkState) m_chkState->setChecked(sw->isChecked());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, sw->onColor());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, sw->offColor());
         if (m_colorBtn3) updateColorButton(m_colorBtn3, sw->thumbColor());
+        if (m_colorBtn4) updateColorButton(m_colorBtn4, sw->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(sw->borderWidth());
+        if (m_spinRadius) m_spinRadius->setValue(sw->cornerRadius());
         if (m_handlerEdit) m_handlerEdit->setText(sw->onToggledHandler());
     } else if (auto chk = dynamic_cast<CheckboxComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(chk->text());
@@ -664,6 +760,8 @@ void PropertiesPanel::refreshValues() {
         if (m_colorBtn2) updateColorButton(m_colorBtn2, chk->checkColor());
         if (m_colorBtn3) updateColorButton(m_colorBtn3, chk->boxColor());
         if (m_colorBtn4) updateColorButton(m_colorBtn4, chk->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(chk->borderWidth());
+        if (m_spinPixelSize) m_spinPixelSize->setValue(chk->pixelSize());
         if (m_handlerEdit) m_handlerEdit->setText(chk->onToggledHandler());
     } else if (auto txt = dynamic_cast<TextInputComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(txt->text());
@@ -731,6 +829,11 @@ void PropertiesPanel::refreshValues() {
                 bool b = m_editI2cAddress->blockSignals(true);
                 m_editI2cAddress->setText(m_targetComponent->protocolPin("address", "0x48"));
                 m_editI2cAddress->blockSignals(b);
+            }
+            if (m_editI2cSensorName) {
+                bool b = m_editI2cSensorName->blockSignals(true);
+                m_editI2cSensorName->setText(m_targetComponent->protocolPin("sensor_name", ""));
+                m_editI2cSensorName->blockSignals(b);
             }
         }
     }
@@ -811,6 +914,11 @@ void PropertiesPanel::rebuildSpecificEditors() {
     m_btnAlignLeft = nullptr;
     m_btnAlignCenter = nullptr;
     m_btnAlignRight = nullptr;
+    m_spinProgressMin = nullptr;
+    m_spinProgressMax = nullptr;
+    m_comboProgressOrientation = nullptr;
+    m_comboScalingMode = nullptr;
+    m_chkEnabled = nullptr;
 
     if (!m_targetComponent) return;
 
@@ -948,6 +1056,18 @@ void PropertiesPanel::rebuildSpecificEditors() {
 
         m_colorBtn1 = addColorRow("Background:", "backgroundColor", btn->backgroundColor(), [btn](const QColor& c) { btn->setBackgroundColor(c); }, "Change Background Color");
         m_colorBtn2 = addColorRow("Text Color:", "textColor", btn->textColor(), [btn](const QColor& c) { btn->setTextColor(c); }, "Change Text Color");
+        m_colorBtn3 = addColorRow("Border Color:", "borderColor", btn->borderColor(), [btn](const QColor& c) { btn->setBorderColor(c); }, "Change Border Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(btn->borderWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, btn](int v) {
+            if (!m_updatingFromComponent) btn->setBorderWidth(v);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Border Width");
+        });
+        form->addRow("Border Width:", m_spinStrokeW);
 
         m_spinRadius = new QSpinBox(m_specificContainer);
         int maxR = static_cast<int>(std::floor(std::min(btn->compWidth(), btn->compHeight()) / 2.0));
@@ -960,6 +1080,49 @@ void PropertiesPanel::rebuildSpecificEditors() {
             commitPropertyChange("Change Corner Radius");
         });
         form->addRow("Corner Radius:", m_spinRadius);
+
+        QComboBox* btnFontCombo = new QComboBox(m_specificContainer);
+        for (const QString& f : LabelComponent::availableFonts())
+            btnFontCombo->addItem(f);
+        btnFontCombo->setCurrentText(btn->fontFamily());
+        connect(btnFontCombo, &QComboBox::currentTextChanged, this, [this, btn](const QString& fam) {
+            if (!m_updatingFromComponent) {
+                btn->setFontFamily(fam);
+                commitPropertyChange("Change Font Family");
+            }
+        });
+        form->addRow("Font Family:", btnFontCombo);
+
+        m_spinPixelSize = new QSpinBox(m_specificContainer);
+        m_spinPixelSize->setRange(6, 96);
+        m_spinPixelSize->setValue(btn->pixelSize());
+        connect(m_spinPixelSize, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, btn](int v) {
+            if (!m_updatingFromComponent) btn->setPixelSize(v);
+        });
+        connect(m_spinPixelSize, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Font Size");
+        });
+        form->addRow("Font Size:", m_spinPixelSize);
+
+        m_chkBold = new QCheckBox("Bold", m_specificContainer);
+        m_chkBold->setChecked(btn->bold());
+        connect(m_chkBold, &QCheckBox::toggled, this, [this, btn](bool b) {
+            if (!m_updatingFromComponent) {
+                btn->setBold(b);
+                commitPropertyChange("Toggle Bold");
+            }
+        });
+        form->addRow("Font Weight:", m_chkBold);
+
+        m_chkEnabled = new QCheckBox("Enabled", m_specificContainer);
+        m_chkEnabled->setChecked(btn->isEnabled());
+        connect(m_chkEnabled, &QCheckBox::toggled, this, [this, btn](bool en) {
+            if (!m_updatingFromComponent) {
+                btn->setEnabled(en);
+                commitPropertyChange("Toggle Enabled");
+            }
+        });
+        form->addRow("State:", m_chkEnabled);
 
         m_handlerEdit = new QLineEdit(btn->onClickedHandler(), m_specificContainer);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, btn](const QString& h) {
@@ -981,6 +1144,18 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("Text:", m_textEdit);
 
         m_colorBtn1 = addColorRow("Color:", "color", lbl->color(), [lbl](const QColor& c) { lbl->setColor(c); }, "Change Label Color");
+        m_colorBtn2 = addColorRow("Background:", "backgroundColor", lbl->backgroundColor(), [lbl](const QColor& c) { lbl->setBackgroundColor(c); }, "Change Background Color");
+
+        m_spinRadius = new QSpinBox(m_specificContainer);
+        m_spinRadius->setRange(0, 50);
+        m_spinRadius->setValue(lbl->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, lbl](int v) {
+            if (!m_updatingFromComponent) lbl->setCornerRadius(v);
+        });
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
+        });
+        form->addRow("Corner Radius:", m_spinRadius);
 
         m_spinPixelSize = new QSpinBox(m_specificContainer);
         m_spinPixelSize->setRange(6, 96);
@@ -1086,7 +1261,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         alignLayout->addStretch(1);
         form->addRow("Alignment:", alignLayout);
 
-        // ── Task 5: Font family dropdown ──────────────────────────────────
+        // Font family dropdown
         QComboBox* fontCombo = new QComboBox(m_specificContainer);
         fontCombo->setStyleSheet(
             "QComboBox { background:#1c1f26; color:#e4ecf7; border:1px solid #2b2f38; "
@@ -1105,7 +1280,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Font Family:", fontCombo);
 
-        // ── Task 5: Letter Spacing ────────────────────────────────────────
+        // Letter Spacing
         QDoubleSpinBox* spinLetterSp = new QDoubleSpinBox(m_specificContainer);
         spinLetterSp->setRange(-5.0, 20.0);
         spinLetterSp->setSingleStep(0.5);
@@ -1121,7 +1296,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Letter Spacing:", spinLetterSp);
 
-        // ── Task 5: Line Height ───────────────────────────────────────────
+        // Line Height
         QSpinBox* spinLineH = new QSpinBox(m_specificContainer);
         spinLineH->setRange(0, 400);
         spinLineH->setSuffix(" %");
@@ -1164,24 +1339,75 @@ void PropertiesPanel::rebuildSpecificEditors() {
         form->addRow("Corner Radius:", m_spinRadius);
 
     } else if (auto prog = dynamic_cast<ProgressBarComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(-100000.0, 100000.0);
+        m_spinProgressMin->setValue(prog->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, prog](double v) {
+            if (!m_updatingFromComponent) {
+                prog->setMinimum(v);
+                if (m_spinProgressValue) m_spinProgressValue->setMinimum(v);
+            }
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Progress Minimum");
+        });
+        form->addRow("Minimum:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(-100000.0, 100000.0);
+        m_spinProgressMax->setValue(prog->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, prog](double v) {
+            if (!m_updatingFromComponent) {
+                prog->setMaximum(v);
+                if (m_spinProgressValue) m_spinProgressValue->setMaximum(v);
+            }
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Progress Maximum");
+        });
+        form->addRow("Maximum:", m_spinProgressMax);
+
         m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
-        m_spinProgressValue->setRange(0.0, 1.0);
-        m_spinProgressValue->setSingleStep(0.05);
-        m_spinProgressValue->setValue(prog->value());
+        m_spinProgressValue->setRange(prog->minimum(), prog->maximum());
+        m_spinProgressValue->setValue(prog->actualValue());
         connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, prog](double v) {
-            if (!m_updatingFromComponent) prog->setValue(v);
+            if (!m_updatingFromComponent) prog->setActualValue(v);
         });
         connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() {
             commitPropertyChange("Change Progress Value");
         });
-        form->addRow("Progress (0-1):", m_spinProgressValue);
+        form->addRow("Value:", m_spinProgressValue);
+
+        m_comboProgressOrientation = new QComboBox(m_specificContainer);
+        m_comboProgressOrientation->addItem("Horizontal");
+        m_comboProgressOrientation->addItem("Vertical");
+        m_comboProgressOrientation->setCurrentText(prog->orientation());
+        connect(m_comboProgressOrientation, &QComboBox::currentTextChanged, this, [this, prog](const QString& o) {
+            if (!m_updatingFromComponent) {
+                prog->setOrientation(o);
+                commitPropertyChange("Change Progress Orientation");
+            }
+        });
+        form->addRow("Orientation:", m_comboProgressOrientation);
 
         m_colorBtn1 = addColorRow("Bar Color:", "barColor", prog->barColor(), [prog](const QColor& c) { prog->setBarColor(c); }, "Change Bar Color");
         m_colorBtn2 = addColorRow("Track Color:", "trackColor", prog->trackColor(), [prog](const QColor& c) { prog->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn3 = addColorRow("Border Color:", "borderColor", prog->borderColor(), [prog](const QColor& c) { prog->setBorderColor(c); }, "Change Border Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(prog->borderWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, prog](int v) {
+            if (!m_updatingFromComponent) prog->setBorderWidth(v);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Border Width");
+        });
+        form->addRow("Border Width:", m_spinStrokeW);
 
         m_spinRadius = new QSpinBox(m_specificContainer);
         int progMaxR = static_cast<int>(std::floor(std::min(prog->compWidth(), prog->compHeight()) / 2.0));
-        m_spinRadius->setRange(0, std::max(20, progMaxR));
+        m_spinRadius->setRange(0, std::max(50, progMaxR));
         m_spinRadius->setValue(prog->cornerRadius());
         connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, prog](int v) {
             if (!m_updatingFromComponent) prog->setCornerRadius(v);
@@ -1227,6 +1453,31 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Color Format:", m_comboImageFormat);
 
+        m_spinOpacity = new QSpinBox(m_specificContainer);
+        m_spinOpacity->setRange(0, 100);
+        m_spinOpacity->setSuffix("%");
+        m_spinOpacity->setValue(img->opacityPercent());
+        connect(m_spinOpacity, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, img](int v) {
+            if (!m_updatingFromComponent) img->setOpacityPercent(v);
+        });
+        connect(m_spinOpacity, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Image Opacity");
+        });
+        form->addRow("Opacity:", m_spinOpacity);
+
+        m_comboScalingMode = new QComboBox(m_specificContainer);
+        m_comboScalingMode->addItem("KeepAspectRatio");
+        m_comboScalingMode->addItem("Stretch");
+        m_comboScalingMode->addItem("Center");
+        m_comboScalingMode->setCurrentText(img->scalingMode());
+        connect(m_comboScalingMode, &QComboBox::currentTextChanged, this, [this, img](const QString& sm) {
+            if (!m_updatingFromComponent) {
+                img->setScalingMode(sm);
+                commitPropertyChange("Change Scaling Mode");
+            }
+        });
+        form->addRow("Scaling Mode:", m_comboScalingMode);
+
     } else if (auto slider = dynamic_cast<SliderComponent*>(m_targetComponent)) {
         m_spinSliderVal = new QSpinBox(m_specificContainer);
         m_spinSliderVal->setRange(slider->minimum(), slider->maximum());
@@ -1261,9 +1512,44 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Maximum:", m_spinSliderMax);
 
+        QComboBox* sliderOrientCombo = new QComboBox(m_specificContainer);
+        sliderOrientCombo->addItem("Horizontal");
+        sliderOrientCombo->addItem("Vertical");
+        sliderOrientCombo->setCurrentText(slider->orientation());
+        connect(sliderOrientCombo, &QComboBox::currentTextChanged, this, [this, slider](const QString& o) {
+            if (!m_updatingFromComponent) {
+                slider->setOrientation(o);
+                commitPropertyChange("Change Slider Orientation");
+            }
+        });
+        form->addRow("Orientation:", sliderOrientCombo);
+
         m_colorBtn1 = addColorRow("Track Color:", "trackColor", slider->trackColor(), [slider](const QColor& c) { slider->setTrackColor(c); }, "Change Track Color");
         m_colorBtn2 = addColorRow("Fill Color:", "fillColor", slider->fillColor(), [slider](const QColor& c) { slider->setFillColor(c); }, "Change Fill Color");
         m_colorBtn3 = addColorRow("Handle Color:", "handleColor", slider->handleColor(), [slider](const QColor& c) { slider->setHandleColor(c); }, "Change Handle Color");
+        m_colorBtn4 = addColorRow("Border Color:", "borderColor", slider->borderColor(), [slider](const QColor& c) { slider->setBorderColor(c); }, "Change Border Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(slider->borderWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+            if (!m_updatingFromComponent) slider->setBorderWidth(v);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Border Width");
+        });
+        form->addRow("Border Width:", m_spinStrokeW);
+
+        m_spinRadius = new QSpinBox(m_specificContainer);
+        m_spinRadius->setRange(0, 50);
+        m_spinRadius->setValue(slider->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, slider](int v) {
+            if (!m_updatingFromComponent) slider->setCornerRadius(v);
+        });
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
+        });
+        form->addRow("Corner Radius:", m_spinRadius);
 
     } else if (auto sw = dynamic_cast<SwitchComponent*>(m_targetComponent)) {
         m_chkState = new QCheckBox("Checked", m_specificContainer);
@@ -1279,6 +1565,29 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn1 = addColorRow("On Color:", "onColor", sw->onColor(), [sw](const QColor& c) { sw->setOnColor(c); }, "Change On Color");
         m_colorBtn2 = addColorRow("Off Color:", "offColor", sw->offColor(), [sw](const QColor& c) { sw->setOffColor(c); }, "Change Off Color");
         m_colorBtn3 = addColorRow("Thumb Color:", "thumbColor", sw->thumbColor(), [sw](const QColor& c) { sw->setThumbColor(c); }, "Change Thumb Color");
+        m_colorBtn4 = addColorRow("Border Color:", "borderColor", sw->borderColor(), [sw](const QColor& c) { sw->setBorderColor(c); }, "Change Border Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 20);
+        m_spinStrokeW->setValue(sw->borderWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, sw](int v) {
+            if (!m_updatingFromComponent) sw->setBorderWidth(v);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Border Width");
+        });
+        form->addRow("Border Width:", m_spinStrokeW);
+
+        m_spinRadius = new QSpinBox(m_specificContainer);
+        m_spinRadius->setRange(0, 50);
+        m_spinRadius->setValue(sw->cornerRadius());
+        connect(m_spinRadius, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, sw](int v) {
+            if (!m_updatingFromComponent) sw->setCornerRadius(v);
+        });
+        connect(m_spinRadius, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Corner Radius");
+        });
+        form->addRow("Corner Radius:", m_spinRadius);
 
         m_handlerEdit = new QLineEdit(sw->onToggledHandler(), m_specificContainer);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, sw](const QString& h) {
@@ -1313,6 +1622,40 @@ void PropertiesPanel::rebuildSpecificEditors() {
         m_colorBtn2 = addColorRow("Check Color:", "checkColor", chk->checkColor(), [chk](const QColor& c) { chk->setCheckColor(c); }, "Change Check Color");
         m_colorBtn3 = addColorRow("Box Color:", "boxColor", chk->boxColor(), [chk](const QColor& c) { chk->setBoxColor(c); }, "Change Box Color");
         m_colorBtn4 = addColorRow("Border Color:", "borderColor", chk->borderColor(), [chk](const QColor& c) { chk->setBorderColor(c); }, "Change Border Color");
+
+        m_spinStrokeW = new QSpinBox(m_specificContainer);
+        m_spinStrokeW->setRange(0, 10);
+        m_spinStrokeW->setValue(chk->borderWidth());
+        connect(m_spinStrokeW, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, chk](int v) {
+            if (!m_updatingFromComponent) chk->setBorderWidth(v);
+        });
+        connect(m_spinStrokeW, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Border Width");
+        });
+        form->addRow("Border Width:", m_spinStrokeW);
+
+        QComboBox* chkFontCombo = new QComboBox(m_specificContainer);
+        for (const QString& f : LabelComponent::availableFonts())
+            chkFontCombo->addItem(f);
+        chkFontCombo->setCurrentText(chk->fontFamily());
+        connect(chkFontCombo, &QComboBox::currentTextChanged, this, [this, chk](const QString& fam) {
+            if (!m_updatingFromComponent) {
+                chk->setFontFamily(fam);
+                commitPropertyChange("Change Font Family");
+            }
+        });
+        form->addRow("Font Family:", chkFontCombo);
+
+        m_spinPixelSize = new QSpinBox(m_specificContainer);
+        m_spinPixelSize->setRange(6, 96);
+        m_spinPixelSize->setValue(chk->pixelSize());
+        connect(m_spinPixelSize, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, chk](int v) {
+            if (!m_updatingFromComponent) chk->setPixelSize(v);
+        });
+        connect(m_spinPixelSize, &QSpinBox::editingFinished, this, [this]() {
+            commitPropertyChange("Change Font Size");
+        });
+        form->addRow("Font Size:", m_spinPixelSize);
 
         m_handlerEdit = new QLineEdit(chk->onToggledHandler(), m_specificContainer);
         connect(m_handlerEdit, &QLineEdit::textChanged, this, [this, chk](const QString& h) {
@@ -1369,6 +1712,18 @@ void PropertiesPanel::rebuildSpecificEditors() {
         });
         form->addRow("Corner Radius:", m_spinRadius);
 
+        QComboBox* txtFontCombo = new QComboBox(m_specificContainer);
+        for (const QString& f : LabelComponent::availableFonts())
+            txtFontCombo->addItem(f);
+        txtFontCombo->setCurrentText(txt->fontFamily());
+        connect(txtFontCombo, &QComboBox::currentTextChanged, this, [this, txt](const QString& fam) {
+            if (!m_updatingFromComponent) {
+                txt->setFontFamily(fam);
+                commitPropertyChange("Change Font Family");
+            }
+        });
+        form->addRow("Font Family:", txtFontCombo);
+
         m_spinPixelSize = new QSpinBox(m_specificContainer);
         m_spinPixelSize->setRange(6, 96);
         m_spinPixelSize->setValue(txt->pixelSize());
@@ -1423,6 +1778,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
             }
         });
         form->addRow("Fill:", m_chkFilled);
+
     } else if (auto path = dynamic_cast<PathComponent*>(m_targetComponent)) {
         m_colorBtn1 = addColorRow("Stroke Color:", "strokeColor", path->strokeColor(), [path](const QColor& color) { path->setStrokeColor(color); }, "Change Path Stroke Color");
 
@@ -1643,5 +1999,61 @@ void PropertiesPanel::onProtocolPinChanged() {
     }
 
     commitPropertyChange("Change Protocol Pin Mapping");
+}
+
+void PropertiesPanel::onScanI2cBusClicked() {
+    if (!m_lblI2cScanStatus || !m_comboDetectedI2cDevices) return;
+
+    QString sclPin = m_comboI2cScl ? m_comboI2cScl->currentText() : "PB8";
+    QString sdaPin = m_comboI2cSda ? m_comboI2cSda->currentText() : "PB9";
+
+    QList<quint8> addresses;
+    QString logMsg;
+    bool ok = HardwareBridge::instance().scanI2cBus(sclPin, sdaPin, &addresses, &logMsg);
+
+    if (ok) {
+        m_comboDetectedI2cDevices->clear();
+        QStringList hexList;
+        for (quint8 addr : addresses) {
+            QString hexStr = QString("0x%1").arg(QString::number(addr, 16).toUpper().rightJustified(2, '0'));
+            hexList.append(hexStr);
+            m_comboDetectedI2cDevices->addItem(QString("%1 (ACK - detected)").arg(hexStr), hexStr);
+        }
+
+        m_lblI2cScanStatus->setText(QString("Detected (best-effort): %1")
+            .arg(hexList.isEmpty() ? "None" : hexList.join(", ")));
+        m_lblI2cScanStatus->setStyleSheet(
+            "color: #4ade80; background-color: rgba(74, 222, 128, 0.12); "
+            "border: 1px solid rgba(74, 222, 128, 0.35); border-radius: 4px; "
+            "padding: 4px 8px; font-size: 10px; font-weight: bold;"
+        );
+    } else {
+        m_lblI2cScanStatus->setText("Scan failed: Probe or bus error.");
+    }
+}
+
+void PropertiesPanel::onAssignSensorNameClicked() {
+    if (!m_targetComponent || !m_comboDetectedI2cDevices || !m_editI2cSensorName) return;
+
+    QString chosenAddr = m_comboDetectedI2cDevices->currentData().toString();
+    if (chosenAddr.isEmpty()) {
+        chosenAddr = m_comboDetectedI2cDevices->currentText();
+    }
+    QString sensorName = m_editI2cSensorName->text().trimmed();
+
+    if (!chosenAddr.isEmpty()) {
+        m_targetComponent->setProtocolPin("address", chosenAddr);
+        if (m_editI2cAddress) {
+            bool b = m_editI2cAddress->blockSignals(true);
+            m_editI2cAddress->setText(chosenAddr);
+            m_editI2cAddress->blockSignals(b);
+        }
+    }
+
+    if (!sensorName.isEmpty()) {
+        m_targetComponent->setProtocolPin("sensor_name", sensorName);
+    }
+
+    commitPropertyChange(QString("Assign I2C %1 -> %2").arg(chosenAddr, sensorName.isEmpty() ? "Device" : sensorName));
 }
 

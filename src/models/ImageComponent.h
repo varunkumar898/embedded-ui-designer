@@ -15,6 +15,12 @@ public:
     QString format() const { return m_format; }
     void setFormat(const QString& format); // "RGB565" or "Monochrome"
 
+    int opacityPercent() const { return m_opacityPercent; }
+    void setOpacityPercent(int op);
+
+    QString scalingMode() const { return m_scalingMode; }
+    void setScalingMode(const QString& mode);
+
     QImage loadedImage() const;
 
     QJsonObject toJson() const override;
@@ -29,6 +35,8 @@ protected:
 private:
     QString m_imagePath;
     QString m_format = "RGB565";
+    int m_opacityPercent = 100;
+    QString m_scalingMode = "KeepAspectRatio";
     mutable QImage m_cachedImage;
     mutable bool m_cacheValid = false;
 };

@@ -11,19 +11,32 @@ BoardProfile BoardConfigParser::ParseResult::toBoardProfile() const {
     bp.name = boardName;
     bp.mcuFamily = mcuFamily;
 
-    // Default openocd scripts based on family
+    // Default openocd scripts and GPIO registers based on family
     if (mcuFamily.contains("STM32F4", Qt::CaseInsensitive)) {
         bp.openocdInterface = "interface/stlink.cfg";
         bp.openocdTarget = "target/stm32f4x.cfg";
+        bp.gpioBase = 0x40020000;
+        bp.bsrrOffset = 0x18;
     } else if (mcuFamily.contains("STM32H7", Qt::CaseInsensitive)) {
         bp.openocdInterface = "interface/stlink.cfg";
         bp.openocdTarget = "target/stm32h7x.cfg";
-    } else if (mcuFamily.contains("STM32F0", Qt::CaseInsensitive)) {
+        bp.gpioBase = 0x58020000;
+        bp.bsrrOffset = 0x18;
+    } else if (mcuFamily.contains("STM32F0", Qt::CaseInsensitive) || mcuFamily.contains("STM32G0", Qt::CaseInsensitive)) {
         bp.openocdInterface = "interface/stlink.cfg";
         bp.openocdTarget = "target/stm32f0x.cfg";
+        bp.gpioBase = 0x48000000;
+        bp.bsrrOffset = 0x18;
     } else if (mcuFamily.contains("ESP32", Qt::CaseInsensitive)) {
         bp.openocdInterface = "interface/esp_usb_jtag.cfg";
         bp.openocdTarget = "target/esp32.cfg";
+        bp.gpioBase = 0x3FF44000;
+        bp.bsrrOffset = 0x08;
+    } else if (mcuFamily.contains("RP2040", Qt::CaseInsensitive)) {
+        bp.openocdInterface = "interface/cmsis-dap.cfg";
+        bp.openocdTarget = "target/rp2040.cfg";
+        bp.gpioBase = 0xd0000000;
+        bp.bsrrOffset = 0x14;
     }
 
     QStringList spiPins;

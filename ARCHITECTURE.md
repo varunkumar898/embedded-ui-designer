@@ -64,13 +64,14 @@ embedded-ui-designer/
 | **Custom component library – Instance** | `src/models/CustomComponentInstance.{h,cpp}` | `UIComponent` subclass that references a `ComponentDefinition` by ID; `applyVariant()` swaps fill/stroke/accent colors; renders a rounded-rect with variant label; persists definitionId + variant name in `.euiproj` |
 | **Image-to-C-array conversion** | `src/assets/ImageAssetProcessor.{h,cpp}` | Static utility that converts a `QImage` to a packed C `uint8_t` array string (RGB565, Monochrome, or RGB888) for embedding in firmware |
 | **Code generator – abstract base** | `src/codegen/CodeGenerator.{h,cpp}` | Pure-virtual `generate(outputDir)` interface plus a `writeFile` helper; all concrete generators inherit from this |
-| **Code generator – µGFX** | `src/codegen/UgfxGenerator.{h,cpp}` | Emits a complete µGFX C project: `CMakeLists.txt`, `gfxconf.h`, `ui.h`, `ui.c`, `main.c`, `README.md` |
-| **Code generator – Qt for MCU (QUL)** | `src/codegen/QtMcuGenerator.{h,cpp}` | Emits a Qt for MCU QML project: `CMakeLists.txt`, `.qmlproject`, `Design.qml`, `README.md` |
-| **Code generator – LVGL** | `src/codegen/LvglGenerator.{h,cpp}` | Emits a full LVGL C project: `CMakeLists.txt`, `lv_conf.h`, `ui.h`, `ui.c`, `main.c`, `idf_component.yml`, `platformio.ini`, `README.md` |
+| **Code generator – µGFX** | `src/codegen/UgfxGenerator.{h,cpp}` | Emits a complete µGFX C project: `CMakeLists.txt`, `gfxconf.h`, `ui.h`, `ui.c`, `main.c`, `README.md`, and desktop simulator subfolder `pc_simulator/` (X11/Win32 driver matched to DisplayConfig) |
+| **Code generator – Qt for MCU (QUL)** | `src/codegen/QtMcuGenerator.{h,cpp}` | Emits a Qt for MCU QML project: `CMakeLists.txt`, `.qmlproject`, `Design.qml`, `README.md`, and desktop simulator subfolder `pc_simulator/` (QUL desktop platform or host Qt6 Quick fallback) |
+| **Code generator – LVGL** | `src/codegen/LvglGenerator.{h,cpp}` | Emits a full LVGL C project: `CMakeLists.txt`, `lv_conf.h`, `ui.h`, `ui.c`, `main.c`, `idf_component.yml`, `platformio.ini`, `README.md`, and desktop simulator subfolder `pc_simulator/` with SDL2 driver matching DisplayConfig |
 | **Project save / load** | `src/project/Project.{h,cpp}` | Owns project name, file path, target framework, `DisplayConfig`, component library (`QList<ComponentDefinition>`), named color styles (`QList<ColorStyle>`), and dirty flag; serializes entire scene + library + `colorStyles` array to JSON; `updateColorStyle` live-propagates; autosave and sample-project loading |
 | **QML design import** | `src/project/QmlImporter.{h,cpp}` | Imports literal-only QML designs (Rectangle, Text, Button, Image, Slider, ProgressBar) while strictly rejecting and reporting bindings, expressions, anchors, scripts, and unsupported elements |
 | **Device manager** | `src/hardware/DeviceManager.{h,cpp}` | Polls serial/COM/tty ports on a timer; exposes port list, vendor details, board-type detection, and flash-command lookup; emits connect/disconnect signals |
-| **Hardware bridge (ADC, SPI, PWM, GPIO)** | `src/hardware/HardwareBridge.{h,cpp}` | Board profiles with per-pin ADC channel, PWM timer/channel, and SPI mapping; formal ADC setup-then-poll pattern; SPI raw 8-bit master transfer; throttled live PWM writes; component binding engine with physical OpenOCD/ST-Link detection and simulation fallback |
+| **OpenOCD probe manager** | `src/hardware/OpenOcdManager.{h,cpp}` | Background daemon & probe scanner detecting ST-Link, CMSIS-DAP, J-Link, ESP32, and RP2040; manages TCP TCL/Telnet register poke and memory read/write |
+| **Hardware bridge (ADC, SPI, PWM, GPIO)** | `src/hardware/HardwareBridge.{h,cpp}` | Board profiles with per-pin ADC channel, PWM timer/channel, and SPI mapping; formal ADC setup-then-poll pattern; SPI raw 8-bit master transfer; throttled live PWM writes; atomic BSRR GPIO digital output; component binding engine with physical OpenOCD/ST-Link detection and simulation fallback |
 | **Board config parser (.ioc, sdkconfig)** | `src/hardware/BoardConfigParser.{h,cpp}` | Parser for STM32CubeMX `.ioc` files and ESP-IDF `sdkconfig` files; maps configured pins to GPIO, ADC, PWM, SPI, and I2C modes while gating unknown/system pins |
 | **Firmware flashing** | `src/hardware/FlashController.{h,cpp}` | Launches OpenOCD, ST-Link, or esptool as a `QProcess`; streams real-time console output; supports STM32, RISC-V, and ESP32 targets |
 | **Pin configuration & binding dialog** | `src/dialogs/PinBindingDialog.{h,cpp}` | Dialog for board selection, per-pin mode configuration (Digital In/Out, PWM Output, Analog In, SPI Raw Transfer (byte in/out)), unavailable mode gating, component binding, interactive ADC potentiometer simulation, and manual SPI raw send/receive panel |
@@ -78,9 +79,23 @@ embedded-ui-designer/
 | **Serial monitor dialog** | `src/dialogs/SerialMonitorDialog.{h,cpp}` | Modal dialog for opening a serial port and displaying received data |
 | **New project dialog** | `src/dialogs/NewProjectDialog.{h,cpp}` | Modal dialog to configure project name, resolution preset, and target framework before creating a new project |
 | **Undo / redo commands** | `src/commands/AddComponentCommand.{h,cpp}`<br>`src/commands/DeleteComponentCommand.{h,cpp}`<br>`src/commands/MoveComponentCommand.{h,cpp}`<br>`src/commands/ResizeComponentCommand.{h,cpp}`<br>`src/commands/PropertyChangeCommand.{h,cpp}`<br>`src/commands/AlignDistributeCommand.{h,cpp}`<br>`src/commands/BooleanPathCommand.{h,cpp}` | Seven `QUndoCommand` subclasses for reversible add, delete, move, resize, property, align/distribute, and Boolean-path operations |
+| **Component schema & introspection** | `src/models/ComponentSchema.{h,cpp}` | Machine-readable schema registry, property reflection, validation, and JSON metadata exporter for all component types |
+| **Designer controller (API)** | `src/api/DesignerController.{h,cpp}` | Application-level controller exposing canvas, component, selection, and export APIs directly dispatching via QUndoStack commands |
+| **Local control server (TCP)** | `src/api/DesignerLocalServer.{h,cpp}` | Embedded Qt TCP server (port 8765) receiving JSON-RPC commands and dispatching them to DesignerController on the main thread |
+| **MCP server (AI interface)** | `mcp/embedded_ui_mcp.py` | Stdio JSON-RPC Model Context Protocol server exposing 27 tools and 5 resources to Claude, Antigravity, and AI agents |
 | **Application shell** | `src/MainWindow.{h,cpp}` | Top-level `QMainWindow`; creates and wires all subsystems, menus, toolbars, and dock panels; dispatches File / Edit / View / Export / Hardware menu actions |
 | **Entry point** | `src/main.cpp` | Creates `QApplication` and `MainWindow`; applies global dark theme |
 | **Docker dev environment** | `Dockerfile` + `docker-compose.yml` | Ubuntu 22.04 image installing Qt 6.5.3 via `aqtinstall` with X11 forwarding so the GUI can be developed inside Docker |
+
+---
+
+## Third-Party Dependencies
+
+| Dependency | Purpose | Integration Method | Note |
+|------------|---------|-------------------|------|
+| **Qt 6** (6.5+) | Application framework (Core, Gui, Widgets, Network, Test, optional SerialPort, Quick/Qml) | System package / `find_package` | Primary GUI and canvas rendering engine |
+| **Clipper2** | Boolean 2D polygon operations (Union, Difference, Intersection, XOR) | CMake `FetchContent` | Statically linked into `EmbeddedUIDesigner` and test runners |
+| **SDL2** (Simple DirectMedia Layer 2) | Desktop windowing, event dispatch, and accelerated rendering driver for exported LVGL PC simulators | System package (`find_package` / `pkg_check_modules`) with automatic `FetchContent` fallback | Required for compiling and running the exported `pc_simulator/` target for LVGL projects |
 
 ---
 

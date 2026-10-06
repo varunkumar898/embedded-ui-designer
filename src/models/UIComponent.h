@@ -53,6 +53,9 @@ public:
     qreal compHeight() const { return m_height; }
     bool isResizing() const { return m_resizing; }
 
+    bool isComponentVisible() const { return isVisible(); }
+    void setComponentVisible(bool visible);
+
     void setCompPos(qreal x, qreal y);
     void setCompSize(qreal w, qreal h);
 

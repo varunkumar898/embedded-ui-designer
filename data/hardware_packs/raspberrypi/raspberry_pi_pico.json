@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Raspberry Pi Pico Datasheet: An RP2040-based microcontroller board (Raspberry Pi Ltd)",
+    "vendor": "Raspberry Pi",
+    "boardId": "Raspberry-Pi-Pico",
+    "version": "1.0.0"
+  },
+  "metadata": {
+    "id": "Raspberry-Pi-Pico",
+    "name": "Raspberry Pi Pico",
+    "manufacturer": "Raspberry Pi",
+    "boardFamily": "Pico",
+    "mcuPartNumber": "RP2040",
+    "architecture": "ARM Cortex-M0+",
+    "debugInterface": "3-pin ARM SWD Header",
+    "supplyVoltage": "1.8V to 5.5V (VSYS) or 5V (VBUS)"
+  },
+  "physicalPinLabels": {
+    "LED_BUILTIN": "GPIO25",
+    "GP0": "GPIO0",
+    "GP1": "GPIO1",
+    "GP2": "GPIO2",
+    "GP3": "GPIO3",
+    "GP4": "GPIO4",
+    "GP5": "GPIO5",
+    "GP6": "GPIO6",
+    "GP7": "GPIO7",
+    "GP8": "GPIO8",
+    "GP9": "GPIO9",
+    "GP10": "GPIO10",
+    "GP11": "GPIO11",
+    "GP12": "GPIO12",
+    "GP13": "GPIO13",
+    "GP14": "GPIO14",
+    "GP15": "GPIO15",
+    "GP16": "GPIO16",
+    "GP17": "GPIO17",
+    "GP18": "GPIO18",
+    "GP19": "GPIO19",
+    "GP20": "GPIO20",
+    "GP21": "GPIO21",
+    "GP22": "GPIO22",
+    "GP25": "GPIO25",
+    "GP26_A0": "GPIO26",
+    "GP27_A1": "GPIO27",
+    "GP28_A2": "GPIO28"
+  },
+  "connectors": [
+    {
+      "name": "Left Header (Pins 1-20)",
+      "pinCount": 20,
+      "pinMapping": {
+        "1": "GPIO0",
+        "2": "GPIO1",
+        "3": "GND",
+        "4": "GPIO2",
+        "5": "GPIO3",
+        "6": "GPIO4",
+        "7": "GPIO5",
+        "8": "GND",
+        "9": "GPIO6",
+        "10": "GPIO7",
+        "11": "GPIO8",
+        "12": "GPIO9",
+        "13": "GND",
+        "14": "GPIO10",
+        "15": "GPIO11",
+        "16": "GPIO12",
+        "17": "GPIO13",
+        "18": "GND",
+        "19": "GPIO14",
+        "20": "GPIO15"
+      }
+    },
+    {
+      "name": "Right Header (Pins 21-40)",
+      "pinCount": 20,
+      "pinMapping": {
+        "21": "GPIO16",
+        "22": "GPIO17",
+        "23": "GND",
+        "24": "GPIO18",
+        "25": "GPIO19",
+        "26": "GPIO20",
+        "27": "GPIO21",
+        "28": "GND",
+        "29": "GPIO22",
+        "30": "RUN",
+        "31": "GPIO26",
+        "32": "GPIO27",
+        "33": "GND",
+        "34": "GPIO28",
+        "35": "ADC_VREF",
+        "36": "3V3",
+        "37": "3V3_EN",
+        "38": "GND",
+        "39": "VSYS",
+        "40": "VBUS"
+      }
+    }
+  ],
+  "onboardPeripherals": {
+    "leds": [
+      { "name": "User LED (Green)", "pin": "GPIO25", "active": "High" }
+    ],
+    "buttons": [
+      { "name": "BOOTSEL", "pin": "QSPI_SS", "active": "Low" }
+    ],
+    "flash": {
+      "type": "QSPI NOR",
+      "sizeBytes": 2097152,
+      "part": "W25Q16JV"
+    }
+  }
+}

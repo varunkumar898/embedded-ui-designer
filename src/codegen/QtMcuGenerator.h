@@ -17,6 +17,11 @@ public:
     QString generateDesignQml();
     QString generateReadme();
 
+    // PC-Simulator subfolder generators
+    QString generateSimulatorCMakeLists();
+    QString generateSimulatorMainSource();
+    QString generateSimulatorReadme();
+
     static bool isSupportedQulType(const QString& typeName);
 
 private:

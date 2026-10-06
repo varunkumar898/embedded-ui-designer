@@ -62,6 +62,20 @@ int main(int argc, char *argv[])
     );
     parser.addOption(outOption);
 
+    QCommandLineOption mcpPortOption(
+        QStringList() << "mcp-port",
+        "Port for local MCP AI server (default: 8765)",
+        "port",
+        "8765"
+    );
+    parser.addOption(mcpPortOption);
+
+    QCommandLineOption noMcpOption(
+        QStringList() << "no-mcp",
+        "Disable embedded MCP AI server"
+    );
+    parser.addOption(noMcpOption);
+
     parser.process(app);
 
     // -------------------------------------------------------------------------
@@ -130,6 +144,14 @@ int main(int argc, char *argv[])
     // 2. Interactive GUI Mode (QtWidgets MainWindow)
     // -------------------------------------------------------------------------
     MainWindow window;
+    if (parser.isSet(noMcpOption)) {
+        window.stopLocalMcpServer();
+    } else if (parser.isSet(mcpPortOption)) {
+        quint16 port = parser.value(mcpPortOption).toUShort();
+        if (port > 0) {
+            window.startLocalMcpServer(port);
+        }
+    }
     window.show();
     return app.exec();
 }

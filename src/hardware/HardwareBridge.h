@@ -65,10 +65,14 @@ struct PinProfile {
     SpiMapping spi;
 };
 
+#include "OpenOcdManager.h"
+
 struct BoardProfile {
     QString id;
     QString name;
     QString mcuFamily;
+    quint32 gpioBase = 0x48000000;
+    quint32 bsrrOffset = 0x18;
     QString openocdInterface = "interface/stlink.cfg";
     QString openocdTarget = "target/stm32f0x.cfg";
     QMap<QString, PinProfile> pins;
@@ -108,11 +112,16 @@ public:
     bool setupPwm(const QString& pin);
     bool writePwmDuty(const QString& pin, double dutyPercent); // 0.0 - 100.0%
 
-    // Digital IO
+    // Digital IO (Task B)
     bool setDigitalOut(const QString& pin, bool high);
     bool readDigitalIn(const QString& pin, bool* outHigh);
+    bool calculateBsrrAddress(const QString& pin, quint32* outAddr, quint32* outSetMask, quint32* outResetMask) const;
+    bool writeGpioBsrr(const QString& pin, bool high);
 
-    // Component Binding (Task C)
+    // I2C Bus Scan & Discovery (Task C)
+    bool scanI2cBus(const QString& sclPin, const QString& sdaPin, QList<quint8>* outFoundAddresses, QString* outLog = nullptr);
+
+    // Component Binding (Task C & Task B)
     void bindComponent(UIComponent* comp, const QString& pin, PinMode mode);
     void unbindComponent(UIComponent* comp);
     void unbindPin(const QString& pin);
@@ -120,9 +129,14 @@ public:
     PinMode boundModeForComponent(const UIComponent* comp) const;
     UIComponent* componentBoundToPin(const QString& pin) const;
 
+    // OpenOCD & Probe Subsystem
+    OpenOcdManager& openOcdManager() { return m_openOcd; }
+    const OpenOcdManager& openOcdManager() const { return m_openOcd; }
+    QString connectedProbeName() const;
+
     // Simulation / Test overrides (when physical OpenOCD/ST-Link probe is disconnected)
-    bool isHardwareConnected() const { return m_hardwareConnected; }
-    void setHardwareConnected(bool connected) { m_hardwareConnected = connected; }
+    bool isHardwareConnected() const { return m_openOcd.isConnected() || m_hardwareConnected; }
+    void setHardwareConnected(bool connected);
     void setSimulatedAdcCount(const QString& pin, quint32 rawCount);
     quint32 simulatedAdcCount(const QString& pin) const;
 
@@ -137,6 +151,9 @@ signals:
     void adcValueChanged(const QString& pin, quint32 rawCount, int resolutionBits);
     void pwmDutyChanged(const QString& pin, double dutyPercent);
     void spiTransferCompleted(const QString& bus, quint8 byteOut, quint8 byteIn, bool success);
+    void digitalStateChanged(const QString& pin, bool high);
+    void connectionStatusChanged(bool connected, const QString& probeName);
+    void i2cScanCompleted(const QString& sclPin, const QString& sdaPin, const QList<quint8>& addresses);
 
 private slots:
     void onPollTimer();
@@ -164,6 +181,7 @@ private:
     QMap<QString, bool> m_digitalStates;
 
     bool m_hardwareConnected = false;
+    OpenOcdManager m_openOcd;
     QTimer m_pollTimer;
     QElapsedTimer m_pwmThrottleTimer;
     double m_lastPwmDutyWritten = -1.0;

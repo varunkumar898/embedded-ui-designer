@@ -14,8 +14,15 @@ public:
     QColor strokeColor() const { return m_strokeColor; }
     void setStrokeColor(const QColor& color);
 
+    // Alias for strokeColor to match border naming
+    QColor borderColor() const { return m_strokeColor; }
+    void setBorderColor(const QColor& color) { setStrokeColor(color); }
+
     int strokeWidth() const { return m_strokeWidth; }
     void setStrokeWidth(int w);
+
+    int borderWidth() const { return m_strokeWidth; }
+    void setBorderWidth(int w) { setStrokeWidth(w); }
 
     bool hasCornerRadius() const override { return true; }
     int cornerRadius() const override { return m_cornerRadius; }
@@ -33,8 +40,8 @@ protected:
     void paintComponent(QPainter* painter) override;
 
 private:
-    QColor m_fillColor = QColor(240, 240, 245);
-    QColor m_strokeColor = QColor(200, 200, 210);
+    QColor m_fillColor = QColor(30, 34, 42);   // Sleek dark rounded surface (#1e222a)
+    QColor m_strokeColor = QColor(48, 54, 66); // Subtle border (#303642)
     int m_strokeWidth = 1;
-    int m_cornerRadius = 4;
+    int m_cornerRadius = 8;
 };

@@ -1,11 +1,13 @@
 #include "RectangleComponent.h"
 #include <QPen>
 #include <QBrush>
+#include <cmath>
+#include <algorithm>
 
 RectangleComponent::RectangleComponent(const QString& id, QGraphicsItem* parent)
     : UIComponent(id, "Rectangle", parent)
 {
-    m_width = 150;
+    m_width = 160;
     m_height = 80;
 }
 
@@ -47,14 +49,22 @@ void RectangleComponent::setCornerRadius(int r) {
 void RectangleComponent::paintComponent(QPainter* painter) {
     painter->setRenderHint(QPainter::Antialiasing);
 
-    if (m_strokeWidth > 0) {
-        painter->setPen(QPen(m_strokeColor, m_strokeWidth));
-    } else {
-        painter->setPen(Qt::NoPen);
-    }
+    QRectF rect(0, 0, m_width, m_height);
 
+    // 1. Draw rounded fill
+    painter->setPen(Qt::NoPen);
     painter->setBrush(QBrush(m_fillColor));
-    painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), m_cornerRadius, m_cornerRadius);
+    painter->drawRoundedRect(rect, m_cornerRadius, m_cornerRadius);
+
+    // 2. Draw border stroke with half-width inset for crispness
+    if (m_strokeWidth > 0 && m_strokeColor.alpha() > 0) {
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(m_strokeColor, m_strokeWidth));
+        qreal inset = m_strokeWidth / 2.0;
+        QRectF strokeRect(inset, inset, m_width - m_strokeWidth, m_height - m_strokeWidth);
+        qreal r = std::max<qreal>(0, m_cornerRadius - inset);
+        painter->drawRoundedRect(strokeRect, r, r);
+    }
 }
 
 QJsonObject RectangleComponent::toJson() const {
@@ -77,8 +87,16 @@ void RectangleComponent::fromJson(const QJsonObject& json) {
         QString ref;
         deserializeColor(json.value("strokeColor"), m_strokeColor, ref);
         setColorStyleRef("strokeColor", ref);
+    } else if (json.contains("borderColor")) {
+        QString ref;
+        deserializeColor(json.value("borderColor"), m_strokeColor, ref);
+        setColorStyleRef("strokeColor", ref);
     }
-    m_strokeWidth = json.value("strokeWidth").toInt(m_strokeWidth);
+    if (json.contains("strokeWidth")) {
+        m_strokeWidth = json.value("strokeWidth").toInt(m_strokeWidth);
+    } else if (json.contains("borderWidth")) {
+        m_strokeWidth = json.value("borderWidth").toInt(m_strokeWidth);
+    }
     m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
     update();
 }
@@ -89,7 +107,7 @@ void RectangleComponent::applyColorStyle(const QString& styleName, const QColor&
         m_fillColor = color;
         changed = true;
     }
-    if (colorStyleRef("strokeColor") == styleName) {
+    if (colorStyleRef("strokeColor") == styleName || colorStyleRef("borderColor") == styleName) {
         m_strokeColor = color;
         changed = true;
     }

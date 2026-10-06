@@ -176,8 +176,8 @@ void ComponentPalette::setupUi() {
     };
 
     addItem("Button", "Button", "B", QColor(26, 115, 232));
-    addItem("Text / Label", "Text", "T", QColor(156, 39, 176));
-    addItem("Rectangle", "Rectangle", "R", QColor(230, 81, 0));
+    addItem("Text / Label", "Text", "T", QColor(2, 132, 199));
+    addItem("Rectangle", "Rectangle", "R", QColor(217, 119, 6));
 
     QListWidgetItem* shapeItem = new QListWidgetItem(m_listWidget);
     shapeItem->setData(Qt::UserRole, "Shape");
@@ -185,7 +185,7 @@ void ComponentPalette::setupUi() {
     m_shapeButton = new QToolButton(m_listWidget);
     m_shapeButton->setObjectName("shapeToolButton");
     m_shapeButton->setText("Shape");
-    m_shapeButton->setIcon(createBadgeIcon("Shape", "S", QColor(0, 137, 123)));
+    m_shapeButton->setIcon(createBadgeIcon("Shape", "S", QColor(5, 150, 105)));
     m_shapeButton->setIconSize(QSize(28, 28));
     m_shapeButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_shapeButton->setPopupMode(QToolButton::InstantPopup);
@@ -209,11 +209,11 @@ void ComponentPalette::setupUi() {
     m_shapeButton->setMenu(shapeMenu);
     m_listWidget->setItemWidget(shapeItem, m_shapeButton);
 
-    addItem("Progress Bar", "ProgressBar", "%", QColor(46, 125, 50));
+    addItem("Progress Bar", "ProgressBar", "%", QColor(16, 185, 129));
     addItem("Slider", "Slider", "—", QColor(0, 137, 123));
-    addItem("Switch", "Switch", "⏻", QColor(123, 31, 162));
+    addItem("Switch", "Switch", "⏻", QColor(13, 148, 136));
     addItem("Checkbox", "Checkbox", "✓", QColor(0, 168, 120));
-    addItem("Text Input", "TextInput", "TI", QColor(229, 57, 53));
+    addItem("Text Input", "TextInput", "TI", QColor(225, 29, 72));
     layout->addWidget(m_listWidget);
 
     connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
@@ -266,7 +266,7 @@ void ComponentPalette::refreshCustomComponents(const QStringList& definitionName
     m_customListWidget->clear();
     for (const QString& name : definitionNames) {
         QListWidgetItem* item = new QListWidgetItem(
-            createBadgeIcon("CustomInstance", "C", QColor(100, 60, 200)),
+            createBadgeIcon("CustomInstance", "C", QColor(217, 119, 6)),
             name, m_customListWidget);
         item->setData(Qt::UserRole, QString("CustomInstance::%1").arg(name));
         item->setToolTip(QString("Double-click or drag to place \"%1\"").arg(name));

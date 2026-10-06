@@ -29,6 +29,17 @@ PinBindingDialog::PinBindingDialog(CanvasScene* scene, QWidget* parent)
 
     connect(&m_bridge, &HardwareBridge::adcValueChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
     connect(&m_bridge, &HardwareBridge::pwmDutyChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
+    connect(&m_bridge, &HardwareBridge::digitalStateChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
+    connect(&m_bridge, &HardwareBridge::connectionStatusChanged, this, [this](bool connected, const QString& probeName) {
+        if (connected) {
+            QString name = probeName.isEmpty() ? "Hardware Target" : probeName;
+            m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(name));
+            m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border: 1px solid #059669; border-radius: 4px;");
+        } else {
+            m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+            m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border: 1px solid #d97706; border-radius: 4px;");
+        }
+    });
 }
 
 void PinBindingDialog::setupUi() {
@@ -64,11 +75,12 @@ void PinBindingDialog::setupUi() {
     m_statusBadge = new QLabel(this);
     m_statusBadge->setObjectName("probeStatusBadge");
     if (m_bridge.isHardwareConnected()) {
-        m_statusBadge->setText("● OpenOCD ST-Link: CONNECTED (Hardware Target)");
-        m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border-radius: 4px;");
+        QString probe = m_bridge.connectedProbeName();
+        m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(probe.isEmpty() ? "Hardware Target" : probe));
+        m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border: 1px solid #059669; border-radius: 4px;");
     } else {
-        m_statusBadge->setText("○ OpenOCD ST-Link: DISCONNECTED (Simulated Test Mode)");
-        m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border-radius: 4px;");
+        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+        m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border: 1px solid #d97706; border-radius: 4px;");
     }
     headerLayout->addWidget(m_statusBadge);
     headerLayout->addStretch();
@@ -320,6 +332,10 @@ void PinBindingDialog::refreshTable() {
             valStr = "Duty: 50%";
         } else if (prof.activeMode == PinMode::SpiRawTransfer) {
             valStr = "Ready (Manual)";
+        } else if (prof.activeMode == PinMode::DigitalOut || prof.activeMode == PinMode::DigitalIn) {
+            bool high = false;
+            m_bridge.readDigitalIn(pinName, &high);
+            valStr = high ? "HIGH (1)" : "LOW (0)";
         }
         auto* valItem = new QTableWidgetItem(valStr);
         valItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
@@ -465,6 +481,10 @@ void PinBindingDialog::onHardwareBridgeUpdate() {
             valItem->setText("Duty: Active");
         } else if (prof.activeMode == PinMode::SpiRawTransfer) {
             valItem->setText("Ready (Manual)");
+        } else if (prof.activeMode == PinMode::DigitalOut || prof.activeMode == PinMode::DigitalIn) {
+            bool high = false;
+            m_bridge.readDigitalIn(pinName, &high);
+            valItem->setText(high ? "HIGH (1)" : "LOW (0)");
         } else {
             valItem->setText("-");
         }

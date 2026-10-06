@@ -1,6 +1,8 @@
 #include "SwitchComponent.h"
 #include <QPainterPath>
 #include <QVariantAnimation>
+#include <cmath>
+#include <algorithm>
 
 SwitchComponent::SwitchComponent(const QString& id, QGraphicsItem* parent)
     : UIComponent(id, "Switch", parent)
@@ -81,6 +83,33 @@ void SwitchComponent::setThumbColor(const QColor& color) {
     }
 }
 
+void SwitchComponent::setBorderColor(const QColor& color) {
+    if (m_borderColor != color) {
+        m_borderColor = color;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void SwitchComponent::setBorderWidth(int width) {
+    width = std::max(0, width);
+    if (m_borderWidth != width) {
+        m_borderWidth = width;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void SwitchComponent::setCornerRadius(int r) {
+    int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
+    r = std::clamp(r, 0, std::max(0, maxR));
+    if (m_cornerRadius != r) {
+        m_cornerRadius = r;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 void SwitchComponent::setOnToggledHandler(const QString& handler) {
     if (m_onToggledHandler != handler) {
         m_onToggledHandler = handler;
@@ -97,7 +126,7 @@ void SwitchComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
 void SwitchComponent::paintComponent(QPainter* painter) {
     painter->setRenderHint(QPainter::Antialiasing);
-    qreal radius = m_height / 2.0;
+    qreal radius = m_cornerRadius > 0 ? m_cornerRadius : (m_height / 2.0);
     qreal thumbDiameter = m_height - 6.0;
     qreal thumbY = 3.0;
     const bool animating = m_transitionAnimation != nullptr;
@@ -105,7 +134,9 @@ void SwitchComponent::paintComponent(QPainter* painter) {
     const bool fromChecked = animating ? m_animationFromChecked : m_checked;
     const QColor fromColor = fromChecked ? m_onColor : m_offColor;
     const QColor toColor = m_checked ? m_onColor : m_offColor;
+
     painter->setPen(Qt::NoPen);
+
     if (m_transitionType == "Dissolve") {
         const qreal fromX = fromChecked ? (m_width - thumbDiameter - 3.0) : 3.0;
         const qreal toX = m_checked ? (m_width - thumbDiameter - 3.0) : 3.0;
@@ -128,12 +159,25 @@ void SwitchComponent::paintComponent(QPainter* painter) {
         painter->setOpacity(1.0);
         painter->setBrush(blendedColor);
         painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), radius, radius);
+
         const qreal fromX = fromChecked ? (m_width - thumbDiameter - 3.0) : 3.0;
         const qreal toX = m_checked ? (m_width - thumbDiameter - 3.0) : 3.0;
         const qreal thumbX = fromX + (toX - fromX) * progress;
         painter->setBrush(m_thumbColor);
         painter->drawEllipse(QRectF(thumbX, thumbY, thumbDiameter, thumbDiameter));
     }
+
+    // Border
+    if (m_borderWidth > 0 && m_borderColor.alpha() > 0) {
+        painter->setOpacity(1.0);
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(m_borderColor, m_borderWidth));
+        qreal inset = m_borderWidth / 2.0;
+        QRectF borderRect(inset, inset, m_width - m_borderWidth, m_height - m_borderWidth);
+        qreal r = std::max<qreal>(0, radius - inset);
+        painter->drawRoundedRect(borderRect, r, r);
+    }
+
     painter->setOpacity(1.0);
 }
 
@@ -143,6 +187,9 @@ QJsonObject SwitchComponent::toJson() const {
     json["onColor"] = serializeColor(m_onColor, colorStyleRef("onColor"));
     json["offColor"] = serializeColor(m_offColor, colorStyleRef("offColor"));
     json["thumbColor"] = serializeColor(m_thumbColor, colorStyleRef("thumbColor"));
+    json["borderColor"] = serializeColor(m_borderColor, colorStyleRef("borderColor"));
+    json["borderWidth"] = m_borderWidth;
+    json["cornerRadius"] = m_cornerRadius;
     json["onToggled"] = m_onToggledHandler;
     return json;
 }
@@ -165,6 +212,13 @@ void SwitchComponent::fromJson(const QJsonObject& json) {
         deserializeColor(json.value("thumbColor"), m_thumbColor, ref);
         setColorStyleRef("thumbColor", ref);
     }
+    if (json.contains("borderColor")) {
+        QString ref;
+        deserializeColor(json.value("borderColor"), m_borderColor, ref);
+        setColorStyleRef("borderColor", ref);
+    }
+    m_borderWidth = json.value("borderWidth").toInt(m_borderWidth);
+    m_cornerRadius = json.value("cornerRadius").toInt(m_cornerRadius);
     m_onToggledHandler = json.value("onToggled").toString();
 }
 
@@ -180,6 +234,10 @@ void SwitchComponent::applyColorStyle(const QString& styleName, const QColor& co
     }
     if (colorStyleRef("thumbColor") == styleName) {
         m_thumbColor = color;
+        changed = true;
+    }
+    if (colorStyleRef("borderColor") == styleName) {
+        m_borderColor = color;
         changed = true;
     }
     if (changed) {

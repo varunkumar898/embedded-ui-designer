@@ -26,6 +26,13 @@ void UIComponent::setComponentId(const QString& id) {
     }
 }
 
+void UIComponent::setComponentVisible(bool visible) {
+    if (isVisible() != visible) {
+        setVisible(visible);
+        emit propertyChanged(this);
+    }
+}
+
 void UIComponent::setCompPos(qreal x, qreal y) {
     if (pos().x() != x || pos().y() != y) {
         prepareGeometryChange();
@@ -493,6 +500,7 @@ QJsonObject UIComponent::toJson() const {
     obj["y"] = static_cast<int>(std::round(pos().y()));
     obj["width"] = static_cast<int>(std::round(m_width));
     obj["height"] = static_cast<int>(std::round(m_height));
+    obj["visible"] = isVisible();
     obj["interactions"] = m_interactions;
     obj["protocol"] = m_protocol.isEmpty() ? QString("None") : m_protocol;
     QJsonObject pinObj;
@@ -506,6 +514,9 @@ QJsonObject UIComponent::toJson() const {
 void UIComponent::fromJson(const QJsonObject& json) {
     m_id = json.value("id").toString(m_id);
     m_componentType = json.value("type").toString(m_componentType);
+    if (json.contains("visible")) {
+        setVisible(json.value("visible").toBool(true));
+    }
     m_interactions = json.value("interactions").toArray();
     m_protocol = json.value("protocol").toString("None");
     m_protocolPins.clear();

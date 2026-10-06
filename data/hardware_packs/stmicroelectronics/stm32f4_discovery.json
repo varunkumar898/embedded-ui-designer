@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "STMicroelectronics UM1472 User Manual 'Discovery kit with STM32F407VG MCU'",
+    "vendor": "STMicroelectronics",
+    "boardId": "STM32F407G-DISC1",
+    "version": "1.0.0"
+  },
+  "metadata": {
+    "id": "STM32F407G-DISC1",
+    "name": "STM32F4 Discovery (STM32F407G-DISC1)",
+    "manufacturer": "STMicroelectronics",
+    "boardFamily": "Discovery",
+    "mcuPartNumber": "STM32F407VG",
+    "architecture": "ARM Cortex-M4",
+    "debugInterface": "ST-LINK/V2",
+    "supplyVoltage": "5V via USB or external"
+  },
+  "physicalPinLabels": {
+    "LED_GREEN": "PD12",
+    "LED_ORANGE": "PD13",
+    "LED_RED": "PD14",
+    "LED_BLUE": "PD15",
+    "USER_BUTTON": "PA0",
+    "USB_VBUS": "PA9",
+    "USB_ID": "PA10",
+    "USB_DM": "PA11",
+    "USB_DP": "PA12",
+    "MEMS_SCK": "PA5",
+    "MEMS_MISO": "PA6",
+    "MEMS_MOSI": "PA7",
+    "MEMS_CS": "PE3",
+    "AUDIO_SCL": "PB6",
+    "AUDIO_SDA": "PB9",
+    "AUDIO_RST": "PD4"
+  },
+  "connectors": [
+    {
+      "name": "Header P1 (2x25)",
+      "pinCount": 50,
+      "pinMapping": {
+        "1": "GND",
+        "2": "GND",
+        "3": "VDD",
+        "4": "VDD",
+        "5": "PC0",
+        "6": "PC1",
+        "7": "PC2",
+        "8": "PC3",
+        "9": "PA0",
+        "10": "PA1",
+        "11": "PA2",
+        "12": "PA3",
+        "13": "PA4",
+        "14": "PA5",
+        "15": "PA6",
+        "16": "PA7",
+        "17": "PC4",
+        "18": "PC5",
+        "19": "PB0",
+        "20": "PB1"
+      }
+    },
+    {
+      "name": "Header P2 (2x25)",
+      "pinCount": 50,
+      "pinMapping": {
+        "1": "GND",
+        "2": "GND",
+        "3": "VDD",
+        "4": "VDD",
+        "5": "PB10",
+        "6": "PB11",
+        "7": "PB12",
+        "8": "PB13",
+        "9": "PB14",
+        "10": "PB15",
+        "11": "PD8",
+        "12": "PD9",
+        "13": "PD10",
+        "14": "PD11",
+        "15": "PD12",
+        "16": "PD13",
+        "17": "PD14",
+        "18": "PD15"
+      }
+    }
+  ],
+  "onboardPeripherals": {
+    "leds": [
+      { "name": "LD3 (Orange)", "pin": "PD13", "active": "High" },
+      { "name": "LD4 (Green)", "pin": "PD12", "active": "High" },
+      { "name": "LD5 (Red)", "pin": "PD14", "active": "High" },
+      { "name": "LD6 (Blue)", "pin": "PD15", "active": "High" }
+    ],
+    "buttons": [
+      { "name": "B1 (User)", "pin": "PA0", "active": "High" }
+    ],
+    "sensors": [
+      { "name": "LIS3DSH Accelerometer", "bus": "SPI1", "csPin": "PE3" }
+    ],
+    "audio": {
+      "dac": "CS43L22",
+      "controlBus": "I2C1",
+      "resetPin": "PD4"
+    }
+  }
+}

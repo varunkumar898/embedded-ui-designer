@@ -85,6 +85,14 @@ void TextInputComponent::setPixelSize(int size) {
     }
 }
 
+void TextInputComponent::setFontFamily(const QString& family) {
+    if (m_fontFamily != family) {
+        m_fontFamily = family;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 void TextInputComponent::setReadOnly(bool ro) {
     if (m_readOnly != ro) {
         m_readOnly = ro;
@@ -113,8 +121,8 @@ void TextInputComponent::paintComponent(QPainter* painter) {
     painter->drawRoundedRect(QRectF(0, 0, m_width, m_height), m_cornerRadius, m_cornerRadius);
 
     // 2. Draw text or placeholder
-    QFont font = painter->font();
-    font.setPointSize(qMax(8, m_pixelSize - 3));
+    QFont font(m_fontFamily);
+    font.setPixelSize(m_pixelSize);
     painter->setFont(font);
 
     bool showPlaceholder = m_text.isEmpty();
@@ -147,6 +155,7 @@ QJsonObject TextInputComponent::toJson() const {
     json["borderColor"] = serializeColor(m_borderColor, colorStyleRef("borderColor"));
     json["borderWidth"] = m_borderWidth;
     json["cornerRadius"] = m_cornerRadius;
+    json["fontFamily"] = m_fontFamily;
     json["pixelSize"] = m_pixelSize;
     json["readOnly"] = m_readOnly;
     json["onTextChanged"] = m_onTextChangedHandler;
@@ -179,6 +188,7 @@ void TextInputComponent::fromJson(const QJsonObject& json) {
     }
     m_borderWidth = json.value("borderWidth").toInt(1);
     m_cornerRadius = json.value("cornerRadius").toInt(4);
+    m_fontFamily = json.value("fontFamily").toString("Roboto");
     m_pixelSize = json.value("pixelSize").toInt(13);
     m_readOnly = json.value("readOnly").toBool(false);
     m_onTextChangedHandler = json.value("onTextChanged").toString();

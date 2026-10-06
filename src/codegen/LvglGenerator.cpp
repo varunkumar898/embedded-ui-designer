@@ -221,6 +221,18 @@ bool LvglGenerator::generate(const QString& outputDirectory) {
     // 8. README.md
     if (!writeFile(outDir.filePath("README.md"), generateReadme())) return false;
 
+    // 9. pc_simulator/ subfolder (Desktop simulator with SDL2 driver)
+    QDir simDir(outDir.filePath("pc_simulator"));
+    if (!simDir.exists() && !simDir.mkpath(".")) {
+        m_lastError = QString("Could not create pc_simulator directory: %1").arg(simDir.absolutePath());
+        return false;
+    }
+    if (!writeFile(simDir.filePath("CMakeLists.txt"), generateSimulatorCMakeLists())) return false;
+    if (!writeFile(simDir.filePath("main.c"), generateSimulatorMainSource())) return false;
+    if (!writeFile(simDir.filePath("sdl_driver.h"), generateSimulatorSdlDriverHeader())) return false;
+    if (!writeFile(simDir.filePath("sdl_driver.c"), generateSimulatorSdlDriverSource())) return false;
+    if (!writeFile(simDir.filePath("README.md"), generateSimulatorReadme())) return false;
+
     outDir.mkdir("build");
     return true;
 }
@@ -1021,5 +1033,456 @@ QString LvglGenerator::generateReadme() {
     md += "   ui_init();\n";
     md += "   ```\n";
     md += "3. Implement your hardware actions inside the event stubs in `ui.c` (e.g., `ui_event_btn_*`).\n";
+    return md;
+}
+
+QString LvglGenerator::generateSimulatorCMakeLists() {
+    QString name = m_project ? m_project->projectName() : "lvgl_app";
+    if (name.isEmpty()) name = "lvgl_app";
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    int isRound = (m_project && m_project->displayConfig().round) ? 1 : 0;
+
+    QString code;
+    code += "cmake_minimum_required(VERSION 3.20)\n";
+    code += QString("project(%1_pc_simulator LANGUAGES C CXX)\n\n").arg(name);
+    code += "set(CMAKE_C_STANDARD 99)\n";
+    code += "set(CMAKE_C_STANDARD_REQUIRED ON)\n";
+    code += "set(CMAKE_CXX_STANDARD 17)\n";
+    code += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n";
+
+    code += "# ── Locate SDL2 for desktop window & input driver ─────────────────────────\n";
+    code += "find_package(SDL2 QUIET)\n";
+    code += "if(NOT SDL2_FOUND)\n";
+    code += "    find_package(PkgConfig QUIET)\n";
+    code += "    if(PKG_CONFIG_FOUND)\n";
+    code += "        pkg_check_modules(SDL2 QUIET sdl2)\n";
+    code += "    endif()\n";
+    code += "endif()\n\n";
+
+    code += "if(NOT SDL2_FOUND AND NOT TARGET SDL2::SDL2)\n";
+    code += "    message(STATUS \"SDL2 not found locally. Fetching SDL2 via FetchContent...\")\n";
+    code += "    include(FetchContent)\n";
+    code += "    FetchContent_Declare(\n";
+    code += "        SDL2\n";
+    code += "        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git\n";
+    code += "        GIT_TAG release-2.30.2\n";
+    code += "        GIT_SHALLOW TRUE\n";
+    code += "    )\n";
+    code += "    FetchContent_MakeAvailable(SDL2)\n";
+    code += "endif()\n\n";
+
+    code += "# ── Locate LVGL Library (v8.3 LTS) ────────────────────────────────────────\n";
+    code += "if(DEFINED LVGL_PATH)\n";
+    code += "    file(TO_CMAKE_PATH \"${LVGL_PATH}\" LVGL_DIR)\n";
+    code += "elseif(DEFINED ENV{LVGL_PATH})\n";
+    code += "    file(TO_CMAKE_PATH \"$ENV{LVGL_PATH}\" LVGL_DIR)\n";
+    code += "elseif(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/../build/_deps/lvgl-src\")\n";
+    code += "    set(LVGL_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/../build/_deps/lvgl-src\")\n";
+    code += "endif()\n\n";
+
+    code += "if(LVGL_DIR AND EXISTS \"${LVGL_DIR}\")\n";
+    code += "    message(STATUS \"Using local LVGL from: ${LVGL_DIR}\")\n";
+    code += "    add_subdirectory(\"${LVGL_DIR}\" lvgl)\n";
+    code += "else()\n";
+    code += "    message(STATUS \"Fetching LVGL v8.3.11 via FetchContent...\")\n";
+    code += "    include(FetchContent)\n";
+    code += "    FetchContent_Declare(\n";
+    code += "        lvgl\n";
+    code += "        GIT_REPOSITORY https://github.com/lvgl/lvgl.git\n";
+    code += "        GIT_TAG v8.3.11\n";
+    code += "        GIT_SHALLOW TRUE\n";
+    code += "    )\n";
+    code += "    FetchContent_MakeAvailable(lvgl)\n";
+    code += "endif()\n\n";
+
+    code += "set(SIMULATOR_SOURCES\n";
+    code += "    main.c\n";
+    code += "    sdl_driver.c\n";
+    code += "    ../ui.c\n";
+    code += ")\n\n";
+
+    code += QString("add_executable(%1_pc_simulator ${SIMULATOR_SOURCES})\n\n").arg(name);
+
+    code += QString("target_include_directories(%1_pc_simulator PRIVATE\n").arg(name);
+    code += "    \"${CMAKE_CURRENT_SOURCE_DIR}\"\n";
+    code += "    \"${CMAKE_CURRENT_SOURCE_DIR}/..\"\n";
+    code += ")\n\n";
+
+    code += QString("target_compile_definitions(%1_pc_simulator PRIVATE\n").arg(name);
+    code += "    LV_CONF_INCLUDE_SIMPLE\n";
+    code += QString("    SIMULATOR_WIDTH=%1\n").arg(width);
+    code += QString("    SIMULATOR_HEIGHT=%1\n").arg(height);
+    code += QString("    SIMULATOR_COLOR_DEPTH=%1\n").arg(depth);
+    code += QString("    SIMULATOR_IS_ROUND=%1\n").arg(isRound);
+    code += ")\n\n";
+
+    code += "if(TARGET SDL2::SDL2)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE SDL2::SDL2)\n").arg(name);
+    code += "elseif(TARGET SDL2)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE SDL2)\n").arg(name);
+    code += "else()\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE ${SDL2_LIBRARIES})\n").arg(name);
+    code += "    if(SDL2_INCLUDE_DIRS)\n";
+    code += QString("        target_include_directories(%1_pc_simulator PRIVATE ${SDL2_INCLUDE_DIRS})\n").arg(name);
+    code += "    endif()\n";
+    code += "endif()\n\n";
+
+    code += QString("target_link_libraries(%1_pc_simulator PRIVATE lvgl lvgl::lvgl m)\n\n").arg(name);
+
+    code += "if(WIN32)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE winmm)\n").arg(name);
+    code += "elseif(UNIX AND NOT APPLE)\n";
+    code += QString("    target_link_libraries(%1_pc_simulator PRIVATE pthread)\n").arg(name);
+    code += "endif()\n";
+
+    return code;
+}
+
+QString LvglGenerator::generateSimulatorMainSource() {
+    QString name = m_project ? m_project->projectName() : "LVGL Application";
+    if (name.isEmpty()) name = "LVGL Application";
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    bool isRound = m_project ? m_project->displayConfig().round : false;
+
+    QString code;
+    code += "/**\n";
+    code += " * LVGL PC Simulator Entry Point\n";
+    code += " * Auto-generated by Embedded UI Designer\n";
+    code += QString(" * Target Display: %1x%2, %3-bit color, %4\n").arg(width).arg(height).arg(depth).arg(isRound ? "Round Shape" : "Rectangular Shape");
+    code += " */\n";
+    code += "#define _DEFAULT_SOURCE\n";
+    code += "#define _XOPEN_SOURCE 700\n\n";
+    code += "#ifdef __has_include\n";
+    code += "  #if __has_include(\"lvgl.h\")\n";
+    code += "    #include \"lvgl.h\"\n";
+    code += "  #elif __has_include(\"lvgl/lvgl.h\")\n";
+    code += "    #include \"lvgl/lvgl.h\"\n";
+    code += "  #endif\n";
+    code += "#else\n";
+    code += "  #include \"lvgl.h\"\n";
+    code += "#endif\n";
+    code += "#include \"sdl_driver.h\"\n";
+    code += "#include \"ui.h\"\n";
+    code += "#include <stdio.h>\n";
+    code += "#include <stdlib.h>\n\n";
+
+    code += "#if defined(_WIN32)\n";
+    code += "#include <windows.h>\n";
+    code += "#define sleep_ms(x) Sleep(x)\n";
+    code += "#else\n";
+    code += "#include <unistd.h>\n";
+    code += "#define sleep_ms(x) usleep((x) * 1000)\n";
+    code += "#endif\n\n";
+
+    code += QString("#ifndef SIMULATOR_WIDTH\n#define SIMULATOR_WIDTH %1\n#endif\n").arg(width);
+    code += QString("#ifndef SIMULATOR_HEIGHT\n#define SIMULATOR_HEIGHT %1\n#endif\n").arg(height);
+    code += QString("#ifndef SIMULATOR_COLOR_DEPTH\n#define SIMULATOR_COLOR_DEPTH %1\n#endif\n").arg(depth);
+    code += QString("#ifndef SIMULATOR_IS_ROUND\n#define SIMULATOR_IS_ROUND %1\n#endif\n\n").arg(isRound ? 1 : 0);
+
+    code += "int main(int argc, char* argv[]) {\n";
+    code += "    (void)argc;\n";
+    code += "    (void)argv;\n\n";
+    code += "    printf(\"============================================================\\n\");\n";
+    code += QString("    printf(\" Starting %1 PC Simulator (LVGL)\\n\");\n").arg(name);
+    code += "    printf(\" Display: %d x %d (%s), %d-bit color depth\\n\",\n";
+    code += "           SIMULATOR_WIDTH, SIMULATOR_HEIGHT,\n";
+    code += "           SIMULATOR_IS_ROUND ? \"Round Display\" : \"Rectangular Display\",\n";
+    code += "           SIMULATOR_COLOR_DEPTH);\n";
+    code += "    printf(\"============================================================\\n\");\n\n";
+
+    code += "    lv_init();\n\n";
+    code += QString("    if (!sdl_driver_init(\"%1 - LVGL PC Simulator\",\n").arg(name);
+    code += "                         SIMULATOR_WIDTH, SIMULATOR_HEIGHT,\n";
+    code += "                         SIMULATOR_COLOR_DEPTH, SIMULATOR_IS_ROUND)) {\n";
+    code += "        fprintf(stderr, \"Error: Failed to initialize SDL2 display driver!\\n\");\n";
+    code += "        return 1;\n";
+    code += "    }\n\n";
+
+    code += "    printf(\"Building UI components...\\n\");\n";
+    code += "    ui_init();\n\n";
+
+    code += "    printf(\"Simulator running. Click/drag on window to interact; close window or press ESC to exit.\\n\");\n";
+    code += "    while (sdl_driver_handle_events()) {\n";
+    code += "        lv_timer_handler();\n";
+    code += "        sleep_ms(5);\n";
+    code += "        lv_tick_inc(5);\n";
+    code += "    }\n\n";
+
+    code += "    sdl_driver_cleanup();\n";
+    code += "    printf(\"LVGL Simulator terminated cleanly.\\n\");\n";
+    code += "    return 0;\n";
+    code += "}\n";
+
+    return code;
+}
+
+QString LvglGenerator::generateSimulatorSdlDriverHeader() {
+    QString code;
+    code += "#ifndef SDL_DRIVER_H\n";
+    code += "#define SDL_DRIVER_H\n\n";
+    code += "#include <stdbool.h>\n";
+    code += "#include <stdint.h>\n\n";
+    code += "#ifdef __cplusplus\n";
+    code += "extern \"C\" {\n";
+    code += "#endif\n\n";
+    code += "bool sdl_driver_init(const char* title, int width, int height, int color_depth, bool is_round);\n";
+    code += "bool sdl_driver_handle_events(void);\n";
+    code += "void sdl_driver_cleanup(void);\n\n";
+    code += "#ifdef __cplusplus\n";
+    code += "}\n";
+    code += "#endif\n\n";
+    code += "#endif /* SDL_DRIVER_H */\n";
+    return code;
+}
+
+QString LvglGenerator::generateSimulatorSdlDriverSource() {
+    QString code;
+    code += "/**\n";
+    code += " * SDL2 Display & Mouse Input Driver for LVGL PC Simulator\n";
+    code += " * Auto-generated by Embedded UI Designer\n";
+    code += " */\n";
+    code += "#include \"sdl_driver.h\"\n";
+    code += "#include <SDL2/SDL.h>\n";
+    code += "#include <stdio.h>\n";
+    code += "#include <stdlib.h>\n";
+    code += "#include <stdbool.h>\n";
+    code += "#include <math.h>\n\n";
+
+    code += "#ifdef __has_include\n";
+    code += "  #if __has_include(\"lvgl.h\")\n";
+    code += "    #include \"lvgl.h\"\n";
+    code += "  #elif __has_include(\"lvgl/lvgl.h\")\n";
+    code += "    #include \"lvgl/lvgl.h\"\n";
+    code += "  #endif\n";
+    code += "#else\n";
+    code += "  #include \"lvgl.h\"\n";
+    code += "#endif\n\n";
+
+    code += "static SDL_Window* window = NULL;\n";
+    code += "static SDL_Renderer* renderer = NULL;\n";
+    code += "static SDL_Texture* texture = NULL;\n";
+    code += "static int sim_width = 320;\n";
+    code += "static int sim_height = 240;\n";
+    code += "static int sim_depth = 16;\n";
+    code += "static bool sim_round = false;\n";
+    code += "static bool mouse_pressed = false;\n";
+    code += "static int mouse_x = 0;\n";
+    code += "static int mouse_y = 0;\n\n";
+
+    code += "static lv_color_t* disp_buf_data = NULL;\n";
+    code += "static lv_disp_draw_buf_t draw_buf;\n";
+    code += "static lv_disp_drv_t disp_drv;\n";
+    code += "static lv_indev_drv_t indev_drv;\n\n";
+
+    code += "static void sdl_mouse_read(lv_indev_drv_t* drv, lv_indev_data_t* data) {\n";
+    code += "    (void)drv;\n";
+    code += "    data->point.x = mouse_x;\n";
+    code += "    data->point.y = mouse_y;\n";
+    code += "    data->state = mouse_pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;\n";
+    code += "}\n\n";
+
+    code += "static void check_save_screenshot(void) {\n";
+    code += "    const char* env_path = getenv(\"SIMULATOR_SCREENSHOT_PATH\");\n";
+    code += "    if (!env_path || env_path[0] == '\\0') return;\n";
+    code += "    static int frame_count = 0;\n";
+    code += "    frame_count++;\n";
+    code += "    if (frame_count == 5) {\n";
+    code += "        SDL_Surface* sshot = SDL_CreateRGBSurfaceWithFormat(0, sim_width, sim_height, 32, SDL_PIXELFORMAT_ARGB8888);\n";
+    code += "        if (sshot) {\n";
+    code += "            SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ARGB8888, sshot->pixels, sshot->pitch);\n";
+    code += "            SDL_SaveBMP(sshot, env_path);\n";
+    code += "            SDL_FreeSurface(sshot);\n";
+    code += "            printf(\"[LVGL PC Simulator] Saved simulator window screenshot to %s\\n\", env_path);\n";
+    code += "        }\n";
+    code += "    }\n";
+    code += "}\n\n";
+
+    code += "static void sdl_display_flush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_p) {\n";
+    code += "    int32_t w = area->x2 - area->x1 + 1;\n";
+    code += "    int32_t h = area->y2 - area->y1 + 1;\n\n";
+    code += "    SDL_Rect rect;\n";
+    code += "    rect.x = area->x1;\n";
+    code += "    rect.y = area->y1;\n";
+    code += "    rect.w = w;\n";
+    code += "    rect.h = h;\n\n";
+    code += "    SDL_UpdateTexture(texture, &rect, color_p, w * sizeof(lv_color_t));\n\n";
+    code += "    if (lv_disp_flush_is_last(drv)) {\n";
+    code += "        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);\n";
+    code += "        SDL_RenderClear(renderer);\n";
+    code += "        SDL_RenderCopy(renderer, texture, NULL, NULL);\n\n";
+    code += "        // If display is circular, render a bezel mask outside the active radius\n";
+    code += "        if (sim_round) {\n";
+    code += "            int cx = sim_width / 2;\n";
+    code += "            int cy = sim_height / 2;\n";
+    code += "            int r = (sim_width < sim_height ? sim_width : sim_height) / 2;\n";
+    code += "            int r2 = r * r;\n\n";
+    code += "            SDL_SetRenderDrawColor(renderer, 18, 18, 24, 255);\n";
+    code += "            for (int y = 0; y < sim_height; y++) {\n";
+    code += "                int dy = y - cy;\n";
+    code += "                int dy2 = dy * dy;\n";
+    code += "                for (int x = 0; x < sim_width; x++) {\n";
+    code += "                    int dx = x - cx;\n";
+    code += "                    if (dx * dx + dy2 > r2) {\n";
+    code += "                        SDL_RenderDrawPoint(renderer, x, y);\n";
+    code += "                    }\n";
+    code += "                }\n";
+    code += "            }\n\n";
+    code += "            // Distinct circular bezel ring\n";
+    code += "            SDL_SetRenderDrawColor(renderer, 55, 65, 80, 255);\n";
+    code += "            for (int angle = 0; angle < 360; angle++) {\n";
+    code += "                double rad = angle * 3.141592653589793 / 180.0;\n";
+    code += "                int px = cx + (int)((r - 1) * cos(rad));\n";
+    code += "                int py = cy + (int)((r - 1) * sin(rad));\n";
+    code += "                SDL_RenderDrawPoint(renderer, px, py);\n";
+    code += "            }\n";
+    code += "        }\n\n";
+    code += "        check_save_screenshot();\n";
+    code += "        SDL_RenderPresent(renderer);\n";
+    code += "    }\n";
+    code += "    lv_disp_flush_ready(drv);\n";
+    code += "}\n\n";
+
+    code += "bool sdl_driver_init(const char* title, int width, int height, int color_depth, bool is_round) {\n";
+    code += "    sim_width = width;\n";
+    code += "    sim_height = height;\n";
+    code += "    sim_depth = color_depth;\n";
+    code += "    sim_round = is_round;\n\n";
+    code += "    if (SDL_Init(SDL_INIT_VIDEO) != 0) {\n";
+    code += "        fprintf(stderr, \"SDL_Init Error: %s\\n\", SDL_GetError());\n";
+    code += "        return false;\n";
+    code += "    }\n\n";
+    code += "    window = SDL_CreateWindow(title ? title : \"LVGL PC Simulator\",\n";
+    code += "                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,\n";
+    code += "                              width, height, SDL_WINDOW_SHOWN);\n";
+    code += "    if (!window) {\n";
+    code += "        fprintf(stderr, \"SDL_CreateWindow Error: %s\\n\", SDL_GetError());\n";
+    code += "        return false;\n";
+    code += "    }\n\n";
+    code += "    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);\n";
+    code += "    if (!renderer) {\n";
+    code += "        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);\n";
+    code += "    }\n";
+    code += "    if (!renderer) {\n";
+    code += "        fprintf(stderr, \"SDL_CreateRenderer Error: %s\\n\", SDL_GetError());\n";
+    code += "        return false;\n";
+    code += "    }\n\n";
+    code += "    Uint32 pixel_format = (color_depth == 16) ? SDL_PIXELFORMAT_RGB565 : SDL_PIXELFORMAT_ARGB8888;\n";
+    code += "    texture = SDL_CreateTexture(renderer, pixel_format, SDL_TEXTUREACCESS_STREAMING, width, height);\n";
+    code += "    if (!texture) {\n";
+    code += "        fprintf(stderr, \"SDL_CreateTexture Error: %s\\n\", SDL_GetError());\n";
+    code += "        return false;\n";
+    code += "    }\n\n";
+    code += "    size_t buf_size = width * height;\n";
+    code += "    disp_buf_data = (lv_color_t*)malloc(buf_size * sizeof(lv_color_t));\n";
+    code += "    if (!disp_buf_data) {\n";
+    code += "        fprintf(stderr, \"Failed to allocate display buffer\\n\");\n";
+    code += "        return false;\n";
+    code += "    }\n\n";
+    code += "    lv_disp_draw_buf_init(&draw_buf, disp_buf_data, NULL, buf_size);\n\n";
+    code += "    lv_disp_drv_init(&disp_drv);\n";
+    code += "    disp_drv.hor_res = width;\n";
+    code += "    disp_drv.ver_res = height;\n";
+    code += "    disp_drv.flush_cb = sdl_display_flush;\n";
+    code += "    disp_drv.draw_buf = &draw_buf;\n";
+    code += "    lv_disp_drv_register(&disp_drv);\n\n";
+    code += "    lv_indev_drv_init(&indev_drv);\n";
+    code += "    indev_drv.type = LV_INDEV_TYPE_POINTER;\n";
+    code += "    indev_drv.read_cb = sdl_mouse_read;\n";
+    code += "    lv_indev_drv_register(&indev_drv);\n\n";
+    code += "    return true;\n";
+    code += "}\n\n";
+
+    code += "bool sdl_driver_handle_events(void) {\n";
+    code += "    SDL_Event event;\n";
+    code += "    while (SDL_PollEvent(&event)) {\n";
+    code += "        switch (event.type) {\n";
+    code += "            case SDL_QUIT:\n";
+    code += "                return false;\n";
+    code += "            case SDL_KEYDOWN:\n";
+    code += "                if (event.key.keysym.sym == SDLK_ESCAPE) return false;\n";
+    code += "                break;\n";
+    code += "            case SDL_MOUSEBUTTONDOWN:\n";
+    code += "                if (event.button.button == SDL_BUTTON_LEFT) {\n";
+    code += "                    mouse_pressed = true;\n";
+    code += "                    mouse_x = event.button.x;\n";
+    code += "                    mouse_y = event.button.y;\n";
+    code += "                }\n";
+    code += "                break;\n";
+    code += "            case SDL_MOUSEBUTTONUP:\n";
+    code += "                if (event.button.button == SDL_BUTTON_LEFT) {\n";
+    code += "                    mouse_pressed = false;\n";
+    code += "                }\n";
+    code += "                break;\n";
+    code += "            case SDL_MOUSEMOTION:\n";
+    code += "                mouse_x = event.motion.x;\n";
+    code += "                mouse_y = event.motion.y;\n";
+    code += "                break;\n";
+    code += "            default:\n";
+    code += "                break;\n";
+    code += "        }\n";
+    code += "    }\n";
+    code += "    return true;\n";
+    code += "}\n\n";
+
+    code += "void sdl_driver_cleanup(void) {\n";
+    code += "    if (disp_buf_data) {\n";
+    code += "        free(disp_buf_data);\n";
+    code += "        disp_buf_data = NULL;\n";
+    code += "    }\n";
+    code += "    if (texture) {\n";
+    code += "        SDL_DestroyTexture(texture);\n";
+    code += "        texture = NULL;\n";
+    code += "    }\n";
+    code += "    if (renderer) {\n";
+    code += "        SDL_DestroyRenderer(renderer);\n";
+    code += "        renderer = NULL;\n";
+    code += "    }\n";
+    code += "    if (window) {\n";
+    code += "        SDL_DestroyWindow(window);\n";
+    code += "        window = NULL;\n";
+    code += "    }\n";
+    code += "    SDL_Quit();\n";
+    code += "}\n";
+
+    return code;
+}
+
+QString LvglGenerator::generateSimulatorReadme() {
+    QString name = m_project ? m_project->projectName() : "LVGL Application";
+    if (name.isEmpty()) name = "LVGL Application";
+    int width = m_project ? m_project->displayConfig().width : 320;
+    int height = m_project ? m_project->displayConfig().height : 240;
+    int depth = m_project ? m_project->displayConfig().colorDepth : 16;
+    bool isRound = m_project ? m_project->displayConfig().round : false;
+
+    QString md;
+    md += QString("# %1 - LVGL PC Simulator\n\n").arg(name);
+    md += "This subproject allows you to build and run your exact LVGL embedded GUI on your desktop computer (Linux, macOS, Windows) without needing physical MCU hardware.\n\n";
+    md += "## Target Display Configuration\n\n";
+    md += QString("- **Resolution**: %1 x %2\n").arg(width).arg(height);
+    md += QString("- **Color Depth**: %1-bit\n").arg(depth);
+    md += QString("- **Screen Shape**: %1\n\n").arg(isRound ? "Round (rendered with circular bezel overlay)" : "Rectangular");
+
+    md += "## Prerequisites\n\n";
+    md += "1. **CMake** 3.20 or newer\n";
+    md += "2. **C/C++ Compiler** (GCC, Clang, or MSVC)\n";
+    md += "3. **SDL2 Development Library**:\n";
+    md += "   - Debian/Ubuntu: `sudo apt install libsdl2-dev`\n";
+    md += "   - Fedora/RHEL: `sudo dnf install SDL2-devel`\n";
+    md += "   - macOS: `brew install sdl2`\n";
+    md += "   - Windows (vcpkg): `vcpkg install sdl2`\n";
+    md += "   *(If SDL2 is not found on your system, CMake will automatically download and build SDL2 via `FetchContent`)*\n\n";
+
+    md += "## Build & Run\n\n";
+    md += "```bash\n";
+    md += "mkdir build && cd build\n";
+    md += "cmake ..\n";
+    md += "cmake --build .\n";
+    md += QString("./%1_pc_simulator\n").arg(name);
+    md += "```\n";
     return md;
 }

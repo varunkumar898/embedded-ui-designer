@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Espressif Systems ESP32-S3-DevKitC-1 v1.1 User Guide",
+    "vendor": "Espressif",
+    "boardId": "ESP32-S3-DevKitC-1",
+    "version": "1.0.0"
+  },
+  "metadata": {
+    "id": "ESP32-S3-DevKitC-1",
+    "name": "ESP32-S3-DevKitC-1",
+    "manufacturer": "Espressif",
+    "boardFamily": "DevKitC",
+    "mcuPartNumber": "ESP32-S3",
+    "architecture": "Xtensa 32-bit Dual-Core LX7",
+    "debugInterface": "Dual USB Type-C (Native USB-JTAG + CP2102 UART)",
+    "supplyVoltage": "5V via USB Type-C"
+  },
+  "physicalPinLabels": {
+    "BOOT": "GPIO0",
+    "RESET": "CHIP_PU",
+    "RGB_LED": "GPIO48",
+    "U0TXD": "GPIO43",
+    "U0RXD": "GPIO44",
+    "USB_D_N": "GPIO19",
+    "USB_D_P": "GPIO20"
+  },
+  "connectors": [
+    {
+      "name": "J1 Header (22 pins)",
+      "pinCount": 22,
+      "pinMapping": {
+        "1": "3V3",
+        "2": "3V3",
+        "3": "CHIP_PU",
+        "4": "GPIO4",
+        "5": "GPIO5",
+        "6": "GPIO6",
+        "7": "GPIO7",
+        "8": "GPIO15",
+        "9": "GPIO16",
+        "10": "GPIO17",
+        "11": "GPIO18",
+        "12": "GPIO8",
+        "13": "GPIO19",
+        "14": "GPIO20",
+        "15": "GPIO3",
+        "16": "GPIO46",
+        "17": "GPIO9",
+        "18": "GPIO10",
+        "19": "GPIO11",
+        "20": "GPIO12",
+        "21": "GPIO13",
+        "22": "GPIO14"
+      }
+    },
+    {
+      "name": "J3 Header (22 pins)",
+      "pinCount": 22,
+      "pinMapping": {
+        "1": "GND",
+        "2": "GPIO43",
+        "3": "GPIO44",
+        "4": "GPIO1",
+        "5": "GPIO2",
+        "6": "GPIO42",
+        "7": "GPIO41",
+        "8": "GPIO40",
+        "9": "GPIO39",
+        "10": "GPIO38",
+        "11": "GPIO37",
+        "12": "GPIO36",
+        "13": "GPIO35",
+        "14": "GPIO0",
+        "15": "GPIO45",
+        "16": "GPIO48",
+        "17": "GPIO47",
+        "18": "GPIO21",
+        "19": "GPIO14",
+        "20": "GND",
+        "21": "5V",
+        "22": "5V"
+      }
+    }
+  ],
+  "onboardPeripherals": {
+    "leds": [
+      { "name": "RGB LED (WS2812)", "pin": "GPIO48" }
+    ],
+    "buttons": [
+      { "name": "Boot", "pin": "GPIO0", "active": "Low" },
+      { "name": "Reset", "pin": "CHIP_PU" }
+    ]
+  }
+}

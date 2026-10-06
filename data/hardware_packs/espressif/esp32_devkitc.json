@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Espressif Systems ESP32-DevKitC V4 Getting Started Guide",
+    "vendor": "Espressif",
+    "boardId": "ESP32-DevKitC",
+    "version": "1.0.0"
+  },
+  "metadata": {
+    "id": "ESP32-DevKitC",
+    "name": "ESP32-DevKitC V4",
+    "manufacturer": "Espressif",
+    "boardFamily": "DevKitC",
+    "mcuPartNumber": "ESP32-WROOM-32",
+    "architecture": "Xtensa Dual-Core 32-bit LX6",
+    "debugInterface": "CP2102 / CH340 USB-UART",
+    "supplyVoltage": "5V via Micro-USB or 3.3V pin"
+  },
+  "physicalPinLabels": {
+    "BOOT_BUTTON": "GPIO0",
+    "EN_BUTTON": "EN",
+    "LED_BUILTIN": "GPIO2",
+    "TXD": "GPIO1",
+    "RXD": "GPIO3",
+    "SDA": "GPIO21",
+    "SCL": "GPIO22"
+  },
+  "connectors": [
+    {
+      "name": "Left Header (19 pins)",
+      "pinCount": 19,
+      "pinMapping": {
+        "1": "3V3",
+        "2": "EN",
+        "3": "GPIO36",
+        "4": "GPIO39",
+        "5": "GPIO34",
+        "6": "GPIO35",
+        "7": "GPIO32",
+        "8": "GPIO33",
+        "9": "GPIO25",
+        "10": "GPIO26",
+        "11": "GPIO27",
+        "12": "GPIO14",
+        "13": "GPIO12",
+        "14": "GND",
+        "15": "GPIO13",
+        "16": "GPIO9",
+        "17": "GPIO10",
+        "18": "GPIO11",
+        "19": "5V"
+      }
+    },
+    {
+      "name": "Right Header (19 pins)",
+      "pinCount": 19,
+      "pinMapping": {
+        "1": "GND",
+        "2": "GPIO23",
+        "3": "GPIO22",
+        "4": "GPIO1",
+        "5": "GPIO3",
+        "6": "GPIO21",
+        "7": "GND",
+        "8": "GPIO19",
+        "9": "GPIO18",
+        "10": "GPIO5",
+        "11": "GPIO17",
+        "12": "GPIO16",
+        "13": "GPIO4",
+        "14": "GPIO0",
+        "15": "GPIO2",
+        "16": "GPIO15",
+        "17": "GPIO8",
+        "18": "GPIO7",
+        "19": "GPIO6"
+      }
+    }
+  ],
+  "onboardPeripherals": {
+    "leds": [
+      { "name": "Power LED (Red)", "pin": "5V" }
+    ],
+    "buttons": [
+      { "name": "EN (Reset)", "pin": "EN" },
+      { "name": "BOOT", "pin": "GPIO0", "active": "Low" }
+    ]
+  }
+}

@@ -16,17 +16,32 @@
 #include "Project.h"
 
 class DeviceManager;
+class DesignerController;
+class DesignerLocalServer;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    ~MainWindow() override = default;
+    ~MainWindow() override;
+
+    CanvasScene* canvasScene() const { return m_scene; }
+    CanvasView* canvasView() const { return m_view; }
+    Project* currentProject() const { return m_project; }
+    class QUndoStack* undoStack() const { return m_undoStack; }
+    PropertiesPanel* propertiesPanel() const { return m_propertiesPanel; }
+    LayerPanel* layerPanel() const { return m_layerPanel; }
+
+    DesignerController* designerController() const { return m_controller; }
+    DesignerLocalServer* localServer() const { return m_localServer; }
+    bool startLocalMcpServer(quint16 port = 8765);
+    void stopLocalMcpServer();
 
 private slots:
     // File Actions
     void onNewProject();
+    void onCreateEmbeddedProject();
     void onOpenProject();
     void onOpenSampleProject();
     void onImportProject();
@@ -97,8 +112,14 @@ private:
     QLabel* m_tipLabel = nullptr;
     QLabel* m_statusLabel = nullptr;
     QLabel* m_zoomLabel = nullptr;
+    QLabel* m_hardwareStatusBadge = nullptr;
+
+    void updateHardwareStatusBadge(bool connected, const QString& probeName);
 
     // Align/Distribute toolbar actions
+
+    DesignerController* m_controller = nullptr;
+    DesignerLocalServer* m_localServer = nullptr;
 
     void setupUi();
     void setupMenusAndToolbars();

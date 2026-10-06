@@ -37,6 +37,9 @@ public:
     int pixelSize() const { return m_pixelSize; }
     void setPixelSize(int size);
 
+    QString fontFamily() const { return m_fontFamily; }
+    void setFontFamily(const QString& family);
+
     bool isReadOnly() const { return m_readOnly; }
     void setReadOnly(bool ro);
 
@@ -65,6 +68,7 @@ private:
     QColor m_borderColor = QColor("#3E4459");
     int m_borderWidth = 1;
     int m_cornerRadius = 4;
+    QString m_fontFamily = "Roboto";
     int m_pixelSize = 13;
     bool m_readOnly = false;
     QString m_onTextChangedHandler;

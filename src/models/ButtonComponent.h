@@ -19,6 +19,24 @@ public:
     QColor textColor() const { return m_textColor; }
     void setTextColor(const QColor& color);
 
+    QColor borderColor() const { return m_borderColor; }
+    void setBorderColor(const QColor& color);
+
+    int borderWidth() const { return m_borderWidth; }
+    void setBorderWidth(int width);
+
+    QString fontFamily() const { return m_fontFamily; }
+    void setFontFamily(const QString& family);
+
+    int pixelSize() const { return m_pixelSize; }
+    void setPixelSize(int size);
+
+    bool bold() const { return m_bold; }
+    void setBold(bool b);
+
+    bool isEnabled() const { return m_enabled; }
+    void setEnabled(bool enabled);
+
     bool hasCornerRadius() const override { return true; }
     int cornerRadius() const override { return m_cornerRadius; }
     void setCornerRadius(int r) override;
@@ -48,6 +66,12 @@ private:
     QString m_text = "Button";
     QColor m_backgroundColor = QColor(33, 150, 243); // Vibrant modern blue
     QColor m_textColor = Qt::white;
+    QColor m_borderColor = QColor(25, 118, 210);
+    int m_borderWidth = 1;
+    QString m_fontFamily = "Roboto";
+    int m_pixelSize = 13;
+    bool m_bold = true;
+    bool m_enabled = true;
     int m_cornerRadius = 6;
     QString m_onClickedHandler = "buttonPressed";
     QString m_targetScreenId;

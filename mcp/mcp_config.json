@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "embedded-ui-designer": {
+      "command": "python3",
+      "args": [
+        "/home/cherry/embedded-ui-designer/mcp/embedded_ui_mcp.py",
+        "--port",
+        "8765"
+      ],
+      "env": {}
+    }
+  }
+}

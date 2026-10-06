@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Espressif Systems ESP32 Series Datasheet v4.1, ESP32 Technical Reference Manual v4.7",
+    "vendor": "Espressif",
+    "partNumber": "ESP32-WROOM-32",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "vendor": "Espressif",
+    "family": "ESP32",
+    "series": "ESP32",
+    "partNumber": "ESP32-WROOM-32",
+    "architecture": "Xtensa Dual-Core 32-bit LX6",
+    "core": "Xtensa LX6",
+    "package": "Module (QFN48 SoC)",
+    "flash": 4194304,
+    "ram": 524288,
+    "eeprom": 0,
+    "minVoltage": 3.0,
+    "maxVoltage": 3.6,
+    "maxClockMhz": 240,
+    "gpioCount": 34
+  },
+  "peripherals": {
+    "uart": 3,
+    "spi": 3,
+    "i2c": 2,
+    "i2s": 2,
+    "can": 1,
+    "adc": 2,
+    "dac": 2,
+    "pwm": 16,
+    "timers": 4,
+    "wifi": 1,
+    "bluetooth": 1,
+    "touch": 10
+  },
+  "peripheralDescriptors": [
+    {
+      "name": "UART0",
+      "type": "UART",
+      "signals": { "TX": ["GPIO1"], "RX": ["GPIO3"] },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "UART2",
+      "type": "UART",
+      "signals": { "TX": ["GPIO17"], "RX": ["GPIO16"] },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "SPI2_HSPI",
+      "type": "SPI",
+      "signals": { "SCK": ["GPIO14"], "MISO": ["GPIO12"], "MOSI": ["GPIO13"], "CS": ["GPIO15"] },
+      "defaults": { "mode": "Master", "clockSpeedHz": 20000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "SPI3_VSPI",
+      "type": "SPI",
+      "signals": { "SCK": ["GPIO18"], "MISO": ["GPIO19"], "MOSI": ["GPIO23"], "CS": ["GPIO5"] },
+      "defaults": { "mode": "Master", "clockSpeedHz": 40000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "I2C0",
+      "type": "I2C",
+      "signals": { "SCL": ["GPIO22"], "SDA": ["GPIO21"] },
+      "defaults": { "speed": "Fast (400 kHz)", "speedHz": 400000 }
+    },
+    {
+      "name": "CAN0_TWAI",
+      "type": "CAN",
+      "signals": { "TX": ["GPIO5", "GPIO22"], "RX": ["GPIO4", "GPIO21"] },
+      "defaults": { "bitrate": 500000 }
+    },
+    {
+      "name": "ADC1",
+      "type": "ADC",
+      "signals": { "CH0": ["GPIO36"], "CH3": ["GPIO39"], "CH4": ["GPIO32"], "CH5": ["GPIO33"], "CH6": ["GPIO34"], "CH7": ["GPIO35"] },
+      "defaults": { "resolution": 12 }
+    }
+  ],
+  "clockTree": {
+    "defaultSysClockMhz": 240,
+    "maxSysClockMhz": 240,
+    "apbMhz": 80,
+    "oscillatorSources": ["Internal 8 MHz", "External Crystal (40 MHz)"]
+  },
+  "pins": [
+    { "name": "GPIO0", "physicalPin": 25, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC2_CH1", "TOUCH1", "BOOT"], "isBoot": true },
+    { "name": "GPIO1", "physicalPin": 35, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "U0TXD", "CLK_OUT3"] },
+    { "name": "GPIO2", "physicalPin": 24, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC2_CH2", "TOUCH2", "HSPI_WP"] },
+    { "name": "GPIO3", "physicalPin": 34, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "U0RXD", "CLK_OUT2"] },
+    { "name": "GPIO4", "physicalPin": 26, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC2_CH0", "TOUCH0", "HSPI_HD"] },
+    { "name": "GPIO5", "physicalPin": 29, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "VSPI_CS0"] },
+    { "name": "GPIO12", "physicalPin": 14, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "HSPI_Q", "ADC2_CH5", "TOUCH5"] },
+    { "name": "GPIO13", "physicalPin": 16, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "HSPI_D", "ADC2_CH4", "TOUCH4"] },
+    { "name": "GPIO14", "physicalPin": 13, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "HSPI_CLK", "ADC2_CH6", "TOUCH6"] },
+    { "name": "GPIO15", "physicalPin": 23, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "HSPI_CS0", "ADC2_CH3", "TOUCH3"] },
+    { "name": "GPIO16", "physicalPin": 27, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "U2RXD"] },
+    { "name": "GPIO17", "physicalPin": 28, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "U2TXD"] },
+    { "name": "GPIO18", "physicalPin": 30, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "VSPI_CLK"] },
+    { "name": "GPIO19", "physicalPin": 31, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "VSPI_Q"] },
+    { "name": "GPIO21", "physicalPin": 33, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "I2C0_SDA"] },
+    { "name": "GPIO22", "physicalPin": 36, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "I2C0_SCL"] },
+    { "name": "GPIO23", "physicalPin": 37, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "VSPI_D"] },
+    { "name": "GPIO25", "physicalPin": 10, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "DAC1", "ADC2_CH8"] },
+    { "name": "GPIO26", "physicalPin": 11, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "DAC2", "ADC2_CH9"] },
+    { "name": "GPIO27", "physicalPin": 12, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC2_CH7", "TOUCH7"] },
+    { "name": "GPIO32", "physicalPin": 8, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC1_CH4", "TOUCH9", "XTAL_32K_P"] },
+    { "name": "GPIO33", "physicalPin": 9, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC1_CH5", "TOUCH8", "XTAL_32K_N"] },
+    { "name": "GPIO34", "physicalPin": 6, "alternateFunctions": ["GPIO_Input", "ADC1_CH6"] },
+    { "name": "GPIO35", "physicalPin": 7, "alternateFunctions": ["GPIO_Input", "ADC1_CH7"] },
+    { "name": "GPIO36", "physicalPin": 4, "alternateFunctions": ["GPIO_Input", "ADC1_CH0", "SENSOR_VP"] },
+    { "name": "GPIO39", "physicalPin": 5, "alternateFunctions": ["GPIO_Input", "ADC1_CH3", "SENSOR_VN"] },
+    { "name": "EN", "physicalPin": 3, "alternateFunctions": [], "isReset": true },
+    { "name": "3V3", "physicalPin": 2, "alternateFunctions": [], "isPower": true },
+    { "name": "GND", "physicalPin": 1, "alternateFunctions": [], "isGround": true }
+  ]
+}

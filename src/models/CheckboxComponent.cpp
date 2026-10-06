@@ -1,6 +1,7 @@
 #include "CheckboxComponent.h"
 #include <QPainterPath>
 #include <QFontMetrics>
+#include <algorithm>
 
 CheckboxComponent::CheckboxComponent(const QString& id, QGraphicsItem* parent)
     : UIComponent(id, "Checkbox", parent)
@@ -59,6 +60,32 @@ void CheckboxComponent::setBorderColor(const QColor& color) {
     }
 }
 
+void CheckboxComponent::setBorderWidth(int width) {
+    width = std::max(0, width);
+    if (m_borderWidth != width) {
+        m_borderWidth = width;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void CheckboxComponent::setFontFamily(const QString& family) {
+    if (m_fontFamily != family) {
+        m_fontFamily = family;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void CheckboxComponent::setPixelSize(int size) {
+    size = std::clamp(size, 6, 72);
+    if (m_pixelSize != size) {
+        m_pixelSize = size;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
 void CheckboxComponent::setOnToggledHandler(const QString& handler) {
     if (m_onToggledHandler != handler) {
         m_onToggledHandler = handler;
@@ -81,7 +108,11 @@ void CheckboxComponent::paintComponent(QPainter* painter) {
     qreal boxY = (m_height - boxDim) / 2.0;
     QRectF boxRect(2.0, boxY, boxDim, boxDim);
 
-    painter->setPen(QPen(m_borderColor, 1.5));
+    if (m_borderWidth > 0 && m_borderColor.alpha() > 0) {
+        painter->setPen(QPen(m_borderColor, m_borderWidth));
+    } else {
+        painter->setPen(Qt::NoPen);
+    }
     painter->setBrush(m_boxColor);
     painter->drawRoundedRect(boxRect, 3.0, 3.0);
 
@@ -99,8 +130,8 @@ void CheckboxComponent::paintComponent(QPainter* painter) {
 
     // 3. Draw text label
     painter->setPen(m_textColor);
-    QFont font = painter->font();
-    font.setPointSize(9);
+    QFont font(m_fontFamily);
+    font.setPixelSize(m_pixelSize);
     painter->setFont(font);
 
     qreal textX = boxRect.right() + 8.0;
@@ -116,6 +147,9 @@ QJsonObject CheckboxComponent::toJson() const {
     json["checkColor"] = serializeColor(m_checkColor, colorStyleRef("checkColor"));
     json["boxColor"] = serializeColor(m_boxColor, colorStyleRef("boxColor"));
     json["borderColor"] = serializeColor(m_borderColor, colorStyleRef("borderColor"));
+    json["borderWidth"] = m_borderWidth;
+    json["fontFamily"] = m_fontFamily;
+    json["pixelSize"] = m_pixelSize;
     json["onToggled"] = m_onToggledHandler;
     return json;
 }
@@ -144,6 +178,9 @@ void CheckboxComponent::fromJson(const QJsonObject& json) {
         deserializeColor(json.value("borderColor"), m_borderColor, ref);
         setColorStyleRef("borderColor", ref);
     }
+    m_borderWidth = json.value("borderWidth").toInt(m_borderWidth);
+    m_fontFamily = json.value("fontFamily").toString(m_fontFamily);
+    m_pixelSize = json.value("pixelSize").toInt(m_pixelSize);
     m_onToggledHandler = json.value("onToggled").toString();
 }
 
@@ -174,38 +211,32 @@ void CheckboxComponent::applyColorStyle(const QString& styleName, const QColor& 
 QString CheckboxComponent::toQmlSnippet(int indentSpaces) const {
     QString ind(indentSpaces, ' ');
     QString qml;
-    qml += ind + "Item {\n";
+    qml += ind + "Row {\n";
     qml += ind + QString("    id: %1\n").arg(m_id);
-    qml += ind + QString("    x: %1; y: %2; width: %3; height: %4\n")
-        .arg(static_cast<int>(compX())).arg(static_cast<int>(compY()))
-        .arg(static_cast<int>(m_width)).arg(static_cast<int>(m_height));
-    qml += ind + QString("    property bool checked: %1\n").arg(m_checked ? "true" : "false");
+    qml += ind + QString("    x: %1; y: %2; spacing: 8\n")
+        .arg(static_cast<int>(compX())).arg(static_cast<int>(compY()));
     qml += ind + "    Rectangle {\n";
-    qml += ind + QString("        id: %1_box\n").arg(m_id);
     qml += ind + "        width: 18; height: 18; radius: 3\n";
-    qml += ind + "        anchors.verticalCenter: parent.verticalCenter\n";
-    qml += ind + QString("        color: \"%1\"\n").arg(m_boxColor.name());
-    qml += ind + QString("        border.color: \"%1\"; border.width: 1\n").arg(m_borderColor.name());
-    qml += ind + "        Rectangle {\n";
-    qml += ind + "            width: 10; height: 10; radius: 2\n";
+    qml += ind + QString("        color: \"%1\"; border.color: \"%2\"\n")
+        .arg(m_boxColor.name()).arg(m_borderColor.name());
+    qml += ind + QString("        border.width: %1\n").arg(m_borderWidth);
+    qml += ind + "        Text {\n";
     qml += ind + "            anchors.centerIn: parent\n";
-    qml += ind + QString("            color: \"%1\"\n").arg(m_checkColor.name());
-    qml += ind + "            visible: parent.parent.checked\n";
+    qml += ind + QString("            text: %1 ? \"✓\" : \"\"\n").arg(m_checked ? "true" : "false");
+    qml += ind + QString("            color: \"%1\"; font.bold: true\n").arg(m_checkColor.name());
     qml += ind + "        }\n";
     qml += ind + "    }\n";
     qml += ind + "    Text {\n";
-    qml += ind + QString("        anchors.left: %1_box.right; anchors.leftMargin: 8\n").arg(m_id);
+    qml += ind + QString("        text: \"%1\"; color: \"%2\"\n")
+        .arg(m_text).arg(m_textColor.name());
+    qml += ind + QString("        font.pixelSize: %1\n").arg(m_pixelSize);
     qml += ind + "        anchors.verticalCenter: parent.verticalCenter\n";
-    qml += ind + QString("        text: \"%1\"\n").arg(m_text);
-    qml += ind + QString("        color: \"%1\"\n").arg(m_textColor.name());
-    qml += ind + "        font.pixelSize: 13\n";
     qml += ind + "    }\n";
     qml += ind + "    MouseArea {\n";
     qml += ind + "        anchors.fill: parent\n";
     qml += ind + "        onClicked: {\n";
-    qml += ind + "            parent.checked = !parent.checked;\n";
     if (!m_onToggledHandler.isEmpty()) {
-        qml += ind + QString("            root.%1(parent.checked);\n").arg(m_onToggledHandler);
+        qml += ind + QString("            root.%1(!%2);\n").arg(m_onToggledHandler).arg(m_checked ? "true" : "false");
     }
     qml += ind + "        }\n";
     qml += ind + "    }\n";
@@ -222,7 +253,7 @@ QString CheckboxComponent::toUgfxSnippet(int indentSpaces) const {
     code += ind + QString("wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(compX())).arg(static_cast<int>(compY()));
     code += ind + QString("wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(m_width)).arg(static_cast<int>(m_height));
     code += ind + QString("wi.text = \"%1\";\n").arg(m_text);
-    code += ind + QString("ghChk_%1 = gwinCheckboxCreate(0, &wi);\n").arg(m_id);
-    code += ind + QString("gwinCheckboxCheck(ghChk_%1, %2);\n").arg(m_id).arg(m_checked ? "gTrue" : "gFalse");
+    code += ind + QString("ghCheckbox_%1 = gwinCheckboxCreate(0, &wi);\n").arg(m_id);
+    code += ind + QString("gwinCheckboxCheck(ghCheckbox_%1, %2);\n").arg(m_id).arg(m_checked ? "gTrue" : "gFalse");
     return code;
 }

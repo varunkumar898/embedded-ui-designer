@@ -75,3 +75,14 @@ You can run headless exports without launching the graphical UI:
 ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out /path/to/output
 ```
 This is ideal for continuous integration and automated compile tests.
+
+---
+
+## 6. AI Assistant Remote Control (Model Context Protocol)
+
+Embedded UI Designer embeds an MCP local controller that lets Claude, Antigravity, or other AI agents inspect, create, style, and move components live on the canvas.
+
+- **Start designer**: The local control server starts on `127.0.0.1:8765` by default (configurable via `--mcp-port <port>`).
+- **Start MCP server**: Run `python3 mcp/embedded_ui_mcp.py --port 8765` or configure Claude Desktop / Antigravity with `mcp/mcp_config.json`.
+- **See full documentation**: Refer to `docs/MCP_GUIDE.md` for tool references, schema structures, and sample natural-language commands.
+

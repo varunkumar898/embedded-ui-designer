@@ -29,6 +29,13 @@ public:
     Qt::Alignment alignment() const { return m_alignment; }
     void setAlignment(Qt::Alignment align);
 
+    QColor backgroundColor() const { return m_backgroundColor; }
+    void setBackgroundColor(const QColor& color);
+
+    bool hasCornerRadius() const override { return false; }
+    int cornerRadius() const override { return m_cornerRadius; }
+    void setCornerRadius(int r) override;
+
     // ── Extended typography (Task 5) ───────────────────────────────────────────
     qreal letterSpacing() const { return m_letterSpacing; }
     void  setLetterSpacing(qreal sp);
@@ -52,6 +59,8 @@ protected:
 private:
     QString m_text = "Label";
     QColor m_color = Qt::black;
+    QColor m_backgroundColor = Qt::transparent;
+    int m_cornerRadius = 0;
     QString m_fontFamily = "Roboto";
     int m_pixelSize = 16;
     bool m_bold = false;

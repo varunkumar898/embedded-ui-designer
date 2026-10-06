@@ -101,11 +101,21 @@ void Project::newProject(const QString& name, int width, int height) {
         m_scene->setScreenBackgroundColor(Qt::white);
     }
 
+    m_hardwareConfig.clear();
+    emit hardwareConfigChanged();
+
     initDefaultStyles();
     emit colorStylesChanged();
 
     m_dirty = false;
     emit projectLoaded();
+}
+
+void Project::setHardwareConfig(const Hardware::HardwareConfig& config) {
+    m_hardwareConfig = config;
+    setDirty(true);
+    emit hardwareConfigChanged();
+    emit projectModified();
 }
 
 QJsonObject Project::toJson() const {
@@ -157,12 +167,21 @@ QJsonObject Project::toJson() const {
         libArr.append(def.toJson());
     root["componentLibrary"] = libArr;
 
+    root["hardware"] = m_hardwareConfig.toJson();
+
     return root;
 }
 
 bool Project::fromJson(const QJsonObject& root) {
     m_name = root.value("name").toString("MyEmbeddedApp");
     m_targetFramework = root.value("target").toString("qt-for-mcus");
+
+    if (root.contains("hardware") && root.value("hardware").isObject()) {
+        m_hardwareConfig = Hardware::HardwareConfig::fromJson(root.value("hardware").toObject());
+    } else {
+        m_hardwareConfig.clear();
+    }
+    emit hardwareConfigChanged();
 
     if (root.contains("display") && root.value("display").isObject()) {
         m_displayConfig = DisplayConfig::fromJson(root.value("display").toObject());

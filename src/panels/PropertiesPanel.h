@@ -108,15 +108,21 @@ private:
     QCheckBox* m_chkItalic = nullptr;
     QLineEdit* m_handlerEdit = nullptr;
     QDoubleSpinBox* m_spinProgressValue = nullptr;
+    QDoubleSpinBox* m_spinProgressMin = nullptr;
+    QDoubleSpinBox* m_spinProgressMax = nullptr;
+    QComboBox* m_comboProgressOrientation = nullptr;
     QLineEdit* m_imagePathEdit = nullptr;
     QPushButton* m_browseImageBtn = nullptr;
     QComboBox* m_comboImageFormat = nullptr;
+    QComboBox* m_comboScalingMode = nullptr;
 
     // Additional specific controls for full coverage
     QSpinBox* m_spinSliderVal = nullptr;
     QSpinBox* m_spinSliderMin = nullptr;
     QSpinBox* m_spinSliderMax = nullptr;
     QCheckBox* m_chkState = nullptr;
+    QCheckBox* m_chkVisible = nullptr;
+    QCheckBox* m_chkEnabled = nullptr;
     QLineEdit* m_placeholderEdit = nullptr;
     QCheckBox* m_chkReadOnly = nullptr;
     QCheckBox* m_chkFilled = nullptr;
@@ -150,6 +156,11 @@ private:
     QComboBox* m_comboI2cScl = nullptr;
     QComboBox* m_comboI2cSda = nullptr;
     QLineEdit* m_editI2cAddress = nullptr;
+    QPushButton* m_btnScanI2c = nullptr;
+    QLabel* m_lblI2cScanStatus = nullptr;
+    QComboBox* m_comboDetectedI2cDevices = nullptr;
+    QLineEdit* m_editI2cSensorName = nullptr;
+    QPushButton* m_btnAssignSensorName = nullptr;
 
     class QUndoStack* m_undoStack = nullptr;
 
@@ -161,6 +172,8 @@ private:
     void updateProtocolFieldsVisibility(const QString& protocol);
     void onProtocolChanged(const QString& newProtocol);
     void onProtocolPinChanged();
+    void onScanI2cBusClicked();
+    void onAssignSensorNameClicked();
 
     void showEmpty();
     void showSingle();

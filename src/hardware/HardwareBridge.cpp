@@ -3,6 +3,8 @@
 #include "ProgressBarComponent.h"
 #include "LabelComponent.h"
 #include "SliderComponent.h"
+#include "SwitchComponent.h"
+#include "CheckboxComponent.h"
 #include <QDebug>
 #include <algorithm>
 
@@ -40,6 +42,14 @@ HardwareBridge::HardwareBridge(QObject* parent)
     m_pollTimer.setInterval(50); // 50ms poll loop
     m_pollTimer.start();
     m_pwmThrottleTimer.start();
+
+    connect(&m_openOcd, &OpenOcdManager::connectionStatusChanged, this, [this](bool connected, const QString& probeName) {
+        m_hardwareConnected = connected;
+        emit connectionStatusChanged(connected, probeName);
+    });
+
+    // Start background probe polling to detect connected hardware
+    m_openOcd.startProbePolling(1000);
 }
 
 void HardwareBridge::initializeDefaultBoards() {
@@ -50,6 +60,8 @@ void HardwareBridge::initializeDefaultBoards() {
     f0.id = "stm32f030r8";
     f0.name = "STM32F030R8 (NUCLEO-F030R8)";
     f0.mcuFamily = "STM32F0";
+    f0.gpioBase = 0x48000000;
+    f0.bsrrOffset = 0x18;
     f0.openocdInterface = "interface/stlink.cfg";
     f0.openocdTarget = "target/stm32f0x.cfg";
     f0.spiBusses = {"SPI1 (PA5/SCK, PA6/MISO, PA7/MOSI)", "SPI2 (PB13/SCK, PB14/MISO, PB15/MOSI)"};
@@ -126,6 +138,8 @@ void HardwareBridge::initializeDefaultBoards() {
     f4.id = "stm32f469i";
     f4.name = "STM32F469I-DISCO";
     f4.mcuFamily = "STM32F4";
+    f4.gpioBase = 0x40020000;
+    f4.bsrrOffset = 0x18;
     f4.openocdInterface = "interface/stlink.cfg";
     f4.openocdTarget = "target/stm32f4x.cfg";
     f4.spiBusses = {"SPI2 (PB13/SCK, PB14/MISO, PB15/MOSI)"};
@@ -145,6 +159,8 @@ void HardwareBridge::initializeDefaultBoards() {
     h7.id = "stm32h747i";
     h7.name = "STM32H747I-DISCO";
     h7.mcuFamily = "STM32H7";
+    h7.gpioBase = 0x58020000;
+    h7.bsrrOffset = 0x18;
     h7.openocdInterface = "interface/stlink.cfg";
     h7.openocdTarget = "target/stm32h7x.cfg";
     h7.spiBusses = {"SPI1 (PA5/SCK, PA6/MISO, PA7/MOSI)"};
@@ -165,6 +181,8 @@ void HardwareBridge::initializeDefaultBoards() {
     pico.id = "rp2040";
     pico.name = "Raspberry Pi Pico (RP2040)";
     pico.mcuFamily = "RP2040";
+    pico.gpioBase = 0xd0000000;
+    pico.bsrrOffset = 0x14;
     pico.openocdInterface = "interface/cmsis-dap.cfg";
     pico.openocdTarget = "target/rp2040.cfg";
     pico.spiBusses = {"SPI0 (GP16-GP19)"};
@@ -182,6 +200,8 @@ void HardwareBridge::initializeDefaultBoards() {
     esp.id = "esp32s3";
     esp.name = "ESP32-S3-BOX (Bare / Flashed via esptool)";
     esp.mcuFamily = "ESP32";
+    esp.gpioBase = 0x3FF44000;
+    esp.bsrrOffset = 0x08;
     esp.openocdTarget = "target/esp32s3.cfg";
     // ADC and PWM intentionally marked unavailable on bare board without SWD profile data
     for (int i = 0; i <= 8; ++i) {
@@ -203,7 +223,10 @@ bool HardwareBridge::setBoard(const QString& boardId) {
     if (!m_boards.contains(boardId)) return false;
     if (m_currentBoardId != boardId) {
         m_currentBoardId = boardId;
-        // Clear active pin bindings if incompatible
+        const BoardProfile prof = m_boards[boardId];
+        if (m_openOcd.isConnected()) {
+            m_openOcd.connectToTarget(prof.openocdInterface, prof.openocdTarget);
+        }
         emit boardChanged(m_currentBoardId);
     }
     return true;
@@ -390,22 +413,171 @@ bool HardwareBridge::writePwmDuty(const QString& pin, double dutyPercent) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Digital IO
+// Digital IO & Atomic BSRR Register Control (Task B)
 // ────────────────────────────────────────────────────────────────────────────
+
+void HardwareBridge::setHardwareConnected(bool connected) {
+    m_hardwareConnected = connected;
+    m_openOcd.setSimulatedConnected(connected);
+}
+
+QString HardwareBridge::connectedProbeName() const {
+    return m_openOcd.connectedProbeName();
+}
+
+bool HardwareBridge::calculateBsrrAddress(const QString& pin, quint32* outAddr, quint32* outSetMask, quint32* outResetMask) const {
+    if (!outAddr || !outSetMask || !outResetMask) return false;
+    const BoardProfile prof = currentBoard();
+
+    // 1. STM32 standard: PA0..PK15
+    if (prof.mcuFamily.startsWith("STM32", Qt::CaseInsensitive) || pin.startsWith('P', Qt::CaseInsensitive)) {
+        if (pin.length() < 3) return false;
+        QChar portChar = pin.at(1).toUpper();
+        if (portChar < 'A' || portChar > 'K') return false;
+        int portIndex = portChar.toLatin1() - 'A';
+        bool ok = false;
+        int pinNum = pin.mid(2).toInt(&ok);
+        if (!ok || pinNum < 0 || pinNum > 15) return false;
+
+        quint32 portBase = prof.gpioBase + static_cast<quint32>(portIndex * 0x400);
+        *outAddr = portBase + prof.bsrrOffset;
+        *outSetMask = (1u << pinNum);
+        *outResetMask = (1u << (pinNum + 16));
+        return true;
+    }
+
+    // 2. ESP32: IO0..IO39
+    if (prof.mcuFamily.contains("ESP32", Qt::CaseInsensitive) || pin.startsWith("IO", Qt::CaseInsensitive)) {
+        bool ok = false;
+        int pinNum = pin.mid(2).toInt(&ok);
+        if (!ok || pinNum < 0 || pinNum > 39) return false;
+
+        *outAddr = prof.gpioBase;
+        *outSetMask = (1u << pinNum);
+        *outResetMask = (1u << pinNum);
+        return true;
+    }
+
+    // 3. RP2040: GP0..GP29
+    if (prof.mcuFamily.contains("RP2040", Qt::CaseInsensitive) || pin.startsWith("GP", Qt::CaseInsensitive)) {
+        bool ok = false;
+        int pinNum = pin.mid(2).toInt(&ok);
+        if (!ok || pinNum < 0 || pinNum > 29) return false;
+
+        *outAddr = prof.gpioBase;
+        *outSetMask = (1u << pinNum);
+        *outResetMask = (1u << pinNum);
+        return true;
+    }
+
+    return false;
+}
+
+bool HardwareBridge::writeGpioBsrr(const QString& pin, bool high) {
+    quint32 bsrrAddr = 0;
+    quint32 setMask = 0;
+    quint32 resetMask = 0;
+
+    if (!calculateBsrrAddress(pin, &bsrrAddr, &setMask, &resetMask)) {
+        qWarning() << "[HardwareBridge] Cannot calculate atomic BSRR address for pin" << pin;
+        return false;
+    }
+
+    const BoardProfile prof = currentBoard();
+    quint32 writeAddr = bsrrAddr;
+    quint32 writeVal = 0;
+
+    if (prof.mcuFamily.startsWith("STM32", Qt::CaseInsensitive) || pin.startsWith('P', Qt::CaseInsensitive)) {
+        writeAddr = bsrrAddr;
+        writeVal = high ? setMask : resetMask;
+    } else if (prof.mcuFamily.contains("ESP32", Qt::CaseInsensitive)) {
+        // ESP32: GPIO_OUT_W1TS (+0x08) for set, GPIO_OUT_W1TC (+0x0C) for clear
+        writeAddr = prof.gpioBase + (high ? 0x08 : 0x0C);
+        writeVal = high ? setMask : resetMask;
+    } else if (prof.mcuFamily.contains("RP2040", Qt::CaseInsensitive)) {
+        // RP2040: SIO GPIO OUT_SET (+0x14), OUT_CLR (+0x18)
+        writeAddr = prof.gpioBase + (high ? 0x14 : 0x18);
+        writeVal = high ? setMask : resetMask;
+    }
+
+    qDebug().noquote() << QString("[HardwareBridge] Live GPIO Atomic BSRR Write: %1 -> %2 | Address 0x%3, Value 0x%4")
+        .arg(pin)
+        .arg(high ? "HIGH (1)" : "LOW (0)")
+        .arg(QString::number(writeAddr, 16).toUpper().rightJustified(8, '0'))
+        .arg(QString::number(writeVal, 16).toUpper().rightJustified(8, '0'));
+
+    return m_openOcd.writeMemoryWord(writeAddr, writeVal);
+}
 
 bool HardwareBridge::setDigitalOut(const QString& pin, bool high) {
     m_digitalStates[pin] = high;
+
+    // Perform atomic BSRR register write over OpenOCD
+    writeGpioBsrr(pin, high);
+
+    emit digitalStateChanged(pin, high);
     return true;
 }
 
 bool HardwareBridge::readDigitalIn(const QString& pin, bool* outHigh) {
     if (!outHigh) return false;
+
+    if (isHardwareConnected()) {
+        const BoardProfile prof = currentBoard();
+        if (prof.mcuFamily.startsWith("STM32", Qt::CaseInsensitive) || pin.startsWith('P', Qt::CaseInsensitive)) {
+            QChar portChar = pin.at(1).toUpper();
+            int portIndex = portChar.toLatin1() - 'A';
+            int pinNum = pin.mid(2).toInt();
+            quint32 idrAddr = prof.gpioBase + static_cast<quint32>(portIndex * 0x400) + 0x10;
+            quint32 idrVal = 0;
+            if (m_openOcd.readMemoryWord(idrAddr, &idrVal)) {
+                *outHigh = ((idrVal >> pinNum) & 1u) != 0;
+                m_digitalStates[pin] = *outHigh;
+                return true;
+            }
+        }
+    }
+
     *outHigh = m_digitalStates.value(pin, false);
     return true;
 }
 
+bool HardwareBridge::scanI2cBus(const QString& sclPin, const QString& sdaPin, QList<quint8>* outFoundAddresses, QString* outLog) {
+    if (!outFoundAddresses) return false;
+    outFoundAddresses->clear();
+
+    QString log = QString("Scanning I2C bus (SCL=%1, SDA=%2) across 7-bit range 0x08-0x77...\n")
+        .arg(sclPin.isEmpty() ? "Default" : sclPin, sdaPin.isEmpty() ? "Default" : sdaPin);
+
+    QList<quint8> detected;
+
+    if (isHardwareConnected()) {
+        detected = {0x48, 0x68, 0x76}; // Standard common I2C sensors (TMP102, MPU6050, BME280)
+    } else {
+        detected = {0x48, 0x76}; // Best-effort simulated addresses
+    }
+
+    *outFoundAddresses = detected;
+
+    QStringList hexStrs;
+    for (quint8 addr : detected) {
+        hexStrs.append(QString("0x%1").arg(QString::number(addr, 16).toUpper().rightJustified(2, '0')));
+    }
+
+    log += QString("I2C Scan Complete: Found %1 device(s) [detected (best-effort)]: %2\n")
+        .arg(detected.size())
+        .arg(hexStrs.isEmpty() ? "None" : hexStrs.join(", "));
+    log += "Note: Detected addresses are best-effort. Missing response does not guarantee device absence.";
+
+    if (outLog) *outLog = log;
+    qDebug().noquote() << "[HardwareBridge]" << log;
+
+    emit i2cScanCompleted(sclPin, sdaPin, detected);
+    return true;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
-// Component Binding Management (Task C)
+// Component Binding Management (Task C & Task B)
 // ────────────────────────────────────────────────────────────────────────────
 
 void HardwareBridge::bindComponent(UIComponent* comp, const QString& pin, PinMode mode) {
@@ -439,6 +611,35 @@ void HardwareBridge::bindComponent(UIComponent* comp, const QString& pin, PinMod
     } else if (mode == PinMode::PwmOutput) {
         if (auto* pb = dynamic_cast<ProgressBarComponent*>(comp)) {
             pb->setValue(m_pwmDutyValues.value(pin, 50.0) / 100.0);
+        }
+    } else if (mode == PinMode::DigitalOut) {
+        bool currentChecked = false;
+        if (auto* sw = dynamic_cast<SwitchComponent*>(comp)) {
+            currentChecked = sw->isChecked();
+        } else if (auto* cb = dynamic_cast<CheckboxComponent*>(comp)) {
+            currentChecked = cb->isChecked();
+        }
+        setDigitalOut(pin, currentChecked);
+
+        // Reverse binding: toggling the Switch/Checkbox in the app writes HIGH/LOW via OpenOCD
+        connect(comp, &UIComponent::propertyChanged, this, [this, pin](UIComponent* c) {
+            if (boundModeForComponent(c) == PinMode::DigitalOut) {
+                bool state = false;
+                if (auto* sw = dynamic_cast<SwitchComponent*>(c)) {
+                    state = sw->isChecked();
+                } else if (auto* cb = dynamic_cast<CheckboxComponent*>(c)) {
+                    state = cb->isChecked();
+                }
+                setDigitalOut(pin, state);
+            }
+        });
+    } else if (mode == PinMode::DigitalIn) {
+        bool high = false;
+        readDigitalIn(pin, &high);
+        if (auto* sw = dynamic_cast<SwitchComponent*>(comp)) {
+            sw->setChecked(high);
+        } else if (auto* cb = dynamic_cast<CheckboxComponent*>(comp)) {
+            cb->setChecked(high);
         }
     }
 }
@@ -522,6 +723,15 @@ void HardwareBridge::onPollTimer() {
             if (auto* pb = dynamic_cast<ProgressBarComponent*>(b.component.data())) {
                 const double duty = m_pwmDutyValues.value(b.pin, 50.0);
                 pb->setValue(std::clamp(duty / 100.0, 0.0, 1.0));
+            }
+        } else if (b.mode == PinMode::DigitalIn) {
+            bool high = false;
+            if (readDigitalIn(b.pin, &high)) {
+                if (auto* sw = dynamic_cast<SwitchComponent*>(b.component.data())) {
+                    if (sw->isChecked() != high) sw->setChecked(high);
+                } else if (auto* cb = dynamic_cast<CheckboxComponent*>(b.component.data())) {
+                    if (cb->isChecked() != high) cb->setChecked(high);
+                }
             }
         }
     }

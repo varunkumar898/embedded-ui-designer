@@ -23,6 +23,12 @@ private:
     QString generateMainSource();
     QString generateReadme();
 
+    // PC-Simulator subfolder generators
+    QString generateSimulatorCMakeLists();
+    QString generateSimulatorGfxConf();
+    QString generateSimulatorMainSource();
+    QString generateSimulatorReadme();
+
     bool hasButtons() const;
     bool hasLabels() const;
     bool hasProgressBars() const;

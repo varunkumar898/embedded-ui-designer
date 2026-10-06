@@ -20,6 +20,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Gui
     Widgets
     Test
+    Network
 )
 find_package(Qt6 6.5 OPTIONAL_COMPONENTS
     SerialPort
@@ -68,6 +69,8 @@ set(COMMON_SOURCES
     src/dialogs/PinBindingDialog.h
     src/dialogs/NewProjectDialog.cpp
     src/dialogs/NewProjectDialog.h
+    src/dialogs/HardwareWizardDialog.cpp
+    src/dialogs/HardwareWizardDialog.h
 
     # Display Configuration
     src/models/DisplayConfig.h
@@ -141,6 +144,20 @@ set(COMMON_SOURCES
     src/hardware/DeviceManager.h
     src/hardware/FlashController.cpp
     src/hardware/FlashController.h
+    src/hardware/OpenOcdManager.cpp
+    src/hardware/OpenOcdManager.h
+
+    # Universal Hardware Target & Database Subsystem
+    src/hardware/HardwareModel.cpp
+    src/hardware/HardwareModel.h
+    src/hardware/PinMuxEngine.cpp
+    src/hardware/PinMuxEngine.h
+    src/hardware/HardwareProvider.cpp
+    src/hardware/HardwareProvider.h
+    src/hardware/DeviceDatabase.cpp
+    src/hardware/DeviceDatabase.h
+    src/hardware/PinoutViewWidget.cpp
+    src/hardware/PinoutViewWidget.h
 
     # Panels & Visual Views
     src/canvas/CanvasView.cpp
@@ -164,6 +181,16 @@ set(COMMON_SOURCES
     src/project/Project.h
     src/project/QmlImporter.cpp
     src/project/QmlImporter.h
+
+    # Component Schema System
+    src/models/ComponentSchema.cpp
+    src/models/ComponentSchema.h
+
+    # Live MCP & Controller API
+    src/api/DesignerController.cpp
+    src/api/DesignerController.h
+    src/api/DesignerLocalServer.cpp
+    src/api/DesignerLocalServer.h
 )
 
 set(SOURCES
@@ -222,6 +249,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
 )
 
 # Target Link Libraries
@@ -229,6 +257,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Network
     Clipper2
 )
 
@@ -305,6 +334,7 @@ target_include_directories(test_all_cases PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
 )
 
 target_link_libraries(test_all_cases PRIVATE
@@ -312,6 +342,7 @@ target_link_libraries(test_all_cases PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Test
+    Qt6::Network
     Clipper2
 )
 
@@ -348,12 +379,14 @@ target_include_directories(test_functional_runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
 )
 
 target_link_libraries(test_functional_runner PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Network
     Clipper2
 )
 

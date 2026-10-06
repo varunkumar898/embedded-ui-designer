@@ -8,6 +8,7 @@
 #include "CanvasScene.h"
 #include "ComponentDefinition.h"
 #include "ColorStyle.h"
+#include "HardwareModel.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -58,6 +59,10 @@ public:
     bool hasColorStyle(const QString& name) const;
     void setColorStyles(const QList<ColorStyle>& styles);
 
+    // ── Universal Hardware Configuration ──────────────────────────────────
+    Hardware::HardwareConfig hardwareConfig() const { return m_hardwareConfig; }
+    void setHardwareConfig(const Hardware::HardwareConfig& config);
+
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject& root);
 
@@ -69,6 +74,7 @@ signals:
     void projectLoaded();
     void projectSaved(const QString& filePath);
     void colorStylesChanged();
+    void hardwareConfigChanged();
 
 private:
     CanvasScene* m_scene = nullptr;
@@ -76,6 +82,7 @@ private:
     QString m_filePath;
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
     DisplayConfig m_displayConfig;
+    Hardware::HardwareConfig m_hardwareConfig;
     bool m_dirty = false;
     QList<ComponentDefinition> m_componentLibrary;
 

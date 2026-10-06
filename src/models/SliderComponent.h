@@ -18,6 +18,9 @@ public:
     int maximum() const { return m_maximum; }
     void setMaximum(int max);
 
+    QString orientation() const { return m_orientation == Qt::Vertical ? "Vertical" : "Horizontal"; }
+    void setOrientation(const QString& orient);
+
     QColor trackColor() const { return m_trackColor; }
     void setTrackColor(const QColor& color);
 
@@ -26,6 +29,19 @@ public:
 
     QColor handleColor() const { return m_handleColor; }
     void setHandleColor(const QColor& color);
+
+    QColor thumbColor() const { return m_handleColor; }
+    void setThumbColor(const QColor& color) { setHandleColor(color); }
+
+    QColor borderColor() const { return m_borderColor; }
+    void setBorderColor(const QColor& color);
+
+    int borderWidth() const { return m_borderWidth; }
+    void setBorderWidth(int width);
+
+    bool hasCornerRadius() const override { return true; }
+    int cornerRadius() const override { return m_cornerRadius; }
+    void setCornerRadius(int r) override;
 
     // Serialization
     QJsonObject toJson() const override;
@@ -46,9 +62,14 @@ private:
     int m_value = 50;
     int m_minimum = 0;
     int m_maximum = 100;
+    Qt::Orientation m_orientation = Qt::Horizontal;
+
     QColor m_trackColor = QColor("#2F333E");
     QColor m_fillColor = QColor("#2196F3");
     QColor m_handleColor = QColor("#FFFFFF");
+    QColor m_borderColor = QColor("#383E4D");
+    int m_borderWidth = 1;
+    int m_cornerRadius = 4;
 
     void updateValueFromPos(const QPointF& pos);
 };

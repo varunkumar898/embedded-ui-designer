@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "1.0",
+  "provenance": {
+    "source": "Raspberry Pi RP2040 Datasheet (Raspberry Pi Ltd, Release 2.5)",
+    "vendor": "Raspberry Pi",
+    "partNumber": "RP2040",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "vendor": "Raspberry Pi",
+    "family": "RP2000",
+    "series": "RP2040",
+    "partNumber": "RP2040",
+    "architecture": "ARM Cortex-M0+",
+    "core": "Dual Cortex-M0+",
+    "package": "QFN-56",
+    "flash": 2097152,
+    "ram": 270336,
+    "eeprom": 0,
+    "minVoltage": 1.8,
+    "maxVoltage": 3.3,
+    "maxClockMhz": 133,
+    "gpioCount": 30
+  },
+  "peripherals": {
+    "uart": 2,
+    "spi": 2,
+    "i2c": 2,
+    "adc": 1,
+    "pwm": 16,
+    "timers": 1,
+    "pio": 2,
+    "usb": 1,
+    "dma": 1,
+    "rtc": 1
+  },
+  "peripheralDescriptors": [
+    {
+      "name": "UART0",
+      "type": "UART",
+      "signals": {
+        "TX": ["GPIO0", "GPIO12", "GPIO16", "GPIO28"],
+        "RX": ["GPIO1", "GPIO13", "GPIO17", "GPIO29"],
+        "CTS": ["GPIO2", "GPIO14", "GPIO18"],
+        "RTS": ["GPIO3", "GPIO15", "GPIO19"]
+      },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "UART1",
+      "type": "UART",
+      "signals": {
+        "TX": ["GPIO4", "GPIO8", "GPIO20", "GPIO24"],
+        "RX": ["GPIO5", "GPIO9", "GPIO21", "GPIO25"],
+        "CTS": ["GPIO6", "GPIO10", "GPIO22", "GPIO26"],
+        "RTS": ["GPIO7", "GPIO11", "GPIO23", "GPIO27"]
+      },
+      "defaults": { "baudRate": 115200, "dataBits": 8, "parity": "None", "stopBits": 1 }
+    },
+    {
+      "name": "SPI0",
+      "type": "SPI",
+      "signals": {
+        "SCK": ["GPIO2", "GPIO6", "GPIO18", "GPIO22"],
+        "MOSI": ["GPIO3", "GPIO7", "GPIO19", "GPIO23"],
+        "MISO": ["GPIO0", "GPIO4", "GPIO16", "GPIO20"],
+        "CS": ["GPIO1", "GPIO5", "GPIO17", "GPIO21"]
+      },
+      "defaults": { "mode": "Master", "clockSpeedHz": 12000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "SPI1",
+      "type": "SPI",
+      "signals": {
+        "SCK": ["GPIO10", "GPIO14", "GPIO26"],
+        "MOSI": ["GPIO11", "GPIO15", "GPIO27"],
+        "MISO": ["GPIO8", "GPIO12", "GPIO24", "GPIO28"],
+        "CS": ["GPIO9", "GPIO13", "GPIO25", "GPIO29"]
+      },
+      "defaults": { "mode": "Master", "clockSpeedHz": 12000000, "cpol": 0, "cpha": 0 }
+    },
+    {
+      "name": "I2C0",
+      "type": "I2C",
+      "signals": {
+        "SDA": ["GPIO0", "GPIO4", "GPIO8", "GPIO12", "GPIO16", "GPIO20", "GPIO24", "GPIO28"],
+        "SCL": ["GPIO1", "GPIO5", "GPIO9", "GPIO13", "GPIO17", "GPIO21", "GPIO25", "GPIO29"]
+      },
+      "defaults": { "speed": "Fast (400 kHz)", "speedHz": 400000 }
+    },
+    {
+      "name": "I2C1",
+      "type": "I2C",
+      "signals": {
+        "SDA": ["GPIO2", "GPIO6", "GPIO10", "GPIO14", "GPIO18", "GPIO22", "GPIO26"],
+        "SCL": ["GPIO3", "GPIO7", "GPIO11", "GPIO15", "GPIO19", "GPIO23", "GPIO27"]
+      },
+      "defaults": { "speed": "Fast (400 kHz)", "speedHz": 400000 }
+    },
+    {
+      "name": "ADC",
+      "type": "ADC",
+      "signals": {
+        "IN0": ["GPIO26"],
+        "IN1": ["GPIO27"],
+        "IN2": ["GPIO28"],
+        "IN3": ["GPIO29"]
+      },
+      "defaults": { "resolution": 12 }
+    },
+    {
+      "name": "USB",
+      "type": "USB",
+      "signals": {
+        "DP": ["USB_DP"],
+        "DM": ["USB_DM"]
+      },
+      "defaults": { "mode": "Device", "speed": "FullSpeed (12 Mbps)" }
+    }
+  ],
+  "clockTree": {
+    "defaultSysClockMhz": 125,
+    "maxSysClockMhz": 133,
+    "periClockMhz": 125,
+    "usbClockMhz": 48,
+    "oscillatorSources": ["XOSC (12 MHz Crystal)", "ROSC (Internal Ring Oscillator)"]
+  },
+  "pins": [
+    { "name": "GPIO0", "physicalPin": 2, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_RX", "UART0_TX", "I2C0_SDA", "PWM0_A", "PIO0", "PIO1"] },
+    { "name": "GPIO1", "physicalPin": 3, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_CSn", "UART0_RX", "I2C0_SCL", "PWM0_B", "PIO0", "PIO1"] },
+    { "name": "GPIO2", "physicalPin": 4, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_SCK", "UART0_CTS", "I2C1_SDA", "PWM1_A", "PIO0", "PIO1"] },
+    { "name": "GPIO3", "physicalPin": 5, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_TX", "UART0_RTS", "I2C1_SCL", "PWM1_B", "PIO0", "PIO1"] },
+    { "name": "GPIO4", "physicalPin": 6, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_RX", "UART1_TX", "I2C0_SDA", "PWM2_A", "PIO0", "PIO1"] },
+    { "name": "GPIO5", "physicalPin": 7, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_CSn", "UART1_RX", "I2C0_SCL", "PWM2_B", "PIO0", "PIO1"] },
+    { "name": "GPIO6", "physicalPin": 8, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_SCK", "UART1_CTS", "I2C1_SDA", "PWM3_A", "PIO0", "PIO1"] },
+    { "name": "GPIO7", "physicalPin": 9, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_TX", "UART1_RTS", "I2C1_SCL", "PWM3_B", "PIO0", "PIO1"] },
+    { "name": "GPIO8", "physicalPin": 11, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_RX", "UART1_TX", "I2C0_SDA", "PWM4_A", "PIO0", "PIO1"] },
+    { "name": "GPIO9", "physicalPin": 12, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_CSn", "UART1_RX", "I2C0_SCL", "PWM4_B", "PIO0", "PIO1"] },
+    { "name": "GPIO10", "physicalPin": 13, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_SCK", "UART1_CTS", "I2C1_SDA", "PWM5_A", "PIO0", "PIO1"] },
+    { "name": "GPIO11", "physicalPin": 14, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_TX", "UART1_RTS", "I2C1_SCL", "PWM5_B", "PIO0", "PIO1"] },
+    { "name": "GPIO12", "physicalPin": 15, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_RX", "UART0_TX", "I2C0_SDA", "PWM6_A", "PIO0", "PIO1"] },
+    { "name": "GPIO13", "physicalPin": 16, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_CSn", "UART0_RX", "I2C0_SCL", "PWM6_B", "PIO0", "PIO1"] },
+    { "name": "GPIO14", "physicalPin": 17, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_SCK", "UART0_CTS", "I2C1_SDA", "PWM7_A", "PIO0", "PIO1"] },
+    { "name": "GPIO15", "physicalPin": 18, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI1_TX", "UART0_RTS", "I2C1_SCL", "PWM7_B", "PIO0", "PIO1"] },
+    { "name": "GPIO16", "physicalPin": 27, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_RX", "UART0_TX", "I2C0_SDA", "PWM0_A", "PIO0", "PIO1"] },
+    { "name": "GPIO17", "physicalPin": 28, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_CSn", "UART0_RX", "I2C0_SCL", "PWM0_B", "PIO0", "PIO1"] },
+    { "name": "GPIO18", "physicalPin": 29, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_SCK", "UART0_CTS", "I2C1_SDA", "PWM1_A", "PIO0", "PIO1"] },
+    { "name": "GPIO19", "physicalPin": 30, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_TX", "UART0_RTS", "I2C1_SCL", "PWM1_B", "PIO0", "PIO1"] },
+    { "name": "GPIO20", "physicalPin": 31, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_RX", "UART1_TX", "I2C0_SDA", "PWM2_A", "PIO0", "PIO1"] },
+    { "name": "GPIO21", "physicalPin": 32, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_CSn", "UART1_RX", "I2C0_SCL", "PWM2_B", "PIO0", "PIO1"] },
+    { "name": "GPIO22", "physicalPin": 34, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "SPI0_SCK", "UART1_CTS", "I2C1_SDA", "PWM3_A", "PIO0", "PIO1"] },
+    { "name": "GPIO25", "physicalPin": 37, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "PWM4_B", "PIO0", "PIO1"] },
+    { "name": "GPIO26", "physicalPin": 38, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC0", "I2C1_SDA", "PWM5_A", "PIO0", "PIO1"] },
+    { "name": "GPIO27", "physicalPin": 39, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC1", "I2C1_SCL", "PWM5_B", "PIO0", "PIO1"] },
+    { "name": "GPIO28", "physicalPin": 40, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC2", "I2C0_SDA", "PWM6_A", "PIO0", "PIO1"] },
+    { "name": "GPIO29", "physicalPin": 41, "alternateFunctions": ["GPIO_Input", "GPIO_Output", "ADC3", "I2C0_SCL", "PWM6_B", "PIO0", "PIO1"] },
+    { "name": "RUN", "physicalPin": 26, "alternateFunctions": [], "isReset": true },
+    { "name": "QSPI_SS", "physicalPin": 56, "alternateFunctions": ["QSPI_SS"], "isReserved": true },
+    { "name": "USB_DP", "physicalPin": 47, "alternateFunctions": ["USB_DP"] },
+    { "name": "USB_DM", "physicalPin": 46, "alternateFunctions": ["USB_DM"] },
+    { "name": "IOVDD", "physicalPin": 49, "alternateFunctions": [], "isPower": true },
+    { "name": "GND", "physicalPin": 57, "alternateFunctions": [], "isGround": true }
+  ]
+}
