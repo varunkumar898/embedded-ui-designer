@@ -11,6 +11,17 @@
 #include "CircleComponent.h"
 #include "PathComponent.h"
 #include "CustomComponentInstance.h"
+#include "GaugeComponent.h"
+#include "SpeedometerComponent.h"
+#include "BatteryComponent.h"
+#include "PressureComponent.h"
+#include "RpmComponent.h"
+#include "TemperatureComponent.h"
+#include "CircularProgressComponent.h"
+#include "TabViewComponent.h"
+#include "NavigationBarComponent.h"
+#include "ListComponent.h"
+#include "TableComponent.h"
 #include "PropertyChangeCommand.h"
 #include "ColorPickerDialog.h"
 #include "Project.h"
@@ -312,6 +323,31 @@ void PropertiesPanel::setupUi() {
     connect(m_spinW, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Width"); });
     connect(m_spinH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Height"); });
 
+    // ── Component State Selector Row (Phase 1C) ─────────────────────────
+    QHBoxLayout* stateRow = new QHBoxLayout();
+    QLabel* lblState = new QLabel("State:", m_contentWidget);
+    lblState->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: bold; min-width: 52px;");
+    m_comboState = new QComboBox(m_contentWidget);
+    m_comboState->setObjectName("componentStateCombo");
+    m_comboState->setStyleSheet(
+        "QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; font-weight: bold; "
+        "border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #1C1F26; color: #FFFFFF; selection-background-color: #2196F3; }"
+    );
+    m_comboState->addItems({"Normal", "Warning", "Error", "Disabled"});
+    stateRow->addWidget(lblState);
+    stateRow->addWidget(m_comboState, 1);
+    mainLayout->addLayout(stateRow);
+
+    connect(m_comboState, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        if (m_targetComponent && !m_updatingFromComponent) {
+            QString st = m_comboState->currentText().toLower();
+            m_targetComponent->setCurrentState(st);
+            refreshValues();
+        }
+    });
+
     // Specific Properties Group
     m_specificGroup = new QGroupBox("Component Properties", m_contentWidget);
     m_specificGroup->setStyleSheet(
@@ -323,6 +359,41 @@ void PropertiesPanel::setupUi() {
     m_specificLayout = new QVBoxLayout(m_specificGroup);
     m_specificLayout->setSpacing(8);
     mainLayout->addWidget(m_specificGroup);
+
+    // ── Data Binding Group (Phase 1B / Phase 2) ───────────────────────────
+    m_dataBindingGroup = new QGroupBox("Data Binding", m_contentWidget);
+    m_dataBindingGroup->setObjectName("dataBindingGroup");
+    m_dataBindingGroup->setStyleSheet(
+        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
+        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
+        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+    );
+    QFormLayout* bindingForm = new QFormLayout(m_dataBindingGroup);
+    bindingForm->setSpacing(6);
+
+    m_bindingSourceCombo = new QComboBox(m_dataBindingGroup);
+    m_bindingSourceCombo->setObjectName("bindingSourceCombo");
+    m_bindingSourceCombo->setStyleSheet("QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }");
+    bindingForm->addRow("Source:", m_bindingSourceCombo);
+
+    m_bindingPropCombo = new QComboBox(m_dataBindingGroup);
+    m_bindingPropCombo->setObjectName("bindingPropCombo");
+    m_bindingPropCombo->setStyleSheet("QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }");
+    bindingForm->addRow("Property:", m_bindingPropCombo);
+
+    m_bindingDirectionCombo = new QComboBox(m_dataBindingGroup);
+    m_bindingDirectionCombo->setObjectName("bindingDirectionCombo");
+    m_bindingDirectionCombo->setStyleSheet("QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }");
+    m_bindingDirectionCombo->addItems({"Read", "Write", "TwoWay"});
+    bindingForm->addRow("Direction:", m_bindingDirectionCombo);
+
+    mainLayout->addWidget(m_dataBindingGroup);
+
+    connect(m_bindingSourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PropertiesPanel::onBindingChanged);
+    connect(m_bindingPropCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PropertiesPanel::onBindingChanged);
+    connect(m_bindingDirectionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PropertiesPanel::onBindingChanged);
+
 
     // ── Hardware Protocol Binding Group ──────────────────────────────────
     m_protocolGroup = new QGroupBox("Hardware Protocol Binding", m_contentWidget);
@@ -586,6 +657,7 @@ void PropertiesPanel::showSingle() {
     m_contentWidget->setVisible(true);
     m_headerWidget->setVisible(true);
     m_specificGroup->setVisible(true);
+    if (m_dataBindingGroup) m_dataBindingGroup->setVisible(true);
     if (m_protocolGroup) m_protocolGroup->setVisible(true);
     m_geometryGroup->setEnabled(true);
     m_alignmentRow->setVisible(false);
@@ -598,8 +670,9 @@ void PropertiesPanel::showMulti(int count) {
     m_multiLabel->setText(QString("%1 components selected").arg(count));
     m_headerWidget->setVisible(false);
     m_specificGroup->setVisible(false);
+    if (m_dataBindingGroup) m_dataBindingGroup->setVisible(false);
     if (m_protocolGroup) m_protocolGroup->setVisible(false);
-    m_geometryGroup->setEnabled(false);
+    m_geometryGroup->setVisible(false);
     m_alignmentRow->setVisible(count >= 2);
     m_booleanOpsRow->setVisible(count >= 2);
     for (QToolButton* button : m_distributeButtons) button->setEnabled(count >= 3);
@@ -670,11 +743,22 @@ void PropertiesPanel::refreshValues() {
 
     if (m_chkVisible) m_chkVisible->setChecked(m_targetComponent->isComponentVisible());
 
+    if (m_comboState) {
+        QString cur = m_targetComponent->currentState();
+        for (int i = 0; i < m_comboState->count(); ++i) {
+            if (m_comboState->itemText(i).compare(cur, Qt::CaseInsensitive) == 0) {
+                m_comboState->setCurrentIndex(i);
+                break;
+            }
+        }
+    }
+
     if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(btn->text());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, btn->textColor());
-        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->backgroundColor());
-        if (m_colorBtn3) updateColorButton(m_colorBtn3, btn->borderColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->effectiveBackgroundColor(btn->backgroundColor()));
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, btn->effectiveBorderColor(btn->borderColor()));
+
         if (m_spinStrokeW) m_spinStrokeW->setValue(btn->borderWidth());
         if (m_spinPixelSize) m_spinPixelSize->setValue(btn->pixelSize());
         if (m_chkBold) m_chkBold->setChecked(btn->bold());
@@ -785,7 +869,21 @@ void PropertiesPanel::refreshValues() {
         if (m_spinStrokeW) m_spinStrokeW->setValue(qRound(path->strokeThickness()));
         if (m_spinOpacity) m_spinOpacity->setValue(path->opacityPercent());
         if (m_spinPathFlatten) m_spinPathFlatten->setValue(path->flattenSubdivisions());
+    } else if (auto valComp = dynamic_cast<ValueVisualizationComponent*>(m_targetComponent)) {
+        if (m_spinProgressMin) m_spinProgressMin->setValue(valComp->minimum());
+        if (m_spinProgressMax) m_spinProgressMax->setValue(valComp->maximum());
+        if (m_spinProgressValue) {
+            m_spinProgressValue->setRange(valComp->minimum(), valComp->maximum());
+            m_spinProgressValue->setValue(valComp->value());
+        }
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, valComp->valueColor());
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, valComp->trackColor());
+        if (m_colorBtn3) updateColorButton(m_colorBtn3, valComp->borderColor());
+        if (m_spinStrokeW) m_spinStrokeW->setValue(valComp->borderWidth());
     }
+
+    // ── Synchronize Data Binding (Phase 1B / Phase 2) ─────────────────
+    updateDataBindingSection();
 
     // ── Synchronize Hardware Protocol Binding ─────────────────────────
     if (m_protocolCombo && m_targetComponent) {
@@ -1854,6 +1952,591 @@ void PropertiesPanel::rebuildSpecificEditors() {
             commitPropertyChange("Change Variant");
         });
         form->addRow("Variant:", m_variantCombo);
+    } else if (auto cp = dynamic_cast<CircularProgressComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(-100000.0, 100000.0);
+        m_spinProgressMin->setValue(cp->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, cp](double v) {
+            if (!m_updatingFromComponent) cp->setMinimum(v);
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Circular Progress Min"); });
+        form->addRow("Minimum:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(-100000.0, 100000.0);
+        m_spinProgressMax->setValue(cp->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, cp](double v) {
+            if (!m_updatingFromComponent) cp->setMaximum(v);
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Circular Progress Max"); });
+        form->addRow("Maximum:", m_spinProgressMax);
+
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(cp->minimum(), cp->maximum());
+        m_spinProgressValue->setValue(cp->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, cp](double v) {
+            if (!m_updatingFromComponent) cp->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Circular Progress Value"); });
+        form->addRow("Value:", m_spinProgressValue);
+
+        QSpinBox* spinThickness = new QSpinBox(m_specificContainer);
+        spinThickness->setRange(2, 40);
+        spinThickness->setValue(cp->thickness());
+        connect(spinThickness, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, cp](int v) {
+            if (!m_updatingFromComponent) cp->setThickness(v);
+        });
+        connect(spinThickness, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Thickness"); });
+        form->addRow("Thickness:", spinThickness);
+
+        QSpinBox* spinStartAngle = new QSpinBox(m_specificContainer);
+        spinStartAngle->setRange(-360, 360);
+        spinStartAngle->setValue(cp->startAngle());
+        connect(spinStartAngle, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, cp](int v) {
+            if (!m_updatingFromComponent) cp->setStartAngle(v);
+        });
+        connect(spinStartAngle, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Start Angle"); });
+        form->addRow("Start Angle:", spinStartAngle);
+
+        QSpinBox* spinSweepAngle = new QSpinBox(m_specificContainer);
+        spinSweepAngle->setRange(10, 360);
+        spinSweepAngle->setValue(cp->sweepAngle());
+        connect(spinSweepAngle, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, cp](int v) {
+            if (!m_updatingFromComponent) cp->setSweepAngle(v);
+        });
+        connect(spinSweepAngle, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Sweep Angle"); });
+        form->addRow("Sweep Angle:", spinSweepAngle);
+
+        QLineEdit* centerLabelEdit = new QLineEdit(cp->centerLabel(), m_specificContainer);
+        connect(centerLabelEdit, &QLineEdit::textChanged, this, [this, cp](const QString& t) {
+            if (!m_updatingFromComponent) cp->setCenterLabel(t);
+        });
+        connect(centerLabelEdit, &QLineEdit::editingFinished, this, [this]() { commitPropertyChange("Change Center Label"); });
+        form->addRow("Center Label:", centerLabelEdit);
+
+        QCheckBox* chkPct = new QCheckBox("Show Percentage", m_specificContainer);
+        chkPct->setChecked(cp->showPercentage());
+        connect(chkPct, &QCheckBox::toggled, this, [this, cp](bool b) {
+            if (!m_updatingFromComponent) { cp->setShowPercentage(b); commitPropertyChange("Toggle Percentage"); }
+        });
+        form->addRow("Display:", chkPct);
+
+        m_colorBtn1 = addColorRow("Progress Color:", "valueColor", cp->valueColor(), [cp](const QColor& c) { cp->setValueColor(c); }, "Change Progress Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", cp->trackColor(), [cp](const QColor& c) { cp->setTrackColor(c); }, "Change Track Color");
+
+    } else if (auto gauge = dynamic_cast<GaugeComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(-100000.0, 100000.0);
+        m_spinProgressMin->setValue(gauge->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, gauge](double v) {
+            if (!m_updatingFromComponent) gauge->setMinimum(v);
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Gauge Min"); });
+        form->addRow("Minimum:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(-100000.0, 100000.0);
+        m_spinProgressMax->setValue(gauge->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, gauge](double v) {
+            if (!m_updatingFromComponent) gauge->setMaximum(v);
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Gauge Max"); });
+        form->addRow("Maximum:", m_spinProgressMax);
+
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(gauge->minimum(), gauge->maximum());
+        m_spinProgressValue->setValue(gauge->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, gauge](double v) {
+            if (!m_updatingFromComponent) gauge->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Gauge Value"); });
+        form->addRow("Value:", m_spinProgressValue);
+
+        QComboBox* styleCombo = new QComboBox(m_specificContainer);
+        styleCombo->addItems({"Arc", "SemiCircle", "FullCircle"});
+        styleCombo->setCurrentText(gauge->gaugeStyle());
+        connect(styleCombo, &QComboBox::currentTextChanged, this, [this, gauge](const QString& s) {
+            if (!m_updatingFromComponent) { gauge->setGaugeStyle(s); commitPropertyChange("Change Gauge Style"); }
+        });
+        form->addRow("Style:", styleCombo);
+
+        QLineEdit* unitEdit = new QLineEdit(gauge->unit(), m_specificContainer);
+        connect(unitEdit, &QLineEdit::textChanged, this, [this, gauge](const QString& u) {
+            if (!m_updatingFromComponent) gauge->setUnit(u);
+        });
+        connect(unitEdit, &QLineEdit::editingFinished, this, [this]() { commitPropertyChange("Change Gauge Unit"); });
+        form->addRow("Unit:", unitEdit);
+
+        QSpinBox* spinTicks = new QSpinBox(m_specificContainer);
+        spinTicks->setRange(2, 20);
+        spinTicks->setValue(gauge->majorTicks());
+        connect(spinTicks, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, gauge](int v) {
+            if (!m_updatingFromComponent) gauge->setMajorTicks(v);
+        });
+        connect(spinTicks, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Major Ticks"); });
+        form->addRow("Major Ticks:", spinTicks);
+
+        QCheckBox* chkNeedle = new QCheckBox("Show Needle", m_specificContainer);
+        chkNeedle->setChecked(gauge->showNeedle());
+        connect(chkNeedle, &QCheckBox::toggled, this, [this, gauge](bool b) {
+            if (!m_updatingFromComponent) { gauge->setShowNeedle(b); commitPropertyChange("Toggle Needle"); }
+        });
+        form->addRow("Needle:", chkNeedle);
+
+        m_colorBtn1 = addColorRow("Value Color:", "valueColor", gauge->valueColor(), [gauge](const QColor& c) { gauge->setValueColor(c); }, "Change Value Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", gauge->trackColor(), [gauge](const QColor& c) { gauge->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn3 = addColorRow("Needle Color:", "needleColor", gauge->needleColor(), [gauge](const QColor& c) { gauge->setNeedleColor(c); }, "Change Needle Color");
+
+    } else if (auto speedo = dynamic_cast<SpeedometerComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(0.0, 500.0);
+        m_spinProgressMin->setValue(speedo->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, speedo](double v) {
+            if (!m_updatingFromComponent) speedo->setMinimum(v);
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Speedometer Min"); });
+        form->addRow("Min Speed:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(0.0, 500.0);
+        m_spinProgressMax->setValue(speedo->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, speedo](double v) {
+            if (!m_updatingFromComponent) speedo->setMaximum(v);
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Speedometer Max"); });
+        form->addRow("Max Speed:", m_spinProgressMax);
+
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(speedo->minimum(), speedo->maximum());
+        m_spinProgressValue->setValue(speedo->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, speedo](double v) {
+            if (!m_updatingFromComponent) speedo->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Speed"); });
+        form->addRow("Speed:", m_spinProgressValue);
+
+        QComboBox* unitCombo = new QComboBox(m_specificContainer);
+        unitCombo->addItems({"km/h", "mph"});
+        unitCombo->setCurrentText(speedo->unit());
+        connect(unitCombo, &QComboBox::currentTextChanged, this, [this, speedo](const QString& u) {
+            if (!m_updatingFromComponent) { speedo->setUnit(u); commitPropertyChange("Change Speed Unit"); }
+        });
+        form->addRow("Unit:", unitCombo);
+
+        QComboBox* presetCombo = new QComboBox(m_specificContainer);
+        presetCombo->addItems({"Modern", "Classic", "Compact"});
+        presetCombo->setCurrentText(speedo->stylePreset());
+        connect(presetCombo, &QComboBox::currentTextChanged, this, [this, speedo](const QString& p) {
+            if (!m_updatingFromComponent) { speedo->setStylePreset(p); commitPropertyChange("Change Style Preset"); }
+        });
+        form->addRow("Preset:", presetCombo);
+
+        QDoubleSpinBox* spinWarn = new QDoubleSpinBox(m_specificContainer);
+        spinWarn->setRange(0.0, 500.0);
+        spinWarn->setValue(speedo->warningThreshold());
+        connect(spinWarn, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, speedo](double v) {
+            if (!m_updatingFromComponent) speedo->setWarningThreshold(v);
+        });
+        connect(spinWarn, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Warning Speed"); });
+        form->addRow("Warning Speed:", spinWarn);
+
+        QDoubleSpinBox* spinRed = new QDoubleSpinBox(m_specificContainer);
+        spinRed->setRange(0.0, 500.0);
+        spinRed->setValue(speedo->criticalThreshold());
+        connect(spinRed, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, speedo](double v) {
+            if (!m_updatingFromComponent) speedo->setCriticalThreshold(v);
+        });
+        connect(spinRed, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Redline Speed"); });
+        form->addRow("Redline Speed:", spinRed);
+
+        m_colorBtn1 = addColorRow("Accent Color:", "valueColor", speedo->valueColor(), [speedo](const QColor& c) { speedo->setValueColor(c); }, "Change Speedometer Accent Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", speedo->trackColor(), [speedo](const QColor& c) { speedo->setTrackColor(c); }, "Change Speedometer Track Color");
+        m_colorBtn3 = addColorRow("Needle Color:", "needleColor", speedo->needleColor(), [speedo](const QColor& c) { speedo->setNeedleColor(c); }, "Change Speedometer Needle Color");
+
+    } else if (auto batt = dynamic_cast<BatteryComponent*>(m_targetComponent)) {
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(0.0, 100.0);
+        m_spinProgressValue->setValue(batt->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, batt](double v) {
+            if (!m_updatingFromComponent) batt->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Battery %"); });
+        form->addRow("Charge Level:", m_spinProgressValue);
+
+        QCheckBox* chkCharging = new QCheckBox("Charging", m_specificContainer);
+        chkCharging->setChecked(batt->isCharging());
+        connect(chkCharging, &QCheckBox::toggled, this, [this, batt](bool b) {
+            if (!m_updatingFromComponent) { batt->setCharging(b); commitPropertyChange("Toggle Charging"); }
+        });
+        form->addRow("Status:", chkCharging);
+
+        QComboBox* orientCombo = new QComboBox(m_specificContainer);
+        orientCombo->addItems({"Horizontal", "Vertical"});
+        orientCombo->setCurrentText(batt->orientation());
+        connect(orientCombo, &QComboBox::currentTextChanged, this, [this, batt](const QString& o) {
+            if (!m_updatingFromComponent) { batt->setOrientation(o); commitPropertyChange("Change Battery Orientation"); }
+        });
+        form->addRow("Orientation:", orientCombo);
+
+        QCheckBox* chkSeg = new QCheckBox("Segmented", m_specificContainer);
+        chkSeg->setChecked(batt->segmented());
+        connect(chkSeg, &QCheckBox::toggled, this, [this, batt](bool b) {
+            if (!m_updatingFromComponent) { batt->setSegmented(b); commitPropertyChange("Toggle Segmented"); }
+        });
+        form->addRow("Display:", chkSeg);
+
+        QSpinBox* spinSegCount = new QSpinBox(m_specificContainer);
+        spinSegCount->setRange(1, 20);
+        spinSegCount->setValue(batt->segmentCount());
+        connect(spinSegCount, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, batt](int v) {
+            if (!m_updatingFromComponent) batt->setSegmentCount(v);
+        });
+        connect(spinSegCount, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Segment Count"); });
+        form->addRow("Segments:", spinSegCount);
+
+        m_colorBtn1 = addColorRow("Level Color:", "valueColor", batt->valueColor(), [batt](const QColor& c) { batt->setValueColor(c); }, "Change Battery Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", batt->trackColor(), [batt](const QColor& c) { batt->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn3 = addColorRow("Border Color:", "borderColor", batt->borderColor(), [batt](const QColor& c) { batt->setBorderColor(c); }, "Change Border Color");
+
+    } else if (auto press = dynamic_cast<PressureComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(0.0, 1000.0);
+        m_spinProgressMin->setValue(press->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, press](double v) {
+            if (!m_updatingFromComponent) press->setMinimum(v);
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Pressure Min"); });
+        form->addRow("Minimum:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(0.0, 1000.0);
+        m_spinProgressMax->setValue(press->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, press](double v) {
+            if (!m_updatingFromComponent) press->setMaximum(v);
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Pressure Max"); });
+        form->addRow("Maximum:", m_spinProgressMax);
+
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(press->minimum(), press->maximum());
+        m_spinProgressValue->setDecimals(2);
+        m_spinProgressValue->setValue(press->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, press](double v) {
+            if (!m_updatingFromComponent) press->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Pressure Value"); });
+        form->addRow("Pressure:", m_spinProgressValue);
+
+        QComboBox* unitCombo = new QComboBox(m_specificContainer);
+        unitCombo->addItems({"bar", "psi", "kPa", "Pa"});
+        unitCombo->setCurrentText(press->unit());
+        connect(unitCombo, &QComboBox::currentTextChanged, this, [this, press](const QString& u) {
+            if (!m_updatingFromComponent) { press->setUnit(u); commitPropertyChange("Change Pressure Unit"); }
+        });
+        form->addRow("Unit:", unitCombo);
+
+        QDoubleSpinBox* spinWarn = new QDoubleSpinBox(m_specificContainer);
+        spinWarn->setRange(0.0, 1000.0);
+        spinWarn->setValue(press->warningThreshold());
+        connect(spinWarn, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, press](double v) {
+            if (!m_updatingFromComponent) press->setWarningThreshold(v);
+        });
+        connect(spinWarn, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Warning Threshold"); });
+        form->addRow("Warning Range:", spinWarn);
+
+        QDoubleSpinBox* spinCrit = new QDoubleSpinBox(m_specificContainer);
+        spinCrit->setRange(0.0, 1000.0);
+        spinCrit->setValue(press->criticalThreshold());
+        connect(spinCrit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, press](double v) {
+            if (!m_updatingFromComponent) press->setCriticalThreshold(v);
+        });
+        connect(spinCrit, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Critical Threshold"); });
+        form->addRow("Critical Range:", spinCrit);
+
+        m_colorBtn1 = addColorRow("Pressure Color:", "valueColor", press->valueColor(), [press](const QColor& c) { press->setValueColor(c); }, "Change Pressure Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", press->trackColor(), [press](const QColor& c) { press->setTrackColor(c); }, "Change Track Color");
+
+    } else if (auto rpm = dynamic_cast<RpmComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(0.0, 20000.0);
+        m_spinProgressMin->setValue(rpm->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, rpm](double v) {
+            if (!m_updatingFromComponent) rpm->setMinimum(v);
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change RPM Min"); });
+        form->addRow("Minimum RPM:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(0.0, 20000.0);
+        m_spinProgressMax->setValue(rpm->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, rpm](double v) {
+            if (!m_updatingFromComponent) rpm->setMaximum(v);
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change RPM Max"); });
+        form->addRow("Maximum RPM:", m_spinProgressMax);
+
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(rpm->minimum(), rpm->maximum());
+        m_spinProgressValue->setValue(rpm->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, rpm](double v) {
+            if (!m_updatingFromComponent) rpm->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change RPM Value"); });
+        form->addRow("Current RPM:", m_spinProgressValue);
+
+        QDoubleSpinBox* spinWarn = new QDoubleSpinBox(m_specificContainer);
+        spinWarn->setRange(0.0, 20000.0);
+        spinWarn->setValue(rpm->warningThreshold());
+        connect(spinWarn, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, rpm](double v) {
+            if (!m_updatingFromComponent) rpm->setWarningThreshold(v);
+        });
+        connect(spinWarn, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Warning RPM"); });
+        form->addRow("Warning RPM:", spinWarn);
+
+        QDoubleSpinBox* spinCrit = new QDoubleSpinBox(m_specificContainer);
+        spinCrit->setRange(0.0, 20000.0);
+        spinCrit->setValue(rpm->criticalThreshold());
+        connect(spinCrit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, rpm](double v) {
+            if (!m_updatingFromComponent) rpm->setCriticalThreshold(v);
+        });
+        connect(spinCrit, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Redline RPM"); });
+        form->addRow("Redline RPM:", spinCrit);
+
+        m_colorBtn1 = addColorRow("RPM Color:", "valueColor", rpm->valueColor(), [rpm](const QColor& c) { rpm->setValueColor(c); }, "Change RPM Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", rpm->trackColor(), [rpm](const QColor& c) { rpm->setTrackColor(c); }, "Change Track Color");
+        m_colorBtn3 = addColorRow("Needle Color:", "needleColor", rpm->needleColor(), [rpm](const QColor& c) { rpm->setNeedleColor(c); }, "Change Needle Color");
+
+    } else if (auto temp = dynamic_cast<TemperatureComponent*>(m_targetComponent)) {
+        m_spinProgressMin = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMin->setRange(-100.0, 500.0);
+        m_spinProgressMin->setValue(temp->minimum());
+        connect(m_spinProgressMin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, temp](double v) {
+            if (!m_updatingFromComponent) temp->setMinimum(v);
+        });
+        connect(m_spinProgressMin, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Temp Min"); });
+        form->addRow("Minimum:", m_spinProgressMin);
+
+        m_spinProgressMax = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressMax->setRange(-100.0, 500.0);
+        m_spinProgressMax->setValue(temp->maximum());
+        connect(m_spinProgressMax, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, temp](double v) {
+            if (!m_updatingFromComponent) temp->setMaximum(v);
+        });
+        connect(m_spinProgressMax, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Temp Max"); });
+        form->addRow("Maximum:", m_spinProgressMax);
+
+        m_spinProgressValue = new QDoubleSpinBox(m_specificContainer);
+        m_spinProgressValue->setRange(temp->minimum(), temp->maximum());
+        m_spinProgressValue->setDecimals(1);
+        m_spinProgressValue->setValue(temp->value());
+        connect(m_spinProgressValue, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, temp](double v) {
+            if (!m_updatingFromComponent) temp->setValue(v);
+        });
+        connect(m_spinProgressValue, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Temperature"); });
+        form->addRow("Temperature:", m_spinProgressValue);
+
+        QComboBox* unitCombo = new QComboBox(m_specificContainer);
+        unitCombo->addItems({"°C", "°F"});
+        unitCombo->setCurrentText(temp->unit());
+        connect(unitCombo, &QComboBox::currentTextChanged, this, [this, temp](const QString& u) {
+            if (!m_updatingFromComponent) { temp->setUnit(u); commitPropertyChange("Change Temp Unit"); }
+        });
+        form->addRow("Unit:", unitCombo);
+
+        QComboBox* styleCombo = new QComboBox(m_specificContainer);
+        styleCombo->addItems({"Thermometer", "Dial", "Compact"});
+        styleCombo->setCurrentText(temp->displayStyle());
+        connect(styleCombo, &QComboBox::currentTextChanged, this, [this, temp](const QString& s) {
+            if (!m_updatingFromComponent) { temp->setDisplayStyle(s); commitPropertyChange("Change Display Style"); }
+        });
+        form->addRow("Style:", styleCombo);
+
+        QDoubleSpinBox* spinWarn = new QDoubleSpinBox(m_specificContainer);
+        spinWarn->setRange(-100.0, 500.0);
+        spinWarn->setValue(temp->warningThreshold());
+        connect(spinWarn, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, temp](double v) {
+            if (!m_updatingFromComponent) temp->setWarningThreshold(v);
+        });
+        connect(spinWarn, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Temp Warning Threshold"); });
+        form->addRow("Warning Temp:", spinWarn);
+
+        QDoubleSpinBox* spinCrit = new QDoubleSpinBox(m_specificContainer);
+        spinCrit->setRange(-100.0, 500.0);
+        spinCrit->setValue(temp->criticalThreshold());
+        connect(spinCrit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, temp](double v) {
+            if (!m_updatingFromComponent) temp->setCriticalThreshold(v);
+        });
+        connect(spinCrit, &QDoubleSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Temp Critical Threshold"); });
+        form->addRow("Critical Temp:", spinCrit);
+
+        m_colorBtn1 = addColorRow("Temp Color:", "valueColor", temp->valueColor(), [temp](const QColor& c) { temp->setValueColor(c); }, "Change Temperature Color");
+        m_colorBtn2 = addColorRow("Track Color:", "trackColor", temp->trackColor(), [temp](const QColor& c) { temp->setTrackColor(c); }, "Change Track Color");
+
+    } else if (auto tab = dynamic_cast<TabViewComponent*>(m_targetComponent)) {
+        QLineEdit* tabsEdit = new QLineEdit(tab->tabs().join(", "), m_specificContainer);
+        connect(tabsEdit, &QLineEdit::editingFinished, this, [this, tab, tabsEdit]() {
+            if (!m_updatingFromComponent) {
+                QStringList list = tabsEdit->text().split(",", Qt::SkipEmptyParts);
+                QStringList trimmed;
+                for (QString s : list) trimmed.append(s.trimmed());
+                if (!trimmed.isEmpty()) {
+                    tab->setTabs(trimmed);
+                    commitPropertyChange("Change Tabs List");
+                }
+            }
+        });
+        form->addRow("Tabs (csv):", tabsEdit);
+
+        QSpinBox* spinActiveTab = new QSpinBox(m_specificContainer);
+        spinActiveTab->setRange(0, std::max<int>(0, static_cast<int>(tab->tabs().size()) - 1));
+        spinActiveTab->setValue(tab->activeTabIndex());
+        connect(spinActiveTab, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, tab](int v) {
+            if (!m_updatingFromComponent) tab->setActiveTabIndex(v);
+        });
+        connect(spinActiveTab, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Active Tab"); });
+        form->addRow("Active Tab:", spinActiveTab);
+
+        QSpinBox* spinTabH = new QSpinBox(m_specificContainer);
+        spinTabH->setRange(18, 60);
+        spinTabH->setValue(tab->tabHeight());
+        connect(spinTabH, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, tab](int v) {
+            if (!m_updatingFromComponent) tab->setTabHeight(v);
+        });
+        connect(spinTabH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Tab Height"); });
+        form->addRow("Tab Height:", spinTabH);
+
+        QComboBox* posCombo = new QComboBox(m_specificContainer);
+        posCombo->addItems({"Top", "Bottom"});
+        posCombo->setCurrentText(tab->tabPosition());
+        connect(posCombo, &QComboBox::currentTextChanged, this, [this, tab](const QString& p) {
+            if (!m_updatingFromComponent) { tab->setTabPosition(p); commitPropertyChange("Change Tab Position"); }
+        });
+        form->addRow("Position:", posCombo);
+
+        m_colorBtn1 = addColorRow("Active Tab:", "activeTabColor", tab->activeTabColor(), [tab](const QColor& c) { tab->setActiveTabColor(c); }, "Change Active Tab Color");
+        m_colorBtn2 = addColorRow("Tab Background:", "tabColor", tab->tabColor(), [tab](const QColor& c) { tab->setTabColor(c); }, "Change Tab Background Color");
+        m_colorBtn3 = addColorRow("Content Area:", "contentAreaColor", tab->contentAreaColor(), [tab](const QColor& c) { tab->setContentAreaColor(c); }, "Change Content Area Color");
+
+    } else if (auto nav = dynamic_cast<NavigationBarComponent*>(m_targetComponent)) {
+        QStringList labels;
+        for (const NavItem& it : nav->items()) labels.append(it.label);
+        QLineEdit* itemsEdit = new QLineEdit(labels.join(", "), m_specificContainer);
+        connect(itemsEdit, &QLineEdit::editingFinished, this, [this, nav, itemsEdit]() {
+            if (!m_updatingFromComponent) {
+                QStringList list = itemsEdit->text().split(",", Qt::SkipEmptyParts);
+                QList<NavItem> newItems;
+                for (int i = 0; i < list.size(); ++i) {
+                    NavItem it;
+                    it.label = list.at(i).trimmed();
+                    if (i < nav->items().size()) {
+                        it.targetScreenId = nav->items().at(i).targetScreenId;
+                        it.icon = nav->items().at(i).icon;
+                    }
+                    newItems.append(it);
+                }
+                if (!newItems.isEmpty()) {
+                    nav->setItems(newItems);
+                    commitPropertyChange("Change Nav Items");
+                }
+            }
+        });
+        form->addRow("Items (csv):", itemsEdit);
+
+        QSpinBox* spinSelectedNav = new QSpinBox(m_specificContainer);
+        spinSelectedNav->setRange(0, std::max<int>(0, static_cast<int>(nav->items().size()) - 1));
+        spinSelectedNav->setValue(nav->selectedIndex());
+        connect(spinSelectedNav, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, nav](int v) {
+            if (!m_updatingFromComponent) nav->setSelectedIndex(v);
+        });
+        connect(spinSelectedNav, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Selected Nav Item"); });
+        form->addRow("Selected Index:", spinSelectedNav);
+
+        QComboBox* orientCombo = new QComboBox(m_specificContainer);
+        orientCombo->addItems({"Horizontal", "Vertical"});
+        orientCombo->setCurrentText(nav->orientation());
+        connect(orientCombo, &QComboBox::currentTextChanged, this, [this, nav](const QString& o) {
+            if (!m_updatingFromComponent) { nav->setOrientation(o); commitPropertyChange("Change Nav Orientation"); }
+        });
+        form->addRow("Orientation:", orientCombo);
+
+        m_colorBtn1 = addColorRow("Bar Color:", "barColor", nav->barColor(), [nav](const QColor& c) { nav->setBarColor(c); }, "Change Nav Bar Color");
+        m_colorBtn2 = addColorRow("Active Item:", "activeItemColor", nav->activeItemColor(), [nav](const QColor& c) { nav->setActiveItemColor(c); }, "Change Active Item Color");
+
+    } else if (auto listComp = dynamic_cast<ListComponent*>(m_targetComponent)) {
+        QLineEdit* listItemsEdit = new QLineEdit(listComp->items().join(", "), m_specificContainer);
+        connect(listItemsEdit, &QLineEdit::editingFinished, this, [this, listComp, listItemsEdit]() {
+            if (!m_updatingFromComponent) {
+                QStringList list = listItemsEdit->text().split(",", Qt::SkipEmptyParts);
+                QStringList trimmed;
+                for (QString s : list) trimmed.append(s.trimmed());
+                listComp->setItems(trimmed);
+                commitPropertyChange("Change List Items");
+            }
+        });
+        form->addRow("Items (csv):", listItemsEdit);
+
+        QSpinBox* spinRowH = new QSpinBox(m_specificContainer);
+        spinRowH->setRange(16, 80);
+        spinRowH->setValue(listComp->rowHeight());
+        connect(spinRowH, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, listComp](int v) {
+            if (!m_updatingFromComponent) listComp->setRowHeight(v);
+        });
+        connect(spinRowH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Row Height"); });
+        form->addRow("Row Height:", spinRowH);
+
+        QCheckBox* chkAlt = new QCheckBox("Alternating Rows", m_specificContainer);
+        chkAlt->setChecked(listComp->alternatingRows());
+        connect(chkAlt, &QCheckBox::toggled, this, [this, listComp](bool b) {
+            if (!m_updatingFromComponent) { listComp->setAlternatingRows(b); commitPropertyChange("Toggle Alternating Rows"); }
+        });
+        form->addRow("Style:", chkAlt);
+
+        m_colorBtn1 = addColorRow("Background:", "backgroundColor", listComp->backgroundColor(), [listComp](const QColor& c) { listComp->setBackgroundColor(c); }, "Change List Background");
+        m_colorBtn2 = addColorRow("Selected Row:", "selectedRowColor", listComp->selectedRowColor(), [listComp](const QColor& c) { listComp->setSelectedRowColor(c); }, "Change Selected Row Color");
+
+    } else if (auto tableComp = dynamic_cast<TableComponent*>(m_targetComponent)) {
+        QLineEdit* colEdit = new QLineEdit(tableComp->columns().join(", "), m_specificContainer);
+        connect(colEdit, &QLineEdit::editingFinished, this, [this, tableComp, colEdit]() {
+            if (!m_updatingFromComponent) {
+                QStringList list = colEdit->text().split(",", Qt::SkipEmptyParts);
+                QStringList trimmed;
+                for (QString s : list) trimmed.append(s.trimmed());
+                if (!trimmed.isEmpty()) {
+                    tableComp->setColumns(trimmed);
+                    commitPropertyChange("Change Table Columns");
+                }
+            }
+        });
+        form->addRow("Columns (csv):", colEdit);
+
+        QSpinBox* spinHeaderH = new QSpinBox(m_specificContainer);
+        spinHeaderH->setRange(16, 60);
+        spinHeaderH->setValue(tableComp->headerHeight());
+        connect(spinHeaderH, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, tableComp](int v) {
+            if (!m_updatingFromComponent) tableComp->setHeaderHeight(v);
+        });
+        connect(spinHeaderH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Header Height"); });
+        form->addRow("Header Height:", spinHeaderH);
+
+        QSpinBox* spinRowH = new QSpinBox(m_specificContainer);
+        spinRowH->setRange(16, 60);
+        spinRowH->setValue(tableComp->rowHeight());
+        connect(spinRowH, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, tableComp](int v) {
+            if (!m_updatingFromComponent) tableComp->setRowHeight(v);
+        });
+        connect(spinRowH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Table Row Height"); });
+        form->addRow("Row Height:", spinRowH);
+
+        QCheckBox* chkHeader = new QCheckBox("Show Header", m_specificContainer);
+        chkHeader->setChecked(tableComp->showHeader());
+        connect(chkHeader, &QCheckBox::toggled, this, [this, tableComp](bool b) {
+            if (!m_updatingFromComponent) { tableComp->setShowHeader(b); commitPropertyChange("Toggle Table Header"); }
+        });
+        form->addRow("Header:", chkHeader);
+
+        m_colorBtn1 = addColorRow("Header Color:", "headerColor", tableComp->headerColor(), [tableComp](const QColor& c) { tableComp->setHeaderColor(c); }, "Change Header Color");
+        m_colorBtn2 = addColorRow("Background:", "backgroundColor", tableComp->backgroundColor(), [tableComp](const QColor& c) { tableComp->setBackgroundColor(c); }, "Change Table Background");
+        m_colorBtn3 = addColorRow("Selected Row:", "selectedRowColor", tableComp->selectedRowColor(), [tableComp](const QColor& c) { tableComp->setSelectedRowColor(c); }, "Change Table Selected Row Color");
     }
 
     containerLayout->addLayout(form);
@@ -1929,6 +2612,10 @@ void PropertiesPanel::onProtocolChanged(const QString& newProtocol) {
         if (m_targetComponent->protocolPin("pin").isEmpty() && m_comboGpioPin) {
             m_targetComponent->setProtocolPin("pin", m_comboGpioPin->currentText());
         }
+        QString p = m_targetComponent->protocolPin("pin");
+        if (!p.isEmpty() && p != "[None]") {
+            HardwareBridge::instance().bindComponent(m_targetComponent, p, PinMode::DigitalOut);
+        }
     } else if (newProtocol == "PWM") {
         if (m_targetComponent->protocolPin("pin").isEmpty() && m_comboPwmPin) {
             m_targetComponent->setProtocolPin("pin", m_comboPwmPin->currentText());
@@ -1982,7 +2669,13 @@ void PropertiesPanel::onProtocolPinChanged() {
 
     QString proto = m_protocolCombo ? m_protocolCombo->currentText() : "None";
     if (proto == "GPIO") {
-        if (m_comboGpioPin) m_targetComponent->setProtocolPin("pin", m_comboGpioPin->currentText());
+        if (m_comboGpioPin) {
+            QString p = m_comboGpioPin->currentText();
+            m_targetComponent->setProtocolPin("pin", p);
+            if (!p.isEmpty() && p != "[None]") {
+                HardwareBridge::instance().bindComponent(m_targetComponent, p, PinMode::DigitalOut);
+            }
+        }
     } else if (proto == "PWM") {
         if (m_comboPwmPin) m_targetComponent->setProtocolPin("pin", m_comboPwmPin->currentText());
     } else if (proto == "ADC") {
@@ -2056,4 +2749,101 @@ void PropertiesPanel::onAssignSensorNameClicked() {
 
     commitPropertyChange(QString("Assign I2C %1 -> %2").arg(chosenAddr, sensorName.isEmpty() ? "Device" : sensorName));
 }
+
+void PropertiesPanel::updateDataBindingSection() {
+    if (!m_targetComponent || !m_bindingSourceCombo || !m_bindingPropCombo || !m_bindingDirectionCombo) return;
+
+    bool b1 = m_bindingSourceCombo->blockSignals(true);
+    bool b2 = m_bindingPropCombo->blockSignals(true);
+    bool b3 = m_bindingDirectionCombo->blockSignals(true);
+
+    // 1. Populate Sources
+    QString curSourceId = m_bindingSourceCombo->currentData().toString();
+    m_bindingSourceCombo->clear();
+    m_bindingSourceCombo->addItem("None", "");
+
+    if (m_project) {
+        for (const DataSource& ds : m_project->dataSources()) {
+            m_bindingSourceCombo->addItem(QString("%1 (%2)").arg(ds.name(), ds.id()), ds.id());
+        }
+    }
+
+    // 2. Populate Properties
+    QString currentProp = m_bindingPropCombo->currentText();
+    m_bindingPropCombo->clear();
+
+    QStringList candidateProps;
+    if (dynamic_cast<ValueVisualizationComponent*>(m_targetComponent)) {
+        candidateProps << "value";
+    } else if (dynamic_cast<ButtonComponent*>(m_targetComponent)) {
+        candidateProps << "text" << "enabled";
+    } else if (dynamic_cast<LabelComponent*>(m_targetComponent)) {
+        candidateProps << "text";
+    } else if (dynamic_cast<SwitchComponent*>(m_targetComponent) || dynamic_cast<CheckboxComponent*>(m_targetComponent)) {
+        candidateProps << "checked";
+    } else if (dynamic_cast<SliderComponent*>(m_targetComponent)) {
+        candidateProps << "value";
+    } else if (dynamic_cast<TextInputComponent*>(m_targetComponent)) {
+        candidateProps << "text";
+    } else {
+        candidateProps << "value";
+    }
+    m_bindingPropCombo->addItems(candidateProps);
+
+    int pIdx = m_bindingPropCombo->findText(currentProp);
+    if (pIdx >= 0) m_bindingPropCombo->setCurrentIndex(pIdx);
+    else m_bindingPropCombo->setCurrentIndex(0);
+
+    QString activeProp = m_bindingPropCombo->currentText();
+
+    // 3. Select active source & direction if bound
+    DataBinding b = m_targetComponent->bindingForProperty(activeProp);
+    if (!b.sourceId().isEmpty()) {
+        int sIdx = m_bindingSourceCombo->findData(b.sourceId());
+        if (sIdx >= 0) {
+            m_bindingSourceCombo->setCurrentIndex(sIdx);
+        } else {
+            m_bindingSourceCombo->addItem(b.sourceId(), b.sourceId());
+            m_bindingSourceCombo->setCurrentIndex(m_bindingSourceCombo->count() - 1);
+        }
+
+        if (b.direction() == BindingDirection::Write) m_bindingDirectionCombo->setCurrentText("Write");
+        else if (b.direction() == BindingDirection::ReadWrite) m_bindingDirectionCombo->setCurrentText("ReadWrite");
+        else m_bindingDirectionCombo->setCurrentText("Read");
+    } else {
+        m_bindingSourceCombo->setCurrentIndex(0); // None
+    }
+
+    m_bindingSourceCombo->blockSignals(b1);
+    m_bindingPropCombo->blockSignals(b2);
+    m_bindingDirectionCombo->blockSignals(b3);
+}
+
+void PropertiesPanel::onBindingChanged() {
+    if (m_updatingFromComponent || !m_targetComponent || !m_bindingSourceCombo || !m_bindingPropCombo) return;
+
+    QString prop = m_bindingPropCombo->currentText();
+    QString sourceId = m_bindingSourceCombo->currentData().toString();
+    QString dirStr = m_bindingDirectionCombo->currentText();
+
+    BindingDirection dir = BindingDirection::Read;
+    if (dirStr == "Write") dir = BindingDirection::Write;
+    else if (dirStr == "ReadWrite" || dirStr == "TwoWay") dir = BindingDirection::ReadWrite;
+
+    if (sourceId.isEmpty()) {
+        m_targetComponent->removeBinding(prop);
+        if (m_project) {
+            m_project->removeDataBinding(m_targetComponent->componentId(), prop);
+        }
+        commitPropertyChange("Remove Data Binding");
+    } else {
+        DataBinding b(m_targetComponent->componentId(), prop, sourceId, dir);
+        m_targetComponent->addBinding(b);
+        if (m_project) {
+            m_project->addDataBinding(b);
+        }
+        commitPropertyChange(QString("Bind %1 to %2").arg(prop, sourceId));
+    }
+}
+
 

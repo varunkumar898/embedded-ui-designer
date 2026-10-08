@@ -132,10 +132,20 @@ private:
     QWidget*  m_variantRow   = nullptr;
     QComboBox* m_variantCombo = nullptr;
 
+    // Component State Selector (Phase 1C)
+    QComboBox* m_comboState = nullptr;
+
     // Alignment buttons (LabelComponent)
     QPushButton* m_btnAlignLeft = nullptr;
     QPushButton* m_btnAlignCenter = nullptr;
     QPushButton* m_btnAlignRight = nullptr;
+
+
+    // Data Binding Group (Phase 1B / Phase 2)
+    QGroupBox* m_dataBindingGroup = nullptr;
+    QComboBox* m_bindingSourceCombo = nullptr;
+    QComboBox* m_bindingPropCombo = nullptr;
+    QComboBox* m_bindingDirectionCombo = nullptr;
 
     // Hardware Protocol Binding
     QGroupBox* m_protocolGroup = nullptr;
@@ -167,6 +177,8 @@ private:
     void setupUi();
     void rebuildSpecificEditors();
     void updateColorButton(QPushButton* btn, const QColor& color);
+    void updateDataBindingSection();
+    void onBindingChanged();
 
     void updateBoardPins();
     void updateProtocolFieldsVisibility(const QString& protocol);

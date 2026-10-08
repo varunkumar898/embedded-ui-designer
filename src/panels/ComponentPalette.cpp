@@ -27,9 +27,9 @@ public:
             "  color: #e4ecf7; "
             "  border: 1px solid #252933; "
             "  border-radius: 10px; "
-            "  padding: 7px 12px; "
-            "  margin: 3px 2px; "
-            "  font-size: 12.5px; "
+            "  padding: 6px 10px; "
+            "  margin: 2px 2px; "
+            "  font-size: 12px; "
             "  font-weight: 500; "
             "}"
             "QListWidget::item:hover { "
@@ -53,7 +53,7 @@ protected:
         if (!item) return;
 
         QString compType = item->data(Qt::UserRole).toString();
-        if (compType == "Shape") return;
+        if (compType == "Shape" || compType.startsWith("HEADER_")) return;
         QMimeData* mimeData = new QMimeData();
         mimeData->setData("application/x-embedded-ui-component", compType.toUtf8());
 
@@ -99,7 +99,6 @@ static QIcon createBadgeIcon(const QString& type, const QString& symbol, const Q
                QPointF(badgeRect.right() - 4, badgeRect.top() + 1.0));
 
     if (type == "Slider") {
-        // Horizontal bar with vertical tick knob
         p.setPen(QPen(QColor(255, 255, 255), 1.8, Qt::SolidLine, Qt::RoundCap));
         p.drawLine(QPointF(badgeRect.left() + 5.5, badgeRect.center().y()),
                    QPointF(badgeRect.right() - 5.5, badgeRect.center().y()));
@@ -108,7 +107,6 @@ static QIcon createBadgeIcon(const QString& type, const QString& symbol, const Q
         QRectF knob(badgeRect.center().x() - 2.5, badgeRect.center().y() - 4.5, 5.0, 9.0);
         p.drawRoundedRect(knob, 1.5, 1.5);
     } else if (type == "Checkbox") {
-        // Clean checkmark
         QPainterPath path;
         path.moveTo(badgeRect.left() + 7, badgeRect.center().y());
         path.lineTo(badgeRect.left() + 11.5, badgeRect.bottom() - 7.5);
@@ -119,7 +117,6 @@ static QIcon createBadgeIcon(const QString& type, const QString& symbol, const Q
         p.setBrush(Qt::NoBrush);
         p.drawEllipse(badgeRect.center(), 5.5, 5.5);
     } else if (type == "TextInput") {
-        // TI with I-beam style
         QFont font = p.font();
         font.setPixelSize(11);
         font.setBold(true);
@@ -132,15 +129,46 @@ static QIcon createBadgeIcon(const QString& type, const QString& symbol, const Q
         p.drawLine(QPointF(badgeRect.left() + 6, badgeRect.bottom() - 5),
                    QPointF(badgeRect.right() - 6, badgeRect.bottom() - 5));
     } else if (type == "Switch") {
-        // Power icon
         p.setPen(QPen(Qt::white, 2.0, Qt::SolidLine, Qt::RoundCap));
         p.setBrush(Qt::NoBrush);
         QRectF arcRect(badgeRect.center().x() - 4.5, badgeRect.center().y() - 4.0, 9.0, 9.0);
         p.drawArc(arcRect, 120 * 16, -240 * 16);
         p.drawLine(QPointF(badgeRect.center().x(), badgeRect.center().y() - 5.5),
                    QPointF(badgeRect.center().x(), badgeRect.center().y() - 0.5));
+    } else if (type == "Battery") {
+        QRectF bRect(badgeRect.left() + 6, badgeRect.top() + 9, 13, 8);
+        p.setPen(QPen(Qt::white, 1.2));
+        p.setBrush(Qt::NoBrush);
+        p.drawRoundedRect(bRect, 1.5, 1.5);
+        p.setBrush(Qt::white);
+        p.drawRect(QRectF(bRect.right(), bRect.top() + 2, 2, 4));
+        p.drawRect(QRectF(bRect.left() + 2, bRect.top() + 2, 6, 4));
+    } else if (type == "CircularProgress") {
+        p.setPen(QPen(Qt::white, 2.0, Qt::SolidLine, Qt::RoundCap));
+        p.setBrush(Qt::NoBrush);
+        QRectF arcRect(badgeRect.center().x() - 5.5, badgeRect.center().y() - 5.5, 11.0, 11.0);
+        p.drawArc(arcRect, 90 * 16, -270 * 16);
+    } else if (type == "Gauge" || type == "Speedometer" || type == "RPM" || type == "Pressure") {
+        p.setPen(QPen(Qt::white, 1.8, Qt::SolidLine, Qt::RoundCap));
+        p.setBrush(Qt::NoBrush);
+        QRectF arcRect(badgeRect.center().x() - 6.0, badgeRect.center().y() - 6.0, 12.0, 12.0);
+        p.drawArc(arcRect, 225 * 16, -270 * 16);
+        p.setPen(QPen(QColor(239, 68, 68), 1.5));
+        p.drawLine(badgeRect.center(), QPointF(badgeRect.center().x() + 3.5, badgeRect.center().y() - 3.5));
+    } else if (type == "Table") {
+        p.setPen(QPen(Qt::white, 1.0));
+        p.setBrush(Qt::NoBrush);
+        QRectF tRect(badgeRect.left() + 5, badgeRect.top() + 7, 16, 12);
+        p.drawRect(tRect);
+        p.drawLine(QPointF(tRect.left(), tRect.top() + 4), QPointF(tRect.right(), tRect.top() + 4));
+        p.drawLine(QPointF(tRect.left() + 8, tRect.top()), QPointF(tRect.left() + 8, tRect.bottom()));
+    } else if (type == "List") {
+        p.setPen(QPen(Qt::white, 1.5, Qt::SolidLine, Qt::RoundCap));
+        for (int i = 0; i < 3; ++i) {
+            qreal ly = badgeRect.top() + 8 + i * 5;
+            p.drawLine(QPointF(badgeRect.left() + 6, ly), QPointF(badgeRect.right() - 6, ly));
+        }
     } else {
-        // Letter / Symbol
         p.save();
         QFont font = p.font();
         font.setPixelSize(12);
@@ -169,14 +197,29 @@ void ComponentPalette::setupUi() {
 
     m_listWidget = new DraggableListWidget(this);
 
+    auto addCategoryHeader = [this](const QString& catTitle) {
+        QListWidgetItem* item = new QListWidgetItem(catTitle, m_listWidget);
+        item->setFlags(Qt::NoItemFlags);
+        item->setData(Qt::UserRole, QString("HEADER_%1").arg(catTitle));
+        item->setForeground(QColor("#64748b"));
+        QFont f = item->font();
+        f.setBold(true);
+        f.setPixelSize(10);
+        f.setLetterSpacing(QFont::AbsoluteSpacing, 0.8);
+        item->setFont(f);
+        item->setSizeHint(QSize(0, 22));
+    };
+
     auto addItem = [this](const QString& name, const QString& type, const QString& symbol, const QColor& color) {
         QListWidgetItem* item = new QListWidgetItem(createBadgeIcon(type, symbol, color), name, m_listWidget);
         item->setData(Qt::UserRole, type);
         item->setToolTip(QString("Drag onto canvas or double click to insert a %1").arg(name));
     };
 
+    // ── BASIC ─────────────────────────────────────────────────────────────
+    addCategoryHeader("BASIC");
     addItem("Button", "Button", "B", QColor(26, 115, 232));
-    addItem("Text / Label", "Text", "T", QColor(2, 132, 199));
+    addItem("Text / Label", "Label", "T", QColor(2, 132, 199));
     addItem("Rectangle", "Rectangle", "R", QColor(217, 119, 6));
 
     QListWidgetItem* shapeItem = new QListWidgetItem(m_listWidget);
@@ -193,7 +236,7 @@ void ComponentPalette::setupUi() {
     m_shapeButton->setToolTip("Choose a shape drawing tool");
     m_shapeButton->setStyleSheet(
         "QToolButton { background: #1c1f26; color: #e4ecf7; border: 1px solid #252933; "
-        "border-radius: 10px; padding: 7px 12px; text-align: left; font-size: 12.5px; font-weight: 500; }"
+        "border-radius: 10px; padding: 6px 10px; text-align: left; font-size: 12px; font-weight: 500; }"
         "QToolButton:hover { background: #232731; border-color: #323746; color: #ffffff; }"
         "QToolButton::menu-indicator { image: url(:/combo_arrow.png); subcontrol-origin: padding; "
         "subcontrol-position: top right; width: 12px; height: 7px; margin-right: 6px; }"
@@ -209,16 +252,44 @@ void ComponentPalette::setupUi() {
     m_shapeButton->setMenu(shapeMenu);
     m_listWidget->setItemWidget(shapeItem, m_shapeButton);
 
-    addItem("Progress Bar", "ProgressBar", "%", QColor(16, 185, 129));
-    addItem("Slider", "Slider", "—", QColor(0, 137, 123));
+    addItem("Image", "Image", "IMG", QColor(139, 92, 246));
+
+    // ── INPUT ─────────────────────────────────────────────────────────────
+    addCategoryHeader("INPUT");
     addItem("Switch", "Switch", "⏻", QColor(13, 148, 136));
     addItem("Checkbox", "Checkbox", "✓", QColor(0, 168, 120));
+    addItem("Slider", "Slider", "—", QColor(0, 137, 123));
     addItem("Text Input", "TextInput", "TI", QColor(225, 29, 72));
+
+    // ── DISPLAY ───────────────────────────────────────────────────────────
+    addCategoryHeader("DISPLAY");
+    addItem("Progress Bar", "ProgressBar", "%", QColor(16, 185, 129));
+    addItem("Circular Progress", "CircularProgress", "◎", QColor(16, 185, 129));
+    addItem("Gauge", "Gauge", "G", QColor(14, 165, 233));
+    addItem("Speedometer", "Speedometer", "SPD", QColor(56, 189, 248));
+    addItem("Battery", "Battery", "BAT", QColor(34, 197, 94));
+    addItem("Pressure", "Pressure", "BAR", QColor(14, 165, 233));
+    addItem("RPM", "RPM", "RPM", QColor(245, 158, 11));
+    addItem("Temperature", "Temperature", "°C", QColor(249, 115, 22));
+
+    // ── NAVIGATION ────────────────────────────────────────────────────────
+    addCategoryHeader("NAVIGATION");
+    addItem("Tab View", "TabView", "TAB", QColor(59, 130, 246));
+    addItem("Navigation Bar", "NavigationBar", "NAV", QColor(14, 165, 233));
+
+    // ── DATA ──────────────────────────────────────────────────────────────
+    addCategoryHeader("DATA");
+    addItem("List", "List", "≡", QColor(100, 116, 139));
+    addItem("Table", "Table", "▦", QColor(100, 116, 139));
+
     layout->addWidget(m_listWidget);
 
     connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
-        if (item && item->data(Qt::UserRole).toString() != "Shape") {
-            emit componentDoubleClicked(item->data(Qt::UserRole).toString());
+        if (item) {
+            QString compType = item->data(Qt::UserRole).toString();
+            if (compType != "Shape" && !compType.startsWith("HEADER_")) {
+                emit componentDoubleClicked(compType);
+            }
         }
     });
 
@@ -256,7 +327,7 @@ void ComponentPalette::setupUi() {
     });
 
     QLabel* hint = new QLabel("Tip: Drag item onto canvas", this);
-    hint->setStyleSheet("color:#566070;font-size:11px;padding:10px 4px 6px 4px;");
+    hint->setStyleSheet("color:#566070;font-size:11px;padding:8px 4px 4px 4px;");
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
 }
