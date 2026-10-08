@@ -164,6 +164,7 @@ void SimulationRuntime::step(int stepMs) {
     m_simulatedElapsedMs += stepMs;
     updateTimerDataSources(stepMs);
     updateCalculatedDataSources();
+    updateVariableWaveforms(m_simulatedElapsedMs);
     emit clockTicked(m_simulatedElapsedMs);
 }
 
@@ -435,6 +436,7 @@ void SimulationRuntime::onTickTimer() {
 
     updateTimerDataSources(deltaMs);
     updateCalculatedDataSources();
+    updateVariableWaveforms(m_simulatedElapsedMs);
 
     emit clockTicked(m_simulatedElapsedMs);
 }
@@ -622,6 +624,57 @@ void SimulationRuntime::applyPreset(const QString& presetName) {
 
 void SimulationRuntime::clearLogs() {
     m_logEntries.clear();
+}
+
+void SimulationRuntime::updateVariableWaveforms(qint64 elapsedMs) {
+    if (!m_project) return;
+    for (const auto& ds : m_project->dataSources()) {
+        if (ds.type() == DataSourceType::Variable && ds.variableConfig().waveform != SimulationWaveform::None) {
+            double val = ds.variableConfig().evaluateWaveform(elapsedMs);
+            setDataSourceValue(ds.id(), val);
+        }
+    }
+}
+
+void SimulationRuntime::injectCanFrame(quint32 messageId, const QByteArray& payload) {
+    if (!m_project) return;
+    for (const auto& ds : m_project->dataSources()) {
+        if (ds.type() == DataSourceType::Can && ds.canConfig().messageId == messageId) {
+            double val = ds.canConfig().decodePayload(payload);
+            setDataSourceValue(ds.id(), val);
+        }
+    }
+}
+
+void SimulationRuntime::injectUartStream(const QString& rawFrame) {
+    if (!m_project) return;
+    for (const auto& ds : m_project->dataSources()) {
+        if (ds.type() == DataSourceType::Uart) {
+            QVariant parsed = ds.uartConfig().parseIncomingText(rawFrame);
+            if (parsed.isValid()) {
+                setDataSourceValue(ds.id(), parsed);
+            }
+        }
+    }
+}
+
+void SimulationRuntime::injectModbusRegisters(int slaveId, ModbusRegisterType regType, int startAddress, const QVector<quint16>& rawRegs) {
+    if (!m_project) return;
+    for (const auto& ds : m_project->dataSources()) {
+        if (ds.type() == DataSourceType::Modbus &&
+            ds.modbusConfig().slaveId == slaveId &&
+            ds.modbusConfig().registerType == regType &&
+            ds.modbusConfig().address >= startAddress &&
+            ds.modbusConfig().address < startAddress + rawRegs.size())
+        {
+            int offset = ds.modbusConfig().address - startAddress;
+            QVector<quint16> slice = rawRegs.mid(offset);
+            QVariant parsed = ds.modbusConfig().decodeRegisters(slice);
+            if (parsed.isValid()) {
+                setDataSourceValue(ds.id(), parsed);
+            }
+        }
+    }
 }
 
 } // namespace Simulator

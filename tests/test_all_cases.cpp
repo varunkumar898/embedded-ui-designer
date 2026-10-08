@@ -299,6 +299,14 @@ private slots:
     void testPhase6OfflineModeZeroAIConfiguration();
     void testPhase6AISettingsDialogUI();
 
+    // 29. Phase 1 Option B Data Source Abstraction (CAN, UART, Modbus, Variables)
+    void testPhase1CanSignalExtractionAndEncoding();
+    void testPhase1UartStreamParsingModes();
+    void testPhase1ModbusRegistersDecodingAndEncoding();
+    void testPhase1VariableWaveformsAndSimulation();
+    void testPhase1SimulationRuntimeProtocolInjections();
+    void testPhase1DataSourceSerializationBackwardCompatibility();
+
     void cleanupTestCase();
 
 private:
@@ -5275,6 +5283,339 @@ void TestAllCases::testPhase6AISettingsDialogUI() {
     });
     QVERIFY(callbackCalled);
 }
+
+// ============================================================================
+// 29. Phase 1 Option B: Data Source Abstraction (CAN, UART, Modbus, Variables)
+// ============================================================================
+
+void TestAllCases::testPhase1CanSignalExtractionAndEncoding() {
+    CanSignalConfig can;
+    can.busId = "CAN1";
+    can.messageId = 0x280;
+    can.isExtended = false;
+    can.bitrate = 500000;
+    can.startBit = 16;
+    can.bitLength = 16;
+    can.isBigEndian = false;
+    can.factor = 0.25;
+    can.offset = 0.0;
+    can.unit = "rpm";
+
+    // Create 8-byte payload: bytes [0..1] = 0, bytes [2..3] = 0x1F40 (8000), bytes [4..7] = 0
+    QByteArray payload(8, 0);
+    payload[2] = static_cast<char>(0x40);
+    payload[3] = static_cast<char>(0x1F);
+
+    double decoded = can.decodePayload(payload);
+    // 8000 * 0.25 = 2000.0 RPM
+    QCOMPARE(decoded, 2000.0);
+
+    // Test encode / decode roundtrip
+    QByteArray outPayload;
+    can.encodePayload(3500.0, outPayload);
+    QCOMPARE(outPayload.size(), 8);
+    double roundtrip = can.decodePayload(outPayload);
+    QCOMPARE(roundtrip, 3500.0);
+
+    // Test Signed Signal
+    CanSignalConfig signedCan;
+    signedCan.startBit = 0;
+    signedCan.bitLength = 8;
+    signedCan.isSigned = true;
+    signedCan.factor = 1.0;
+    signedCan.offset = 0.0;
+
+    QByteArray negPayload(8, 0);
+    negPayload[0] = static_cast<char>(0xFE); // -2 in signed two's complement
+    QCOMPARE(signedCan.decodePayload(negPayload), -2.0);
+}
+
+void TestAllCases::testPhase1UartStreamParsingModes() {
+    // 1. DelimiterIndex mode (e.g. CSV)
+    UartStreamConfig csvCfg;
+    csvCfg.parseMode = UartParseMode::DelimiterIndex;
+    csvCfg.delimiter = ",";
+    csvCfg.tokenIndex = 1;
+    csvCfg.factor = 0.5;
+    csvCfg.offset = 10.0;
+
+    QVariant r1 = csvCfg.parseIncomingText("ALPHA,100,BETA");
+    QVERIFY(r1.isValid());
+    // 100 * 0.5 + 10 = 60.0
+    QCOMPARE(r1.toDouble(), 60.0);
+
+    // 2. KeyValue mode
+    UartStreamConfig kvCfg;
+    kvCfg.parseMode = UartParseMode::KeyValue;
+    kvCfg.keyName = "SPEED";
+    kvCfg.factor = 1.0;
+    kvCfg.offset = 0.0;
+
+    QVariant r2 = kvCfg.parseIncomingText("VOLT=12.4;SPEED=85.5;TEMP=32.0");
+    QVERIFY(r2.isValid());
+    QCOMPARE(r2.toDouble(), 85.5);
+
+    // 3. RegexCapture mode
+    UartStreamConfig regexCfg;
+    regexCfg.parseMode = UartParseMode::RegexCapture;
+    regexCfg.regexPattern = "RPM:([0-9.]+)";
+    regexCfg.factor = 2.0;
+    regexCfg.offset = 0.0;
+
+    QVariant r3 = regexCfg.parseIncomingText("[CAN-GATEWAY] RPM:1500 STATUS:OK");
+    QVERIFY(r3.isValid());
+    QCOMPARE(r3.toDouble(), 3000.0);
+
+    // 4. JsonPath mode
+    UartStreamConfig jsonCfg;
+    jsonCfg.parseMode = UartParseMode::JsonPath;
+    jsonCfg.keyName = "pressure";
+    jsonCfg.factor = 1.0;
+    jsonCfg.offset = 0.0;
+
+    QVariant r4 = jsonCfg.parseIncomingText("{\"temperature\": 24.5, \"pressure\": 101.3}");
+    QVERIFY(r4.isValid());
+    QCOMPARE(r4.toDouble(), 101.3);
+}
+
+void TestAllCases::testPhase1ModbusRegistersDecodingAndEncoding() {
+    // 1. Uint16 holding register
+    ModbusConfig mbUint;
+    mbUint.dataType = ModbusDataType::Uint16;
+    mbUint.scale = 0.1;
+    mbUint.offset = 0.0;
+
+    QVector<quint16> regs1 = { 1000 };
+    QVariant dec1 = mbUint.decodeRegisters(regs1);
+    QCOMPARE(dec1.toDouble(), 100.0);
+
+    // 2. Int16 with negative value
+    ModbusConfig mbInt;
+    mbInt.dataType = ModbusDataType::Int16;
+    mbInt.scale = 1.0;
+    mbInt.offset = 0.0;
+
+    QVector<quint16> regs2 = { static_cast<quint16>(static_cast<qint16>(-45)) };
+    QVariant dec2 = mbInt.decodeRegisters(regs2);
+    QCOMPARE(dec2.toDouble(), -45.0);
+
+    // 3. Float32 Big Endian across 2 registers
+    ModbusConfig mbFloat;
+    mbFloat.dataType = ModbusDataType::Float32BE;
+    mbFloat.scale = 1.0;
+    mbFloat.offset = 0.0;
+
+    QVector<quint16> encFloat = mbFloat.encodeRegisters(123.456);
+    QCOMPARE(encFloat.size(), 2);
+    QVariant decFloat = mbFloat.decodeRegisters(encFloat);
+    QVERIFY(std::abs(decFloat.toDouble() - 123.456) < 0.001);
+
+    // 4. Int32 Little Endian across 2 registers
+    ModbusConfig mbInt32;
+    mbInt32.dataType = ModbusDataType::Int32LE;
+    mbInt32.scale = 1.0;
+    mbInt32.offset = 0.0;
+
+    QVector<quint16> encInt32 = mbInt32.encodeRegisters(500000);
+    QCOMPARE(encInt32.size(), 2);
+    QVariant decInt32 = mbInt32.decodeRegisters(encInt32);
+    QCOMPARE(decInt32.toLongLong(), 500000LL);
+
+    // 5. Coil boolean
+    ModbusConfig mbCoil;
+    mbCoil.dataType = ModbusDataType::Bit;
+    QVector<quint16> coilReg = { 1 };
+    QCOMPARE(mbCoil.decodeRegisters(coilReg).toBool(), true);
+    coilReg[0] = 0;
+    QCOMPARE(mbCoil.decodeRegisters(coilReg).toBool(), false);
+}
+
+void TestAllCases::testPhase1VariableWaveformsAndSimulation() {
+    // 1. Sine Waveform
+    VariableConfig sine;
+    sine.waveform = SimulationWaveform::Sine;
+    sine.minVal = 0.0;
+    sine.maxVal = 100.0;
+    sine.periodMs = 1000;
+    sine.phaseOffset = 0.0;
+
+    // t = 0 -> midpoint 50.0
+    QVERIFY(std::abs(sine.evaluateWaveform(0) - 50.0) < 0.001);
+    // t = 250 -> max 100.0
+    QVERIFY(std::abs(sine.evaluateWaveform(250) - 100.0) < 0.001);
+    // t = 500 -> midpoint 50.0
+    QVERIFY(std::abs(sine.evaluateWaveform(500) - 50.0) < 0.001);
+    // t = 750 -> min 0.0
+    QVERIFY(std::abs(sine.evaluateWaveform(750) - 0.0) < 0.001);
+
+    // 2. Square Waveform
+    VariableConfig square;
+    square.waveform = SimulationWaveform::Square;
+    square.minVal = 10.0;
+    square.maxVal = 90.0;
+    square.periodMs = 1000;
+
+    QCOMPARE(square.evaluateWaveform(200), 90.0);
+    QCOMPARE(square.evaluateWaveform(700), 10.0);
+
+    // 3. Triangle Waveform
+    VariableConfig tri;
+    tri.waveform = SimulationWaveform::Triangle;
+    tri.minVal = 0.0;
+    tri.maxVal = 100.0;
+    tri.periodMs = 1000;
+
+    QVERIFY(std::abs(tri.evaluateWaveform(0) - 0.0) < 0.001);
+    QVERIFY(std::abs(tri.evaluateWaveform(250) - 50.0) < 0.001);
+    QVERIFY(std::abs(tri.evaluateWaveform(500) - 100.0) < 0.001);
+    QVERIFY(std::abs(tri.evaluateWaveform(750) - 50.0) < 0.001);
+
+    // 4. Ramp Waveform
+    VariableConfig ramp;
+    ramp.waveform = SimulationWaveform::Ramp;
+    ramp.minVal = 0.0;
+    ramp.maxVal = 100.0;
+    ramp.periodMs = 1000;
+
+    QVERIFY(std::abs(ramp.evaluateWaveform(500) - 50.0) < 0.001);
+    QVERIFY(std::abs(ramp.evaluateWaveform(1500) - 100.0) < 0.001); // clamped
+}
+
+void TestAllCases::testPhase1SimulationRuntimeProtocolInjections() {
+    CanvasScene scene;
+    Project proj(&scene);
+
+    // 1. CAN Source -> Gauge
+    DataSource canDs("can_speed", "Vehicle Speed", DataSourceType::Can, DataDirection::Input, DataType::Float);
+    CanSignalConfig canCfg;
+    canCfg.busId = "CAN1";
+    canCfg.messageId = 0x120;
+    canCfg.startBit = 0;
+    canCfg.bitLength = 16;
+    canCfg.factor = 0.1;
+    canCfg.offset = 0.0;
+    canDs.setCanConfig(canCfg);
+    proj.addDataSource(canDs);
+
+    GaugeComponent* gauge = new GaugeComponent("gauge_speed");
+    gauge->setMaximum(240.0);
+    gauge->setValue(0.0);
+    scene.addUIComponent(gauge);
+    proj.addDataBinding(DataBinding(gauge->componentId(), "value", canDs.id()));
+
+    // 2. UART Source -> Label
+    DataSource uartDs("uart_msg", "Status Text", DataSourceType::Uart, DataDirection::Input, DataType::String);
+    UartStreamConfig uartCfg;
+    uartCfg.parseMode = UartParseMode::KeyValue;
+    uartCfg.keyName = "STATUS";
+    uartDs.setUartConfig(uartCfg);
+    proj.addDataSource(uartDs);
+
+    LabelComponent* lbl = new LabelComponent("lbl_status");
+    lbl->setText("INIT");
+    scene.addUIComponent(lbl);
+    proj.addDataBinding(DataBinding(lbl->componentId(), "text", uartDs.id()));
+
+    // 3. Modbus Source -> ProgressBar
+    DataSource mbDs("mb_temp", "Oven Temp", DataSourceType::Modbus, DataDirection::Input, DataType::Float);
+    ModbusConfig mbCfg;
+    mbCfg.slaveId = 1;
+    mbCfg.address = 100;
+    mbCfg.dataType = ModbusDataType::Uint16;
+    mbCfg.scale = 0.5;
+    mbCfg.offset = 0.0;
+    mbDs.setModbusConfig(mbCfg);
+    proj.addDataSource(mbDs);
+
+    ProgressBarComponent* bar = new ProgressBarComponent("bar_temp");
+    bar->setValue(0.0);
+    scene.addUIComponent(bar);
+    proj.addDataBinding(DataBinding(bar->componentId(), "value", mbDs.id()));
+
+    // 4. Variable Source with Sine Waveform -> Rpm
+    DataSource sineDs("var_sine_rpm", "Engine Sine", DataSourceType::Variable, DataDirection::Input, DataType::Float);
+    VariableConfig sineCfg;
+    sineCfg.waveform = SimulationWaveform::Sine;
+    sineCfg.minVal = 1000.0;
+    sineCfg.maxVal = 5000.0;
+    sineCfg.periodMs = 1000;
+    sineDs.setVariableConfig(sineCfg);
+    proj.addDataSource(sineDs);
+
+    RpmComponent* rpm = new RpmComponent("rpm_engine");
+    rpm->setValue(0.0);
+    scene.addUIComponent(rpm);
+    proj.addDataBinding(DataBinding(rpm->componentId(), "value", sineDs.id()));
+
+    // Create and execute SimulationRuntime
+    Simulator::SimulationRuntime sim(&proj);
+    sim.start();
+
+    // Test CAN Injection: raw 1200 -> 120.0 km/h
+    QByteArray canPayload(8, 0);
+    canPayload[0] = static_cast<char>(1200 & 0xFF);
+    canPayload[1] = static_cast<char>((1200 >> 8) & 0xFF);
+    sim.injectCanFrame(0x120, canPayload);
+    QCOMPARE(gauge->value(), 120.0);
+
+    // Test UART Injection: "STATUS=ACTIVE"
+    sim.injectUartStream("SYSTEM LOG: STATUS=RUNNING_OK");
+    QCOMPARE(lbl->text(), QString("RUNNING_OK"));
+
+    // Test Modbus Injection: address 100, raw 80 -> 40.0
+    QVector<quint16> mbRegs = { 80 };
+    sim.injectModbusRegisters(1, ModbusRegisterType::HoldingRegister, 100, mbRegs);
+    QCOMPARE(bar->actualValue(), 40.0);
+    QCOMPARE(bar->value(), 0.4);
+
+    // Test Variable Waveform progression at t = 250ms (peak of sine -> 5000.0)
+    sim.step(250);
+    QVERIFY(std::abs(rpm->value() - 5000.0) < 5.0);
+
+    sim.stop();
+}
+
+void TestAllCases::testPhase1DataSourceSerializationBackwardCompatibility() {
+    DataSource ds("can_sensor", "Brake Pressure", DataSourceType::Can, DataDirection::Input, DataType::Float);
+    CanSignalConfig can;
+    can.busId = "CAN2";
+    can.messageId = 0x350;
+    can.isExtended = true;
+    can.isFd = true;
+    can.startBit = 12;
+    can.bitLength = 14;
+    can.factor = 0.05;
+    can.offset = 5.0;
+    can.unit = "bar";
+    ds.setCanConfig(can);
+
+    QJsonObject json = ds.toJson();
+    QCOMPARE(json.value("type").toString(), QString("CAN"));
+    QVERIFY(json.contains("canConfig"));
+
+    DataSource restored = DataSource::fromJson(json);
+    QCOMPARE(restored.id(), ds.id());
+    QCOMPARE(restored.type(), DataSourceType::Can);
+    QCOMPARE(restored.canConfig().messageId, 0x350u);
+    QCOMPARE(restored.canConfig().isExtended, true);
+    QCOMPARE(restored.canConfig().isFd, true);
+    QCOMPARE(restored.canConfig().startBit, 12);
+    QCOMPARE(restored.canConfig().bitLength, 14);
+    QCOMPARE(restored.canConfig().factor, 0.05);
+    QCOMPARE(restored.canConfig().offset, 5.0);
+    QCOMPARE(restored.canConfig().unit, QString("bar"));
+    QVERIFY(restored == ds);
+
+    // Verify Code Generator bindings include the CAN signal
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.addDataSource(ds);
+    QString src = CodeGen::BindingLayerGenerator::generateBindingsSource(&proj);
+    QVERIFY(src.contains("ui_receive_can_frame"));
+    QVERIFY(src.contains("can_sensor"));
+}
+
+
 
 QTEST_MAIN(TestAllCases)
 #include "test_all_cases.moc"

@@ -29,6 +29,11 @@ QString BindingLayerGenerator::generateBindingsHeader(const Project* project) {
     code += "/* Output Write Dispatcher (invoked when interactive widgets mutate) */\n";
     code += "void ui_write_data_source(const char* source_id, float value);\n\n";
 
+    code += "/* Protocol Ingestion Callbacks (CAN, UART, Modbus) */\n";
+    code += "void ui_receive_can_frame(uint32_t message_id, const uint8_t* payload, uint8_t dlc);\n";
+    code += "void ui_receive_uart_frame(const char* line);\n";
+    code += "void ui_receive_modbus_registers(uint8_t slave_id, uint8_t reg_type, uint16_t start_addr, const uint16_t* regs, uint16_t count);\n\n";
+
     code += "#ifdef __cplusplus\n";
     code += "}\n";
     code += "#endif\n\n";
@@ -107,6 +112,50 @@ QString BindingLayerGenerator::generateBindingsSource(const Project* project) {
         }
     }
     code += "    printf(\"[UI BINDINGS] Unhandled write for DataSource: %s\\n\", source_id);\n";
+    code += "}\n\n";
+
+    code += "void ui_receive_can_frame(uint32_t message_id, const uint8_t* payload, uint8_t dlc) {\n";
+    code += "    if (!payload || dlc == 0) return;\n";
+    if (project) {
+        for (const auto& ds : project->dataSources()) {
+            if (ds.type() == DataSourceType::Can) {
+                auto canCfg = ds.canConfig();
+                code += QString("    if (message_id == 0x%1) {\n").arg(canCfg.messageId, 0, 16);
+                code += QString("        /* CAN Signal: %1 (startBit=%2, bitLength=%3, factor=%4, offset=%5) */\n")
+                            .arg(ds.id()).arg(canCfg.startBit).arg(canCfg.bitLength).arg(canCfg.factor).arg(canCfg.offset);
+                code += QString("        printf(\"[CAN RX] Matched signal '%1' on msg 0x%2\\n\");\n").arg(ds.id()).arg(canCfg.messageId, 0, 16);
+                code += "    }\n";
+            }
+        }
+    }
+    code += "}\n\n";
+
+    code += "void ui_receive_uart_frame(const char* line) {\n";
+    code += "    if (!line) return;\n";
+    if (project) {
+        for (const auto& ds : project->dataSources()) {
+            if (ds.type() == DataSourceType::Uart) {
+                code += QString("    /* UART Parser for %1 (mode: %2) */\n")
+                            .arg(ds.id(), uartParseModeToString(ds.uartConfig().parseMode));
+            }
+        }
+    }
+    code += "}\n\n";
+
+    code += "void ui_receive_modbus_registers(uint8_t slave_id, uint8_t reg_type, uint16_t start_addr, const uint16_t* regs, uint16_t count) {\n";
+    code += "    if (!regs || count == 0) return;\n";
+    if (project) {
+        for (const auto& ds : project->dataSources()) {
+            if (ds.type() == DataSourceType::Modbus) {
+                auto mb = ds.modbusConfig();
+                code += QString("    if (slave_id == %1 && start_addr <= %2 && (start_addr + count) > %2) {\n")
+                            .arg(mb.slaveId).arg(mb.address);
+                code += QString("        /* Modbus Register: %1 (addr=%2, type=%3) */\n")
+                            .arg(ds.id()).arg(mb.address).arg(modbusDataTypeToString(mb.dataType));
+                code += "    }\n";
+            }
+        }
+    }
     code += "}\n";
 
     return code;

@@ -92,6 +92,11 @@ public:
     void notifyComponentPropertyChanged(UIComponent* comp, const QString& propertyName, const QVariant& value);
     void notifyComponentInteraction(UIComponent* comp, const QString& trigger);
 
+    // Simulated Protocol Injections (Phase 1 Option B)
+    void injectCanFrame(quint32 messageId, const QByteArray& payload);
+    void injectUartStream(const QString& rawFrame);
+    void injectModbusRegisters(int slaveId, ModbusRegisterType regType, int startAddress, const QVector<quint16>& rawRegs);
+
 signals:
     void statusChanged(SimulationStatus status);
     void speedFactorChanged(double factor);
@@ -111,6 +116,7 @@ private:
     void propagateDataSourceBindings(const QString& sourceId, const QVariant& value);
     void updateTimerDataSources(int deltaMs);
     void updateCalculatedDataSources();
+    void updateVariableWaveforms(qint64 elapsedMs);
     void applyComponentProperty(UIComponent* comp, const QString& property, const QVariant& value);
     UIComponent* findComponent(const QString& compId) const;
 
