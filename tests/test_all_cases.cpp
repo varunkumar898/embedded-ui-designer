@@ -1868,7 +1868,7 @@ void TestAllCases::testBoardConfigImportIoc() {
 }
 
 void TestAllCases::testBoardConfigImportSdkConfig() {
-    const QString sdkPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/esp32_devkit.sdkconfig");
+    const QString sdkPath = examplePath("esp32_devkit.sdkconfig");
     QVERIFY2(QFile::exists(sdkPath), qPrintable(QString("Missing sdkconfig sample file at %1").arg(sdkPath)));
 
     auto res = BoardConfigParser::parseFile(sdkPath);
@@ -1933,7 +1933,7 @@ void TestAllCases::testBoardConfigImportSdkConfig() {
 }
 
 void TestAllCases::testQmlImportBasic() {
-    const QString qmlPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/simple_dashboard.qml");
+    const QString qmlPath = examplePath("simple_dashboard.qml");
     QVERIFY2(QFile::exists(qmlPath), qPrintable("Missing sample QML file: " + qmlPath));
 
     QmlImportResult res = QmlImporter::importFromFile(qmlPath);
@@ -1994,7 +1994,7 @@ void TestAllCases::testQmlImportBasic() {
 }
 
 void TestAllCases::testQmlImportComplexRejected() {
-    const QString qmlPath = QDir(QCoreApplication::applicationDirPath()).filePath("../examples/complex_unsupported.qml");
+    const QString qmlPath = examplePath("complex_unsupported.qml");
     QVERIFY2(QFile::exists(qmlPath), qPrintable("Missing complex QML file: " + qmlPath));
 
     QmlImportResult res = QmlImporter::importFromFile(qmlPath);

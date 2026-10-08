@@ -453,6 +453,8 @@ if(Qt6SerialPort_FOUND)
     target_compile_definitions(test_all_cases PRIVATE HAVE_QT_SERIALPORT)
 endif()
 
+set_target_properties(test_all_cases PROPERTIES WIN32_EXECUTABLE FALSE)
+
 add_test(NAME AllCases COMMAND test_all_cases)
 
 # Functional Validation Runner
@@ -500,6 +502,8 @@ if(Qt6SerialPort_FOUND)
     target_compile_definitions(test_functional_runner PRIVATE HAVE_QT_SERIALPORT)
 endif()
 
+set_target_properties(test_functional_runner PROPERTIES WIN32_EXECUTABLE FALSE)
+
 # Live Hardware & Nucleo Detection Test Runner
 if(COMMAND qt_add_executable)
     qt_add_executable(test_live_nucleo
@@ -544,6 +548,8 @@ if(Qt6SerialPort_FOUND)
     target_link_libraries(test_live_nucleo PRIVATE Qt6::SerialPort)
     target_compile_definitions(test_live_nucleo PRIVATE HAVE_QT_SERIALPORT)
 endif()
+
+set_target_properties(test_live_nucleo PROPERTIES WIN32_EXECUTABLE FALSE)
 endif() # BUILD_TESTING
 
 

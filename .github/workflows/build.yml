@@ -69,6 +69,7 @@ jobs:
         run: |
           export QT_QPA_PLATFORM=offscreen
           if [ "$RUNNER_OS" = "Windows" ]; then
+            export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
             ./build/Release/test_all_cases.exe
           else
             ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure --verbose
