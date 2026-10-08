@@ -4,17 +4,23 @@
 #include <QJsonObject>
 #include <QList>
 #include <QStandardPaths>
+#include <QPointer>
 #include "DisplayConfig.h"
 #include "CanvasScene.h"
 #include "ComponentDefinition.h"
+
 #include "ColorStyle.h"
 #include "HardwareModel.h"
+#include "Screen.h"
+#include "DataSource.h"
+#include "DataBinding.h"
 
 class Project : public QObject {
     Q_OBJECT
 
 public:
     explicit Project(CanvasScene* scene, QObject* parent = nullptr);
+    ~Project() override;
 
     QString projectName() const { return m_name; }
     void setProjectName(const QString& name);
@@ -40,6 +46,35 @@ public:
     static QString appDataDirectory();
     bool autoSave();
     bool loadSampleProject();
+
+    // ── Multi-Screen Model (Phase 1A) ────────────────────────────────────
+    const QList<Screen*>& screens() const { return m_screens; }
+    Screen* activeScreen() const { return m_activeScreen; }
+    void setActiveScreen(Screen* screen);
+    void setActiveScreenById(const QString& screenId);
+    Screen* addScreen(const QString& name = QString(), int width = 0, int height = 0);
+    void addScreen(Screen* screen);
+    bool removeScreen(const QString& screenId);
+    Screen* takeScreen(const QString& screenId);
+    bool renameScreen(const QString& screenId, const QString& newName);
+    Screen* duplicateScreen(const QString& screenId);
+    bool moveScreen(int fromIndex, int toIndex);
+    Screen* findScreen(const QString& screenId) const;
+    int screenCount() const { return m_screens.size(); }
+    int activeScreenIndex() const;
+
+    // ── Project-level Data Sources (Phase 1B) ─────────────────────────────
+    const QList<DataSource>& dataSources() const { return m_dataSources; }
+    void addDataSource(const DataSource& source);
+    void removeDataSource(const QString& sourceId);
+    const DataSource* findDataSource(const QString& sourceId) const;
+    void setDataSources(const QList<DataSource>& sources);
+
+    // ── Project-level Data Bindings (Phase 1B) ────────────────────────────
+    const QList<DataBinding>& dataBindings() const { return m_dataBindings; }
+    void addDataBinding(const DataBinding& binding);
+    void removeDataBinding(const QString& componentId, const QString& propertyName);
+    void setDataBindings(const QList<DataBinding>& bindings);
 
     // Custom component library
     const QList<ComponentDefinition>& componentLibrary() const { return m_componentLibrary; }
@@ -76,9 +111,25 @@ signals:
     void colorStylesChanged();
     void hardwareConfigChanged();
 
+    // Screen signals
+    void screenAdded(Screen* screen);
+    void screenRemoved(const QString& screenId);
+    void screenRenamed(const QString& screenId, const QString& newName);
+    void activeScreenChanged(Screen* screen);
+    void screenListChanged();
+
+    // Data Source & Binding signals
+    void dataSourcesChanged();
+    void dataBindingsChanged();
+
 private:
-    CanvasScene* m_scene = nullptr;
+    void clearScreens();
+    void syncSceneToActiveScreen();
+    void connectSceneSignals();
+
+    QPointer<CanvasScene> m_scene;
     QString m_name = "MyEmbeddedApp";
+
     QString m_filePath;
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
     DisplayConfig m_displayConfig;
@@ -86,6 +137,13 @@ private:
     bool m_dirty = false;
     QList<ComponentDefinition> m_componentLibrary;
 
+    QList<Screen*> m_screens;
+    Screen* m_activeScreen = nullptr;
+
+    QList<DataSource> m_dataSources;
+    QList<DataBinding> m_dataBindings;
+
     QList<ColorStyle> m_colorStyles;
     void initDefaultStyles();
 };
+

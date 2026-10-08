@@ -12,8 +12,9 @@ CanvasScene::CanvasScene(QObject* parent)
 
 CanvasScene::~CanvasScene() {
     disconnect(this, nullptr, this, nullptr);
-    clear();
+    detachAllComponents();
 }
+
 
 void CanvasScene::setDisplayConfig(const DisplayConfig& config) {
     m_displayConfig = config;
@@ -83,6 +84,14 @@ void CanvasScene::clearComponents() {
         delete comp;
     }
 }
+
+void CanvasScene::detachAllComponents() {
+    clearSelection();
+    for (UIComponent* comp : uiComponents()) {
+        removeItem(comp);
+    }
+}
+
 
 static constexpr qreal SNAP_TOLERANCE = 6.0;  ///< Scene-pixel radius for smart snapping
 

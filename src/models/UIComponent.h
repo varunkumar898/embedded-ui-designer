@@ -9,6 +9,8 @@
 #include <QPainter>
 #include <QGraphicsSceneMouseEvent>
 #include <QCursor>
+#include "ComponentState.h"
+#include "DataBinding.h"
 
 enum class ResizeHandle {
     None,
@@ -118,6 +120,34 @@ public:
     static QJsonValue serializeColor(const QColor& color, const QString& styleRef = QString());
     static void deserializeColor(const QJsonValue& val, QColor& colorOut, QString& styleRefOut);
 
+    // ── Component States (Phase 1C) ──────────────────────────────────────
+    QString currentState() const { return m_currentState; }
+    void setCurrentState(const QString& state);
+
+    QMap<QString, ComponentStateStyle> stateStyles() const { return m_stateStyles; }
+    ComponentStateStyle stateStyle(const QString& stateName) const { return m_stateStyles.value(stateName.toLower()); }
+    void setStateStyle(const QString& stateName, const ComponentStateStyle& style);
+    void removeStateStyle(const QString& stateName);
+    bool hasStateStyle(const QString& stateName) const { return m_stateStyles.contains(stateName.toLower()); }
+
+    QColor effectiveBackgroundColor(const QColor& defaultColor) const;
+    QColor effectiveTextColor(const QColor& defaultColor) const;
+    QColor effectiveBorderColor(const QColor& defaultColor) const;
+    int effectiveBorderWidth(int defaultWidth) const;
+    qreal effectiveOpacity(qreal defaultOpacity = 1.0) const;
+
+    // ── Generic Data Bindings (Phase 1B) ─────────────────────────────────
+    QList<DataBinding> bindings() const { return m_bindings; }
+    void addBinding(const DataBinding& b);
+    void removeBinding(const QString& propertyName);
+    void setBindings(const QList<DataBinding>& b);
+    DataBinding bindingForProperty(const QString& propertyName) const;
+    bool hasBindingForProperty(const QString& propertyName) const;
+
+    // ── Screen Association ────────────────────────────────────────────────
+    QString screenId() const { return m_screenId; }
+    void setScreenId(const QString& sId) { m_screenId = sId; }
+
 signals:
     void propertyChanged(UIComponent* comp);
     void geometryChangedSignal(UIComponent* comp);
@@ -138,6 +168,7 @@ protected:
 
     QString m_id;
     QString m_componentType;
+    QString m_screenId;
     QJsonArray m_interactions;
     qreal m_width = 120.0;
     qreal m_height = 40.0;
@@ -154,4 +185,12 @@ protected:
     QMap<QString, QString> m_colorStyleRefs;
     QString m_protocol = "None";
     QMap<QString, QString> m_protocolPins;
+
+    // Component states
+    QString m_currentState = "normal";
+    QMap<QString, ComponentStateStyle> m_stateStyles;
+
+    // Data Bindings
+    QList<DataBinding> m_bindings;
 };
+

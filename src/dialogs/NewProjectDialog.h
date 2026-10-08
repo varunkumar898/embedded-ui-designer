@@ -23,9 +23,12 @@ public:
     QString targetFramework() const;
     int colorDepth() const;
     bool roundDisplay() const;
+    QString hardwareFamily() const;
+    QString hardwareBoard() const;
 
 private slots:
     void updateTemplateDetails();
+    void updateHardwareBoards();
 
 private:
     QTabWidget* m_tabs = nullptr;
@@ -35,6 +38,8 @@ private:
     QSpinBox* m_colorDepthSpin = nullptr;
     QComboBox* m_shapeCombo = nullptr;
     QComboBox* m_frameworkCombo = nullptr;
+    QComboBox* m_hardwareFamilyCombo = nullptr;
+    QComboBox* m_hardwareBoardCombo = nullptr;
     QListWidget* m_templateList = nullptr;
     QLabel* m_templateDescription = nullptr;
     QString m_suggestedName;

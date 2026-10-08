@@ -496,6 +496,9 @@ QJsonObject UIComponent::toJson() const {
     QJsonObject obj;
     obj["id"] = m_id;
     obj["type"] = m_componentType;
+    if (!m_screenId.isEmpty()) {
+        obj["screenId"] = m_screenId;
+    }
     obj["x"] = static_cast<int>(std::round(pos().x()));
     obj["y"] = static_cast<int>(std::round(pos().y()));
     obj["width"] = static_cast<int>(std::round(m_width));
@@ -508,12 +511,35 @@ QJsonObject UIComponent::toJson() const {
         pinObj[it.key()] = it.value();
     }
     obj["protocolPins"] = pinObj;
+
+    // Component states
+    if (m_currentState != "normal") {
+        obj["state"] = m_currentState;
+    }
+    if (!m_stateStyles.isEmpty()) {
+        QJsonObject statesObj;
+        for (auto it = m_stateStyles.constBegin(); it != m_stateStyles.constEnd(); ++it) {
+            statesObj[it.key()] = it.value().toJson();
+        }
+        obj["states"] = statesObj;
+    }
+
+    // Generic Data Bindings
+    if (!m_bindings.isEmpty()) {
+        QJsonArray bindingsArr;
+        for (const DataBinding& b : m_bindings) {
+            bindingsArr.append(b.toJson());
+        }
+        obj["bindings"] = bindingsArr;
+    }
+
     return obj;
 }
 
 void UIComponent::fromJson(const QJsonObject& json) {
     m_id = json.value("id").toString(m_id);
     m_componentType = json.value("type").toString(m_componentType);
+    m_screenId = json.value("screenId").toString(m_screenId);
     if (json.contains("visible")) {
         setVisible(json.value("visible").toBool(true));
     }
@@ -526,6 +552,25 @@ void UIComponent::fromJson(const QJsonObject& json) {
             m_protocolPins[it.key()] = it.value().toString();
         }
     }
+
+    // Component states
+    m_currentState = json.value("state").toString("normal");
+    m_stateStyles.clear();
+    if (json.contains("states") && json.value("states").isObject()) {
+        QJsonObject statesObj = json.value("states").toObject();
+        for (auto it = statesObj.constBegin(); it != statesObj.constEnd(); ++it) {
+            m_stateStyles[it.key().toLower()] = ComponentStateStyle::fromJson(it.value().toObject());
+        }
+    }
+
+    // Generic Data Bindings
+    m_bindings.clear();
+    if (json.contains("bindings") && json.value("bindings").isArray()) {
+        for (const QJsonValue& val : json.value("bindings").toArray()) {
+            m_bindings.append(DataBinding::fromJson(val.toObject()));
+        }
+    }
+
     qreal x = json.value("x").toDouble(pos().x());
     qreal y = json.value("y").toDouble(pos().y());
     setCompPos(x, y);
@@ -533,6 +578,7 @@ void UIComponent::fromJson(const QJsonObject& json) {
     qreal h = json.value("height").toDouble(m_height);
     setCompSize(w, h);
 }
+
 
 void UIComponent::setInteractions(const QJsonArray& interactions) {
     if (m_interactions == interactions) return;
@@ -613,3 +659,117 @@ void UIComponent::clearProtocol() {
         emit propertyChanged(this);
     }
 }
+
+// ── Component States (Phase 1C) ──────────────────────────────────────────
+
+void UIComponent::setCurrentState(const QString& state) {
+    QString norm = state.trimmed().toLower();
+    if (m_currentState != norm) {
+        m_currentState = norm;
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+void UIComponent::setStateStyle(const QString& stateName, const ComponentStateStyle& style) {
+    QString norm = stateName.trimmed().toLower();
+    if (style.isEmpty()) {
+        m_stateStyles.remove(norm);
+    } else {
+        m_stateStyles[norm] = style;
+    }
+    update();
+    emit propertyChanged(this);
+}
+
+void UIComponent::removeStateStyle(const QString& stateName) {
+    QString norm = stateName.trimmed().toLower();
+    if (m_stateStyles.remove(norm) > 0) {
+        update();
+        emit propertyChanged(this);
+    }
+}
+
+QColor UIComponent::effectiveBackgroundColor(const QColor& defaultColor) const {
+    if (m_currentState != "normal" && m_stateStyles.contains(m_currentState)) {
+        const auto& s = m_stateStyles[m_currentState];
+        if (s.hasBackgroundColor) return s.backgroundColor;
+    }
+    return defaultColor;
+}
+
+QColor UIComponent::effectiveTextColor(const QColor& defaultColor) const {
+    if (m_currentState != "normal" && m_stateStyles.contains(m_currentState)) {
+        const auto& s = m_stateStyles[m_currentState];
+        if (s.hasTextColor) return s.textColor;
+    }
+    return defaultColor;
+}
+
+QColor UIComponent::effectiveBorderColor(const QColor& defaultColor) const {
+    if (m_currentState != "normal" && m_stateStyles.contains(m_currentState)) {
+        const auto& s = m_stateStyles[m_currentState];
+        if (s.hasBorderColor) return s.borderColor;
+    }
+    return defaultColor;
+}
+
+int UIComponent::effectiveBorderWidth(int defaultWidth) const {
+    if (m_currentState != "normal" && m_stateStyles.contains(m_currentState)) {
+        const auto& s = m_stateStyles[m_currentState];
+        if (s.hasBorderWidth) return s.borderWidth;
+    }
+    return defaultWidth;
+}
+
+qreal UIComponent::effectiveOpacity(qreal defaultOpacity) const {
+    if (m_currentState != "normal" && m_stateStyles.contains(m_currentState)) {
+        const auto& s = m_stateStyles[m_currentState];
+        if (s.hasOpacity) return s.opacity;
+    }
+    return defaultOpacity;
+}
+
+// ── Generic Data Bindings (Phase 1B) ─────────────────────────────────────
+
+void UIComponent::addBinding(const DataBinding& b) {
+    for (int i = 0; i < m_bindings.size(); ++i) {
+        if (m_bindings[i].propertyName() == b.propertyName()) {
+            m_bindings[i] = b;
+            emit propertyChanged(this);
+            return;
+        }
+    }
+    m_bindings.append(b);
+    emit propertyChanged(this);
+}
+
+void UIComponent::removeBinding(const QString& propertyName) {
+    for (int i = 0; i < m_bindings.size(); ++i) {
+        if (m_bindings[i].propertyName() == propertyName) {
+            m_bindings.removeAt(i);
+            emit propertyChanged(this);
+            return;
+        }
+    }
+}
+
+void UIComponent::setBindings(const QList<DataBinding>& b) {
+    m_bindings = b;
+    emit propertyChanged(this);
+}
+
+DataBinding UIComponent::bindingForProperty(const QString& propertyName) const {
+    for (const auto& b : m_bindings) {
+        if (b.propertyName() == propertyName) return b;
+    }
+    return DataBinding();
+}
+
+bool UIComponent::hasBindingForProperty(const QString& propertyName) const {
+    for (const auto& b : m_bindings) {
+        if (b.propertyName() == propertyName) return true;
+    }
+    return false;
+}
+

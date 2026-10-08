@@ -49,6 +49,8 @@ public:
     void removeUIComponent(UIComponent* comp);
     QList<UIComponent*> uiComponents() const;
     void clearComponents();
+    void detachAllComponents();
+
 
     QPointF snapPoint(const QPointF& pt, UIComponent* ignore = nullptr) const;
     void setPathPreview(const QList<QPointF>& points, const QPointF& cursor, bool visible);

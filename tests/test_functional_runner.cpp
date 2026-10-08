@@ -40,10 +40,32 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "PathComponent.h"
+#include "CircularProgressComponent.h"
+#include "GaugeComponent.h"
+#include "SpeedometerComponent.h"
+#include "BatteryComponent.h"
+#include "PressureComponent.h"
+#include "RpmComponent.h"
+#include "TemperatureComponent.h"
+#include "TabViewComponent.h"
+#include "NavigationBarComponent.h"
+#include "ListComponent.h"
+#include "TableComponent.h"
 
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
 #include "LvglGenerator.h"
+#include "HardwareManager.h"
+#include "HardwareTarget.h"
+#include "GeneratorContext.h"
+#include "GeneratorIR.h"
+#include "TargetHalGenerator.h"
+#include "BindingLayerGenerator.h"
+#include "SimulationBackend.h"
+#include "SimulationRuntime.h"
+#include "SimulationCanvasView.h"
+#include "SimulationControlPanel.h"
+#include "SimulatorWindow.h"
 
 struct FunctionTestResult {
     std::string category;
@@ -647,7 +669,7 @@ public:
         // --------------------------------------------------------------------
         std::cout << "\n[11] TASK 1: Multi-Select on Canvas\n";
         window.m_project->newProject("MultiSelectVerification", 800, 480);
-        window.m_scene->clear();
+        window.m_scene->clearComponents();
 
         ButtonComponent* cBtn = new ButtonComponent("btn_task1");
         cBtn->setText("Power Mode");
@@ -672,6 +694,7 @@ public:
         cSlider->setCompPos(320, 60);
         window.m_scene->addUIComponent(cSlider);
 
+        window.m_view->resetTransform();
         window.m_scene->clearSelection();
         qApp->processEvents();
 
@@ -706,11 +729,11 @@ public:
             window.m_scene->clearSelection();
             qApp->processEvents();
 
-            // Click cBtn
+            // Shift-click cBtn
             QPoint ptBtn = window.m_view->mapFromScene(cBtn->sceneBoundingRect().center());
-            QMouseEvent p1(QEvent::MouseButtonPress, ptBtn, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent p1(QEvent::MouseButtonPress, ptBtn, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
             QApplication::sendEvent(window.m_view->viewport(), &p1);
-            QMouseEvent r1(QEvent::MouseButtonRelease, ptBtn, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QMouseEvent r1(QEvent::MouseButtonRelease, ptBtn, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
             QApplication::sendEvent(window.m_view->viewport(), &r1);
             std::cout << "DEBUG after p1: cBtn=" << cBtn->isSelected() << "\n";
 
@@ -747,7 +770,9 @@ public:
             qApp->processEvents();
 
             bool multiVisible = window.m_propertiesPanel->m_multiWidget->isVisible();
-            bool singleHidden = !window.m_propertiesPanel->m_contentWidget->isVisible();
+            bool singleHidden = !window.m_propertiesPanel->m_headerWidget->isVisible() &&
+                                !window.m_propertiesPanel->m_specificGroup->isVisible() &&
+                                !window.m_propertiesPanel->m_geometryGroup->isVisible();
             bool emptyHidden  = !window.m_propertiesPanel->m_emptyWidget->isVisible();
             QString labelText = window.m_propertiesPanel->m_multiLabel->text();
             bool labelOk = (labelText == "3 components selected");
@@ -877,6 +902,387 @@ public:
                    "Single Ctrl+Z undo atomically restored all 4 components to original uneven positions", t);
         }
 
+        // --------------------------------------------------------------------
+        // [15] PHASE 2: Comprehensive Embedded Component Library & Dashboard
+        // --------------------------------------------------------------------
+        std::cout << "\n[15] PHASE 2: 12 First-Class Embedded Components & Digital Dashboard\n";
+        {
+            // Clear canvas to construct a full digital dashboard
+            window.m_scene->clearComponents();
+            qApp->processEvents();
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            auto* speedo = new SpeedometerComponent("dash_speedo");
+            speedo->setCompPos(20, 20);
+            speedo->setCompSize(200, 200);
+            speedo->setValue(105.0);
+            window.m_scene->addUIComponent(speedo);
+            record("Phase 2 Components", "Create Speedometer Component", speedo != nullptr && speedo->value() == 105.0,
+                   "Added Speedometer with 0-240 km/h range, needle and arc at (20,20)", t1);
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto* rpm = new RpmComponent("dash_rpm");
+            rpm->setCompPos(240, 20);
+            rpm->setCompSize(200, 200);
+            rpm->setValue(4500.0);
+            window.m_scene->addUIComponent(rpm);
+            record("Phase 2 Components", "Create RPM Indicator Component", rpm != nullptr && rpm->value() == 4500.0,
+                   "Added RPM Indicator with 0-8000 RPM range and redline warning at (240,20)", t2);
+
+            auto t3 = std::chrono::high_resolution_clock::now();
+            auto* gauge = new GaugeComponent("diag_gauge");
+            gauge->setCompPos(460, 20);
+            gauge->setCompSize(180, 180);
+            gauge->setValue(65.0);
+            window.m_scene->addUIComponent(gauge);
+            record("Phase 2 Components", "Create Configurable Gauge", gauge != nullptr && gauge->value() == 65.0,
+                   "Added Multi-preset Gauge with major/minor tick marks at (460,20)", t3);
+
+            auto t4 = std::chrono::high_resolution_clock::now();
+            auto* battery = new BatteryComponent("dash_battery");
+            battery->setCompPos(20, 240);
+            battery->setCompSize(160, 50);
+            battery->setValue(84.0);
+            window.m_scene->addUIComponent(battery);
+            record("Phase 2 Components", "Create Battery Indicator", battery != nullptr && battery->value() == 84.0,
+                   "Added Horizontal Battery Indicator with segmented cells and charging icon", t4);
+
+            auto t5 = std::chrono::high_resolution_clock::now();
+            auto* temp = new TemperatureComponent("dash_temp");
+            temp->setCompPos(200, 240);
+            temp->setCompSize(160, 60);
+            temp->setValue(78.5);
+            window.m_scene->addUIComponent(temp);
+            record("Phase 2 Components", "Create Temperature Indicator", temp != nullptr && temp->value() == 78.5,
+                   "Added Temperature Indicator with Celsius readout and threshold color transitions", t5);
+
+            auto t6 = std::chrono::high_resolution_clock::now();
+            auto* press = new PressureComponent("dash_pressure");
+            press->setCompPos(380, 240);
+            press->setCompSize(160, 60);
+            press->setValue(4.2);
+            press->setUnit("bar");
+            window.m_scene->addUIComponent(press);
+            record("Phase 2 Components", "Create Pressure Indicator", press != nullptr && press->value() == 4.2,
+                   "Added Oil Pressure Indicator with bar/psi unit and digital display", t6);
+
+            auto t7 = std::chrono::high_resolution_clock::now();
+            auto* circ = new CircularProgressComponent("dash_circ");
+            circ->setCompPos(560, 240);
+            circ->setCompSize(100, 100);
+            circ->setValue(72.0);
+            window.m_scene->addUIComponent(circ);
+            record("Phase 2 Components", "Create Circular Progress", circ != nullptr && circ->value() == 72.0,
+                   "Added vector-rendered Circular Progress Ring with center readout", t7);
+
+            auto t8 = std::chrono::high_resolution_clock::now();
+            auto* tab = new TabViewComponent("settings_tab");
+            tab->setCompPos(20, 320);
+            tab->setCompSize(280, 140);
+            tab->setTabs({"Engine", "Sensors", "CAN", "Logs"});
+            window.m_scene->addUIComponent(tab);
+            record("Phase 2 Components", "Create Tab View Component", tab != nullptr && tab->tabs().size() == 4,
+                   "Added 4-tab container with responsive tab switching header", t8);
+
+            auto t9 = std::chrono::high_resolution_clock::now();
+            auto* nav = new NavigationBarComponent("main_nav");
+            nav->setCompPos(320, 320);
+            nav->setCompSize(320, 40);
+            nav->setItems({{"Home", "home", "scr_main"}, {"Gauges", "gauge", "scr_gauges"}, {"Diag", "wrench", "scr_diag"}});
+            window.m_scene->addUIComponent(nav);
+            record("Phase 2 Components", "Create Navigation Bar", nav != nullptr && nav->items().size() == 3,
+                   "Added 3-item Navigation Bar integrated with screen IDs", t9);
+
+            auto t10 = std::chrono::high_resolution_clock::now();
+            auto* list = new ListComponent("diag_list");
+            list->setCompPos(320, 370);
+            list->setCompSize(150, 100);
+            list->setItems({"CAN 0: 0x100 OK", "CAN 0: 0x108 OK", "ADC: 3.32V", "I2C: 0x48 ACK"});
+            window.m_scene->addUIComponent(list);
+            record("Phase 2 Components", "Create List Component", list != nullptr && list->items().size() == 4,
+                   "Added embedded List component with item rows and selection highlight", t10);
+
+            auto t11 = std::chrono::high_resolution_clock::now();
+            auto* table = new TableComponent("diag_table");
+            table->setCompPos(485, 370);
+            table->setCompSize(200, 100);
+            table->setColumns({"Ch", "Val", "St"});
+            table->setRows({{"VCC", "3.3V", "OK"}, {"TMP", "42C", "OK"}, {"CAN", "500k", "RUN"}});
+            window.m_scene->addUIComponent(table);
+            record("Phase 2 Components", "Create Table Component", table != nullptr && table->rows().size() == 3,
+                   "Added 3x3 embedded Table grid with header and styled cells", t11);
+
+            // Test properties panel inspection of new components
+            auto t12 = std::chrono::high_resolution_clock::now();
+            window.m_scene->clearSelection();
+            speedo->setSelected(true);
+            window.m_propertiesPanel->setTargetComponent(speedo);
+            qApp->processEvents();
+
+            bool speedoInspected = (window.m_propertiesPanel->targetComponent() == speedo);
+            record("Phase 2 Components", "Speedometer Properties Panel Inspection", speedoInspected,
+                   "Properties panel dynamically populated Speedometer fields and Data Binding selector", t12);
+
+            // Capture screenshot of Phase 2 dashboard
+            QPixmap shotDash = window.grab();
+            shotDash.save(artifactDir + "/phase2_digital_dashboard.png");
+        }
+
+        // --------------------------------------------------------------------
+        // 16. PHASE 3: Hardware Abstraction Layer (HAL) & Backends
+        // --------------------------------------------------------------------
+        {
+            std::cout << "\n[16] PHASE 3: Hardware Abstraction Layer & Backends\n";
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            auto& mgr = Hardware::HardwareManager::instance();
+            mgr.resetToDefaults();
+            bool hasBackends = (mgr.registeredBackendIds().size() >= 4);
+            record("Phase 3 HAL", "Backend Registry Initialization", hasBackends,
+                   "Initialized STM32, ESP32, Raspberry Pi, and Mock backends", t1);
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            bool switchedEsp = mgr.setActiveBackend("esp32");
+            auto espCaps = mgr.currentCapabilities();
+            bool espOk = switchedEsp && espCaps.gpioOutput && !espCaps.atomicBsrr;
+            record("Phase 3 HAL", "ESP32 Target Backend", espOk,
+                   "Switched to ESP32 backend with data-driven capabilities", t2);
+
+            auto t3 = std::chrono::high_resolution_clock::now();
+            bool switchedRpi = mgr.setActiveBackend("raspberrypi");
+            auto rpiCaps = mgr.currentCapabilities();
+            bool rpiOk = switchedRpi && rpiCaps.gpioOutput && !rpiCaps.adc;
+            record("Phase 3 HAL", "Raspberry Pi Linux Backend", rpiOk,
+                   "Switched to Raspberry Pi backend reporting correct native ADC capability", t3);
+
+            auto t4 = std::chrono::high_resolution_clock::now();
+            mgr.setActiveBackend("mock");
+            bool mockWriteOk = mgr.writeDigital("PA5", true);
+            bool mockReadVal = false;
+            bool mockReadOk = mgr.readDigital("PA5", &mockReadVal) && mockReadVal;
+            record("Phase 3 HAL", "Mock Backend Digital IO", mockWriteOk && mockReadOk,
+                   "Verified simulated GPIO write and readback pipeline", t4);
+
+            auto t5 = std::chrono::high_resolution_clock::now();
+            DataSource adcSource("pot_adc", "ADC Sensor", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+            adcSource.setHardwareRef("PA0");
+            auto* mock = dynamic_cast<Hardware::MockBackend*>(mgr.activeBackend());
+            if (mock) mock->setMockAdcValue("PA0", 2048, 0.5);
+            QVariant val;
+            bool dsOk = mgr.resolveDataSourceValue(adcSource, &val) && (std::abs(val.toDouble() - 0.5) < 0.01);
+            record("Phase 3 HAL", "DataSource Hardware Resolution", dsOk,
+                   "Resolved DataSource value through HardwareManager to physical analog reading", t5);
+
+            auto t6 = std::chrono::high_resolution_clock::now();
+            Hardware::HardwareTarget customTarget("hmi_board", "Custom HMI", "Custom", "STM32F429", "BOARD_V1");
+            customTarget.setPinMapping("RELAY", "PC8");
+            QJsonObject json = customTarget.toJson();
+            auto loadedTarget = Hardware::HardwareTarget::fromJson(json);
+            bool targetPersistOk = (loadedTarget.resolvePin("RELAY") == "PC8");
+            record("Phase 3 HAL", "Custom Target & Pin Resolution", targetPersistOk,
+                   "Custom board target serialized and resolved logical pin to physical hardware", t6);
+        }
+
+        // --------------------------------------------------------------------
+        // 17. PHASE 4: Code Generator v2 & Target-Aware Architecture
+        // --------------------------------------------------------------------
+        {
+            std::cout << "\n[17] PHASE 4: Code Generator v2 & Target-Aware Architecture\n";
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            CanvasScene p4Scene;
+            Project p4Project(&p4Scene);
+            p4Project.newProject("Phase4_Telemetry_System", 480, 320);
+
+            Hardware::HardwareConfig hwStm;
+            hwStm.family = "STM32";
+            hwStm.deviceId = "STM32F030R8";
+            hwStm.boardId = "NUCLEO-F030R8";
+            p4Project.setHardwareConfig(hwStm);
+
+            Screen* p4Screen = p4Project.activeScreen();
+            p4Screen->setName("Telemetry Screen");
+
+            auto* p4Speed = new SpeedometerComponent("p4_speed");
+            p4Speed->setCompPos(20, 20);
+            p4Speed->setCompSize(200, 200);
+            p4Speed->setValue(120.0);
+            p4Screen->addComponent(p4Speed);
+
+            auto* p4Switch = new SwitchComponent("p4_ign");
+            p4Switch->setCompPos(240, 20);
+            p4Switch->setChecked(true);
+            p4Screen->addComponent(p4Switch);
+
+            DataSource dsSpeed("src_speed", "Speed Sensor", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+            dsSpeed.setHardwareRef("PA0");
+            p4Project.addDataSource(dsSpeed);
+
+            DataBinding bindSpeed("p4_speed", "value", "src_speed", BindingDirection::Read);
+            p4Project.addDataBinding(bindSpeed);
+
+            CodeGen::GeneratorContext ctx(&p4Project);
+            QList<CodeGen::ValidationMessage> valMsgs;
+            bool ctxValid = ctx.validate(&valMsgs);
+            record("Phase 4 CodeGen v2", "GeneratorContext & Project Validation", ctxValid,
+                   "Project validated 0 errors, active target stm32/NUCLEO-F030R8 resolved", t1);
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            CodeGen::IRProject ir = CodeGen::GeneratorIR::buildFromProject(&p4Project);
+            bool irOk = (ir.screens.size() == 1) && (ir.screens[0].widgets.size() == 2) &&
+                        (ir.bindings.size() == 1) && (ir.dataSources.size() == 1) &&
+                        (ir.targetFamily == "STM32");
+            record("Phase 4 CodeGen v2", "Generator Intermediate Representation (IR)", irOk,
+                   "Compiled Project into unified target-agnostic Intermediate Representation", t2);
+
+            auto t3 = std::chrono::high_resolution_clock::now();
+            QString halH = CodeGen::TargetHalGenerator::generateHalHeader(&p4Project);
+            QString halC = CodeGen::TargetHalGenerator::generateHalSource(&p4Project);
+            bool halOk = halH.contains("hal_write_digital_pin") && halC.contains("BSRR");
+            record("Phase 4 CodeGen v2", "Target HAL Driver Generation", halOk,
+                   "Generated target_hal.h/c with STM32 atomic BSRR GPIO and ADC drivers", t3);
+
+            auto t4 = std::chrono::high_resolution_clock::now();
+            QString bindH = CodeGen::BindingLayerGenerator::generateBindingsHeader(&p4Project);
+            QString bindC = CodeGen::BindingLayerGenerator::generateBindingsSource(&p4Project);
+            bool bindOk = bindH.contains("ui_update_data_sources") && bindC.contains("src_speed") && bindC.contains("p4_speed");
+            record("Phase 4 CodeGen v2", "Data Binding Layer Generation", bindOk,
+                   "Generated ui_bindings.h/c mapping DataSource to widget property updates", t4);
+
+            auto t5 = std::chrono::high_resolution_clock::now();
+            QTemporaryDir outDir;
+            LvglGenerator lvglGen(&p4Project, &p4Scene);
+            bool exportOk = lvglGen.generate(outDir.path());
+            bool filesExist = QFile::exists(outDir.path() + "/ui.c") &&
+                              QFile::exists(outDir.path() + "/ui.h") &&
+                              QFile::exists(outDir.path() + "/ui_bindings.c") &&
+                              QFile::exists(outDir.path() + "/ui_bindings.h") &&
+                              QFile::exists(outDir.path() + "/target_hal.c") &&
+                              QFile::exists(outDir.path() + "/target_hal.h") &&
+                              QFile::exists(outDir.path() + "/CMakeLists.txt");
+            record("Phase 4 CodeGen v2", "LVGL v2 Full Project Export", exportOk && filesExist,
+                   "Exported complete multi-screen LVGL project with HAL and Binding runtime", t5);
+        }
+
+        // --------------------------------------------------------------------
+        // 18. PHASE 5: Desktop Simulator & Runtime Environment
+        // --------------------------------------------------------------------
+        {
+            std::cout << "\n[18] PHASE 5: Desktop Simulator & Runtime Environment\n";
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            CanvasScene simScene;
+            Project simProject(&simScene);
+            simProject.newProject("Digital_Cluster_Sim", 800, 480);
+
+            Screen* dashScreen = simProject.activeScreen();
+            dashScreen->setName("Cluster Dashboard");
+
+            auto* speedo = new SpeedometerComponent("sim_speedo");
+            speedo->setCompPos(30, 40);
+            speedo->setCompSize(240, 240);
+            speedo->setValue(90.0);
+            speedo->setMinimum(0.0);
+            speedo->setMaximum(240.0);
+            speedo->setWarningThreshold(140.0);
+            speedo->setCriticalThreshold(200.0);
+            dashScreen->addComponent(speedo);
+
+            auto* rpm = new RpmComponent("sim_rpm");
+            rpm->setCompPos(290, 40);
+            rpm->setCompSize(240, 240);
+            rpm->setValue(3500.0);
+            dashScreen->addComponent(rpm);
+
+            auto* bat = new BatteryComponent("sim_bat");
+            bat->setCompPos(550, 40);
+            bat->setCompSize(140, 50);
+            bat->setValue(85.0);
+            dashScreen->addComponent(bat);
+
+            auto* pwrSwitch = new SwitchComponent("sim_ign");
+            pwrSwitch->setCompPos(550, 110);
+            pwrSwitch->setChecked(true);
+            dashScreen->addComponent(pwrSwitch);
+
+            // DataSources
+            DataSource dsSpeed("src_speed", "Vehicle Speed", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+            dsSpeed.setValue(90.0);
+            simProject.addDataSource(dsSpeed);
+
+            DataSource dsRpm("src_rpm", "Engine RPM", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+            dsRpm.setValue(3500.0);
+            simProject.addDataSource(dsRpm);
+
+            DataSource dsGpio("gpio_ign", "Ignition GPIO", DataSourceType::Gpio, DataDirection::Output, DataType::Boolean);
+            dsGpio.setHardwareRef("PA5");
+            dsGpio.setValue(true);
+            simProject.addDataSource(dsGpio);
+
+            // Bindings
+            DataBinding bSpeed("sim_speedo", "value", "src_speed", BindingDirection::Read);
+            simProject.addDataBinding(bSpeed);
+
+            DataBinding bRpm("sim_rpm", "value", "src_rpm", BindingDirection::Read);
+            simProject.addDataBinding(bRpm);
+
+            DataBinding bGpio("sim_ign", "checked", "gpio_ign", BindingDirection::Write);
+            simProject.addDataBinding(bGpio);
+
+            Simulator::SimulatorWindow simWin(&simProject);
+            simWin.resize(1300, 780);
+            simWin.show();
+            qApp->processEvents();
+
+            bool winInitOk = (simWin.runtime() != nullptr) && (simWin.runtime()->status() == Simulator::SimulationStatus::Running);
+            record("Phase 5 Simulator", "Simulator Window & Runtime Initialization", winInitOk,
+                   "Initialized SimulatorWindow with running clock, toolbar, and dark control panel", t1);
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto* backend = simWin.runtime()->simulationBackend();
+            bool backendOk = backend && (backend->backendId() == "simulation");
+            record("Phase 5 Simulator", "Simulated Hardware Backend (HAL)", backendOk,
+                   "Simulated HardwareBackend registered and isolated from physical MCU probes", t2);
+
+            auto t3 = std::chrono::high_resolution_clock::now();
+            // Mutate live speed source
+            simWin.runtime()->setDataSourceValue("src_speed", 160.0);
+            qApp->processEvents();
+            bool readBindingOk = (std::abs(speedo->value() - 160.0) < 0.01) &&
+                                 (speedo->currentState().toLower() == "warning");
+            record("Phase 5 Simulator", "Live DataBinding & Auto-State (Warning)", readBindingOk,
+                   "Simulated speed=160km/h propagated to Speedometer and auto-triggered Warning state", t3);
+
+            auto t4 = std::chrono::high_resolution_clock::now();
+            // Test Write binding
+            simWin.runtime()->notifyComponentPropertyChanged(pwrSwitch, "checked", false);
+            qApp->processEvents();
+            bool pinState = true;
+            backend->readDigital("PA5", &pinState);
+            bool writeBindingOk = (!pinState) && (!simWin.runtime()->dataSourceValue("gpio_ign").toBool());
+            record("Phase 5 Simulator", "Reverse Write Binding (Switch -> Virtual GPIO)", writeBindingOk,
+                   "Switch toggle dynamically drove simulated GPIO PA4/PA5 without feedback loops", t4);
+
+            auto t5 = std::chrono::high_resolution_clock::now();
+            auto* presetCombo = simWin.findChild<QComboBox*>("simPresetCombo");
+            bool presetOk = false;
+            if (presetCombo) {
+                int redlineIdx = presetCombo->findText("Engine Redline");
+                if (redlineIdx >= 0) {
+                    presetCombo->setCurrentIndex(redlineIdx);
+                    qApp->processEvents();
+                    presetOk = (simWin.runtime()->dataSourceValue("src_rpm").toDouble() >= 7000.0);
+                }
+            }
+            record("Phase 5 Simulator", "Automotive Cluster Presets", presetOk,
+                   "Applied 'Engine Redline' preset setting RPM to redline condition live", t5);
+
+            // Capture screenshot of Phase 5 Simulator Runtime
+            QPixmap shotSim = simWin.grab();
+            shotSim.save(artifactDir + "/phase5_simulator_runtime.png");
+            simWin.close();
+        }
+
         auto endTotal = std::chrono::high_resolution_clock::now();
         long long totalMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTotal - startTotal).count();
 
@@ -925,6 +1331,8 @@ public:
             out << "- **Task 3: Align Left (Ctrl+Z Undo)**: ![Task 3 Undo](task3_align_undo.png)\n";
             out << "- **Task 4: Distribute Horizontal (Before)**: ![Task 4 Before](task4_distribute_before.png)\n";
             out << "- **Task 4: Distribute Horizontal (After)**: ![Task 4 After](task4_distribute_after.png)\n";
+            out << "- **Phase 2: Digital Cluster Dashboard**: ![Phase 2 Dashboard](phase2_digital_dashboard.png)\n";
+            out << "- **Phase 5: Desktop Simulator Runtime**: ![Phase 5 Simulator](phase5_simulator_runtime.png)\n";
 
             reportFile.close();
             std::cout << "SUCCESS: Detailed report saved to " << reportPath.toStdString() << "\n";

@@ -117,10 +117,11 @@ void ButtonComponent::paintComponent(QPainter* painter) {
     QRectF rect(0, 0, m_width, m_height);
 
     // Compute effective background and text colors based on enabled state
-    QColor bg = m_backgroundColor;
-    QColor fg = m_textColor;
-    QColor bd = m_borderColor;
-    if (!m_enabled) {
+    QColor bg = effectiveBackgroundColor(m_backgroundColor);
+    QColor fg = effectiveTextColor(m_textColor);
+    QColor bd = effectiveBorderColor(m_borderColor);
+    int bw = effectiveBorderWidth(m_borderWidth);
+    if (!m_enabled || (hasStateStyle(currentState()) && stateStyle(currentState()).hasEnabled && !stateStyle(currentState()).enabled)) {
         bg.setAlpha(120);
         fg.setAlpha(120);
         bd.setAlpha(80);
@@ -132,14 +133,15 @@ void ButtonComponent::paintComponent(QPainter* painter) {
     painter->drawRoundedRect(rect, m_cornerRadius, m_cornerRadius);
 
     // 2. Border
-    if (m_borderWidth > 0 && bd.alpha() > 0) {
+    if (bw > 0 && bd.alpha() > 0) {
         painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(bd, m_borderWidth));
-        qreal inset = m_borderWidth / 2.0;
-        QRectF borderRect(inset, inset, m_width - m_borderWidth, m_height - m_borderWidth);
+        painter->setPen(QPen(bd, bw));
+        qreal inset = bw / 2.0;
+        QRectF borderRect(inset, inset, m_width - bw, m_height - bw);
         qreal r = std::max<qreal>(0, m_cornerRadius - inset);
         painter->drawRoundedRect(borderRect, r, r);
     }
+
 
     // 3. Button text
     painter->setPen(QPen(fg));

@@ -82,6 +82,8 @@ set(COMMON_SOURCES
     # Canvas UIComponent Hierarchy
     src/models/UIComponent.cpp
     src/models/UIComponent.h
+    src/models/ValueVisualizationComponent.cpp
+    src/models/ValueVisualizationComponent.h
     src/models/ButtonComponent.cpp
     src/models/ButtonComponent.h
     src/models/LabelComponent.cpp
@@ -90,6 +92,28 @@ set(COMMON_SOURCES
     src/models/RectangleComponent.h
     src/models/ProgressBarComponent.cpp
     src/models/ProgressBarComponent.h
+    src/models/CircularProgressComponent.cpp
+    src/models/CircularProgressComponent.h
+    src/models/GaugeComponent.cpp
+    src/models/GaugeComponent.h
+    src/models/SpeedometerComponent.cpp
+    src/models/SpeedometerComponent.h
+    src/models/BatteryComponent.cpp
+    src/models/BatteryComponent.h
+    src/models/PressureComponent.cpp
+    src/models/PressureComponent.h
+    src/models/RpmComponent.cpp
+    src/models/RpmComponent.h
+    src/models/TemperatureComponent.cpp
+    src/models/TemperatureComponent.h
+    src/models/TabViewComponent.cpp
+    src/models/TabViewComponent.h
+    src/models/NavigationBarComponent.cpp
+    src/models/NavigationBarComponent.h
+    src/models/ListComponent.cpp
+    src/models/ListComponent.h
+    src/models/TableComponent.cpp
+    src/models/TableComponent.h
     src/models/ImageComponent.cpp
     src/models/ImageComponent.h
     src/models/SliderComponent.cpp
@@ -108,6 +132,14 @@ set(COMMON_SOURCES
     src/models/ComponentDefinition.h
     src/models/CustomComponentInstance.cpp
     src/models/CustomComponentInstance.h
+    src/models/Screen.cpp
+    src/models/Screen.h
+    src/models/DataSource.cpp
+    src/models/DataSource.h
+    src/models/DataBinding.cpp
+    src/models/DataBinding.h
+    src/models/ComponentState.cpp
+    src/models/ComponentState.h
 
     # Command Pattern (Undo/Redo System)
     src/commands/AddComponentCommand.cpp
@@ -124,16 +156,39 @@ set(COMMON_SOURCES
     src/commands/AlignDistributeCommand.h
     src/commands/BooleanPathCommand.cpp
     src/commands/BooleanPathCommand.h
+    src/commands/ScreenCommands.cpp
+    src/commands/ScreenCommands.h
 
-    # Code Generators
+
+    # Code Generators (Phase 4 Code Generator v2)
     src/codegen/CodeGenerator.cpp
     src/codegen/CodeGenerator.h
+    src/codegen/GeneratorContext.cpp
+    src/codegen/GeneratorContext.h
+    src/codegen/GeneratorIR.cpp
+    src/codegen/GeneratorIR.h
+    src/codegen/TargetHalGenerator.cpp
+    src/codegen/TargetHalGenerator.h
+    src/codegen/BindingLayerGenerator.cpp
+    src/codegen/BindingLayerGenerator.h
     src/codegen/QtMcuGenerator.cpp
     src/codegen/QtMcuGenerator.h
     src/codegen/UgfxGenerator.cpp
     src/codegen/UgfxGenerator.h
     src/codegen/LvglGenerator.cpp
     src/codegen/LvglGenerator.h
+
+    # Desktop Simulator Subsystem (Phase 5)
+    src/simulator/SimulationBackend.cpp
+    src/simulator/SimulationBackend.h
+    src/simulator/SimulationRuntime.cpp
+    src/simulator/SimulationRuntime.h
+    src/simulator/SimulationCanvasView.cpp
+    src/simulator/SimulationCanvasView.h
+    src/simulator/SimulationControlPanel.cpp
+    src/simulator/SimulationControlPanel.h
+    src/simulator/SimulatorWindow.cpp
+    src/simulator/SimulatorWindow.h
 
     # Hardware Bridge & Flashing Subsystem
     src/hardware/HardwareBridge.cpp
@@ -148,6 +203,22 @@ set(COMMON_SOURCES
     src/hardware/OpenOcdManager.h
 
     # Universal Hardware Target & Database Subsystem
+    src/hardware/HardwareCapabilities.h
+    src/hardware/HardwareTarget.cpp
+    src/hardware/HardwareTarget.h
+    src/hardware/HardwareConnection.cpp
+    src/hardware/HardwareConnection.h
+    src/hardware/HardwareBackend.h
+    src/hardware/STM32Backend.cpp
+    src/hardware/STM32Backend.h
+    src/hardware/ESP32Backend.cpp
+    src/hardware/ESP32Backend.h
+    src/hardware/RaspberryPiBackend.cpp
+    src/hardware/RaspberryPiBackend.h
+    src/hardware/MockBackend.cpp
+    src/hardware/MockBackend.h
+    src/hardware/HardwareManager.cpp
+    src/hardware/HardwareManager.h
     src/hardware/HardwareModel.cpp
     src/hardware/HardwareModel.h
     src/hardware/PinMuxEngine.cpp
@@ -176,7 +247,10 @@ set(COMMON_SOURCES
     src/panels/LayerPanel.h
     src/panels/StylesPanel.cpp
     src/panels/StylesPanel.h
+    src/panels/ScreensPanel.cpp
+    src/panels/ScreensPanel.h
     src/models/ColorStyle.h
+
     src/project/Project.cpp
     src/project/Project.h
     src/project/QmlImporter.cpp
@@ -191,6 +265,28 @@ set(COMMON_SOURCES
     src/api/DesignerController.h
     src/api/DesignerLocalServer.cpp
     src/api/DesignerLocalServer.h
+
+    # Multi-Provider AI Platform Subsystem
+    src/ai/AIProvider.cpp
+    src/ai/AIProvider.h
+    src/ai/AIProviderRegistry.cpp
+    src/ai/AIProviderRegistry.h
+    src/ai/AIProjectContext.cpp
+    src/ai/AIProjectContext.h
+    src/ai/AIToolRegistry.cpp
+    src/ai/AIToolRegistry.h
+    src/ai/providers/MockAIProvider.cpp
+    src/ai/providers/MockAIProvider.h
+    src/ai/providers/OpenAIProvider.cpp
+    src/ai/providers/OpenAIProvider.h
+    src/ai/providers/AnthropicProvider.cpp
+    src/ai/providers/AnthropicProvider.h
+    src/ai/providers/GeminiProvider.cpp
+    src/ai/providers/GeminiProvider.h
+    src/ai/providers/CustomOpenAICompatibleProvider.cpp
+    src/ai/providers/CustomOpenAICompatibleProvider.h
+    src/dialogs/AISettingsDialog.cpp
+    src/dialogs/AISettingsDialog.h
 )
 
 set(SOURCES
@@ -247,9 +343,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
 )
 
 # Target Link Libraries
@@ -333,8 +432,11 @@ target_include_directories(test_all_cases PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
 )
 
 target_link_libraries(test_all_cases PRIVATE
@@ -378,8 +480,11 @@ target_include_directories(test_functional_runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
     ${CMAKE_CURRENT_SOURCE_DIR}/src/project
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
 )
 
 target_link_libraries(test_functional_runner PRIVATE
@@ -393,6 +498,51 @@ target_link_libraries(test_functional_runner PRIVATE
 if(Qt6SerialPort_FOUND)
     target_link_libraries(test_functional_runner PRIVATE Qt6::SerialPort)
     target_compile_definitions(test_functional_runner PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+# Live Hardware & Nucleo Detection Test Runner
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_live_nucleo
+        tests/test_live_nucleo.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_live_nucleo
+        tests/test_live_nucleo.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_live_nucleo PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+)
+
+target_link_libraries(test_live_nucleo PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Network
+    Clipper2
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_live_nucleo PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_live_nucleo PRIVATE HAVE_QT_SERIALPORT)
 endif()
 endif() # BUILD_TESTING
 

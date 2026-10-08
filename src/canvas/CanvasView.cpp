@@ -1,4 +1,5 @@
 #include "CanvasView.h"
+#include "Project.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
@@ -710,17 +711,10 @@ UIComponent* CanvasView::createComponentByType(const QString& compType, const QP
     static int idCounter = 1;
     QString id = QString("%1_%2").arg(compType.toLower()).arg(idCounter++);
 
-    UIComponent* comp = nullptr;
-    if (compType == "Button") {
-        comp = new ButtonComponent(id);
-    } else if (compType == "Text" || compType == "Label") {
-        comp = new LabelComponent(id);
-    } else if (compType == "Rectangle") {
-        comp = new RectangleComponent(id);
-    } else if (compType == "ProgressBar") {
-        comp = new ProgressBarComponent(id);
-    } else if (compType == "Image") {
-        comp = new ImageComponent(id);
+    UIComponent* comp = Project::createComponentInstance(compType, id);
+    if (!comp) {
+        // Fallback for types like "Text"
+        if (compType == "Text") comp = Project::createComponentInstance("Label", id);
     }
 
     if (comp) {

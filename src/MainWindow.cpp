@@ -9,6 +9,9 @@
 #include "HardwareWizardDialog.h"
 #include "DeviceManager.h"
 #include "HardwareBridge.h"
+#include "HardwareManager.h"
+#include "SimulatorWindow.h"
+#include "dialogs/AISettingsDialog.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
@@ -99,11 +102,18 @@ MainWindow::MainWindow(QWidget *parent)
         statusBar()->showMessage(msg, 3000);
     });
     connect(m_project, &Project::projectModified, this, &MainWindow::updateWindowTitle);
+    connect(m_project, &Project::activeScreenChanged, this, [this](Screen*) {
+        updateWindowTitle();
+        if (m_layerPanel) m_layerPanel->refreshLayers();
+        if (m_propertiesPanel) m_propertiesPanel->setTargetComponent(nullptr);
+    });
     connect(m_project, &Project::projectLoaded, this, [this]() {
         updateWindowTitle();
         m_layerPanel->refreshLayers();
         m_propertiesPanel->setSelectedComponents({});
+        if (m_screensPanel) m_screensPanel->refreshScreenList();
     });
+
 
     // ── Live MCP Controller & Local IPC Server ──────────────────────────────
     m_controller = new DesignerController(this, this);
@@ -115,6 +125,12 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() {
     stopLocalMcpServer();
+    if (m_undoStack) {
+        m_undoStack->disconnect();
+    }
+    if (m_project) {
+        m_project->disconnect();
+    }
 }
 
 bool MainWindow::startLocalMcpServer(quint16 port) {
@@ -147,10 +163,29 @@ void MainWindow::setupUi() {
     m_hardwareStatusBadge = new QLabel(statusWidget);
     m_hardwareStatusBadge->setObjectName("hardwareStatusBadge");
 
+    m_hardwareConnectBtn = new QPushButton("Connect", statusWidget);
+    m_hardwareConnectBtn->setObjectName("hardwareConnectBtn");
+    m_hardwareConnectBtn->setCursor(Qt::PointingHandCursor);
+    m_hardwareConnectBtn->setStyleSheet(
+        "QPushButton { background: #1e293b; color: #38bdf8; border: 1px solid #334155; "
+        "border-radius: 4px; padding: 2px 10px; font-weight: bold; font-size: 11px; } "
+        "QPushButton:hover { background: #334155; } "
+        "QPushButton:disabled { color: #64748b; background: #0f172a; border-color: #1e293b; }"
+    );
+    connect(m_hardwareConnectBtn, &QPushButton::clicked, this, [this]() {
+        if (HardwareBridge::instance().isHardwareConnected()) {
+            HardwareBridge::instance().disconnectHardware();
+        } else {
+            HardwareBridge::instance().connectHardware();
+        }
+    });
+
     statusLayout->addWidget(greenDot);
     statusLayout->addWidget(m_statusLabel);
     statusLayout->addSpacing(16);
     statusLayout->addWidget(m_hardwareStatusBadge);
+    statusLayout->addSpacing(6);
+    statusLayout->addWidget(m_hardwareConnectBtn);
 
     updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
                               HardwareBridge::instance().connectedProbeName());
@@ -159,6 +194,16 @@ void MainWindow::setupUi() {
             this, &MainWindow::updateHardwareStatusBadge);
     connect(&HardwareBridge::instance(), &HardwareBridge::boardChanged,
             this, [this](const QString&) {
+                updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
+                                          HardwareBridge::instance().connectedProbeName());
+            });
+    connect(&HardwareBridge::instance(), &HardwareBridge::probeDiscovered,
+            this, [this](const QString&) {
+                updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
+                                          HardwareBridge::instance().connectedProbeName());
+            });
+    connect(&HardwareBridge::instance(), &HardwareBridge::probeRemoved,
+            this, [this]() {
                 updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
                                           HardwareBridge::instance().connectedProbeName());
             });
@@ -175,20 +220,38 @@ void MainWindow::updateHardwareStatusBadge(bool connected, const QString& probeN
     if (!m_hardwareStatusBadge) return;
 
     if (connected) {
-        QString name = probeName.isEmpty() ? "Hardware Target" : probeName;
-        m_hardwareStatusBadge->setText(QString("● OpenOCD: Connected (%1 - %2)")
-            .arg(name, HardwareBridge::instance().currentBoardId()));
+        QString name = probeName.isEmpty() ? "STM32F030R8 via ST-Link" : probeName;
+        m_hardwareStatusBadge->setText(QString("● Connected: %1").arg(name));
         m_hardwareStatusBadge->setStyleSheet(
             "color: #4ade80; background-color: #064e3b; border: 1px solid #059669; "
             "border-radius: 4px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
         );
+        if (m_hardwareConnectBtn) {
+            m_hardwareConnectBtn->setText("Disconnect");
+            m_hardwareConnectBtn->setEnabled(true);
+        }
+    } else if (HardwareBridge::instance().isProbeDetected()) {
+        QString detectedName = HardwareBridge::instance().detectedBoardName();
+        if (detectedName.isEmpty()) detectedName = "STM32F030R8 via ST-Link";
+        m_hardwareStatusBadge->setText(QString("⚡ Board detected: %1").arg(detectedName));
+        m_hardwareStatusBadge->setStyleSheet(
+            "color: #38bdf8; background-color: #082f49; border: 1px solid #0284c7; "
+            "border-radius: 4px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
+        );
+        if (m_hardwareConnectBtn) {
+            m_hardwareConnectBtn->setText("Connect");
+            m_hardwareConnectBtn->setEnabled(true);
+        }
     } else {
-        m_hardwareStatusBadge->setText(QString("○ OpenOCD: Not Found (Simulated Mode - %1)")
-            .arg(HardwareBridge::instance().currentBoardId()));
+        m_hardwareStatusBadge->setText("○ OpenOCD: Not Found (Simulated Mode)");
         m_hardwareStatusBadge->setStyleSheet(
             "color: #f59e0b; background-color: #451a03; border: 1px solid #d97706; "
             "border-radius: 4px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
         );
+        if (m_hardwareConnectBtn) {
+            m_hardwareConnectBtn->setText("Connect");
+            m_hardwareConnectBtn->setEnabled(true);
+        }
     }
 }
 
@@ -243,11 +306,17 @@ void MainWindow::setupMenusAndToolbars() {
     projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
     projectMenu->addAction("Export...", this, &MainWindow::onExport);
 
+    QMenu* simMenu = menuBar()->addMenu("Simulation");
+    simMenu->addAction("Run Desktop Simulator...", this, &MainWindow::onRunSimulator, QKeySequence(Qt::CTRL | Qt::Key_R));
+
     QMenu* deviceMenu = menuBar()->addMenu("Device");
     deviceMenu->addAction("Create Embedded Project / Target Selector...", this, &MainWindow::onCreateEmbeddedProject);
     deviceMenu->addAction("Pin Configuration & Binding...", this, &MainWindow::onPinConfiguration);
     deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
     deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
+
+    QMenu* settingsMenu = menuBar()->addMenu("Settings");
+    settingsMenu->addAction("AI Providers...", this, &MainWindow::onAISettingsDialog);
 
     QMenu* helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
@@ -270,6 +339,9 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->addAction("Redo", this, [this]() {
         if (m_undoStack && m_undoStack->canRedo()) m_undoStack->redo();
     });
+    toolbar->addSeparator();
+
+    toolbar->addAction("▶ Run Simulator", this, &MainWindow::onRunSimulator);
     toolbar->addSeparator();
 
     toolbar->addAction("Export...", this, &MainWindow::onExport);
@@ -367,6 +439,18 @@ void MainWindow::setupDocks() {
     m_palette = new ComponentPalette(paletteDock);
     paletteDock->setWidget(m_palette);
     addDockWidget(Qt::LeftDockWidgetArea, paletteDock);
+
+    // Left Dock: Screens Panel
+    QDockWidget* screensDock = new QDockWidget("Screens", this);
+    screensDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    screensDock->setTitleBarWidget(createDockTitleBar("Screens", screensDock));
+    m_screensPanel = new ScreensPanel(m_project, screensDock);
+    m_screensPanel->setUndoStack(m_undoStack);
+    screensDock->setWidget(m_screensPanel);
+    addDockWidget(Qt::LeftDockWidgetArea, screensDock);
+    tabifyDockWidget(paletteDock, screensDock);
+    paletteDock->raise();
+
 
     connect(m_palette, &ComponentPalette::componentDoubleClicked, this, [this](const QString& type) {
         // Custom component instances are prefixed "CustomInstance::<defId>"
@@ -612,12 +696,17 @@ void MainWindow::applyTheme() {
 }
 
 void MainWindow::updateWindowTitle() {
+    QString screenName = (m_project && m_project->activeScreen()) ? m_project->activeScreen()->name() : "";
     QString title = "Embedded UI Designer - " + m_project->projectName();
+    if (!screenName.isEmpty()) {
+        title += " [" + screenName + "]";
+    }
     if (m_project->isDirty()) {
         title += " *";
     }
     setWindowTitle(title);
 }
+
 
 void MainWindow::onNewProject() {
     onCreateEmbeddedProject();
@@ -652,6 +741,14 @@ void MainWindow::onCreateEmbeddedProject() {
     if (!hw.deviceId.isEmpty()) {
         HardwareBridge::instance().setBoard(hw.boardId.isEmpty() ? hw.deviceId.toLower() : hw.boardId.toLower());
     }
+
+    // Sync HardwareManager target
+    Hardware::HardwareTarget target(hw.boardId.isEmpty() ? hw.deviceId : hw.boardId,
+                                    hw.boardId.isEmpty() ? hw.deviceId : hw.boardId,
+                                    hw.family.isEmpty() ? "STM32" : hw.family,
+                                    hw.deviceId, hw.boardId);
+    target.setArchitecture(hw.architecture);
+    Hardware::HardwareManager::instance().setTarget(target);
 
     if (m_undoStack) m_undoStack->clear();
     m_resolutionCombo->blockSignals(true);
@@ -941,6 +1038,11 @@ void MainWindow::onProjectSettingsDialog() {
     );
 }
 
+void MainWindow::onAISettingsDialog() {
+    AISettingsDialog dlg(this);
+    dlg.exec();
+}
+
 void MainWindow::onOpenSampleProject() {
     if (m_project->isDirty()) {
         auto res = QMessageBox::question(this, "Unsaved Changes", "Save changes before opening sample project?", QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
@@ -1153,3 +1255,12 @@ void MainWindow::onBooleanUnion()     { runBooleanOp(static_cast<int>(BooleanPat
 void MainWindow::onBooleanSubtract()  { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Subtract)); }
 void MainWindow::onBooleanIntersect() { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Intersect)); }
 void MainWindow::onBooleanXor()       { runBooleanOp(static_cast<int>(BooleanPathCommand::Operation::Xor)); }
+
+void MainWindow::onRunSimulator() {
+    if (!m_simulatorWindow) {
+        m_simulatorWindow = new Simulator::SimulatorWindow(m_project, this);
+    }
+    m_simulatorWindow->show();
+    m_simulatorWindow->raise();
+    m_simulatorWindow->activateWindow();
+}

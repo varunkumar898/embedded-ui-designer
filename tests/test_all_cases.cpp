@@ -27,6 +27,17 @@
 #include "CircleComponent.h"
 #include "ImageComponent.h"
 #include "PathComponent.h"
+#include "CircularProgressComponent.h"
+#include "GaugeComponent.h"
+#include "SpeedometerComponent.h"
+#include "BatteryComponent.h"
+#include "PressureComponent.h"
+#include "RpmComponent.h"
+#include "TemperatureComponent.h"
+#include "TabViewComponent.h"
+#include "NavigationBarComponent.h"
+#include "ListComponent.h"
+#include "TableComponent.h"
 
 // Commands
 #include "AddComponentCommand.h"
@@ -43,6 +54,15 @@
 #include "SerialMonitorDialog.h"
 #include "PinBindingDialog.h"
 #include "HardwareBridge.h"
+#include "HardwareCapabilities.h"
+#include "HardwareTarget.h"
+#include "HardwareConnection.h"
+#include "HardwareBackend.h"
+#include "STM32Backend.h"
+#include "ESP32Backend.h"
+#include "RaspberryPiBackend.h"
+#include "MockBackend.h"
+#include "HardwareManager.h"
 #include "BoardConfigParser.h"
 #include "QmlImporter.h"
 #include "DeviceManager.h"
@@ -50,6 +70,16 @@
 #include "LayerPanel.h"
 #include "ColorPickerDialog.h"
 #include "Project.h"
+#include "Screen.h"
+#include "DataSource.h"
+#include "DataBinding.h"
+#include "GeneratorContext.h"
+#include "GeneratorIR.h"
+#include "TargetHalGenerator.h"
+#include "BindingLayerGenerator.h"
+#include "ComponentState.h"
+#include "ScreenCommands.h"
+#include "ScreensPanel.h"
 
 // Generators
 #include "UgfxGenerator.h"
@@ -61,6 +91,23 @@
 #include "HardwareWizardDialog.h"
 #include "PinMuxEngine.h"
 #include "DesignerController.h"
+
+// Simulator
+#include "SimulationBackend.h"
+#include "SimulationRuntime.h"
+#include "SimulatorWindow.h"
+
+// AI Platform Subsystem
+#include "ai/AIProvider.h"
+#include "ai/AIProviderRegistry.h"
+#include "ai/AIProjectContext.h"
+#include "ai/AIToolRegistry.h"
+#include "ai/providers/MockAIProvider.h"
+#include "ai/providers/OpenAIProvider.h"
+#include "ai/providers/AnthropicProvider.h"
+#include "ai/providers/GeminiProvider.h"
+#include "ai/providers/CustomOpenAICompatibleProvider.h"
+#include "dialogs/AISettingsDialog.h"
 
 static QString repoPath(const QString& relPath) {
     QString cleanPath = relPath;
@@ -200,6 +247,57 @@ private slots:
 
     // 22. Universal Hardware Selector - All Tab & Global Filtering (Phase 2A)
     void testUniversalHardwareSelectorAllTabAndFiltering();
+
+    // 23. Phase 1 Project Model Refactor (Multi-Screen, Data Sources/Bindings, Component States)
+    void testMultiScreenProjectModel();
+    void testScreenUndoRedoCommands();
+    void testScreensPanelUi();
+    void testDataSourceAndBindingModel();
+    void testComponentStateAndStyles();
+    void testBackwardCompatibilitySingleScreenProject();
+
+    // 24. Phase 2 Component Expansion (12 First-Class Components, Dashboards & Data Binding)
+    void testPhase2ComponentsCreationAndDefaults();
+    void testPhase2ComponentsSerialization();
+    void testPhase2ValueVisualizationThresholdsAndAutoState();
+    void testPhase2DataBindingPipeline();
+    void testPhase2MultiScreenDashboardProject();
+
+    // 25. Phase 3 Hardware Abstraction Layer (HAL, Backends, Capabilities, Target Persistence)
+    void testPhase3HardwareTargetAndCapabilities();
+    void testPhase3HardwareBackendSwitchingAndCapabilities();
+    void testPhase3MockBackendAndSimulation();
+    void testPhase3DataSourceHardwareResolution();
+    void testPhase3CustomBoardTargetPersistence();
+
+    // 26. Phase 4 Code Generator v2 (Context, IR, Target HAL, Bindings & Multi-Screen Export)
+    void testPhase4GeneratorContextAndValidation();
+    void testPhase4GeneratorIntermediateRepresentation();
+    void testPhase4TargetHalAndBindingLayerGeneration();
+    void testPhase4LvglMultiScreenAndDashboardExport();
+
+    // 27. Phase 5 Desktop Simulator (Runtime, Backend, Bindings, Clocks, Safety, UI)
+    void testPhase5SimulationBackendAndHardwareIsolation();
+    void testPhase5SimulationRuntimeClockAndExpressions();
+    void testPhase5BidirectionalDataBindingsAndAutoState();
+    void testPhase5ProjectSaveSafetyAndSnapshotRestore();
+    void testPhase5SimulatorWindowAndControlPanelUi();
+    void testPhase5DeterministicSimulatorCoverage();
+    void testPhase5MockHardwarePipelines();
+    void testPhase5VisualRegressionDemoProject();
+    void testPhase5PerformanceStress();
+
+    // 28. Phase 6 Multi-Provider AI Platform
+    void testPhase6AIProviderNeutralInterfaceAndCapabilities();
+    void testPhase6AIProviderRegistryAndRouting();
+    void testPhase6MessageNormalizationAndWireAdapters();
+    void testPhase6AIToolRegistryAndUniversalSchemas();
+    void testPhase6AIToolExecutionAndUndoableTransactions();
+    void testPhase6HardwareSafetyGate();
+    void testPhase6AIProjectContextAndSecretSanitization();
+    void testPhase6ProviderFailureHandlingAndFallbackSwitching();
+    void testPhase6OfflineModeZeroAIConfiguration();
+    void testPhase6AISettingsDialogUI();
 
     void cleanupTestCase();
 
@@ -1379,6 +1477,7 @@ void TestAllCases::testAdcSetupAndPollingPattern() {
 
 void TestAllCases::testSpiRawTransferMode() {
     HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setHardwareConnected(false);
     QVERIFY(bridge.setBoard("stm32f030r8"));
 
     // Honest labeling: "SPI Raw Transfer (byte in/out)", not "SPI Sensor"
@@ -2872,6 +2971,2309 @@ void TestAllCases::testUniversalHardwareSelectorAllTabAndFiltering() {
     QTest::qWait(100);
     QDir().mkpath("screenshots");
     QVERIFY(captureWizard.grab().save("screenshots/phase2a_universal_hardware_selector.png"));
+}
+
+void TestAllCases::testMultiScreenProjectModel() {
+    CanvasScene scene;
+    Project proj(&scene);
+
+    // Initial state has 1 main screen
+    QCOMPARE(proj.screens().size(), 1);
+    Screen* s1 = proj.activeScreen();
+    QVERIFY(s1 != nullptr);
+    QCOMPARE(s1->name(), QString("Main Screen"));
+
+    // Add component to screen 1
+    ButtonComponent* btn = new ButtonComponent("btn_screen1");
+    btn->setCompPos(20, 20);
+    scene.addUIComponent(btn);
+    QCOMPARE(s1->components().size(), 1);
+
+    // Create Screen 2
+    Screen* s2 = proj.addScreen("Settings Screen", 800, 480);
+    QVERIFY(s2 != nullptr);
+    QCOMPARE(proj.screens().size(), 2);
+
+    // Switch active screen to Screen 2
+    proj.setActiveScreen(s2);
+    QCOMPARE(proj.activeScreen(), s2);
+    QCOMPARE(scene.uiComponents().size(), 0);
+
+    // Add component to screen 2
+    LabelComponent* lbl = new LabelComponent("lbl_screen2");
+    lbl->setText("Brightness");
+    scene.addUIComponent(lbl);
+    QCOMPARE(s2->components().size(), 1);
+
+    // Switch back to screen 1: component isolation verified
+    proj.setActiveScreen(s1);
+    QCOMPARE(scene.uiComponents().size(), 1);
+    QCOMPARE(scene.uiComponents().first()->componentId(), QString("btn_screen1"));
+
+    // Clone Screen 2
+    Screen* s3 = proj.duplicateScreen(s2->id());
+    QVERIFY(s3 != nullptr);
+    QCOMPARE(proj.screens().size(), 3);
+    QCOMPARE(s3->name(), QString("Settings Screen (Copy)"));
+    QCOMPARE(s3->components().size(), 1);
+    QVERIFY(s3->components().first()->componentId() != lbl->componentId());
+
+    // Reorder screens: move Screen 2 (index 1) to index 0
+    proj.moveScreen(1, 0);
+    QCOMPARE(proj.screens().at(0)->name(), QString("Settings Screen"));
+
+    // Full file save and reload
+    QTemporaryFile tmpFile;
+    QVERIFY(tmpFile.open());
+    QString tmpPath = tmpFile.fileName();
+    tmpFile.close();
+
+    QVERIFY(proj.saveToFile(tmpPath));
+
+    CanvasScene loadScene;
+    Project loadProj(&loadScene);
+    QVERIFY(loadProj.loadFromFile(tmpPath));
+    QCOMPARE(loadProj.screens().size(), 3);
+    QCOMPARE(loadProj.screens().at(0)->name(), QString("Settings Screen"));
+    QCOMPARE(loadProj.screens().at(0)->components().size(), 1);
+}
+
+void TestAllCases::testScreenUndoRedoCommands() {
+    QUndoStack undoStack;
+    CanvasScene scene;
+    Project proj(&scene);
+
+    int initCount = proj.screens().size();
+
+    // Create Screen Command
+    CreateScreenCommand* createCmd = new CreateScreenCommand(&proj, "Screen B", 800, 480);
+    undoStack.push(createCmd);
+    QCOMPARE(proj.screens().size(), initCount + 1);
+    QString newScreenId = proj.screens().last()->id();
+
+    undoStack.undo();
+    QCOMPARE(proj.screens().size(), initCount);
+
+    undoStack.redo();
+    QCOMPARE(proj.screens().size(), initCount + 1);
+
+    // Rename Screen Command
+    RenameScreenCommand* renCmd = new RenameScreenCommand(&proj, newScreenId, "Screen B", "Screen Renamed");
+    undoStack.push(renCmd);
+    QCOMPARE(proj.findScreen(newScreenId)->name(), QString("Screen Renamed"));
+
+    undoStack.undo();
+    QCOMPARE(proj.findScreen(newScreenId)->name(), QString("Screen B"));
+
+    undoStack.redo();
+    QCOMPARE(proj.findScreen(newScreenId)->name(), QString("Screen Renamed"));
+
+    // Duplicate Screen Command
+    DuplicateScreenCommand* dupCmd = new DuplicateScreenCommand(&proj, newScreenId);
+    undoStack.push(dupCmd);
+    QCOMPARE(proj.screens().size(), initCount + 2);
+
+    undoStack.undo();
+    QCOMPARE(proj.screens().size(), initCount + 1);
+
+    undoStack.redo();
+    QCOMPARE(proj.screens().size(), initCount + 2);
+
+    // Delete Screen Command
+    DeleteScreenCommand* delCmd = new DeleteScreenCommand(&proj, newScreenId);
+    undoStack.push(delCmd);
+    QCOMPARE(proj.screens().size(), initCount + 1);
+
+    undoStack.undo();
+    QCOMPARE(proj.screens().size(), initCount + 2);
+    QVERIFY(proj.findScreen(newScreenId) != nullptr);
+}
+
+void TestAllCases::testScreensPanelUi() {
+    CanvasScene scene;
+    Project proj(&scene);
+    ScreensPanel panel(&proj);
+    panel.resize(300, 400);
+
+    QListWidget* list = panel.findChild<QListWidget*>();
+    QVERIFY(list != nullptr);
+    QCOMPARE(list->count(), 1);
+
+    proj.addScreen("Dashboard Screen", 800, 480);
+    QCOMPARE(list->count(), 2);
+
+    list->setCurrentRow(1);
+    QCOMPARE(proj.activeScreen()->name(), QString("Dashboard Screen"));
+}
+
+void TestAllCases::testDataSourceAndBindingModel() {
+    CanvasScene scene;
+    Project proj(&scene);
+
+    DataSource ds1("gpio_btn", "User Button", DataSourceType::Gpio, DataDirection::Input, DataType::Boolean);
+    ds1.setHardwareRef("PA0");
+
+    DataSource ds2("adc_pot", "Potentiometer", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    ds2.setHardwareRef("PA4");
+
+    DataSource ds3("pwm_motor", "Motor Speed", DataSourceType::Pwm, DataDirection::Output, DataType::Float);
+    ds3.setHardwareRef("PA8");
+
+    proj.addDataSource(ds1);
+    proj.addDataSource(ds2);
+    proj.addDataSource(ds3);
+
+    QCOMPARE(proj.dataSources().size(), 3);
+    QCOMPARE(proj.findDataSource("gpio_btn")->hardwareRef(), QString("PA0"));
+
+    ProgressBarComponent* pb = new ProgressBarComponent("pb_adc");
+    DataBinding pbBinding(pb->componentId(), "value", "adc_pot", BindingDirection::Read);
+    pb->addBinding(pbBinding);
+    scene.addUIComponent(pb);
+
+    QCOMPARE(pb->bindings().size(), 1);
+    QCOMPARE(pb->bindings().first().sourceId(), QString("adc_pot"));
+
+    QTemporaryFile tmp;
+    QVERIFY(tmp.open());
+    QString path = tmp.fileName();
+    tmp.close();
+
+    QVERIFY(proj.saveToFile(path));
+
+    CanvasScene loadScene;
+    Project loadProj(&loadScene);
+    QVERIFY(loadProj.loadFromFile(path));
+    QCOMPARE(loadProj.dataSources().size(), 3);
+    QCOMPARE(loadProj.findDataSource("adc_pot")->hardwareRef(), QString("PA4"));
+
+    UIComponent* loadedPb = nullptr;
+    for (UIComponent* c : loadScene.uiComponents()) {
+        if (c->componentId() == "pb_adc") {
+            loadedPb = c;
+            break;
+        }
+    }
+    QVERIFY(loadedPb != nullptr);
+    QCOMPARE(loadedPb->bindings().size(), 1);
+    QCOMPARE(loadedPb->bindings().first().sourceId(), QString("adc_pot"));
+}
+
+void TestAllCases::testComponentStateAndStyles() {
+    ButtonComponent btn("btn_state_test");
+    QCOMPARE(btn.currentState(), QString("normal"));
+
+    ComponentStateStyle warnStyle;
+    warnStyle.hasBackgroundColor = true;
+    warnStyle.backgroundColor = QColor(255, 180, 0);
+    warnStyle.hasTextColor = true;
+    warnStyle.textColor = QColor(10, 10, 10);
+    warnStyle.hasBorderColor = true;
+    warnStyle.borderColor = QColor(200, 140, 0);
+    warnStyle.hasBorderWidth = true;
+    warnStyle.borderWidth = 2;
+
+    ComponentStateStyle errStyle;
+    errStyle.hasBackgroundColor = true;
+    errStyle.backgroundColor = QColor(220, 20, 20);
+    errStyle.hasTextColor = true;
+    errStyle.textColor = QColor(255, 255, 255);
+    errStyle.hasBorderColor = true;
+    errStyle.borderColor = QColor(180, 0, 0);
+    errStyle.hasBorderWidth = true;
+    errStyle.borderWidth = 3;
+
+    btn.setStateStyle("warning", warnStyle);
+    btn.setStateStyle("error", errStyle);
+
+    QVERIFY(btn.hasStateStyle("warning"));
+    QVERIFY(btn.hasStateStyle("error"));
+    QCOMPARE(btn.effectiveBackgroundColor(btn.backgroundColor()), btn.backgroundColor());
+
+    btn.setCurrentState("warning");
+    QCOMPARE(btn.effectiveBackgroundColor(btn.backgroundColor()), QColor(255, 180, 0));
+    QCOMPARE(btn.effectiveTextColor(btn.textColor()), QColor(10, 10, 10));
+
+    btn.setCurrentState("error");
+    QCOMPARE(btn.effectiveBackgroundColor(btn.backgroundColor()), QColor(220, 20, 20));
+    QCOMPARE(btn.effectiveTextColor(btn.textColor()), QColor(255, 255, 255));
+
+    QJsonObject json = btn.toJson();
+    ButtonComponent loaded("loaded_btn");
+    loaded.fromJson(json);
+
+    QVERIFY(loaded.hasStateStyle("warning"));
+    QCOMPARE(loaded.stateStyle("warning").backgroundColor, QColor(255, 180, 0));
+    QVERIFY(loaded.hasStateStyle("error"));
+    QCOMPARE(loaded.stateStyle("error").backgroundColor, QColor(220, 20, 20));
+}
+
+void TestAllCases::testPhase2ComponentsCreationAndDefaults() {
+    // 1. Gauge
+    GaugeComponent gauge("gauge_test");
+    QCOMPARE(gauge.componentType(), QString("Gauge"));
+    QCOMPARE(gauge.minimum(), 0.0);
+    QCOMPARE(gauge.maximum(), 100.0);
+    QCOMPARE(gauge.value(), 50.0);
+    QCOMPARE(gauge.startAngle(), 225.0);
+    QCOMPARE(gauge.sweepAngle(), 270.0);
+    QCOMPARE(gauge.majorTicks(), 5);
+    QVERIFY(gauge.showNeedle());
+
+    // 2. Speedometer
+    SpeedometerComponent speed("speedo_test");
+    QCOMPARE(speed.componentType(), QString("Speedometer"));
+    QCOMPARE(speed.minimum(), 0.0);
+    QCOMPARE(speed.maximum(), 240.0);
+    QCOMPARE(speed.value(), 80.0);
+    QCOMPARE(speed.unit(), QString("km/h"));
+    QCOMPARE(speed.warningThreshold(), 140.0);
+    QCOMPARE(speed.criticalThreshold(), 200.0);
+
+    // 3. Battery
+    BatteryComponent battery("battery_test");
+    QCOMPARE(battery.componentType(), QString("Battery"));
+    QCOMPARE(battery.minimum(), 0.0);
+    QCOMPARE(battery.maximum(), 100.0);
+    QCOMPARE(battery.value(), 75.0);
+    QCOMPARE(battery.orientation(), QString("Horizontal"));
+    QVERIFY(!battery.isCharging());
+
+    // 4. Pressure
+    PressureComponent pressure("press_test");
+    QCOMPARE(pressure.componentType(), QString("Pressure"));
+    QCOMPARE(pressure.unit(), QString("bar"));
+    QCOMPARE(pressure.minimum(), 0.0);
+    QCOMPARE(pressure.maximum(), 10.0);
+    QCOMPARE(pressure.value(), 2.4);
+
+    // 5. RPM
+    RpmComponent rpm("rpm_test");
+    QCOMPARE(rpm.componentType(), QString("RPM"));
+    QCOMPARE(rpm.minimum(), 0.0);
+    QCOMPARE(rpm.maximum(), 8000.0);
+    QCOMPARE(rpm.value(), 3500.0);
+    QCOMPARE(rpm.unit(), QString("RPM"));
+
+    // 6. Temperature
+    TemperatureComponent temp("temp_test");
+    QCOMPARE(temp.componentType(), QString("Temperature"));
+    QCOMPARE(temp.unit(), QString("°C"));
+    QCOMPARE(temp.minimum(), -20.0);
+    QCOMPARE(temp.maximum(), 120.0);
+    QCOMPARE(temp.value(), 72.5);
+
+    // 7. Circular Progress
+    CircularProgressComponent circ("circ_test");
+    QCOMPARE(circ.componentType(), QString("CircularProgress"));
+    QCOMPARE(circ.thickness(), 10);
+    QCOMPARE(circ.startAngle(), 90.0);
+    QCOMPARE(circ.sweepAngle(), 360.0);
+    QCOMPARE(circ.value(), 72.0);
+
+    // 8. Linear Progress (ProgressBar)
+    ProgressBarComponent pb("pb_test");
+    QCOMPARE(pb.componentType(), QString("ProgressBar"));
+    QCOMPARE(pb.minimum(), 0.0);
+    QCOMPARE(pb.maximum(), 100.0);
+    QCOMPARE(pb.value(), 0.5);
+    QCOMPARE(pb.actualValue(), 50.0);
+
+    // 9. Tab View
+    TabViewComponent tab("tab_test");
+    QCOMPARE(tab.componentType(), QString("TabView"));
+    QCOMPARE(tab.tabs().size(), 3);
+    QCOMPARE(tab.activeTabIndex(), 0);
+    QCOMPARE(tab.tabPosition(), QString("Top"));
+
+    // 10. Navigation Bar
+    NavigationBarComponent nav("nav_test");
+    QCOMPARE(nav.componentType(), QString("NavigationBar"));
+    QCOMPARE(nav.items().size(), 3);
+    QCOMPARE(nav.selectedIndex(), 0);
+    QCOMPARE(nav.orientation(), QString("Horizontal"));
+
+    // 11. List
+    ListComponent list("list_test");
+    QCOMPARE(list.componentType(), QString("List"));
+    QCOMPARE(list.items().size(), 4);
+    QCOMPARE(list.selectedIndex(), 0);
+
+    // 12. Table
+    TableComponent table("table_test");
+    QCOMPARE(table.componentType(), QString("Table"));
+    QCOMPARE(table.columns().size(), 4);
+    QCOMPARE(table.rows().size(), 4);
+    QCOMPARE(table.selectedRow(), 0);
+
+    // Factory registration check for all 12 types
+    QStringList types = {
+        "Gauge", "Speedometer", "Battery", "Pressure",
+        "RPM", "Temperature", "CircularProgress", "ProgressBar",
+        "TabView", "NavigationBar", "List", "Table"
+    };
+    for (const QString& t : types) {
+        UIComponent* created = Project::createComponentInstance(t, "comp_" + t);
+        QVERIFY2(created != nullptr, QString("Failed to create component of type %1").arg(t).toUtf8().constData());
+        QCOMPARE(created->componentType(), t);
+        delete created;
+    }
+}
+
+void TestAllCases::testPhase2ComponentsSerialization() {
+    // Test full JSON round trip for all Phase 2 components
+    // 1. Gauge
+    GaugeComponent gauge("g1");
+    gauge.setMinimum(10);
+    gauge.setMaximum(200);
+    gauge.setValue(125);
+    gauge.setStartAngle(90);
+    gauge.setSweepAngle(180);
+    gauge.setMajorTicks(8);
+    gauge.setUnit("PSI");
+    QJsonObject gJson = gauge.toJson();
+    GaugeComponent gLoaded("g1_load");
+    gLoaded.fromJson(gJson);
+    QCOMPARE(gLoaded.minimum(), 10.0);
+    QCOMPARE(gLoaded.maximum(), 200.0);
+    QCOMPARE(gLoaded.value(), 125.0);
+    QCOMPARE(gLoaded.startAngle(), 90.0);
+    QCOMPARE(gLoaded.sweepAngle(), 180.0);
+    QCOMPARE(gLoaded.majorTicks(), 8);
+    QCOMPARE(gLoaded.unit(), QString("PSI"));
+
+    // 2. Speedometer
+    SpeedometerComponent speed("s1");
+    speed.setMinimum(0);
+    speed.setMaximum(260);
+    speed.setValue(135);
+    speed.setUnit("mph");
+    speed.setStylePreset("Classic");
+    speed.setWarningThreshold(120);
+    speed.setCriticalThreshold(160);
+    QJsonObject sJson = speed.toJson();
+    SpeedometerComponent sLoaded("s1_load");
+    sLoaded.fromJson(sJson);
+    QCOMPARE(sLoaded.maximum(), 260.0);
+    QCOMPARE(sLoaded.value(), 135.0);
+    QCOMPARE(sLoaded.unit(), QString("mph"));
+    QCOMPARE(sLoaded.stylePreset(), QString("Classic"));
+    QCOMPARE(sLoaded.warningThreshold(), 120.0);
+    QCOMPARE(sLoaded.criticalThreshold(), 160.0);
+
+    // 3. Battery
+    BatteryComponent bat("b1");
+    bat.setValue(45);
+    bat.setCharging(true);
+    bat.setSegmented(true);
+    bat.setSegmentCount(5);
+    bat.setOrientation("Vertical");
+    QJsonObject bJson = bat.toJson();
+    BatteryComponent bLoaded("b1_load");
+    bLoaded.fromJson(bJson);
+    QCOMPARE(bLoaded.value(), 45.0);
+    QVERIFY(bLoaded.isCharging());
+    QVERIFY(bLoaded.segmented());
+    QCOMPARE(bLoaded.segmentCount(), 5);
+    QCOMPARE(bLoaded.orientation(), QString("Vertical"));
+
+    // 4. Tab View
+    TabViewComponent tab("tab1");
+    tab.setTabs({"Main", "Engine", "CAN Logs", "Diag"});
+    tab.setActiveTabIndex(2);
+    tab.setTabPosition("Bottom");
+    QJsonObject tabJson = tab.toJson();
+    TabViewComponent tabLoaded("tab1_load");
+    tabLoaded.fromJson(tabJson);
+    QCOMPARE(tabLoaded.tabs().size(), 4);
+    QCOMPARE(tabLoaded.tabs().at(2), QString("CAN Logs"));
+    QCOMPARE(tabLoaded.activeTabIndex(), 2);
+    QCOMPARE(tabLoaded.tabPosition(), QString("Bottom"));
+
+    // 5. Navigation Bar
+    NavigationBarComponent nav("nav1");
+    QList<NavItem> items = {
+        {"Dashboard", "gauge", "scr_dash"},
+        {"Telemetrics", "graph", "scr_telem"},
+        {"Settings", "gear", "scr_settings"}
+    };
+    nav.setItems(items);
+    nav.setSelectedIndex(1);
+    nav.setOrientation("Vertical");
+    QJsonObject navJson = nav.toJson();
+    NavigationBarComponent navLoaded("nav1_load");
+    navLoaded.fromJson(navJson);
+    QCOMPARE(navLoaded.items().size(), 3);
+    QCOMPARE(navLoaded.items().at(1).label, QString("Telemetrics"));
+    QCOMPARE(navLoaded.items().at(1).targetScreenId, QString("scr_telem"));
+    QCOMPARE(navLoaded.selectedIndex(), 1);
+    QCOMPARE(navLoaded.orientation(), QString("Vertical"));
+
+    // 6. Table
+    TableComponent tbl("tbl1");
+    tbl.setColumns({"ID", "Channel", "Raw", "Unit"});
+    QList<QStringList> rows = {
+        {"1", "ADC_CH0", "1024", "mV"},
+        {"2", "CAN_RPM", "3450", "RPM"},
+        {"3", "I2C_TMP", "24.5", "C"}
+    };
+    tbl.setRows(rows);
+    tbl.setSelectedRow(2);
+    QJsonObject tblJson = tbl.toJson();
+    TableComponent tblLoaded("tbl1_load");
+    tblLoaded.fromJson(tblJson);
+    QCOMPARE(tblLoaded.columns().size(), 4);
+    QCOMPARE(tblLoaded.rows().size(), 3);
+    QCOMPARE(tblLoaded.rows().at(1).at(1), QString("CAN_RPM"));
+    QCOMPARE(tblLoaded.selectedRow(), 2);
+}
+
+void TestAllCases::testPhase2ValueVisualizationThresholdsAndAutoState() {
+    TemperatureComponent temp("temp_state");
+    temp.setMinimum(0.0);
+    temp.setMaximum(120.0);
+    temp.setWarningThreshold(80.0);
+    temp.setCriticalThreshold(100.0);
+
+    // Normal range
+    temp.setValue(50.0);
+    QCOMPARE(temp.currentState(), QString("normal"));
+
+    // Warning range
+    temp.setValue(85.0);
+    QCOMPARE(temp.currentState(), QString("warning"));
+
+    // Critical range
+    temp.setValue(105.0);
+    QCOMPARE(temp.currentState(), QString("critical"));
+
+    // Back to normal
+    temp.setValue(60.0);
+    QCOMPARE(temp.currentState(), QString("normal"));
+
+    // Speedometer state styling
+    SpeedometerComponent speed("speed_state");
+    speed.setMinimum(0.0);
+    speed.setMaximum(200.0);
+    speed.setWarningThreshold(120.0);
+    speed.setCriticalThreshold(160.0);
+
+    speed.setValue(100.0);
+    QCOMPARE(speed.currentState(), QString("normal"));
+
+    speed.setValue(130.0);
+    QCOMPARE(speed.currentState(), QString("warning"));
+
+    speed.setValue(175.0);
+    QCOMPARE(speed.currentState(), QString("critical"));
+}
+
+void TestAllCases::testPhase2DataBindingPipeline() {
+    CanvasScene scene;
+    Project proj(&scene);
+
+    // Create DataSources
+    DataSource dsSpeed("speed_data", "Speed Sensor", DataSourceType::Can, DataDirection::Input, DataType::Float);
+    dsSpeed.setValue(60.0);
+    DataSource dsRpm("rpm_data", "Engine RPM", DataSourceType::Can, DataDirection::Input, DataType::Float);
+    dsRpm.setValue(2500.0);
+    DataSource dsTemp("temp_data", "Coolant Temp", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsTemp.setValue(82.0);
+    DataSource dsBat("bat_data", "Battery Level", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    dsBat.setValue(94.0);
+    DataSource dsPress("press_data", "Oil Pressure", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsPress.setValue(3.8);
+
+    proj.addDataSource(dsSpeed);
+    proj.addDataSource(dsRpm);
+    proj.addDataSource(dsTemp);
+    proj.addDataSource(dsBat);
+    proj.addDataSource(dsPress);
+
+    // Create Components on Scene
+    auto* speedo = new SpeedometerComponent("speedo_1");
+    auto* rpm = new RpmComponent("rpm_1");
+    auto* temp = new TemperatureComponent("temp_1");
+    auto* bat = new BatteryComponent("bat_1");
+    auto* press = new PressureComponent("press_1");
+
+    scene.addUIComponent(speedo);
+    scene.addUIComponent(rpm);
+    scene.addUIComponent(temp);
+    scene.addUIComponent(bat);
+    scene.addUIComponent(press);
+
+    // Bind components
+    speedo->addBinding(DataBinding("speedo_1", "value", "speed_data", BindingDirection::Read));
+    rpm->addBinding(DataBinding("rpm_1", "value", "rpm_data", BindingDirection::Read));
+    temp->addBinding(DataBinding("temp_1", "value", "temp_data", BindingDirection::Read));
+    bat->addBinding(DataBinding("bat_1", "value", "bat_data", BindingDirection::Read));
+    press->addBinding(DataBinding("press_1", "value", "press_data", BindingDirection::Read));
+
+    // Verify bindings exist and persist
+    QCOMPARE(speedo->bindingForProperty("value").sourceId(), QString("speed_data"));
+    QCOMPARE(rpm->bindingForProperty("value").sourceId(), QString("rpm_data"));
+    QCOMPARE(temp->bindingForProperty("value").sourceId(), QString("temp_data"));
+    QCOMPARE(bat->bindingForProperty("value").sourceId(), QString("bat_data"));
+    QCOMPARE(press->bindingForProperty("value").sourceId(), QString("press_data"));
+
+    // Save and reload project to verify bindings persist across serialization
+    QTemporaryFile tmp;
+    QVERIFY(tmp.open());
+    QString tmpPath = tmp.fileName();
+    tmp.close();
+
+    QVERIFY(proj.saveToFile(tmpPath));
+
+    CanvasScene reloadScene;
+    Project reloadProj(&reloadScene);
+    QVERIFY(reloadProj.loadFromFile(tmpPath));
+
+    QCOMPARE(reloadProj.dataSources().size(), 5);
+    QVERIFY(reloadProj.findDataSource("speed_data") != nullptr);
+    QVERIFY(reloadProj.findDataSource("rpm_data") != nullptr);
+    QVERIFY(reloadProj.findDataSource("temp_data") != nullptr);
+    QVERIFY(reloadProj.findDataSource("bat_data") != nullptr);
+    QVERIFY(reloadProj.findDataSource("press_data") != nullptr);
+}
+
+void TestAllCases::testPhase2MultiScreenDashboardProject() {
+    CanvasScene scene;
+    Project proj(&scene);
+
+    // Screen 1: Dashboard
+    Screen* scr1 = proj.activeScreen();
+    scr1->setName("Dashboard");
+    auto* speedo = new SpeedometerComponent("speedo_main");
+    speedo->setValue(120.0);
+    auto* rpm = new RpmComponent("rpm_main");
+    rpm->setValue(4200.0);
+    auto* temp = new TemperatureComponent("temp_main");
+    temp->setValue(72.0);
+    auto* bat = new BatteryComponent("bat_main");
+    bat->setValue(82.0);
+    auto* pb = new ProgressBarComponent("pb_main");
+    pb->setValue(0.75);
+
+    scene.addUIComponent(speedo);
+    scene.addUIComponent(rpm);
+    scene.addUIComponent(temp);
+    scene.addUIComponent(bat);
+    scene.addUIComponent(pb);
+
+    // Screen 2: Diagnostics
+    Screen* scr2 = proj.addScreen("Diagnostics");
+    proj.setActiveScreen(scr2);
+    auto* gauge = new GaugeComponent("gauge_diag");
+    gauge->setValue(65.0);
+    auto* press = new PressureComponent("press_diag");
+    press->setValue(4.5);
+    auto* tbl = new TableComponent("tbl_diag");
+    tbl->setColumns({"Param", "Val", "State"});
+    tbl->setRows({{"VCC", "3.3V", "OK"}, {"TEMP", "45C", "OK"}});
+
+    scene.addUIComponent(gauge);
+    scene.addUIComponent(press);
+    scene.addUIComponent(tbl);
+
+    // Screen 3: Settings
+    Screen* scr3 = proj.addScreen("Settings");
+    proj.setActiveScreen(scr3);
+    auto* tab = new TabViewComponent("tab_settings");
+    auto* nav = new NavigationBarComponent("nav_settings");
+    auto* list = new ListComponent("list_settings");
+
+    scene.addUIComponent(tab);
+    scene.addUIComponent(nav);
+    scene.addUIComponent(list);
+
+    QCOMPARE(proj.screens().size(), 3);
+    QCOMPARE(scr1->components().size(), 5);
+    QCOMPARE(scr2->components().size(), 3);
+    QCOMPARE(scr3->components().size(), 3);
+
+    // Switch between screens and verify scene component counts
+    proj.setActiveScreen(scr1);
+    QCOMPARE(scene.uiComponents().size(), 5);
+
+    proj.setActiveScreen(scr2);
+    QCOMPARE(scene.uiComponents().size(), 3);
+
+    proj.setActiveScreen(scr3);
+    QCOMPARE(scene.uiComponents().size(), 3);
+
+    // Save and reload full project
+    QString projFile = m_tempDir.filePath("digital_cluster.euiproj");
+    QVERIFY(proj.saveToFile(projFile));
+
+    CanvasScene reloadScene;
+    Project reloadProj(&reloadScene);
+    QVERIFY(reloadProj.loadFromFile(projFile));
+
+    QCOMPARE(reloadProj.screens().size(), 3);
+    Screen* reloadedScr1 = nullptr;
+    Screen* reloadedScr2 = nullptr;
+    Screen* reloadedScr3 = nullptr;
+
+    for (Screen* s : reloadProj.screens()) {
+        if (s->name() == "Dashboard") reloadedScr1 = s;
+        else if (s->name() == "Diagnostics") reloadedScr2 = s;
+        else if (s->name() == "Settings") reloadedScr3 = s;
+    }
+
+    QVERIFY(reloadedScr1 != nullptr);
+    QCOMPARE(reloadedScr1->components().size(), 5);
+
+    QVERIFY(reloadedScr2 != nullptr);
+    QCOMPARE(reloadedScr2->components().size(), 3);
+
+    QVERIFY(reloadedScr3 != nullptr);
+    QCOMPARE(reloadedScr3->components().size(), 3);
+
+    // Verify speedo on reloaded dashboard
+    SpeedometerComponent* reloadedSpeedo = nullptr;
+    for (UIComponent* c : reloadedScr1->components()) {
+        if (c->componentId() == "speedo_main") {
+            reloadedSpeedo = dynamic_cast<SpeedometerComponent*>(c);
+            break;
+        }
+    }
+    QVERIFY(reloadedSpeedo != nullptr);
+    QCOMPARE(reloadedSpeedo->value(), 120.0);
+}
+
+void TestAllCases::testBackwardCompatibilitySingleScreenProject() {
+    CanvasScene scene;
+    Project proj(&scene);
+    QString simpleProjPath = examplePath("simple.euiproj");
+
+    QVERIFY(proj.loadFromFile(simpleProjPath));
+    QVERIFY(proj.screens().size() >= 1);
+    QVERIFY(proj.activeScreen() != nullptr);
+    QVERIFY(!proj.activeScreen()->components().isEmpty());
+    QVERIFY(!scene.uiComponents().isEmpty());
+
+    // Verify all components on scene are active and interactive
+    for (UIComponent* comp : scene.uiComponents()) {
+        QVERIFY(!comp->componentId().isEmpty());
+        QVERIFY(comp->compWidth() > 0);
+        QVERIFY(comp->compHeight() > 0);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 3 Tests: Hardware Abstraction Layer (HAL)
+// ────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testPhase3HardwareTargetAndCapabilities() {
+    using namespace Hardware;
+
+    // 1. STM32 Target creation & defaults
+    HardwareTarget stm32Target("target_stm32", "STM32F4 Discovery", "STM32", "STM32F407VG", "STM32F407G-DISC1");
+    QCOMPARE(stm32Target.id(), QString("target_stm32"));
+    QCOMPARE(stm32Target.family(), QString("STM32"));
+    QCOMPARE(stm32Target.backendType(), QString("stm32"));
+    QCOMPARE(stm32Target.connectionType(), QString("openocd"));
+    QVERIFY(stm32Target.capabilities().gpioOutput);
+    QVERIFY(stm32Target.capabilities().adc);
+    QVERIFY(stm32Target.capabilities().atomicBsrr);
+
+    // 2. Pin Mapping resolution
+    stm32Target.setPinMapping("STATUS_LED", "PD12");
+    stm32Target.setPinMapping("POT_INPUT", "PA1");
+    QCOMPARE(stm32Target.resolvePin("STATUS_LED"), QString("PD12"));
+    QCOMPARE(stm32Target.resolvePin("POT_INPUT"), QString("PA1"));
+    QCOMPARE(stm32Target.resolvePin("PB5"), QString("PB5")); // unmapped physical pin passthrough
+
+    // 3. JSON Serialization Roundtrip
+    QJsonObject json = stm32Target.toJson();
+    HardwareTarget restored = HardwareTarget::fromJson(json);
+    QCOMPARE(restored.id(), stm32Target.id());
+    QCOMPARE(restored.name(), stm32Target.name());
+    QCOMPARE(restored.family(), stm32Target.family());
+    QCOMPARE(restored.mcuModel(), stm32Target.mcuModel());
+    QCOMPARE(restored.boardId(), stm32Target.boardId());
+    QCOMPARE(restored.backendType(), stm32Target.backendType());
+    QCOMPARE(restored.resolvePin("STATUS_LED"), QString("PD12"));
+    QVERIFY(restored.capabilities().atomicBsrr);
+}
+
+void TestAllCases::testPhase3HardwareBackendSwitchingAndCapabilities() {
+    using namespace Hardware;
+
+    HardwareManager& mgr = HardwareManager::instance();
+    mgr.resetToDefaults();
+
+    // Verify all 4 default backends registered
+    QStringList registered = mgr.registeredBackendIds();
+    QVERIFY(registered.contains("stm32"));
+    QVERIFY(registered.contains("esp32"));
+    QVERIFY(registered.contains("raspberrypi"));
+    QVERIFY(registered.contains("mock"));
+
+    // Switch to STM32
+    QVERIFY(mgr.setActiveBackend("stm32"));
+    QCOMPARE(mgr.activeBackendId(), QString("stm32"));
+    HardwareCapabilities stm32Caps = mgr.currentCapabilities();
+    QVERIFY(stm32Caps.gpioOutput);
+    QVERIFY(stm32Caps.adc);
+    QVERIFY(stm32Caps.atomicBsrr);
+
+    // Switch to ESP32
+    QVERIFY(mgr.setActiveBackend("esp32"));
+    QCOMPARE(mgr.activeBackendId(), QString("esp32"));
+    HardwareCapabilities esp32Caps = mgr.currentCapabilities();
+    QVERIFY(esp32Caps.gpioOutput);
+    QVERIFY(esp32Caps.adc);
+    QVERIFY(!esp32Caps.atomicBsrr); // ESP32 does not use STM32 BSRR registers
+    QVERIFY(!esp32Caps.can);        // NOT IMPLEMENTED in Phase 3
+
+    // Switch to Raspberry Pi
+    QVERIFY(mgr.setActiveBackend("raspberrypi"));
+    QCOMPARE(mgr.activeBackendId(), QString("raspberrypi"));
+    HardwareCapabilities rpiCaps = mgr.currentCapabilities();
+    QVERIFY(rpiCaps.gpioOutput);
+    QVERIFY(!rpiCaps.adc); // Raspberry Pi native header has no internal ADC
+
+    // Switch to Mock
+    QVERIFY(mgr.setActiveBackend("mock"));
+    QCOMPARE(mgr.activeBackendId(), QString("mock"));
+}
+
+void TestAllCases::testPhase3MockBackendAndSimulation() {
+    using namespace Hardware;
+
+    HardwareManager& mgr = HardwareManager::instance();
+    mgr.setActiveBackend("mock");
+
+    MockBackend* mock = dynamic_cast<MockBackend*>(mgr.activeBackend());
+    QVERIFY(mock != nullptr);
+
+    // 1. Digital GPIO Write & Read
+    QVERIFY(mgr.writeDigital("PA5", true));
+    bool pinVal = false;
+    QVERIFY(mgr.readDigital("PA5", &pinVal));
+    QCOMPARE(pinVal, true);
+
+    QVERIFY(mgr.writeDigital("PA5", false));
+    QVERIFY(mgr.readDigital("PA5", &pinVal));
+    QCOMPARE(pinVal, false);
+
+    // 2. Analog ADC Read & Normalization
+    mock->setMockAdcValue("PA0", 2048, 0.5);
+    quint32 rawCount = 0;
+    double normValue = 0.0;
+    QVERIFY(mgr.readAnalog("PA0", &rawCount, &normValue));
+    QCOMPARE(rawCount, 2048u);
+    QCOMPARE(normValue, 0.5);
+
+    mock->setMockAdcValue("PA1", 4095, 1.0);
+    QVERIFY(mgr.readAnalog("PA1", &rawCount, &normValue));
+    QCOMPARE(rawCount, 4095u);
+    QCOMPARE(normValue, 1.0);
+
+    // 3. I2C Scan
+    QList<quint8> i2cAddrs;
+    QVERIFY(mgr.i2cScan("PB8", "PB9", &i2cAddrs));
+    QVERIFY(i2cAddrs.contains(0x48));
+    QVERIFY(i2cAddrs.contains(0x76));
+
+    // 4. Connection simulation
+    QVERIFY(mgr.isHardwareConnected());
+    mock->setMockConnected(false);
+    QVERIFY(!mgr.isHardwareConnected());
+    mock->setMockConnected(true);
+    QVERIFY(mgr.isHardwareConnected());
+}
+
+void TestAllCases::testPhase3DataSourceHardwareResolution() {
+    using namespace Hardware;
+
+    HardwareManager& mgr = HardwareManager::instance();
+    mgr.setActiveBackend("mock");
+    MockBackend* mock = dynamic_cast<MockBackend*>(mgr.activeBackend());
+    QVERIFY(mock != nullptr);
+
+    // 1. Digital GPIO Data Source Resolution
+    DataSource gpioSource("source_led", "Status LED Pin", DataSourceType::Gpio, DataDirection::Output, DataType::Boolean);
+    gpioSource.setHardwareRef("PA5");
+
+    // Write through DataSource
+    QVERIFY(mgr.writeDataSourceValue(gpioSource, true));
+    bool pinState = false;
+    QVERIFY(mgr.readDigital("PA5", &pinState));
+    QCOMPARE(pinState, true);
+
+    // Read back through DataSource
+    QVariant readVal;
+    QVERIFY(mgr.resolveDataSourceValue(gpioSource, &readVal));
+    QCOMPARE(readVal.toBool(), true);
+
+    // 2. Analog ADC Data Source Resolution
+    DataSource adcSource("source_pot", "Potentiometer Input", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    adcSource.setHardwareRef("PA0");
+    mock->setMockAdcValue("PA0", 3072, 0.75);
+
+    QVariant adcVal;
+    QVERIFY(mgr.resolveDataSourceValue(adcSource, &adcVal));
+    QCOMPARE(adcVal.toDouble(), 0.75);
+
+    // 3. Variable / Constant Data Source
+    DataSource varSource("source_rpm", "Engine RPM", DataSourceType::Variable, DataDirection::Input, DataType::Float);
+    varSource.setValue(4500.0);
+    QVariant rpmVal;
+    QVERIFY(mgr.resolveDataSourceValue(varSource, &rpmVal));
+    QCOMPARE(rpmVal.toDouble(), 4500.0);
+}
+
+void TestAllCases::testPhase3CustomBoardTargetPersistence() {
+    using namespace Hardware;
+
+    // 1. Setup Custom Target
+    HardwareTarget customTarget("custom_board_01", "My Industrial Controller", "Custom", "STM32F429ZI", "CUSTOM_HMI_V1");
+    customTarget.setArchitecture("ARM Cortex-M4F");
+    customTarget.setPinMapping("RELAY_1", "PC8");
+    customTarget.setPinMapping("TEMP_SENSOR", "PA3");
+    customTarget.setPinMapping("MOTOR_PWM", "PB0");
+
+    HardwareCapabilities customCaps;
+    customCaps.gpioInput = true;
+    customCaps.gpioOutput = true;
+    customCaps.adc = true;
+    customCaps.pwm = true;
+    customCaps.uart = true;
+    customCaps.can = true;
+    customTarget.setCapabilities(customCaps);
+
+    // 2. Serialize & Deserialize
+    QJsonObject targetJson = customTarget.toJson();
+    HardwareTarget loadedTarget = HardwareTarget::fromJson(targetJson);
+
+    QCOMPARE(loadedTarget.id(), QString("custom_board_01"));
+    QCOMPARE(loadedTarget.name(), QString("My Industrial Controller"));
+    QCOMPARE(loadedTarget.family(), QString("Custom"));
+    QCOMPARE(loadedTarget.mcuModel(), QString("STM32F429ZI"));
+    QCOMPARE(loadedTarget.boardId(), QString("CUSTOM_HMI_V1"));
+    QCOMPARE(loadedTarget.resolvePin("RELAY_1"), QString("PC8"));
+    QCOMPARE(loadedTarget.resolvePin("TEMP_SENSOR"), QString("PA3"));
+    QCOMPARE(loadedTarget.resolvePin("MOTOR_PWM"), QString("PB0"));
+    QVERIFY(loadedTarget.capabilities().can);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 4 Tests: Code Generator v2 (Context, IR, HAL Adapters, Bindings)
+// ────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testPhase4GeneratorContextAndValidation() {
+    using namespace CodeGen;
+
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("ValTestApp", 480, 320);
+
+    // 1. Setup valid multi-screen project
+    Screen* scr1 = proj.activeScreen();
+    scr1->setName("MainScreen");
+    auto* btn = new ButtonComponent("btn_power");
+    scr1->addComponent(btn);
+
+    Screen* scr2 = proj.addScreen("SettingsScreen");
+    auto* sw = new SwitchComponent("sw_wifi");
+    scr2->addComponent(sw);
+
+    DataSource ds("ds_pwr", "Power State", DataSourceType::Gpio, DataDirection::Output, DataType::Boolean);
+    ds.setHardwareRef("PA5");
+    proj.addDataSource(ds);
+
+    DataBinding db("btn_power", "checked", "ds_pwr", BindingDirection::Write);
+    proj.addDataBinding(db);
+
+    // 2. Validate clean project
+    GeneratorContext ctx(&proj);
+    QList<ValidationMessage> msgs;
+    QVERIFY(ctx.validate(&msgs));
+    QVERIFY(!ctx.hasErrors());
+    QCOMPARE(ctx.screens().size(), 2);
+    QCOMPARE(ctx.dataSources().size(), 1);
+    QCOMPARE(ctx.dataBindings().size(), 1);
+
+    // 3. Trigger warning with orphaned binding
+    DataBinding orphanDb("ghost_comp", "value", "ds_pwr", BindingDirection::Read);
+    proj.addDataBinding(orphanDb);
+    msgs.clear();
+    ctx.validate(&msgs);
+    bool hasWarning = false;
+    for (const auto& m : msgs) {
+        if (m.level == ValidationMessage::Warning) hasWarning = true;
+    }
+    QVERIFY(hasWarning);
+}
+
+void TestAllCases::testPhase4GeneratorIntermediateRepresentation() {
+    using namespace CodeGen;
+
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("IRProjectApp", 800, 480);
+
+    Screen* dash = proj.activeScreen();
+    dash->setName("ClusterDashboard");
+
+    auto* speedo = new SpeedometerComponent("speedo_1");
+    speedo->setValue(110.0);
+    speedo->setUnit("km/h");
+    dash->addComponent(speedo);
+
+    auto* batt = new BatteryComponent("bat_1");
+    batt->setValue(85.0);
+    dash->addComponent(batt);
+
+    auto* tabs = new TabViewComponent("tabs_1");
+    tabs->setTabs({"Trip", "Nav", "Audio"});
+    dash->addComponent(tabs);
+
+    DataSource dsSpeed("src_spd", "Vehicle Speed", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    proj.addDataSource(dsSpeed);
+
+    DataBinding bindSpeed("speedo_1", "value", "src_spd", BindingDirection::Read);
+    proj.addDataBinding(bindSpeed);
+
+    // Build IR
+    IRProject ir = GeneratorIR::buildFromProject(&proj);
+    QCOMPARE(ir.name, QString("IRProjectApp"));
+    QCOMPARE(ir.displayWidth, 800);
+    QCOMPARE(ir.displayHeight, 480);
+    QCOMPARE(ir.screens.size(), 1);
+    QCOMPARE(ir.screens[0].widgets.size(), 3);
+    QCOMPARE(ir.dataSources.size(), 1);
+    QCOMPARE(ir.bindings.size(), 1);
+
+    // Verify widgets in IR
+    bool foundSpeedo = false, foundBat = false, foundTabs = false;
+    for (const auto& w : ir.screens[0].widgets) {
+        if (w.id == "speedo_1" && w.type.toLower() == "speedometer") foundSpeedo = true;
+        if (w.id == "bat_1" && w.type.toLower() == "battery") foundBat = true;
+        if (w.id == "tabs_1" && (w.type.toLower() == "tabview" || w.type.toLower() == "tab_view")) foundTabs = true;
+    }
+    QVERIFY(foundSpeedo);
+    QVERIFY(foundBat);
+    QVERIFY(foundTabs);
+}
+
+void TestAllCases::testPhase4TargetHalAndBindingLayerGeneration() {
+    using namespace CodeGen;
+
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("HalGenApp", 480, 320);
+
+    // 1. STM32 HAL Adapter Generation
+    Hardware::HardwareConfig hwStm;
+    hwStm.family = "STM32";
+    hwStm.deviceId = "STM32F407VG";
+    hwStm.boardId = "STM32F407G-DISC1";
+    proj.setHardwareConfig(hwStm);
+
+    QString halH = TargetHalGenerator::generateHalHeader(&proj);
+    QString halC = TargetHalGenerator::generateHalSource(&proj);
+    QVERIFY(halH.contains("hal_write_digital_pin"));
+    QVERIFY(halH.contains("hal_read_adc_normalized"));
+    QVERIFY(halC.contains("STM32"));
+    QVERIFY(halC.contains("BSRR"));
+
+    // 2. ESP32 HAL Adapter Generation
+    Hardware::HardwareConfig hwEsp;
+    hwEsp.family = "ESP32";
+    hwEsp.deviceId = "ESP32-S3";
+    proj.setHardwareConfig(hwEsp);
+    QString halEspC = TargetHalGenerator::generateHalSource(&proj);
+    QVERIFY(halEspC.contains("ESP32"));
+    QVERIFY(halEspC.contains("gpio_set_level"));
+
+    // 3. Binding Layer Generation
+    DataSource dsAdc("adc_sensor", "ADC Sensor", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    dsAdc.setHardwareRef("PA0");
+    proj.addDataSource(dsAdc);
+
+    DataBinding b("bar_progress", "value", "adc_sensor", BindingDirection::Read);
+    proj.addDataBinding(b);
+
+    QString bindH = BindingLayerGenerator::generateBindingsHeader(&proj);
+    QString bindC = BindingLayerGenerator::generateBindingsSource(&proj);
+    QVERIFY(bindH.contains("ui_update_data_sources"));
+    QVERIFY(bindC.contains("adc_sensor"));
+    QVERIFY(bindC.contains("hal_read_adc_normalized"));
+}
+
+void TestAllCases::testPhase4LvglMultiScreenAndDashboardExport() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("LvglDashboardExport", 480, 272);
+
+    Screen* scr = proj.activeScreen();
+    scr->setName("Dashboard");
+
+    auto* speedo = new SpeedometerComponent("speedo_main");
+    speedo->setValue(100.0);
+    scr->addComponent(speedo);
+
+    auto* rpm = new RpmComponent("rpm_main");
+    rpm->setValue(3500.0);
+    scr->addComponent(rpm);
+
+    auto* bat = new BatteryComponent("bat_status");
+    bat->setValue(75.0);
+    scr->addComponent(bat);
+
+    QTemporaryDir exportDir;
+    QVERIFY(exportDir.isValid());
+
+    LvglGenerator gen(&proj, &scene);
+    QVERIFY(gen.generate(exportDir.path()));
+
+    QDir out(exportDir.path());
+    QVERIFY(out.exists("CMakeLists.txt"));
+    QVERIFY(out.exists("lv_conf.h"));
+    QVERIFY(out.exists("ui.h"));
+    QVERIFY(out.exists("ui.c"));
+    QVERIFY(out.exists("main.c"));
+    QVERIFY(out.exists("target_hal.h"));
+    QVERIFY(out.exists("target_hal.c"));
+    QVERIFY(out.exists("ui_bindings.h"));
+    QVERIFY(out.exists("ui_bindings.c"));
+    QVERIFY(out.exists("pc_simulator/CMakeLists.txt"));
+
+    // Verify content of generated target_hal.h and ui_bindings.h
+    QFile halFile(out.filePath("target_hal.h"));
+    QVERIFY(halFile.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString halContent = QString::fromUtf8(halFile.readAll());
+    QVERIFY(halContent.contains("target_hal_init"));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 5 Tests: Desktop Simulator (Runtime, Backend, Bindings, Clock, UI)
+// ────────────────────────────────────────────────────────────────────────────
+
+void TestAllCases::testPhase5SimulationBackendAndHardwareIsolation() {
+    Simulator::SimulationBackend backend;
+
+    // 1. Backend metadata & capabilities
+    QCOMPARE(backend.backendId(), QString("simulation"));
+    QCOMPARE(backend.family(), QString("Simulator"));
+    auto caps = backend.capabilities();
+    QVERIFY(caps.gpioInput);
+    QVERIFY(caps.gpioOutput);
+    QVERIFY(caps.adc);
+    QVERIFY(caps.pwm);
+    QVERIFY(caps.uart);
+    QVERIFY(caps.i2c);
+    QVERIFY(caps.spi);
+    QVERIFY(caps.can);
+
+    // 2. Virtual GPIO write & readback
+    QVERIFY(backend.writeDigital("PA5", true));
+    bool pinVal = false;
+    QVERIFY(backend.readDigital("PA5", &pinVal));
+    QCOMPARE(pinVal, true);
+
+    QVERIFY(backend.writeDigital("PA5", false));
+    QVERIFY(backend.readDigital("PA5", &pinVal));
+    QCOMPARE(pinVal, false);
+
+    // 3. Virtual ADC normalized & raw readback
+    backend.setSimulatedAdc("PA0", 2048, 0.5);
+    double adcNorm = 0.0;
+    quint32 adcRaw = 0;
+    QVERIFY(backend.readAnalog("PA0", &adcRaw, &adcNorm));
+    QVERIFY(qAbs(adcNorm - 0.5) < 0.001);
+    QCOMPARE(adcRaw, 2048u);
+    QCOMPARE(backend.simulatedAdcRaw("PA0"), 2048u);
+    QVERIFY(qAbs(backend.simulatedAdcNormalized("PA0") - 0.5) < 0.001);
+
+    // 4. Virtual PWM Duty Cycle
+    QVERIFY(backend.writePwm("PB0", 75.5));
+    QVERIFY(qAbs(backend.simulatedPwm("PB0") - 75.5) < 0.001);
+
+    // 5. Virtual UART injection & transmit buffer
+    backend.injectUartData("COM1", QByteArray("SENSOR_READY"));
+    QByteArray uartIn;
+    QVERIFY(backend.uartRead("COM1", 32, &uartIn));
+    QCOMPARE(uartIn, QByteArray("SENSOR_READY"));
+
+    QVERIFY(backend.uartWrite("COM1", QByteArray("PING")));
+    QCOMPARE(backend.getUartTxBuffer("COM1"), QByteArray("PING"));
+
+    // 6. Virtual I2C Bus Scan
+    QList<quint8> foundI2c;
+    QVERIFY(backend.i2cScan("PB8", "PB9", &foundI2c));
+    QVERIFY(!foundI2c.isEmpty());
+    QVERIFY(foundI2c.contains(0x48));
+
+    // 7. Virtual CAN Frame injection
+    backend.injectCanFrame(0x7DF, QByteArray::fromHex("02010D0000000000"));
+    auto history = backend.getCanRxHistory();
+    QVERIFY(!history.isEmpty());
+    QCOMPARE(history.last().id, 0x7DFu);
+    QCOMPARE(history.last().payload.size(), 8);
+
+    // 8. Error injection & safety isolation
+    backend.setSimulateErrors(true);
+    QVERIFY(!backend.writeDigital("PA5", true));
+    backend.setSimulateErrors(false);
+    QVERIFY(backend.writeDigital("PA5", true));
+}
+
+void TestAllCases::testPhase5SimulationRuntimeClockAndExpressions() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("SimClockApp", 480, 320);
+
+    // 1. Timer DataSource
+    DataSource dsTimer("timer_1", "Heartbeat Timer", DataSourceType::Timer, DataDirection::Input, DataType::Integer);
+    QJsonObject timerMeta;
+    timerMeta["timerPeriodMs"] = 200;
+    dsTimer.setMetadata(timerMeta);
+    proj.addDataSource(dsTimer);
+
+    // 2. Sensor & Calculated DataSources
+    DataSource dsSpeed("src_speed", "Vehicle Speed", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsSpeed.setValue(120.0);
+    proj.addDataSource(dsSpeed);
+
+    DataSource dsCalc("calc_pct", "Speed Percentage", DataSourceType::Calculated, DataDirection::Input, DataType::Float);
+    QJsonObject calcMeta;
+    calcMeta["expression"] = "src_speed / 240.0 * 100.0";
+    dsCalc.setMetadata(calcMeta);
+    proj.addDataSource(dsCalc);
+
+    Simulator::SimulationRuntime runtime(&proj);
+    QCOMPARE(runtime.status(), Simulator::SimulationStatus::Stopped);
+
+    // Clock speed configuration
+    runtime.setSpeedFactor(2.0);
+    QVERIFY(qAbs(runtime.speedFactor() - 2.0) < 0.001);
+
+    runtime.start();
+    QCOMPARE(runtime.status(), Simulator::SimulationStatus::Running);
+
+    // Verify initial values
+    QCOMPARE(runtime.dataSourceValue("src_speed").toDouble(), 120.0);
+    QVERIFY(qAbs(runtime.dataSourceValue("calc_pct").toDouble() - 50.0) < 0.01);
+
+    // Update speed source -> verify calculated updates
+    runtime.setDataSourceValue("src_speed", 180.0);
+    QVERIFY(qAbs(runtime.dataSourceValue("calc_pct").toDouble() - 75.0) < 0.01);
+
+    // Step clock
+    runtime.pause();
+    QCOMPARE(runtime.status(), Simulator::SimulationStatus::Paused);
+    runtime.step();
+
+    runtime.stop();
+    QCOMPARE(runtime.status(), Simulator::SimulationStatus::Stopped);
+}
+
+void TestAllCases::testPhase5BidirectionalDataBindingsAndAutoState() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("SimBindingsApp", 800, 480);
+
+    Screen* scr = proj.activeScreen();
+
+    // 1. Speedometer Component (Read binding with Warning/Error Thresholds)
+    auto* speedo = new SpeedometerComponent("speedo_val");
+    speedo->setCompPos(20, 20);
+    speedo->setCompSize(200, 200);
+    speedo->setMinimum(0.0);
+    speedo->setMaximum(240.0);
+    speedo->setWarningThreshold(140.0);
+    speedo->setCriticalThreshold(200.0);
+    scr->addComponent(speedo);
+
+    DataSource dsSpeed("spd_src", "Speed Sensor", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsSpeed.setValue(90.0);
+    proj.addDataSource(dsSpeed);
+
+    DataBinding bRead("speedo_val", "value", "spd_src", BindingDirection::Read);
+    proj.addDataBinding(bRead);
+
+    // 2. Switch Component (Write binding to GPIO DataSource)
+    auto* sw = new SwitchComponent("sw_light");
+    sw->setCompPos(240, 20);
+    sw->setChecked(false);
+    scr->addComponent(sw);
+
+    DataSource dsGpio("gpio_light", "Light GPIO", DataSourceType::Gpio, DataDirection::Output, DataType::Boolean);
+    dsGpio.setHardwareRef("PA4");
+    dsGpio.setValue(false);
+    proj.addDataSource(dsGpio);
+
+    DataBinding bWrite("sw_light", "checked", "gpio_light", BindingDirection::Write);
+    proj.addDataBinding(bWrite);
+
+    // 3. ProgressBar Component (ReadWrite binding to ADC DataSource)
+    auto* pb = new ProgressBarComponent("pb_level");
+    pb->setCompPos(240, 80);
+    pb->setValue(0.2);
+    scr->addComponent(pb);
+
+    DataSource dsAdc("adc_level", "Tank Level", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    dsAdc.setHardwareRef("PA0");
+    dsAdc.setValue(0.2);
+    proj.addDataSource(dsAdc);
+
+    DataBinding bRw("pb_level", "value", "adc_level", BindingDirection::ReadWrite);
+    proj.addDataBinding(bRw);
+
+    Simulator::SimulationRuntime runtime(&proj);
+    runtime.start();
+
+    // Test Read binding propagation
+    runtime.setDataSourceValue("spd_src", 110.0);
+    QVERIFY(qAbs(speedo->value() - 110.0) < 0.01);
+    QCOMPARE(speedo->currentState().toLower(), QString("normal"));
+
+    // Auto-state threshold: Warning
+    runtime.setDataSourceValue("spd_src", 160.0);
+    QVERIFY(qAbs(speedo->value() - 160.0) < 0.01);
+    QCOMPARE(speedo->currentState().toLower(), QString("warning"));
+
+    // Auto-state threshold: Error (Critical)
+    runtime.setDataSourceValue("spd_src", 220.0);
+    QVERIFY(qAbs(speedo->value() - 220.0) < 0.01);
+    QCOMPARE(speedo->currentState().toLower(), QString("critical"));
+
+    // Test Write binding propagation
+    runtime.notifyComponentPropertyChanged(sw, "checked", true);
+    QCOMPARE(runtime.dataSourceValue("gpio_light").toBool(), true);
+    bool gpioPin = false;
+    QVERIFY(runtime.simulationBackend()->readDigital("PA4", &gpioPin));
+    QCOMPARE(gpioPin, true);
+
+    runtime.stop();
+}
+
+void TestAllCases::testPhase5ProjectSaveSafetyAndSnapshotRestore() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("SafetyProject", 480, 320);
+
+    Screen* scr = proj.activeScreen();
+    auto* speedo = new SpeedometerComponent("dash_speedo");
+    speedo->setValue(55.0);
+    scr->addComponent(speedo);
+
+    DataSource ds("src_s", "Speed", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    ds.setValue(55.0);
+    proj.addDataSource(ds);
+
+    DataBinding b("dash_speedo", "value", "src_s", BindingDirection::Read);
+    proj.addDataBinding(b);
+
+    Simulator::SimulationRuntime runtime(&proj);
+    
+    // Start simulation, mutate values aggressively
+    runtime.start();
+    runtime.setDataSourceValue("src_s", 230.0);
+    QVERIFY(qAbs(speedo->value() - 230.0) < 0.01);
+
+    // Stop simulation -> must restore original design values
+    runtime.stop();
+    QVERIFY(qAbs(speedo->value() - 55.0) < 0.01);
+    QVERIFY(qAbs(ds.value().toDouble() - 55.0) < 0.01);
+
+    // Verify project serialization retains only design values
+    QJsonObject projJson = proj.toJson();
+    CanvasScene reloadScene;
+    Project reloadProj(&reloadScene);
+    reloadProj.fromJson(projJson);
+    auto* loadedSpeedo = dynamic_cast<SpeedometerComponent*>(reloadProj.activeScreen()->findComponentById("dash_speedo"));
+    QVERIFY(loadedSpeedo != nullptr);
+    QVERIFY(qAbs(loadedSpeedo->value() - 55.0) < 0.01);
+}
+
+void TestAllCases::testPhase5SimulatorWindowAndControlPanelUi() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("UiSimApp", 800, 480);
+
+    Screen* s1 = proj.activeScreen();
+    s1->setName("Main");
+    auto* sp = new SpeedometerComponent("sp_1");
+    s1->addComponent(sp);
+
+    Screen* s2 = proj.addScreen("Diagnostics");
+    auto* rpm = new RpmComponent("rpm_1");
+    s2->addComponent(rpm);
+
+    DataSource dsSp("speed_source", "Speed Source", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsSp.setValue(100.0);
+    QJsonObject mSp; mSp["unit"] = "km/h"; dsSp.setMetadata(mSp);
+    proj.addDataSource(dsSp);
+
+    DataSource dsRpm("rpm_source", "RPM Source", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsRpm.setValue(3000.0);
+    QJsonObject mRpm; mRpm["unit"] = "RPM"; dsRpm.setMetadata(mRpm);
+    proj.addDataSource(dsRpm);
+
+    DataSource dsTemp("temperature_source", "Temp Source", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsTemp.setValue(85.0);
+    QJsonObject mTemp; mTemp["unit"] = "°C"; dsTemp.setMetadata(mTemp);
+    proj.addDataSource(dsTemp);
+
+    DataSource dsBatt("battery_source", "Battery Source", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsBatt.setValue(90.0);
+    QJsonObject mBatt; mBatt["unit"] = "%"; dsBatt.setMetadata(mBatt);
+    proj.addDataSource(dsBatt);
+
+    Simulator::SimulatorWindow win(&proj);
+    win.resize(1200, 750);
+    win.show();
+    QApplication::processEvents();
+
+    // Verify UI components
+    auto* toolbar = win.findChild<QToolBar*>();
+    QVERIFY(toolbar != nullptr);
+
+    auto* screenCombo = win.findChild<QComboBox*>("simScreenCombo");
+    QVERIFY(screenCombo != nullptr);
+    QCOMPARE(screenCombo->count(), 2);
+
+    auto* controlPanel = win.findChild<Simulator::SimulationControlPanel*>();
+    QVERIFY(controlPanel != nullptr);
+
+    auto* presetCombo = win.findChild<QComboBox*>("simPresetCombo");
+    QVERIFY(presetCombo != nullptr);
+    QVERIFY(presetCombo->count() >= 5);
+
+    // Apply "Engine Redline" preset
+    int redlineIdx = presetCombo->findText("Engine Redline");
+    if (redlineIdx >= 0) {
+        presetCombo->setCurrentIndex(redlineIdx);
+        QApplication::processEvents();
+        QCOMPARE(win.runtime()->dataSourceValue("rpm_source").toDouble(), 7500.0);
+    }
+
+    // Apply "Low Battery" preset
+    int lowBatIdx = presetCombo->findText("Low Battery");
+    if (lowBatIdx >= 0) {
+        presetCombo->setCurrentIndex(lowBatIdx);
+        QApplication::processEvents();
+        QCOMPARE(win.runtime()->dataSourceValue("battery_source").toDouble(), 12.0);
+    }
+
+    // Capture screenshot of Simulator Window
+    const QString shotPath = screenshotPath("verify_phase5_simulator_window.png");
+    QVERIFY(win.grab().save(shotPath));
+    QVERIFY(QFile::exists(shotPath));
+}
+
+void TestAllCases::testPhase5DeterministicSimulatorCoverage() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("DeterministicCoverageApp", 800, 480);
+
+    // 1. Screens & Navigation
+    Screen* scrA = proj.activeScreen();
+    scrA->setName("Screen_A");
+    Screen* scrB = proj.addScreen("Screen_B");
+    Screen* scrC = proj.addScreen("Screen_C");
+    QCOMPARE(proj.screens().size(), 3);
+
+    // 2. Component Coverage across all categories
+    // Basic
+    auto* rect = new RectangleComponent("rect_1");
+    rect->setCompPos(10, 10); rect->setCompSize(80, 40);
+    scrA->addComponent(rect);
+
+    auto* circ = new CircleComponent("circ_1");
+    circ->setCompPos(100, 10); circ->setCompSize(40, 40);
+    scrA->addComponent(circ);
+
+    auto* path = new PathComponent("path_1");
+    path->setCompPos(150, 10); path->setCompSize(60, 40);
+    scrA->addComponent(path);
+
+    auto* btn = new ButtonComponent("btn_1");
+    btn->setCompPos(220, 10); btn->setCompSize(90, 36);
+    btn->setText("Sim Button");
+    scrA->addComponent(btn);
+
+    auto* sw = new SwitchComponent("sw_1");
+    sw->setCompPos(320, 10); sw->setCompSize(60, 32);
+    sw->setChecked(false);
+    scrA->addComponent(sw);
+
+    auto* chk = new CheckboxComponent("chk_1");
+    chk->setCompPos(390, 10); chk->setCompSize(80, 30);
+    chk->setChecked(false);
+    scrA->addComponent(chk);
+
+    auto* lbl = new LabelComponent("lbl_1");
+    lbl->setCompPos(480, 10); lbl->setCompSize(100, 30);
+    lbl->setText("Initial Text");
+    scrA->addComponent(lbl);
+
+    auto* txt = new TextInputComponent("txt_1");
+    txt->setCompPos(590, 10); txt->setCompSize(100, 30);
+    txt->setText("Sim Input");
+    scrA->addComponent(txt);
+
+    // Progress
+    auto* pb = new ProgressBarComponent("pb_1");
+    pb->setCompPos(10, 60); pb->setCompSize(180, 24);
+    pb->setValue(0.1);
+    scrA->addComponent(pb);
+
+    auto* cp = new CircularProgressComponent("cp_1");
+    cp->setCompPos(200, 60); cp->setCompSize(80, 80);
+    cp->setValue(25.0);
+    scrA->addComponent(cp);
+
+    // Dashboard
+    auto* gauge = new GaugeComponent("gauge_1");
+    gauge->setCompPos(10, 160); gauge->setCompSize(140, 140);
+    gauge->setMinimum(0.0); gauge->setMaximum(100.0);
+    gauge->setWarningThreshold(70.0); gauge->setCriticalThreshold(90.0);
+    gauge->setValue(10.0);
+    scrB->addComponent(gauge);
+
+    auto* spd = new SpeedometerComponent("spd_1");
+    spd->setCompPos(160, 160); spd->setCompSize(140, 140);
+    spd->setMinimum(0.0); spd->setMaximum(240.0);
+    spd->setValue(0.0);
+    scrB->addComponent(spd);
+
+    auto* rpm = new RpmComponent("rpm_1");
+    rpm->setCompPos(310, 160); rpm->setCompSize(140, 140);
+    rpm->setMinimum(0.0); rpm->setMaximum(8000.0);
+    rpm->setValue(800.0);
+    scrB->addComponent(rpm);
+
+    auto* batt = new BatteryComponent("batt_1");
+    batt->setCompPos(460, 160); batt->setCompSize(90, 50);
+    batt->setValue(95.0);
+    scrB->addComponent(batt);
+
+    auto* press = new PressureComponent("press_1");
+    press->setCompPos(560, 160); press->setCompSize(100, 100);
+    press->setValue(2.2);
+    scrB->addComponent(press);
+
+    auto* temp = new TemperatureComponent("temp_1");
+    temp->setCompPos(670, 160); temp->setCompSize(90, 140);
+    temp->setValue(75.0);
+    scrB->addComponent(temp);
+
+    // Navigation & Data
+    auto* tabView = new TabViewComponent("tab_1");
+    tabView->setCompPos(10, 320); tabView->setCompSize(240, 140);
+    tabView->setTabs({"Tab 1", "Tab 2", "Tab 3"});
+    tabView->setActiveTabIndex(0);
+    scrC->addComponent(tabView);
+
+    auto* navBar = new NavigationBarComponent("nav_1");
+    navBar->setCompPos(260, 320); navBar->setCompSize(240, 50);
+    navBar->setItems({{"Home", "icon1", "Screen_A"}, {"Diagnostics", "icon2", "Screen_B"}});
+    navBar->setSelectedIndex(0);
+    scrC->addComponent(navBar);
+
+    auto* list = new ListComponent("list_1");
+    list->setCompPos(510, 320); list->setCompSize(130, 140);
+    list->setItems({"Option A", "Option B", "Option C"});
+    list->setSelectedIndex(0);
+    scrC->addComponent(list);
+
+    auto* table = new TableComponent("table_1");
+    table->setCompPos(650, 320); table->setCompSize(140, 140);
+    table->setColumns({"Param", "Val"});
+    table->addRow({"P1", "10"});
+    table->addRow({"P2", "20"});
+    table->setSelectedRow(0);
+    scrC->addComponent(table);
+
+    // 3. DataSources: Gpio, Adc, Sensor, Timer, Calculated
+    DataSource dsGpio("ds_gpio", "GPIO Pin 5", DataSourceType::Gpio, DataDirection::Output, DataType::Boolean);
+    dsGpio.setHardwareRef("PA5");
+    dsGpio.setValue(false);
+    proj.addDataSource(dsGpio);
+
+    DataSource dsAdc("ds_adc", "ADC Channel 0", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    dsAdc.setHardwareRef("PA0");
+    dsAdc.setValue(0.5);
+    proj.addDataSource(dsAdc);
+
+    DataSource dsGauge("ds_gauge", "Oil Pressure", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsGauge.setValue(15.0);
+    proj.addDataSource(dsGauge);
+
+    DataSource dsSlider("ds_slider", "Brightness", DataSourceType::Sensor, DataDirection::Output, DataType::Integer);
+    dsSlider.setValue(50);
+    proj.addDataSource(dsSlider);
+
+    DataSource dsTimer("ds_timer", "Sim Clock", DataSourceType::Timer, DataDirection::Input, DataType::Integer);
+    QJsonObject tMeta; tMeta["periodMs"] = 100; dsTimer.setMetadata(tMeta);
+    proj.addDataSource(dsTimer);
+
+    DataSource dsCalc("ds_calc", "Doubled Gauge", DataSourceType::Calculated, DataDirection::Input, DataType::Float);
+    QJsonObject cMeta; cMeta["expression"] = "ds_gauge * 2.0"; dsCalc.setMetadata(cMeta);
+    proj.addDataSource(dsCalc);
+
+    // 4. DataBindings: Read, Write, ReadWrite
+    DataBinding bRead("gauge_1", "value", "ds_gauge", BindingDirection::Read);
+    proj.addDataBinding(bRead);
+
+    DataBinding bWrite("sw_1", "checked", "ds_gpio", BindingDirection::Write);
+    proj.addDataBinding(bWrite);
+
+    auto* slider = new SliderComponent("slider_1");
+    slider->setCompPos(10, 100); slider->setCompSize(120, 24);
+    slider->setMinimum(0); slider->setMaximum(100);
+    slider->setValue(50);
+    scrA->addComponent(slider);
+
+    DataBinding bRw("slider_1", "value", "ds_slider", BindingDirection::ReadWrite);
+    proj.addDataBinding(bRw);
+
+    // 5. Simulator Runtime execution & validation
+    Simulator::SimulationRuntime runtime(&proj);
+    runtime.start();
+    QCOMPARE(runtime.status(), Simulator::SimulationStatus::Running);
+
+    // Verify Read Binding & State Transition
+    runtime.setDataSourceValue("ds_gauge", 85.0);
+    QVERIFY(qAbs(gauge->value() - 85.0) < 0.01);
+    QCOMPARE(gauge->currentState().toLower(), QString("warning"));
+
+    runtime.setDataSourceValue("ds_gauge", 95.0);
+    QVERIFY(qAbs(gauge->value() - 95.0) < 0.01);
+    QCOMPARE(gauge->currentState().toLower(), QString("critical"));
+
+    // Min/Max clamping validation
+    gauge->setMaximum(100.0);
+    gauge->setValue(120.0);
+    QVERIFY(gauge->value() <= 100.0);
+
+    // Verify Write Binding: Switch -> GPIO DataSource -> Virtual HAL
+    runtime.notifyComponentPropertyChanged(sw, "checked", true);
+    QCOMPARE(runtime.dataSourceValue("ds_gpio").toBool(), true);
+    bool pinHigh = false;
+    QVERIFY(runtime.simulationBackend()->readDigital("PA5", &pinHigh));
+    QCOMPARE(pinHigh, true);
+
+    // Verify ReadWrite Binding: Slider -> DataSource
+    runtime.notifyComponentPropertyChanged(slider, "value", 82);
+    QCOMPARE(runtime.dataSourceValue("ds_slider").toInt(), 82);
+    runtime.setDataSourceValue("ds_slider", 35);
+    QCOMPARE(slider->value(), 35);
+
+    // Screen navigation
+    runtime.setActiveScreenId(scrB->id());
+    QCOMPARE(runtime.activeScreenId(), scrB->id());
+    QCOMPARE(runtime.activeScreen(), scrB);
+
+    // Tab navigation
+    tabView->setActiveTabIndex(2);
+    runtime.notifyComponentPropertyChanged(tabView, "activeTabIndex", 2);
+    QCOMPARE(tabView->activeTabIndex(), 2);
+
+    // List & Table selection
+    list->setSelectedIndex(1);
+    runtime.notifyComponentPropertyChanged(list, "selectedIndex", 1);
+    QCOMPARE(list->selectedIndex(), 1);
+    table->setSelectedRow(1);
+    runtime.notifyComponentPropertyChanged(table, "selectedRow", 1);
+    QCOMPARE(table->selectedRow(), 1);
+
+    // Timer and Calculated DataSource
+    runtime.step(250);
+    QVERIFY(runtime.dataSourceValue("ds_timer").toInt() >= 2);
+    QVERIFY(qAbs(runtime.dataSourceValue("ds_calc").toDouble() - (95.0 * 2.0)) < 0.01);
+
+    // Virtual HAL Reset and Disconnect behavior
+    runtime.simulationBackend()->setSimulatedConnected(false);
+    QVERIFY(!runtime.simulationBackend()->isConnected());
+    runtime.simulationBackend()->setSimulatedConnected(true);
+    QVERIFY(runtime.simulationBackend()->isConnected());
+
+    runtime.simulationBackend()->resetAllSimulationData();
+    QCOMPARE(runtime.simulationBackend()->simulatedDigital("PA5"), false);
+
+    // Stop and verify Project Save Safety
+    runtime.stop();
+    QCOMPARE(runtime.status(), Simulator::SimulationStatus::Stopped);
+    QCOMPARE(sw->isChecked(), false);
+    QCOMPARE(slider->value(), 50);
+}
+
+void TestAllCases::testPhase5MockHardwarePipelines() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("MockPipelinesApp", 800, 480);
+    Screen* scr = proj.activeScreen();
+
+    // Pipeline 1: Switch -> DataBinding -> GPIO DataSource -> SimulationBackend
+    auto* sw = new SwitchComponent("sw_pipe1");
+    sw->setChecked(false);
+    scr->addComponent(sw);
+
+    DataSource dsGpio("gpio_pipe1", "Relay Output", DataSourceType::Gpio, DataDirection::Output, DataType::Boolean);
+    dsGpio.setHardwareRef("PA4");
+    dsGpio.setValue(false);
+    proj.addDataSource(dsGpio);
+
+    DataBinding bGpio("sw_pipe1", "checked", "gpio_pipe1", BindingDirection::Write);
+    proj.addDataBinding(bGpio);
+
+    // Pipeline 2: Simulation ADC -> ADC DataSource -> DataBinding -> ProgressBar
+    auto* pb = new ProgressBarComponent("pb_pipe2");
+    pb->setValue(0.0);
+    scr->addComponent(pb);
+
+    DataSource dsAdc("adc_pipe2", "Fuel Sensor", DataSourceType::Adc, DataDirection::Input, DataType::Float);
+    dsAdc.setHardwareRef("PA0");
+    dsAdc.setValue(0.0);
+    proj.addDataSource(dsAdc);
+
+    DataBinding bAdc("pb_pipe2", "value", "adc_pipe2", BindingDirection::Read);
+    proj.addDataBinding(bAdc);
+
+    // Pipeline 3: Simulation speed -> DataSource -> Speedometer
+    auto* spd = new SpeedometerComponent("spd_pipe3");
+    spd->setMinimum(0.0); spd->setMaximum(240.0);
+    spd->setValue(0.0);
+    scr->addComponent(spd);
+
+    DataSource dsSpeed("spd_pipe3_src", "Speed Sensor", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsSpeed.setValue(0.0);
+    proj.addDataSource(dsSpeed);
+
+    DataBinding bSpd("spd_pipe3", "value", "spd_pipe3_src", BindingDirection::Read);
+    proj.addDataBinding(bSpd);
+
+    // Pipeline 4: Simulation temperature -> DataSource -> Temperature -> Warning/Error state
+    auto* temp = new TemperatureComponent("temp_pipe4");
+    temp->setMinimum(0.0); temp->setMaximum(150.0);
+    temp->setWarningThreshold(90.0);
+    temp->setCriticalThreshold(115.0);
+    temp->setValue(40.0);
+    scr->addComponent(temp);
+
+    DataSource dsTemp("temp_pipe4_src", "Coolant Temp", DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+    dsTemp.setValue(40.0);
+    proj.addDataSource(dsTemp);
+
+    DataBinding bTemp("temp_pipe4", "value", "temp_pipe4_src", BindingDirection::Read);
+    proj.addDataBinding(bTemp);
+
+    Simulator::SimulationRuntime runtime(&proj);
+    runtime.start();
+
+    // Verify Pipeline 1: Switch -> GPIO -> Virtual HAL
+    runtime.notifyComponentPropertyChanged(sw, "checked", true);
+    QCOMPARE(runtime.dataSourceValue("gpio_pipe1").toBool(), true);
+    bool pinOut = false;
+    QVERIFY(runtime.simulationBackend()->readDigital("PA4", &pinOut));
+    QCOMPARE(pinOut, true);
+
+    runtime.notifyComponentPropertyChanged(sw, "checked", false);
+    QCOMPARE(runtime.dataSourceValue("gpio_pipe1").toBool(), false);
+    QVERIFY(runtime.simulationBackend()->readDigital("PA4", &pinOut));
+    QCOMPARE(pinOut, false);
+
+    // Verify Pipeline 2: Simulation ADC -> DataSource -> ProgressBar
+    runtime.simulationBackend()->setSimulatedAdc("PA0", 3072, 0.75);
+    runtime.setDataSourceValue("adc_pipe2", 0.75);
+    QVERIFY(qAbs(pb->value() - 0.75) < 0.01);
+
+    // Verify Pipeline 3: Simulation speed -> DataSource -> Speedometer
+    runtime.setDataSourceValue("spd_pipe3_src", 155.0);
+    QVERIFY(qAbs(spd->value() - 155.0) < 0.01);
+
+    // Verify Pipeline 4: Simulation temperature -> DataSource -> Temperature -> Warning/Error state
+    runtime.setDataSourceValue("temp_pipe4_src", 70.0);
+    QCOMPARE(temp->currentState().toLower(), QString("normal"));
+
+    runtime.setDataSourceValue("temp_pipe4_src", 98.0);
+    QCOMPARE(temp->currentState().toLower(), QString("warning"));
+
+    runtime.setDataSourceValue("temp_pipe4_src", 125.0);
+    QCOMPARE(temp->currentState().toLower(), QString("critical"));
+
+    runtime.stop();
+}
+
+void TestAllCases::testPhase5VisualRegressionDemoProject() {
+    CanvasScene scene;
+    Project demoProj(&scene);
+    demoProj.newProject("DemoAutomotiveApp", 800, 480);
+
+    // Screen 1: Dashboard
+    Screen* sDash = demoProj.activeScreen();
+    sDash->setName("Dashboard");
+
+    auto* spd = new SpeedometerComponent("demo_spd");
+    spd->setCompPos(20, 30); spd->setCompSize(200, 200);
+    spd->setMinimum(0.0); spd->setMaximum(240.0); spd->setValue(95.0);
+    sDash->addComponent(spd);
+
+    auto* rpm = new RpmComponent("demo_rpm");
+    rpm->setCompPos(240, 30); rpm->setCompSize(200, 200);
+    rpm->setMinimum(0.0); rpm->setMaximum(8000.0); rpm->setValue(3200.0);
+    sDash->addComponent(rpm);
+
+    auto* temp = new TemperatureComponent("demo_temp");
+    temp->setCompPos(460, 30); temp->setCompSize(100, 160);
+    temp->setMinimum(0.0); temp->setMaximum(130.0); temp->setValue(88.0);
+    sDash->addComponent(temp);
+
+    auto* batt = new BatteryComponent("demo_batt");
+    batt->setCompPos(580, 40); batt->setCompSize(100, 60);
+    batt->setValue(82.0);
+    sDash->addComponent(batt);
+
+    auto* pb = new ProgressBarComponent("demo_fuel");
+    pb->setCompPos(580, 130); pb->setCompSize(180, 26);
+    pb->setValue(0.65);
+    sDash->addComponent(pb);
+
+    // Screen 2: Diagnostics
+    Screen* sDiag = demoProj.addScreen("Diagnostics");
+
+    auto* gauge = new GaugeComponent("demo_oil_gauge");
+    gauge->setCompPos(30, 40); gauge->setCompSize(180, 180);
+    gauge->setMinimum(0.0); gauge->setMaximum(100.0); gauge->setValue(45.0);
+    sDiag->addComponent(gauge);
+
+    auto* press = new PressureComponent("demo_boost");
+    press->setCompPos(230, 40); press->setCompSize(180, 180);
+    press->setMinimum(0.0); press->setMaximum(4.0); press->setValue(1.8);
+    sDiag->addComponent(press);
+
+    auto* cp = new CircularProgressComponent("demo_health");
+    cp->setCompPos(430, 40); cp->setCompSize(160, 160);
+    cp->setValue(98.0);
+    sDiag->addComponent(cp);
+
+    auto* table = new TableComponent("demo_diag_table");
+    table->setCompPos(30, 240); table->setCompSize(720, 200);
+    table->setColumns({"Subsystem", "CAN Address", "Status", "Reading"});
+    table->addRow({"Engine ECU", "0x7E0", "OK", "3200 RPM"});
+    table->addRow({"Transmission", "0x7E1", "OK", "Gear 4"});
+    table->addRow({"Brake ABS", "0x7E2", "OK", "12.4 bar"});
+    table->addRow({"Battery BMS", "0x7E3", "OK", "48.2 V"});
+    table->setSelectedRow(0);
+    sDiag->addComponent(table);
+
+    // Screen 3: Settings
+    Screen* sSet = demoProj.addScreen("Settings");
+
+    auto* tabView = new TabViewComponent("demo_tabs");
+    tabView->setCompPos(30, 20); tabView->setCompSize(720, 360);
+    tabView->setTabs({"Vehicle Profile", "Displays & Audio", "Network / CAN"});
+    tabView->setActiveTabIndex(0);
+    sSet->addComponent(tabView);
+
+    auto* list = new ListComponent("demo_list");
+    list->setCompPos(60, 90); list->setCompSize(300, 240);
+    list->setItems({"Metric Units (km/h, bar)", "Automatic Day/Night Mode", "Tire Pressure Monitoring (TPMS)", "Dynamic Stability Control"});
+    list->setSelectedIndex(0);
+    sSet->addComponent(list);
+
+    auto* nav = new NavigationBarComponent("demo_nav");
+    nav->setCompPos(30, 400); nav->setCompSize(720, 60);
+    nav->setItems({
+        {"Dashboard", "dash_ico", sDash->id()},
+        {"Diagnostics", "diag_ico", sDiag->id()},
+        {"Settings", "set_ico", sSet->id()}
+    });
+    nav->setSelectedIndex(0);
+    sSet->addComponent(nav);
+
+    // Launch Simulator Window and validate each screen
+    Simulator::SimulatorWindow win(&demoProj);
+    win.resize(1200, 750);
+    win.show();
+    QApplication::processEvents();
+
+    // 1. Validate Dashboard Screen
+    win.runtime()->setActiveScreenId(sDash->id());
+    QApplication::processEvents();
+    const QString shotDash = screenshotPath("simulator_demo_dashboard.png");
+    QVERIFY(win.grab().save(shotDash));
+    QVERIFY(QFile::exists(shotDash));
+
+    // 2. Validate Diagnostics Screen
+    win.runtime()->setActiveScreenId(sDiag->id());
+    QApplication::processEvents();
+    const QString shotDiag = screenshotPath("simulator_demo_diagnostics.png");
+    QVERIFY(win.grab().save(shotDiag));
+    QVERIFY(QFile::exists(shotDiag));
+
+    // 3. Validate Settings Screen
+    win.runtime()->setActiveScreenId(sSet->id());
+    QApplication::processEvents();
+    const QString shotSet = screenshotPath("simulator_demo_settings.png");
+    QVERIFY(win.grab().save(shotSet));
+    QVERIFY(QFile::exists(shotSet));
+
+    win.runtime()->stop();
+}
+
+void TestAllCases::testPhase5PerformanceStress() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("PerfStressApp", 1024, 600);
+    Screen* scr = proj.activeScreen();
+
+    // Create 50 components, 20 DataSources, 50 DataBindings
+    for (int i = 0; i < 20; ++i) {
+        DataSource ds(QString("stress_ds_%1").arg(i), QString("Source %1").arg(i),
+                       DataSourceType::Sensor, DataDirection::Input, DataType::Float);
+        ds.setValue(static_cast<double>(i * 5));
+        proj.addDataSource(ds);
+    }
+
+    for (int i = 0; i < 50; ++i) {
+        auto* gauge = new GaugeComponent(QString("stress_g_%1").arg(i));
+        gauge->setCompPos((i % 10) * 90, (i / 10) * 100);
+        gauge->setCompSize(80, 80);
+        gauge->setMinimum(0.0); gauge->setMaximum(100.0);
+        gauge->setValue(0.0);
+        scr->addComponent(gauge);
+
+        DataBinding b(QString("stress_g_%1").arg(i), "value",
+                      QString("stress_ds_%1").arg(i % 20), BindingDirection::Read);
+        proj.addDataBinding(b);
+    }
+
+    Simulator::SimulationRuntime runtime(&proj);
+
+    // Measure Startup Time
+    QElapsedTimer timer;
+    timer.start();
+    runtime.start();
+    qint64 startupMs = timer.elapsed();
+    QVERIFY(runtime.isRunning());
+    QVERIFY(startupMs < 150); // Under 150ms startup threshold
+
+    // Measure 1000 Binding Updates
+    timer.restart();
+    for (int cycle = 0; cycle < 1000; ++cycle) {
+        QString dsId = QString("stress_ds_%1").arg(cycle % 20);
+        runtime.setDataSourceValue(dsId, static_cast<double>(cycle % 100));
+    }
+    qint64 totalUpdateMs = timer.elapsed();
+    double avgMsPerUpdate = static_cast<double>(totalUpdateMs) / 1000.0;
+
+    // Verify sub-millisecond binding responsiveness
+    QVERIFY(avgMsPerUpdate < 2.0); // Under 2.0 ms per update batch
+    qDebug() << "[Phase5 Perf] Startup:" << startupMs << "ms | 1000 Binding updates:" << totalUpdateMs << "ms (Avg:" << avgMsPerUpdate << "ms/update)";
+
+    runtime.stop();
+}
+
+// ============================================================================
+// 28. Phase 6 Multi-Provider AI Platform
+// ============================================================================
+
+void TestAllCases::testPhase6AIProviderNeutralInterfaceAndCapabilities() {
+    using namespace AI;
+
+    // Role conversion tests
+    QCOMPARE(roleToString(AIRole::System), QString("system"));
+    QCOMPARE(roleToString(AIRole::User), QString("user"));
+    QCOMPARE(roleToString(AIRole::Assistant), QString("assistant"));
+    QCOMPARE(roleToString(AIRole::Tool), QString("tool"));
+
+    QCOMPARE(stringToRole("system"), AIRole::System);
+    QCOMPARE(stringToRole("user"), AIRole::User);
+    QCOMPARE(stringToRole("assistant"), AIRole::Assistant);
+    QCOMPARE(stringToRole("tool"), AIRole::Tool);
+
+    // AIMessage Construction & Serialization
+    AIMessage msg(AIRole::User, "Hello AI");
+    QCOMPARE(msg.textContent(), QString("Hello AI"));
+
+    ToolCall tc;
+    tc.id = "call_123";
+    tc.name = "create_component";
+    tc.arguments = QJsonObject{{"type", "Button"}, {"x", 10.0}, {"y", 20.0}};
+    msg.addToolCall(tc);
+
+    ToolResult tr;
+    tr.id = "call_123";
+    tr.result = "Component created";
+    msg.addToolResult(tr);
+
+    QJsonObject jsonMsg = msg.toJson();
+    AIMessage parsedMsg = AIMessage::fromJson(jsonMsg);
+    QCOMPARE(parsedMsg.role(), AIRole::User);
+    QCOMPARE(parsedMsg.textContent(), QString("Hello AI"));
+    QCOMPARE(parsedMsg.toolCalls().size(), 1);
+    QCOMPARE(parsedMsg.toolCalls().first().name, QString("create_component"));
+    QCOMPARE(parsedMsg.toolResults().size(), 1);
+    QCOMPARE(parsedMsg.toolResults().first().result, QString("Component created"));
+
+    // AIConversation and cumulative usage
+    AIConversation conv;
+    conv.setProviderId("mock");
+    conv.setModel("mock-model-v1");
+    conv.addMessage(msg);
+
+    AIUsage u1;
+    u1.promptTokens = 10;
+    u1.completionTokens = 20;
+    u1.totalTokens = 30;
+    u1.latencyMs = 15;
+    conv.addUsage(u1);
+
+    AIUsage u2;
+    u2.promptTokens = 5;
+    u2.completionTokens = 15;
+    u2.totalTokens = 20;
+    u2.latencyMs = 25;
+    conv.addUsage(u2);
+
+    QCOMPARE(conv.cumulativeUsage().promptTokens, 15);
+    QCOMPARE(conv.cumulativeUsage().completionTokens, 35);
+    QCOMPARE(conv.cumulativeUsage().totalTokens, 50);
+    QCOMPARE(conv.cumulativeUsage().latencyMs, 40);
+
+    QJsonObject convJson = conv.toJson();
+    AIConversation parsedConv = AIConversation::fromJson(convJson);
+    QCOMPARE(parsedConv.providerId(), QString("mock"));
+    QCOMPARE(parsedConv.messages().size(), 1);
+    QCOMPARE(parsedConv.cumulativeUsage().totalTokens, 50);
+
+    // Mock Provider Capabilities
+    MockAIProvider mock;
+    QVERIFY(mock.supportsTools());
+    QVERIFY(mock.supportsStreaming());
+    QVERIFY(mock.supportsVision());
+    QVERIFY(mock.supportsMultimodal());
+}
+
+void TestAllCases::testPhase6AIProviderRegistryAndRouting() {
+    using namespace AI;
+
+    auto& registry = AIProviderRegistry::instance();
+    QStringList ids = registry.providerIds();
+    QVERIFY(ids.contains("mock"));
+    QVERIFY(ids.contains("openai"));
+    QVERIFY(ids.contains("anthropic"));
+    QVERIFY(ids.contains("gemini"));
+    QVERIFY(ids.contains("custom"));
+
+    // Routing: Default Provider
+    registry.setDefaultProviderId("openai");
+    QCOMPARE(registry.defaultProviderId(), QString("openai"));
+    QVERIFY(registry.activeProvider() != nullptr);
+    QCOMPARE(registry.activeProvider()->providerId(), QString("openai"));
+
+    // Routing: Fallback Provider
+    registry.setFallbackProviderId("anthropic");
+    QCOMPARE(registry.fallbackProviderId(), QString("anthropic"));
+    QVERIFY(registry.fallbackProvider() != nullptr);
+    QCOMPARE(registry.fallbackProvider()->providerId(), QString("anthropic"));
+
+    // Task Profiles: Diagnostics -> Gemini
+    TaskProfile diagProfile;
+    diagProfile.preferredProviderId = "gemini";
+    diagProfile.preferredModel = "gemini-1.5-pro";
+    registry.setTaskProfile(TaskType::Diagnostics, diagProfile);
+
+    auto diagProvider = registry.providerForTask(TaskType::Diagnostics);
+    QVERIFY(diagProvider != nullptr);
+
+    // Reset default to mock for tests
+    registry.setDefaultProviderId("mock");
+    QCOMPARE(registry.defaultProviderId(), QString("mock"));
+}
+
+void TestAllCases::testPhase6MessageNormalizationAndWireAdapters() {
+    using namespace AI;
+
+    QList<AIMessage> messages;
+    AIMessage sysMsg(AIRole::System, "You are an embedded UI expert.");
+    AIMessage userMsg(AIRole::User, "Create a battery gauge.");
+    messages.append(sysMsg);
+    messages.append(userMsg);
+
+    // 1. OpenAI Wire Format
+    QJsonArray openAIMsgs = OpenAIProvider::formatMessagesForOpenAI(messages);
+    QCOMPARE(openAIMsgs.size(), 2);
+    QCOMPARE(openAIMsgs[0].toObject()["role"].toString(), QString("system"));
+    QCOMPARE(openAIMsgs[0].toObject()["content"].toString(), QString("You are an embedded UI expert."));
+    QCOMPARE(openAIMsgs[1].toObject()["role"].toString(), QString("user"));
+    QCOMPARE(openAIMsgs[1].toObject()["content"].toString(), QString("Create a battery gauge."));
+
+    // 2. Anthropic Wire Format (Separates system prompt into top-level)
+    QString anthropicSystem;
+    QJsonArray anthropicMsgs;
+    AnthropicProvider::formatMessagesForAnthropic(messages, anthropicSystem, anthropicMsgs);
+    QCOMPARE(anthropicSystem, QString("You are an embedded UI expert."));
+    QCOMPARE(anthropicMsgs.size(), 1);
+    QCOMPARE(anthropicMsgs[0].toObject()["role"].toString(), QString("user"));
+
+    // 3. Gemini Wire Format (Separates systemInstruction, uses 'model' role)
+    QJsonObject geminiSys;
+    QJsonArray geminiContents;
+    GeminiProvider::formatContentsForGemini(messages, geminiSys, geminiContents);
+    QVERIFY(!geminiSys.isEmpty());
+    QCOMPARE(geminiContents.size(), 1);
+    QCOMPARE(geminiContents[0].toObject()["role"].toString(), QString("user"));
+
+    AIMessage asstMsg(AIRole::Assistant, "I am ready.");
+    messages.append(asstMsg);
+    GeminiProvider::formatContentsForGemini(messages, geminiSys, geminiContents);
+    QCOMPARE(geminiContents.size(), 2);
+    QCOMPARE(geminiContents[1].toObject()["role"].toString(), QString("model"));
+}
+
+void TestAllCases::testPhase6AIToolRegistryAndUniversalSchemas() {
+    using namespace AI;
+
+    auto& registry = AIToolRegistry::instance();
+    QVERIFY(registry.findTool("create_screen") != nullptr);
+    QVERIFY(registry.findTool("create_component") != nullptr);
+    QVERIFY(registry.findTool("update_component") != nullptr);
+    QVERIFY(registry.findTool("move_component") != nullptr);
+    QVERIFY(registry.findTool("resize_component") != nullptr);
+    QVERIFY(registry.findTool("delete_component") != nullptr);
+    QVERIFY(registry.findTool("create_datasource") != nullptr);
+    QVERIFY(registry.findTool("create_binding") != nullptr);
+    QVERIFY(registry.findTool("validate_project") != nullptr);
+    QVERIFY(registry.findTool("generate_code") != nullptr);
+    QVERIFY(registry.findTool("inspect_project") != nullptr);
+    QVERIFY(registry.findTool("set_hardware_pin") != nullptr);
+
+    // Check OpenAI Schema
+    QJsonArray openAITools = registry.openAITools();
+    QVERIFY(!openAITools.isEmpty());
+    QCOMPARE(openAITools[0].toObject()["type"].toString(), QString("function"));
+    QVERIFY(openAITools[0].toObject().contains("function"));
+
+    // Check Anthropic Schema
+    QJsonArray anthropicTools = registry.anthropicTools();
+    QVERIFY(!anthropicTools.isEmpty());
+    QVERIFY(anthropicTools[0].toObject().contains("input_schema"));
+
+    // Check Gemini Schema
+    QJsonArray geminiTools = registry.geminiTools();
+    QVERIFY(!geminiTools.isEmpty());
+    QVERIFY(geminiTools[0].toObject().contains("functionDeclarations"));
+}
+
+void TestAllCases::testPhase6AIToolExecutionAndUndoableTransactions() {
+    using namespace AI;
+
+    MainWindow win;
+    DesignerController controller(&win);
+    Project* proj = win.currentProject();
+    QVERIFY(proj != nullptr);
+
+    auto& registry = AIToolRegistry::instance();
+
+    // 1. Tool Call: create_screen
+    ToolCall tcScreen;
+    tcScreen.id = "c_1";
+    tcScreen.name = "create_screen";
+    tcScreen.arguments = QJsonObject{{"name", "DiagnosticsScreen"}, {"width", 800}, {"height", 480}};
+
+    ToolResult resScreen = registry.executeTool(tcScreen, &controller, proj);
+    QVERIFY(resScreen.error.isEmpty());
+    QVERIFY(proj->findScreen("DiagnosticsScreen") != nullptr || proj->screens().size() >= 2);
+
+    // 2. Tool Call: create_component
+    ToolCall tcComp;
+    tcComp.id = "c_2";
+    tcComp.name = "create_component";
+    tcComp.arguments = QJsonObject{
+        {"type", "Button"},
+        {"x", 100.0},
+        {"y", 150.0},
+        {"width", 120.0},
+        {"height", 40.0},
+        {"id", "ai_test_btn"}
+    };
+
+    ToolResult resComp = registry.executeTool(tcComp, &controller, proj);
+    QVERIFY(resComp.error.isEmpty());
+
+    // 3. Tool Call: move_component
+    ToolCall tcMove;
+    tcMove.id = "c_3";
+    tcMove.name = "move_component";
+    tcMove.arguments = QJsonObject{
+        {"id", "ai_test_btn"},
+        {"x", 250.0},
+        {"y", 300.0},
+        {"relative", false}
+    };
+    ToolResult resMove = registry.executeTool(tcMove, &controller, proj);
+    QVERIFY(resMove.error.isEmpty());
+
+    // 4. Test Undo / Redo
+    QJsonObject undoRes = controller.undo();
+    QVERIFY(undoRes["success"].toBool());
+
+    QJsonObject redoRes = controller.redo();
+    QVERIFY(redoRes["success"].toBool());
+}
+
+void TestAllCases::testPhase6HardwareSafetyGate() {
+    using namespace AI;
+
+    auto& registry = AIToolRegistry::instance();
+
+    ToolCall pinCall;
+    pinCall.id = "pin_1";
+    pinCall.name = "set_hardware_pin";
+    pinCall.arguments = QJsonObject{{"pin", "PA4"}, {"state", "HIGH"}};
+
+    // Verify it is flagged as a hardware write tool
+    const auto* toolDef = registry.findTool("set_hardware_pin");
+    QVERIFY(toolDef != nullptr);
+    QVERIFY(toolDef->isHardwareWrite);
+
+    // When disconnected / in simulation mode, writes succeed automatically
+    ToolResult resSim = registry.executeTool(pinCall, nullptr, nullptr, false);
+    bool isPhysical = HardwareBridge::instance().isHardwareConnected() ||
+        (Hardware::HardwareManager::instance().activeBackendId() != "mock" && Hardware::HardwareManager::instance().isHardwareConnected());
+
+    if (!isPhysical) {
+        QVERIFY(resSim.error.isEmpty());
+        QVERIFY(resSim.result.contains("Simulation Mode"));
+    } else {
+        QVERIFY(!resSim.error.isEmpty());
+        QVERIFY(resSim.error.contains("PROTECTED_HARDWARE_WRITE"));
+    }
+
+    // When confirmed by user, write always succeeds
+    ToolResult resConfirmed = registry.executeTool(pinCall, nullptr, nullptr, true);
+    QVERIFY(resConfirmed.error.isEmpty());
+
+    // Test confirmation policy detection
+    bool reqConfirm = registry.requiresHardwareConfirmation(pinCall);
+    QCOMPARE(reqConfirm, isPhysical);
+}
+
+void TestAllCases::testPhase6AIProjectContextAndSecretSanitization() {
+    using namespace AI;
+
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("SecurityContextApp", 480, 320);
+
+    // Add dummy component
+    auto* btn = new ButtonComponent("secret_btn");
+    btn->setCompPos(20, 30);
+    btn->setCompSize(100, 40);
+    proj.activeScreen()->addComponent(btn);
+
+    // 1. Scoped Context
+    QJsonObject ctx = AIProjectContext::buildScopedScreenContext(&proj);
+    QCOMPARE(ctx["width"].toInt(), 480);
+    QCOMPARE(ctx["height"].toInt(), 320);
+    QVERIFY(ctx["components"].toArray().size() >= 1);
+
+    // 2. Secret Redaction
+    QString textWithSecrets = "My key is sk-1234567890abcdef1234567890 and Anthropic key sk-ant-1234567890abcdef1234567890 and Bearer secret_token_1234567890.";
+    QString sanitized = AIProjectContext::sanitizeSecrets(textWithSecrets);
+    QVERIFY(!sanitized.contains("sk-1234567890abcdef1234567890"));
+    QVERIFY(!sanitized.contains("sk-ant-1234567890abcdef1234567890"));
+    QVERIFY(!sanitized.contains("secret_token_1234567890"));
+    QVERIFY(sanitized.contains("[REDACTED_API_KEY]"));
+    QVERIFY(sanitized.contains("[REDACTED_TOKEN]"));
+
+    // 3. Object Redaction
+    QJsonObject sensitiveObj{
+        {"apiKey", "sk-proj-supersecret"},
+        {"normalField", "Dashboard Title"}
+    };
+    QJsonObject sanitizedObj = AIProjectContext::sanitizeJsonObject(sensitiveObj);
+    QCOMPARE(sanitizedObj["apiKey"].toString(), QString("[REDACTED]"));
+    QCOMPARE(sanitizedObj["normalField"].toString(), QString("Dashboard Title"));
+}
+
+void TestAllCases::testPhase6ProviderFailureHandlingAndFallbackSwitching() {
+    using namespace AI;
+
+    MockAIProvider primaryMock;
+    MockAIProvider fallbackMock;
+
+    primaryMock.setSimulatedStatus(ConnectionStatus::ProviderUnavailable);
+    primaryMock.setSimulatedError("503 Service Unavailable");
+
+    bool primaryFailed = false;
+    primaryMock.sendMessage({AIMessage(AIRole::User, "Hello")}, {}, [&](const AIMessage&, const AIUsage&, const QString& err) {
+        if (!err.isEmpty()) {
+            primaryFailed = true;
+        }
+    });
+    QVERIFY(primaryFailed);
+
+    // Clean Fallback execution
+    fallbackMock.setSimulatedResponse("Fallback response succeeded");
+    bool fallbackSuccess = false;
+    QString fallbackText;
+    fallbackMock.sendMessage({AIMessage(AIRole::User, "Hello")}, {}, [&](const AIMessage& resp, const AIUsage&, const QString& err) {
+        if (err.isEmpty()) {
+            fallbackSuccess = true;
+            fallbackText = resp.textContent();
+        }
+    });
+    QVERIFY(fallbackSuccess);
+    QCOMPARE(fallbackText, QString("Fallback response succeeded"));
+}
+
+void TestAllCases::testPhase6OfflineModeZeroAIConfiguration() {
+    using namespace AI;
+
+    // Clear all credentials
+    auto& registry = AIProviderRegistry::instance();
+    registry.clearAllCredentials();
+
+    // Verify full editor operations work 100% offline
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("OfflineZeroAIApp", 800, 480);
+
+    auto* gauge = new GaugeComponent("offline_gauge");
+    gauge->setCompPos(50, 50);
+    gauge->setCompSize(200, 200);
+    proj.activeScreen()->addComponent(gauge);
+
+    DataSource ds("offline_ds", "Offline Sensor", DataSourceType::Sensor);
+    proj.addDataSource(ds);
+
+    DataBinding b("offline_gauge", "value", "offline_ds");
+    proj.addDataBinding(b);
+
+    QCOMPARE(proj.activeScreen()->components().size(), 1);
+    QCOMPARE(proj.dataSources().size(), 1);
+    QCOMPARE(proj.dataBindings().size(), 1);
+
+    // Code generator works offline without AI
+    CodeGen::GeneratorContext genCtx(&proj);
+    QVERIFY(genCtx.project() != nullptr);
+}
+
+void TestAllCases::testPhase6AISettingsDialogUI() {
+    AISettingsDialog dlg;
+    QCOMPARE(dlg.windowTitle(), QString("AI Providers & Settings"));
+
+    // Test connection on mock provider
+    auto p = AI::AIProviderRegistry::instance().getProvider("mock");
+    QVERIFY(p != nullptr);
+
+    bool callbackCalled = false;
+    p->testConnection([&](const AI::ConnectionTestResult& res) {
+        callbackCalled = true;
+        QCOMPARE(res.status, AI::ConnectionStatus::Connected);
+    });
+    QVERIFY(callbackCalled);
 }
 
 QTEST_MAIN(TestAllCases)

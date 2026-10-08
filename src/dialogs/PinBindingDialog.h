@@ -34,6 +34,7 @@ private slots:
 private:
     void setupUi();
     void updatePotentiometerSection();
+    void updateStatusBadge();
 
     CanvasScene* m_scene = nullptr;
     HardwareBridge& m_bridge;
@@ -41,6 +42,7 @@ private:
     // UI Widgets
     QComboBox* m_boardCombo = nullptr;
     QLabel* m_statusBadge = nullptr;
+    QPushButton* m_connectButton = nullptr;
     QTableWidget* m_pinTable = nullptr;
 
     // ADC Simulator

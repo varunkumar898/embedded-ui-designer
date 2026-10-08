@@ -44,11 +44,26 @@ NewProjectDialog::NewProjectDialog(QWidget* parent)
     m_frameworkCombo->addItem("uGFX", "ugfx");
     m_frameworkCombo->addItem("Qt for MCUs (QUL)", "qt-for-mcus");
     m_frameworkCombo->addItem("LVGL", "lvgl");
+
+    m_hardwareFamilyCombo = new QComboBox(blankPage);
+    m_hardwareFamilyCombo->addItem("STMicroelectronics STM32", "STM32");
+    m_hardwareFamilyCombo->addItem("Espressif ESP32", "ESP32");
+    m_hardwareFamilyCombo->addItem("Raspberry Pi", "Raspberry Pi");
+    m_hardwareFamilyCombo->addItem("Custom Hardware Target", "Custom");
+
+    m_hardwareBoardCombo = new QComboBox(blankPage);
+
     blankForm->addRow("Display width", m_widthSpin);
     blankForm->addRow("Display height", m_heightSpin);
     blankForm->addRow("Color depth", m_colorDepthSpin);
     blankForm->addRow("Display shape", m_shapeCombo);
     blankForm->addRow("Target framework", m_frameworkCombo);
+    blankForm->addRow("Target hardware family", m_hardwareFamilyCombo);
+    blankForm->addRow("Target board", m_hardwareBoardCombo);
+
+    connect(m_hardwareFamilyCombo, &QComboBox::currentTextChanged, this, &NewProjectDialog::updateHardwareBoards);
+    updateHardwareBoards();
+
     connect(m_shapeCombo, &QComboBox::currentTextChanged, this, [this](const QString& selected) {
         const bool round = selected == "Round";
         m_heightSpin->setEnabled(!round);
@@ -139,6 +154,34 @@ int NewProjectDialog::colorDepth() const {
 
 bool NewProjectDialog::roundDisplay() const {
     return m_shapeCombo->currentData().toBool();
+}
+
+QString NewProjectDialog::hardwareFamily() const {
+    return m_hardwareFamilyCombo ? m_hardwareFamilyCombo->currentData().toString() : "STM32";
+}
+
+QString NewProjectDialog::hardwareBoard() const {
+    return m_hardwareBoardCombo ? m_hardwareBoardCombo->currentData().toString() : "";
+}
+
+void NewProjectDialog::updateHardwareBoards() {
+    if (!m_hardwareFamilyCombo || !m_hardwareBoardCombo) return;
+    QString family = m_hardwareFamilyCombo->currentData().toString();
+    m_hardwareBoardCombo->clear();
+
+    if (family == "STM32") {
+        m_hardwareBoardCombo->addItem("NUCLEO-F030R8 (STM32F030R8)", "NUCLEO-F030R8");
+        m_hardwareBoardCombo->addItem("STM32F4-Discovery (STM32F407VG)", "STM32F407G-DISC1");
+        m_hardwareBoardCombo->addItem("STM32H747I-DISCO", "STM32H747I-DISCO");
+    } else if (family == "ESP32") {
+        m_hardwareBoardCombo->addItem("ESP32-S3-DevKitC-1 (ESP32-S3)", "ESP32-S3-DevKitC-1");
+        m_hardwareBoardCombo->addItem("ESP32-WROOM-32", "ESP32-WROOM-32");
+    } else if (family == "Raspberry Pi") {
+        m_hardwareBoardCombo->addItem("Raspberry Pi 40-Pin Header (BCM2835/BCM2711)", "RPI_40PIN");
+        m_hardwareBoardCombo->addItem("Raspberry Pi Pico (RP2040)", "Raspberry-Pi-Pico");
+    } else {
+        m_hardwareBoardCombo->addItem("Generic Custom Board Definition", "CUSTOM_BOARD");
+    }
 }
 
 void NewProjectDialog::updateTemplateDetails() {

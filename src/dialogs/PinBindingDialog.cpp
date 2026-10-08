@@ -30,16 +30,44 @@ PinBindingDialog::PinBindingDialog(CanvasScene* scene, QWidget* parent)
     connect(&m_bridge, &HardwareBridge::adcValueChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
     connect(&m_bridge, &HardwareBridge::pwmDutyChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
     connect(&m_bridge, &HardwareBridge::digitalStateChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
-    connect(&m_bridge, &HardwareBridge::connectionStatusChanged, this, [this](bool connected, const QString& probeName) {
-        if (connected) {
-            QString name = probeName.isEmpty() ? "Hardware Target" : probeName;
-            m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(name));
-            m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border: 1px solid #059669; border-radius: 4px;");
-        } else {
-            m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
-            m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border: 1px solid #d97706; border-radius: 4px;");
-        }
+    connect(&m_bridge, &HardwareBridge::connectionStatusChanged, this, [this](bool, const QString&) {
+        updateStatusBadge();
     });
+    connect(&m_bridge, &HardwareBridge::probeDiscovered, this, [this](const QString&) {
+        updateStatusBadge();
+    });
+    connect(&m_bridge, &HardwareBridge::probeRemoved, this, [this]() {
+        updateStatusBadge();
+    });
+}
+
+void PinBindingDialog::updateStatusBadge() {
+    if (!m_statusBadge) return;
+    if (m_bridge.isHardwareConnected()) {
+        QString probe = m_bridge.connectedProbeName();
+        m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(probe.isEmpty() ? "STM32F030R8 via ST-Link" : probe));
+        m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border: 1px solid #059669; border-radius: 4px;");
+        if (m_connectButton) {
+            m_connectButton->setText("Disconnect");
+            m_connectButton->setEnabled(true);
+        }
+    } else if (m_bridge.isProbeDetected()) {
+        QString detectedName = m_bridge.detectedBoardName();
+        if (detectedName.isEmpty()) detectedName = "STM32F030R8 via ST-Link";
+        m_statusBadge->setText(QString("⚡ Board detected: %1").arg(detectedName));
+        m_statusBadge->setStyleSheet("color: #38bdf8; font-weight: bold; padding: 4px 8px; background: #082f49; border: 1px solid #0284c7; border-radius: 4px;");
+        if (m_connectButton) {
+            m_connectButton->setText("Connect");
+            m_connectButton->setEnabled(true);
+        }
+    } else {
+        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+        m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border: 1px solid #d97706; border-radius: 4px;");
+        if (m_connectButton) {
+            m_connectButton->setText("Connect");
+            m_connectButton->setEnabled(true);
+        }
+    }
 }
 
 void PinBindingDialog::setupUi() {
@@ -74,15 +102,22 @@ void PinBindingDialog::setupUi() {
 
     m_statusBadge = new QLabel(this);
     m_statusBadge->setObjectName("probeStatusBadge");
-    if (m_bridge.isHardwareConnected()) {
-        QString probe = m_bridge.connectedProbeName();
-        m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(probe.isEmpty() ? "Hardware Target" : probe));
-        m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border: 1px solid #059669; border-radius: 4px;");
-    } else {
-        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
-        m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border: 1px solid #d97706; border-radius: 4px;");
-    }
     headerLayout->addWidget(m_statusBadge);
+
+    m_connectButton = new QPushButton("Connect", this);
+    m_connectButton->setObjectName("probeConnectBtn");
+    m_connectButton->setStyleSheet("QPushButton { background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px; padding: 4px 10px; font-weight: bold; } QPushButton:hover { background: #334155; }");
+    connect(m_connectButton, &QPushButton::clicked, this, [this]() {
+        if (m_bridge.isHardwareConnected()) {
+            m_bridge.disconnectHardware();
+        } else {
+            m_bridge.connectHardware();
+        }
+        updateStatusBadge();
+    });
+    headerLayout->addWidget(m_connectButton);
+
+    updateStatusBadge();
     headerLayout->addStretch();
 
     m_livePollButton = new QPushButton(m_bridge.isLivePolling() ? "Pause Polling" : "Resume Polling", this);

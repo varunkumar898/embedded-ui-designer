@@ -13,7 +13,12 @@
 #include "PrototypePanel.h"
 #include "LayerPanel.h"
 #include "StylesPanel.h"
+#include "ScreensPanel.h"
 #include "Project.h"
+
+namespace Simulator {
+class SimulatorWindow;
+}
 
 class DeviceManager;
 class DesignerController;
@@ -32,6 +37,8 @@ public:
     class QUndoStack* undoStack() const { return m_undoStack; }
     PropertiesPanel* propertiesPanel() const { return m_propertiesPanel; }
     LayerPanel* layerPanel() const { return m_layerPanel; }
+    ScreensPanel* screensPanel() const { return m_screensPanel; }
+
 
     DesignerController* designerController() const { return m_controller; }
     DesignerLocalServer* localServer() const { return m_localServer; }
@@ -69,7 +76,9 @@ private slots:
     // Project & Hardware Actions
     void onResolutionPresetChanged(int index);
     void onProjectSettingsDialog();
+    void onAISettingsDialog();
     void onAbout();
+    void onRunSimulator();
 
     // Align Actions (Task 3)
     void onAlignLeft();
@@ -106,6 +115,8 @@ private:
     PrototypePanel* m_prototypePanel = nullptr;
     LayerPanel* m_layerPanel = nullptr;
     StylesPanel* m_stylesPanel = nullptr;
+    ScreensPanel* m_screensPanel = nullptr;
+
 
     // UI Chrome
     QComboBox* m_resolutionCombo = nullptr;
@@ -113,6 +124,7 @@ private:
     QLabel* m_statusLabel = nullptr;
     QLabel* m_zoomLabel = nullptr;
     QLabel* m_hardwareStatusBadge = nullptr;
+    QPushButton* m_hardwareConnectBtn = nullptr;
 
     void updateHardwareStatusBadge(bool connected, const QString& probeName);
 
@@ -120,6 +132,7 @@ private:
 
     DesignerController* m_controller = nullptr;
     DesignerLocalServer* m_localServer = nullptr;
+    Simulator::SimulatorWindow* m_simulatorWindow = nullptr;
 
     void setupUi();
     void setupMenusAndToolbars();
