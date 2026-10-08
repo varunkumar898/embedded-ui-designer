@@ -10,6 +10,19 @@
 #include "TextInputComponent.h"
 #include "CircleComponent.h"
 #include "PathComponent.h"
+#include "CircularProgressComponent.h"
+#include "GaugeComponent.h"
+#include "SpeedometerComponent.h"
+#include "BatteryComponent.h"
+#include "PressureComponent.h"
+#include "RpmComponent.h"
+#include "TemperatureComponent.h"
+#include "TabViewComponent.h"
+#include "NavigationBarComponent.h"
+#include "ListComponent.h"
+#include "TableComponent.h"
+#include "TargetHalGenerator.h"
+#include "BindingLayerGenerator.h"
 #include <QSet>
 #include <QDir>
 #include <QFileInfo>
@@ -27,6 +40,17 @@ static QString lvglObjectName(UIComponent* component) {
     if (dynamic_cast<LabelComponent*>(component)) return "ui_lbl_" + component->componentId();
     if (dynamic_cast<RectangleComponent*>(component)) return "ui_rect_" + component->componentId();
     if (dynamic_cast<ProgressBarComponent*>(component)) return "ui_bar_" + component->componentId();
+    if (dynamic_cast<CircularProgressComponent*>(component)) return "ui_arc_" + component->componentId();
+    if (dynamic_cast<GaugeComponent*>(component)) return "ui_gauge_" + component->componentId();
+    if (dynamic_cast<SpeedometerComponent*>(component)) return "ui_speedo_" + component->componentId();
+    if (dynamic_cast<BatteryComponent*>(component)) return "ui_bat_" + component->componentId();
+    if (dynamic_cast<PressureComponent*>(component)) return "ui_press_" + component->componentId();
+    if (dynamic_cast<RpmComponent*>(component)) return "ui_rpm_" + component->componentId();
+    if (dynamic_cast<TemperatureComponent*>(component)) return "ui_temp_" + component->componentId();
+    if (dynamic_cast<TabViewComponent*>(component)) return "ui_tabview_" + component->componentId();
+    if (dynamic_cast<NavigationBarComponent*>(component)) return "ui_nav_" + component->componentId();
+    if (dynamic_cast<ListComponent*>(component)) return "ui_list_" + component->componentId();
+    if (dynamic_cast<TableComponent*>(component)) return "ui_table_" + component->componentId();
     if (dynamic_cast<SliderComponent*>(component)) return "ui_slider_" + component->componentId();
     if (dynamic_cast<SwitchComponent*>(component)) return "ui_sw_" + component->componentId();
     if (dynamic_cast<CheckboxComponent*>(component)) return "ui_cb_" + component->componentId();
@@ -208,6 +232,14 @@ bool LvglGenerator::generate(const QString& outputDirectory) {
 
     // 4. ui.c
     if (!writeFile(outDir.filePath("ui.c"), generateUiSource())) return false;
+
+    // 4b. Target HAL Adapter (target_hal.h / target_hal.c)
+    if (!writeFile(outDir.filePath("target_hal.h"), CodeGen::TargetHalGenerator::generateHalHeader(m_project))) return false;
+    if (!writeFile(outDir.filePath("target_hal.c"), CodeGen::TargetHalGenerator::generateHalSource(m_project))) return false;
+
+    // 4c. Data Binding Layer (ui_bindings.h / ui_bindings.c)
+    if (!writeFile(outDir.filePath("ui_bindings.h"), CodeGen::BindingLayerGenerator::generateBindingsHeader(m_project))) return false;
+    if (!writeFile(outDir.filePath("ui_bindings.c"), CodeGen::BindingLayerGenerator::generateBindingsSource(m_project))) return false;
 
     // 5. main.c
     if (!writeFile(outDir.filePath("main.c"), generateMainSource())) return false;
