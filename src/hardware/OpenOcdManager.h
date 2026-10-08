@@ -30,7 +30,9 @@ public:
     ~OpenOcdManager() override;
 
     bool isConnected() const { return m_isConnected; }
+    bool isProbeDetected() const { return m_lastProbe.detected; }
     QString connectedProbeName() const { return m_connectedProbeName; }
+    QString detectedBoardName() const { return m_lastProbe.name; }
     DiscoveredProbe lastDiscoveredProbe() const { return m_lastProbe; }
 
     // Background USB probe polling

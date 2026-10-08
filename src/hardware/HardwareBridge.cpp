@@ -47,6 +47,12 @@ HardwareBridge::HardwareBridge(QObject* parent)
         m_hardwareConnected = connected;
         emit connectionStatusChanged(connected, probeName);
     });
+    connect(&m_openOcd, &OpenOcdManager::probeDiscovered, this, [this](const DiscoveredProbe& probe) {
+        emit probeDiscovered(probe.name);
+    });
+    connect(&m_openOcd, &OpenOcdManager::probeRemoved, this, [this]() {
+        emit probeRemoved();
+    });
 
     // Start background probe polling to detect connected hardware
     m_openOcd.startProbePolling(1000);
@@ -286,6 +292,30 @@ bool HardwareBridge::setPinMode(const QString& pin, PinMode mode) {
         setupPwm(pin);
     } else if (mode == PinMode::SpiRawTransfer) {
         setupSpi(m_boards[m_currentBoardId].pins[pin].spi.peripheral);
+    } else if (mode == PinMode::DigitalOut) {
+        const BoardProfile prof = currentBoard();
+        if (prof.mcuFamily.startsWith("STM32", Qt::CaseInsensitive) || pin.startsWith('P', Qt::CaseInsensitive)) {
+            if (pin.length() >= 3) {
+                QChar portChar = pin.at(1).toUpper();
+                int portIndex = portChar.toLatin1() - 'A';
+                int pinNum = pin.mid(2).toInt();
+                if (portIndex >= 0 && portIndex <= 10 && pinNum >= 0 && pinNum <= 15) {
+                    int rccBit = (portIndex == 5) ? 22 : (17 + portIndex);
+                    quint32 ahbenr = 0;
+                    if (m_openOcd.readMemoryWord(0x40021014, &ahbenr)) {
+                        m_openOcd.writeMemoryWord(0x40021014, ahbenr | (1u << rccBit));
+                    }
+                    quint32 portBase = prof.gpioBase + static_cast<quint32>(portIndex * 0x400);
+                    quint32 moderAddr = portBase + 0x00;
+                    quint32 moderVal = 0;
+                    if (m_openOcd.readMemoryWord(moderAddr, &moderVal)) {
+                        quint32 pinShift = static_cast<quint32>(pinNum * 2);
+                        moderVal = (moderVal & ~(0x03u << pinShift)) | (0x01u << pinShift);
+                        m_openOcd.writeMemoryWord(moderAddr, moderVal);
+                    }
+                }
+            }
+        }
     }
 
     emit pinConfigChanged(pin, mode);
@@ -346,7 +376,7 @@ bool HardwareBridge::spiRawTransfer(const QString& spiBus, quint8 byteOut, quint
     // SPI Raw Transfer is explicitly byte in/out (not sensor-aware)
     quint8 received = 0;
 
-    if (m_hardwareConnected) {
+    if (isHardwareConnected()) {
         // Real hardware path over OpenOCD:
         // 1. Wait TXE in SPI_SR
         // 2. Write byteOut to SPI_DR
@@ -368,7 +398,7 @@ bool HardwareBridge::spiRawTransfer(const QString& spiBus, quint8 byteOut, quint
         .arg(QString::number(received, 16).toUpper().rightJustified(2, '0'))
         .arg(received);
 
-    if (!m_hardwareConnected) {
+    if (!isHardwareConnected()) {
         msg += " [Loopback simulation - probe disconnected]";
     }
 
@@ -423,6 +453,18 @@ void HardwareBridge::setHardwareConnected(bool connected) {
 
 QString HardwareBridge::connectedProbeName() const {
     return m_openOcd.connectedProbeName();
+}
+
+bool HardwareBridge::connectHardware() {
+    const BoardProfile prof = currentBoard();
+    return m_openOcd.connectToTarget(prof.openocdInterface, prof.openocdTarget);
+}
+
+bool HardwareBridge::disconnectHardware() {
+    m_openOcd.disconnectTarget();
+    m_hardwareConnected = false;
+    emit connectionStatusChanged(false, QString());
+    return true;
 }
 
 bool HardwareBridge::calculateBsrrAddress(const QString& pin, quint32* outAddr, quint32* outSetMask, quint32* outResetMask) const {
@@ -490,6 +532,36 @@ bool HardwareBridge::writeGpioBsrr(const QString& pin, bool high) {
     if (prof.mcuFamily.startsWith("STM32", Qt::CaseInsensitive) || pin.startsWith('P', Qt::CaseInsensitive)) {
         writeAddr = bsrrAddr;
         writeVal = high ? setMask : resetMask;
+
+        if (pin.length() >= 3) {
+            QChar portChar = pin.at(1).toUpper();
+            int portIndex = portChar.toLatin1() - 'A';
+            int pinNum = pin.mid(2).toInt();
+
+            if (portIndex >= 0 && portIndex <= 10 && pinNum >= 0 && pinNum <= 15) {
+                // Ensure RCC peripheral clock for GPIO port is enabled (STM32F0: RCC_AHBENR at 0x40021014)
+                int rccBit = (portIndex == 5) ? 22 : (17 + portIndex);
+                quint32 ahbenr = 0;
+                if (m_openOcd.readMemoryWord(0x40021014, &ahbenr)) {
+                    if ((ahbenr & (1u << rccBit)) == 0) {
+                        m_openOcd.writeMemoryWord(0x40021014, ahbenr | (1u << rccBit));
+                    }
+                }
+
+                // Ensure GPIO MODER register is configured for General Purpose Output (01 in 2-bit field)
+                quint32 portBase = prof.gpioBase + static_cast<quint32>(portIndex * 0x400);
+                quint32 moderAddr = portBase + 0x00;
+                quint32 moderVal = 0;
+                if (m_openOcd.readMemoryWord(moderAddr, &moderVal)) {
+                    quint32 pinShift = static_cast<quint32>(pinNum * 2);
+                    quint32 currentMode = (moderVal >> pinShift) & 0x03u;
+                    if (currentMode != 0x01u) {
+                        moderVal = (moderVal & ~(0x03u << pinShift)) | (0x01u << pinShift);
+                        m_openOcd.writeMemoryWord(moderAddr, moderVal);
+                    }
+                }
+            }
+        }
     } else if (prof.mcuFamily.contains("ESP32", Qt::CaseInsensitive)) {
         // ESP32: GPIO_OUT_W1TS (+0x08) for set, GPIO_OUT_W1TC (+0x0C) for clear
         writeAddr = prof.gpioBase + (high ? 0x08 : 0x0C);

@@ -133,6 +133,10 @@ public:
     OpenOcdManager& openOcdManager() { return m_openOcd; }
     const OpenOcdManager& openOcdManager() const { return m_openOcd; }
     QString connectedProbeName() const;
+    bool isProbeDetected() const { return m_openOcd.isProbeDetected(); }
+    QString detectedBoardName() const { return m_openOcd.detectedBoardName(); }
+    bool connectHardware();
+    bool disconnectHardware();
 
     // Simulation / Test overrides (when physical OpenOCD/ST-Link probe is disconnected)
     bool isHardwareConnected() const { return m_openOcd.isConnected() || m_hardwareConnected; }
@@ -153,6 +157,8 @@ signals:
     void spiTransferCompleted(const QString& bus, quint8 byteOut, quint8 byteIn, bool success);
     void digitalStateChanged(const QString& pin, bool high);
     void connectionStatusChanged(bool connected, const QString& probeName);
+    void probeDiscovered(const QString& boardName);
+    void probeRemoved();
     void i2cScanCompleted(const QString& sclPin, const QString& sdaPin, const QList<quint8>& addresses);
 
 private slots:
