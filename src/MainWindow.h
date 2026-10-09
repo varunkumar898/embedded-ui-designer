@@ -23,6 +23,9 @@ class SimulatorWindow;
 class DeviceManager;
 class DesignerController;
 class DesignerLocalServer;
+class ResourceAnalyzerPanel;
+class BuildOutputPanel;
+class DeviceMonitorPanel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -38,7 +41,9 @@ public:
     PropertiesPanel* propertiesPanel() const { return m_propertiesPanel; }
     LayerPanel* layerPanel() const { return m_layerPanel; }
     ScreensPanel* screensPanel() const { return m_screensPanel; }
-
+    ResourceAnalyzerPanel* resourceAnalyzerPanel() const { return m_resourcePanel; }
+    BuildOutputPanel* buildOutputPanel() const { return m_buildPanel; }
+    DeviceMonitorPanel* deviceMonitorPanel() const { return m_deviceMonitorPanel; }
 
     DesignerController* designerController() const { return m_controller; }
     DesignerLocalServer* localServer() const { return m_localServer; }
@@ -116,6 +121,9 @@ private:
     LayerPanel* m_layerPanel = nullptr;
     StylesPanel* m_stylesPanel = nullptr;
     ScreensPanel* m_screensPanel = nullptr;
+    ResourceAnalyzerPanel* m_resourcePanel = nullptr;
+    BuildOutputPanel* m_buildPanel = nullptr;
+    DeviceMonitorPanel* m_deviceMonitorPanel = nullptr;
 
 
     // UI Chrome

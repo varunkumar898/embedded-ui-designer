@@ -153,7 +153,7 @@ void Project::newProject(const QString& name, int width, int height) {
     m_name = name;
     m_filePath.clear();
     m_targetFramework = "qt-for-mcus";
-    
+
     DisplayConfig cfg;
     cfg.width = width;
     cfg.height = height;
@@ -429,6 +429,17 @@ const DataSource* Project::findDataSource(const QString& sourceId) const {
         if (ds.id() == sourceId) return &ds;
     }
     return nullptr;
+}
+
+bool Project::updateDataSourceValue(const QString& sourceId, const QVariant& value) {
+    for (int i = 0; i < m_dataSources.size(); ++i) {
+        if (m_dataSources[i].id() == sourceId) {
+            m_dataSources[i].setValue(value);
+            emit dataSourceValueChanged(sourceId, value);
+            return true;
+        }
+    }
+    return false;
 }
 
 void Project::setDataSources(const QList<DataSource>& sources) {

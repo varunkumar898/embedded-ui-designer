@@ -12,6 +12,10 @@
 #include "HardwareManager.h"
 #include "SimulatorWindow.h"
 #include "dialogs/AISettingsDialog.h"
+#include "dialogs/ExportDialog.h"
+#include "analyzer/ResourceAnalyzerPanel.h"
+#include "panels/BuildOutputPanel.h"
+#include "panels/DeviceMonitorPanel.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
 #include "RectangleComponent.h"
@@ -304,7 +308,19 @@ void MainWindow::setupMenusAndToolbars() {
 
     QMenu* projectMenu = menuBar()->addMenu("Project");
     projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
-    projectMenu->addAction("Export...", this, &MainWindow::onExport);
+    projectMenu->addAction("Export Firmware...", this, &MainWindow::onExport, QKeySequence(Qt::CTRL | Qt::Key_E));
+    projectMenu->addAction("Resource Analyzer", this, [this]() {
+        if (m_resourcePanel && m_resourcePanel->parentWidget()) {
+            m_resourcePanel->parentWidget()->show();
+            m_resourcePanel->parentWidget()->raise();
+        }
+    });
+    projectMenu->addAction("Build System Console", this, [this]() {
+        if (m_buildPanel && m_buildPanel->parentWidget()) {
+            m_buildPanel->parentWidget()->show();
+            m_buildPanel->parentWidget()->raise();
+        }
+    });
 
     QMenu* simMenu = menuBar()->addMenu("Simulation");
     simMenu->addAction("Run Desktop Simulator...", this, &MainWindow::onRunSimulator, QKeySequence(Qt::CTRL | Qt::Key_R));
@@ -312,6 +328,12 @@ void MainWindow::setupMenusAndToolbars() {
     QMenu* deviceMenu = menuBar()->addMenu("Device");
     deviceMenu->addAction("Create Embedded Project / Target Selector...", this, &MainWindow::onCreateEmbeddedProject);
     deviceMenu->addAction("Pin Configuration & Binding...", this, &MainWindow::onPinConfiguration);
+    deviceMenu->addAction("Device Monitor (Live Telemetry)...", this, [this]() {
+        if (m_deviceMonitorPanel && m_deviceMonitorPanel->parentWidget()) {
+            m_deviceMonitorPanel->parentWidget()->show();
+            m_deviceMonitorPanel->parentWidget()->raise();
+        }
+    });
     deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
     deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
 
@@ -539,16 +561,44 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::RightDockWidgetArea, stylesDock);
     tabifyDockWidget(layerDock, stylesDock);
 
+    // Bottom Dock: Resource Analyzer
+    QDockWidget* resourceDock = new QDockWidget("Resource Analyzer", this);
+    resourceDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    resourceDock->setTitleBarWidget(createDockTitleBar("Resource Analyzer", resourceDock));
+    m_resourcePanel = new ResourceAnalyzerPanel(m_project, resourceDock);
+    resourceDock->setWidget(m_resourcePanel);
+    addDockWidget(Qt::BottomDockWidgetArea, resourceDock);
+
+    // Bottom Dock: Build System Output
+    QDockWidget* buildDock = new QDockWidget("Build System", this);
+    buildDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    buildDock->setTitleBarWidget(createDockTitleBar("Build System", buildDock));
+    m_buildPanel = new BuildOutputPanel(m_project, buildDock);
+    buildDock->setWidget(m_buildPanel);
+    addDockWidget(Qt::BottomDockWidgetArea, buildDock);
+    tabifyDockWidget(resourceDock, buildDock);
+
+    // Bottom Dock: Hardware Device Monitor
+    QDockWidget* monitorDock = new QDockWidget("Device Monitor", this);
+    monitorDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    monitorDock->setTitleBarWidget(createDockTitleBar("Device Monitor", monitorDock));
+    m_deviceMonitorPanel = new DeviceMonitorPanel(m_project, monitorDock);
+    monitorDock->setWidget(m_deviceMonitorPanel);
+    addDockWidget(Qt::BottomDockWidgetArea, monitorDock);
+    tabifyDockWidget(buildDock, monitorDock);
+    resourceDock->raise();
+
     resizeDocks({paletteDock}, {210}, Qt::Horizontal);
     resizeDocks({propDock, prototypeDock, layerDock, stylesDock}, {260, 260, 260, 260}, Qt::Horizontal);
     resizeDocks({propDock, layerDock}, {550, 330}, Qt::Vertical);
+    resizeDocks({resourceDock, buildDock, monitorDock}, {200, 200, 200}, Qt::Vertical);
 }
 
 void MainWindow::applyTheme() {
     setStyleSheet(
         // Main Window & General
         "QMainWindow { background-color: #121418; color: #E0E5EE; }"
-        
+
         // Menu Bar: Elegant Matte Dark
         "QMenuBar { "
         "  background: #1e2025; "
@@ -901,13 +951,8 @@ void MainWindow::onSaveProjectAs() {
 }
 
 void MainWindow::onExport() {
-    const QStringList formats = {"µGFX C Project", "Qt for MCUs (QUL) Project", "LVGL C/C++ Project"};
-    bool accepted = false;
-    const QString selected = QInputDialog::getItem(this, "Export Project", "Target format:", formats, 0, false, &accepted);
-    if (!accepted) return;
-    if (selected == formats.at(0)) onExportUgfx();
-    else if (selected == formats.at(1)) onExportQtMcu();
-    else if (selected == formats.at(2)) onExportLvgl();
+    ExportDialog dlg(m_project, this);
+    dlg.exec();
 }
 
 void MainWindow::onExportUgfx() {
@@ -1029,7 +1074,7 @@ void MainWindow::onResolutionPresetChanged(int index) {
 }
 
 void MainWindow::onProjectSettingsDialog() {
-    QMessageBox::information(this, "Project Settings", 
+    QMessageBox::information(this, "Project Settings",
         QString("Project: %1\nTarget: %2\nResolution: %3 × %4\nColor Depth: %5-bit")
         .arg(m_project->projectName(), m_project->targetFramework())
         .arg(m_project->displayConfig().width)

@@ -9,10 +9,10 @@
 
 /**
  * @brief Asynchronous Hardware Flashing Subsystem
- * 
+ *
  * Executes external microcontroller toolchains (OpenOCD, ST-Link, FTDI/RISC-V)
  * asynchronously via QProcess without blocking the Qt GUI thread.
- * 
+ *
  * Listens to the selected port from DeviceManager and streams real-time
  * console output to the frontend via consoleOutputUpdate.
  */

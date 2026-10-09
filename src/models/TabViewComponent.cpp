@@ -137,7 +137,7 @@ void TabViewComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         bool isTop = (m_tabPosition == "Top");
         QRectF tabStripRect = isTop ? QRectF(0, 0, m_width, m_tabHeight)
                                     : QRectF(0, m_height - m_tabHeight, m_width, m_tabHeight);
-        
+
         if (tabStripRect.contains(p)) {
             qreal tabW = m_width / m_tabs.size();
             int clickedIdx = static_cast<int>(p.x() / tabW);

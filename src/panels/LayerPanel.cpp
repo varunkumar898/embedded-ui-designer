@@ -86,7 +86,7 @@ void LayerPanel::setupUi() {
     m_btnDown = new QPushButton("▼ Down", this);
     m_btnDelete = new QPushButton("Delete", this);
 
-    QString btnStyle = 
+    QString btnStyle =
         "QPushButton { "
         "  background: #1c1f26; "
         "  color: #d2d9e4; "

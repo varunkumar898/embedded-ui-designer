@@ -101,7 +101,7 @@ QtMcuGenerator::~QtMcuGenerator() {
 bool QtMcuGenerator::isSupportedQulType(const QString& typeName) {
     // Whitelist of valid Qt Quick Ultralite core types
     static const QSet<QString> supportedTypes = {
-        "Rectangle", "Text", "Image", "MouseArea", "Item", "Timer", 
+        "Rectangle", "Text", "Image", "MouseArea", "Item", "Timer",
         "AnimatedImage", "FontLoader", "Loader"
     };
     return supportedTypes.contains(typeName);

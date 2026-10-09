@@ -109,7 +109,7 @@ void CircularProgressComponent::paintComponent(QPainter* painter) {
 
         QRectF textRect(cx - diameter / 2.0 + m_thickness, cy - diameter / 2.0 + m_thickness,
                        diameter - m_thickness * 2, diameter - m_thickness * 2);
-        
+
         if (!m_centerLabel.isEmpty()) {
             QRectF topHalf = textRect.adjusted(0, 0, 0, -textRect.height() * 0.25);
             painter->drawText(topHalf, Qt::AlignCenter, mainText);

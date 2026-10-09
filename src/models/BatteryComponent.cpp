@@ -100,7 +100,7 @@ void BatteryComponent::paintComponent(QPainter* painter) {
 
     bool isH = (m_orientation == Qt::Horizontal);
     qreal terminalSize = isH ? std::clamp(m_width * 0.05, 4.0, 8.0) : std::clamp(m_height * 0.05, 4.0, 8.0);
-    
+
     QRectF bodyRect;
     QRectF terminalRect;
 

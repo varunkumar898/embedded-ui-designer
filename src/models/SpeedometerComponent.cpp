@@ -188,7 +188,7 @@ void SpeedometerComponent::paintComponent(QPainter* painter) {
 
         QPointF tip(cx + needleLength * std::cos(currentAngleRad),
                     cy - needleLength * std::sin(currentAngleRad));
-        
+
         double perpRad = currentAngleRad + M_PI / 2.0;
         qreal baseWidth = 3.5;
         QPointF b1(cx + baseWidth * std::cos(perpRad), cy - baseWidth * std::sin(perpRad));

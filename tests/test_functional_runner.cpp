@@ -101,8 +101,8 @@ public:
             auto tEnd = std::chrono::high_resolution_clock::now();
             long long dur = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
             results.push_back({cat, name, pass, desc, dur});
-            std::cout << (pass ? "  [PASS] " : "  [FAIL] ") 
-                      << std::left << std::setw(30) << name << " : " << desc 
+            std::cout << (pass ? "  [PASS] " : "  [FAIL] ")
+                      << std::left << std::setw(30) << name << " : " << desc
                       << " (" << dur << "ms)\n";
         };
 
@@ -412,7 +412,7 @@ public:
             auto t = std::chrono::high_resolution_clock::now();
             QString outUgfx = tempDir.filePath("export_ugfx");
             UgfxGenerator genUgfx(window.m_project, window.m_scene);
-            bool ok = genUgfx.generate(outUgfx) 
+            bool ok = genUgfx.generate(outUgfx)
                       && QFile::exists(outUgfx + "/ui.c")
                       && QFile::exists(outUgfx + "/ui.h")
                       && QFile::exists(outUgfx + "/gfxconf.h")
@@ -1295,7 +1295,7 @@ public:
         }
 
         std::cout << "\n====================================================================\n";
-        std::cout << "  VALIDATION SUMMARY: " << totalPassed << " / " << results.size() 
+        std::cout << "  VALIDATION SUMMARY: " << totalPassed << " / " << results.size()
                   << " FUNCTIONS PASSED (Total Time: " << totalMs << "ms)\n";
         std::cout << "====================================================================\n";
 

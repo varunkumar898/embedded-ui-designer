@@ -16,7 +16,7 @@ enum class ImageFormat {
 
 /**
  * @brief C++ Asset Compilation subsystem for EmbeddedUIDesigner.
- * 
+ *
  * Converts standard QImage assets into flash-ready C byte arrays with correct
  * bitwise packing for bare-metal microcontroller framebuffers and µGFX image widgets.
  */

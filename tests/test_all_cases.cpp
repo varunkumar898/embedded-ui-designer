@@ -1999,13 +1999,13 @@ void TestAllCases::testQmlImportComplexRejected() {
 
     QmlImportResult res = QmlImporter::importFromFile(qmlPath);
     QVERIFY(res.success);
-    
+
     // The valid literal components (Rectangle 'bgPanel') should be imported
     QVERIFY(res.components.size() >= 1);
-    
+
     // All unsupported items must be reported in rejectedItems
     QVERIFY(res.rejectedItems.size() >= 10);
-    
+
     const QString allRejections = res.rejectedItems.join("\n");
     QVERIFY2(allRejections.contains("Item"), "Missing Item rejection");
     QVERIFY2(allRejections.contains("parent.width - 60"), "Missing expression binding rejection");
@@ -4279,7 +4279,7 @@ void TestAllCases::testPhase5ProjectSaveSafetyAndSnapshotRestore() {
     proj.addDataBinding(b);
 
     Simulator::SimulationRuntime runtime(&proj);
-    
+
     // Start simulation, mutate values aggressively
     runtime.start();
     runtime.setDataSourceValue("src_s", 230.0);

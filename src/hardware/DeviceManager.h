@@ -11,7 +11,7 @@
 
 /**
  * @brief Hardware Bridge: Manages connected serial / COM / tty devices.
- * 
+ *
  * Exposes live detected serial ports and hardware vendor details to QML.
  * Includes a polling timer to detect dynamic USB device insertions / removals.
  */

@@ -186,7 +186,7 @@ void GaugeComponent::paintComponent(QPainter* painter) {
 
         QPointF tip(cx + needleLength * std::cos(currentAngleRad),
                     cy - needleLength * std::sin(currentAngleRad));
-        
+
         // Perpendicular for base of needle triangle
         double perpRad = currentAngleRad + M_PI / 2.0;
         qreal baseWidth = 3.5;

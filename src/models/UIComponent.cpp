@@ -79,7 +79,7 @@ void UIComponent::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
 
 void UIComponent::paintSelectionHandles(QPainter* painter) {
     painter->save();
-    
+
     // Outline bounding box
     QPen outlinePen(QColor(0, 120, 255), 1.5, Qt::DashLine);
     painter->setPen(outlinePen);

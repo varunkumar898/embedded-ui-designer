@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
         }
 
         if (target != "ugfx" && target != "qul" && target != "lvgl") {
-            std::cerr << "Error: Unknown export target '" << target.toStdString() 
+            std::cerr << "Error: Unknown export target '" << target.toStdString()
                       << "'. Supported targets: 'ugfx', 'qul', 'lvgl'." << std::endl;
             return 1;
         }
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        std::cout << "Loaded project: " << project.projectName().toStdString() 
+        std::cout << "Loaded project: " << project.projectName().toStdString()
                   << " (" << project.displayConfig().width << "x" << project.displayConfig().height << ")" << std::endl;
 
         if (target == "ugfx") {
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        std::cout << "Successfully exported " << target.toStdString() << " project to: " 
+        std::cout << "Successfully exported " << target.toStdString() << " project to: "
                   << QDir(outDir).absolutePath().toStdString() << std::endl;
         return 0;
     }

@@ -68,6 +68,7 @@ public:
     void addDataSource(const DataSource& source);
     void removeDataSource(const QString& sourceId);
     const DataSource* findDataSource(const QString& sourceId) const;
+    bool updateDataSourceValue(const QString& sourceId, const QVariant& value);
     void setDataSources(const QList<DataSource>& sources);
 
     // ── Project-level Data Bindings (Phase 1B) ────────────────────────────
@@ -120,6 +121,7 @@ signals:
 
     // Data Source & Binding signals
     void dataSourcesChanged();
+    void dataSourceValueChanged(const QString& sourceId, const QVariant& value);
     void dataBindingsChanged();
 
 private:

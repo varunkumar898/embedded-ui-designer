@@ -71,6 +71,36 @@ set(COMMON_SOURCES
     src/dialogs/NewProjectDialog.h
     src/dialogs/HardwareWizardDialog.cpp
     src/dialogs/HardwareWizardDialog.h
+    src/dialogs/ExportDialog.cpp
+    src/dialogs/ExportDialog.h
+
+    # Track 1: Resource Analyzer
+    src/analyzer/ResourceAnalyzer.cpp
+    src/analyzer/ResourceAnalyzer.h
+    src/panels/ResourceAnalyzerPanel.cpp
+    src/panels/ResourceAnalyzerPanel.h
+
+    # Track 2: Build System Integration
+    src/build/BuildConfiguration.cpp
+    src/build/BuildConfiguration.h
+    src/build/BuildRunner.cpp
+    src/build/BuildRunner.h
+    src/build/DiagnosticParser.cpp
+    src/build/DiagnosticParser.h
+    src/panels/BuildOutputPanel.cpp
+    src/panels/BuildOutputPanel.h
+
+    # Track 3: Firmware Export
+    src/codegen/FirmwareExportManager.cpp
+    src/codegen/FirmwareExportManager.h
+
+    # Track 4: Hardware Device Monitor with Live Telemetry
+    src/telemetry/TelemetryProtocol.cpp
+    src/telemetry/TelemetryProtocol.h
+    src/telemetry/DeviceMonitorRuntime.cpp
+    src/telemetry/DeviceMonitorRuntime.h
+    src/panels/DeviceMonitorPanel.cpp
+    src/panels/DeviceMonitorPanel.h
 
     # Display Configuration
     src/models/DisplayConfig.h
@@ -349,6 +379,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/build
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
 )
 
 # Target Link Libraries
@@ -437,6 +470,9 @@ target_include_directories(test_all_cases PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/build
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
 )
 
 target_link_libraries(test_all_cases PRIVATE
@@ -550,6 +586,60 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_live_nucleo PROPERTIES WIN32_EXECUTABLE FALSE)
+
+# Hardening Milestone Unit & Integration Test Suite
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_hardening
+        tests/test_hardening.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_hardening
+        tests/test_hardening.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_hardening PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/build
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+)
+
+target_link_libraries(test_hardening PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Clipper2
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_hardening PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_hardening PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_hardening PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_test(NAME Hardening COMMAND test_hardening)
+
 endif() # BUILD_TESTING
 
 
