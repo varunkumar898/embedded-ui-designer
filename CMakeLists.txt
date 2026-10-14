@@ -53,11 +53,19 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
 )
 # JsonCpp library detection with FetchContent fallback
-find_package(jsoncpp QUIET)
-if(NOT jsoncpp_FOUND)
-    find_package(PkgConfig QUIET)
-    if(PKG_CONFIG_FOUND)
-        pkg_check_modules(JSONCPP QUIET jsoncpp)
+if(FORCE_FETCH_JSONCPP OR (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "x86_64" AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm|ARM"))
+    set(SKIP_SYSTEM_JSONCPP TRUE)
+else()
+    set(SKIP_SYSTEM_JSONCPP FALSE)
+endif()
+
+if(NOT SKIP_SYSTEM_JSONCPP)
+    find_package(jsoncpp QUIET)
+    if(NOT jsoncpp_FOUND)
+        find_package(PkgConfig QUIET)
+        if(PKG_CONFIG_FOUND)
+            pkg_check_modules(JSONCPP QUIET jsoncpp)
+        endif()
     endif()
 endif()
 
