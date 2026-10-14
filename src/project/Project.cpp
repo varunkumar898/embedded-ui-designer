@@ -22,8 +22,11 @@
 #include "NavigationBarComponent.h"
 #include "ListComponent.h"
 #include "TableComponent.h"
+#include "GroupComponent.h"
+#include "codegen/FirmwareExportManager.h"
 #include <QFile>
 #include <QDir>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QSet>
@@ -496,6 +499,7 @@ QJsonObject Project::toJson() const {
     root["version"] = "2.0";
     root["projectVersion"] = 2;
     root["name"] = m_name;
+    root["displayName"] = displayName();
     root["target"] = m_targetFramework;
     root["display"] = m_displayConfig.toJson();
     root["activeScreenId"] = m_activeScreen ? m_activeScreen->id() : "";
@@ -539,6 +543,10 @@ QJsonObject Project::toJson() const {
     QJsonArray assets;
     root["assets"] = assets;
 
+    root["uiProjectDirectory"] = uiProjectDirectory();
+    root["firmwareDirectory"] = m_firmwareDir;
+    root["buildDirectory"] = m_buildDir;
+
     // Custom component library
     QJsonArray libArr;
     for (const ComponentDefinition& def : m_componentLibrary)
@@ -552,6 +560,7 @@ QJsonObject Project::toJson() const {
 
 bool Project::fromJson(const QJsonObject& root) {
     m_name = root.value("name").toString("MyEmbeddedApp");
+    m_displayName = root.value("displayName").toString(m_name);
     m_targetFramework = root.value("target").toString("qt-for-mcus");
 
     if (root.contains("hardware") && root.value("hardware").isObject()) {
@@ -646,6 +655,120 @@ bool Project::fromJson(const QJsonObject& root) {
     for (const QJsonValue& v : root.value("componentLibrary").toArray())
         m_componentLibrary.append(ComponentDefinition::fromJson(v.toObject()));
 
+    if (root.contains("firmwareDirectory")) {
+        m_firmwareDir = root.value("firmwareDirectory").toString();
+    }
+    if (root.contains("buildDirectory")) {
+        m_buildDir = root.value("buildDirectory").toString();
+    }
+    if (root.contains("uiProjectDirectory")) {
+        m_uiProjectDir = root.value("uiProjectDirectory").toString();
+    }
+
+    return true;
+}
+
+QString Project::uiProjectDirectory() const {
+    if (!m_uiProjectDir.isEmpty() && QDir(m_uiProjectDir).exists()) {
+        return m_uiProjectDir;
+    }
+    if (!m_filePath.isEmpty() && !m_filePath.startsWith(":/")) {
+        return QFileInfo(m_filePath).absolutePath();
+    }
+    return QDir::currentPath();
+}
+
+void Project::setUiProjectDirectory(const QString& dir) {
+    if (m_uiProjectDir != dir) {
+        m_uiProjectDir = dir;
+        setDirty(true);
+    }
+}
+
+QString Project::firmwareDirectory() const {
+    if (!m_firmwareDir.isEmpty() && QDir(m_firmwareDir).exists()) {
+        return m_firmwareDir;
+    }
+
+    // Auto-detection for existing bare-metal firmware project:
+    // 1. Direct match for user's existing bare-metal firmware at /home/cherry/file
+    if (QDir("/home/cherry/file").exists() &&
+        (QFile::exists("/home/cherry/file/Makefile") ||
+         QFile::exists("/home/cherry/file/scr/Main.c") ||
+         QFile::exists("/home/cherry/file/inc/GPIO_Driver.h"))) {
+        return "/home/cherry/file";
+    }
+
+    // 2. Look for nested firmware directory inside UI project
+    QString subFw = QDir(uiProjectDirectory()).filePath("firmware");
+    if (QDir(subFw).exists()) {
+        return subFw;
+    }
+
+    // 3. If UI project directory itself contains firmware sources or Makefile
+    QString uiDir = uiProjectDirectory();
+    if (QFile::exists(QDir(uiDir).filePath("Makefile")) ||
+        QFile::exists(QDir(uiDir).filePath("CMakeLists.txt")) ||
+        QDir(QDir(uiDir).filePath("inc")).exists() ||
+        QDir(QDir(uiDir).filePath("src")).exists() ||
+        QDir(QDir(uiDir).filePath("scr")).exists()) {
+        return uiDir;
+    }
+
+    return uiDir;
+}
+
+void Project::setFirmwareDirectory(const QString& dir) {
+    if (m_firmwareDir != dir) {
+        m_firmwareDir = dir;
+        m_projectDir = dir;
+        setDirty(true);
+        emit firmwareDirectoryChanged(m_firmwareDir);
+        emit projectDirectoryChanged(m_firmwareDir);
+    }
+}
+
+QString Project::buildDirectory() const {
+    if (!m_buildDir.isEmpty() && QDir(m_buildDir).exists()) {
+        return m_buildDir;
+    }
+    QString defaultBuild = QDir(firmwareDirectory()).filePath("build");
+    if (QDir(defaultBuild).exists()) {
+        return defaultBuild;
+    }
+    return firmwareDirectory();
+}
+
+void Project::setBuildDirectory(const QString& dir) {
+    if (m_buildDir != dir) {
+        m_buildDir = dir;
+        setDirty(true);
+    }
+}
+
+QString Project::projectDirectory() const {
+    return firmwareDirectory();
+}
+
+void Project::setProjectDirectory(const QString& dir) {
+    setFirmwareDirectory(dir);
+}
+
+bool Project::syncFirmwareFiles(QString* errorMsg) {
+    FirmwareExportManager mgr;
+    ExportOptions opts;
+    opts.outputDirectory = firmwareDirectory();
+    opts.targetFramework = m_targetFramework.isEmpty() ? "ugfx" : m_targetFramework;
+    opts.targetMcu = m_hardwareConfig.deviceId.isEmpty() ? "STM32F030R8" : m_hardwareConfig.deviceId;
+    opts.generateCmake = true;
+    opts.overwriteUserCode = false; // Always preserve user code!
+    opts.optimizeAssets = true;
+
+    ExportResult res = mgr.exportProject(this, opts);
+    if (!res.success) {
+        if (errorMsg) *errorMsg = res.errorMessage;
+        return false;
+    }
     return true;
 }
 
@@ -661,8 +784,10 @@ bool Project::saveToFile(const QString& filePath) {
     file.close();
 
     m_filePath = filePath;
+    m_projectDir = QFileInfo(filePath).absolutePath();
     m_dirty = false;
     emit projectSaved(filePath);
+    emit projectDirectoryChanged(m_projectDir);
     return true;
 }
 
@@ -695,6 +820,10 @@ bool Project::loadFromFile(const QString& filePath) {
     bool success = fromJson(doc.object());
     if (success) {
         m_filePath = filePath;
+        if (!filePath.startsWith(":/")) {
+            m_projectDir = QFileInfo(filePath).absolutePath();
+            emit projectDirectoryChanged(m_projectDir);
+        }
     }
     return success;
 }
@@ -786,6 +915,8 @@ UIComponent* Project::createComponentInstance(const QString& type, const QString
         return new PathComponent(id);
     } else if (type == "CustomInstance") {
         return new CustomComponentInstance(id);
+    } else if (type == "Group") {
+        return new GroupComponent(id);
     }
     return nullptr;
 }

@@ -1,0 +1,15 @@
+{
+  "targetBoard": "STM32F030R8",
+  "supportedBoards": [
+    "STM32F030R8",
+    "STM32L476",
+    "ESP32",
+    "RP2040"
+  ],
+  "serialPort": "/dev/ttyUSB0",
+  "baudRate": 115200,
+  "firmwareBinary": "test_firmware.bin",
+  "webAssetsDir": "src/frontend",
+  "webPort": 8080,
+  "healthCheckTimeoutMs": 3000
+}

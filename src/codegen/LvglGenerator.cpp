@@ -209,11 +209,22 @@ bool LvglGenerator::hasImages() const {
     return false;
 }
 
+CodeGen::IRProject LvglGenerator::irProject() const {
+    if (!m_project) return CodeGen::IRProject();
+    return CodeGen::GeneratorIR::buildFromProject(m_project);
+}
+
 bool LvglGenerator::generate(const QString& outputDirectory) {
     if (!m_project || !m_scene) {
         m_lastError = "Project or canvas scene is null.";
         return false;
     }
+
+    // Phase 6X: Consume GeneratorIR and validate through GeneratorContext
+    CodeGen::GeneratorContext genContext(m_project);
+    genContext.validate();
+    CodeGen::IRProject ir = irProject();
+    Q_UNUSED(ir);
 
     QDir outDir(outputDirectory);
     if (!outDir.exists() && !outDir.mkpath(".")) {
@@ -627,7 +638,21 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    lv_obj_remove_style_all(ui_rect_%1);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_rect_%1, %2, %3);\n").arg(id).arg(rx).arg(ry);
                 code += QString("    lv_obj_set_size(ui_rect_%1, %2, %3);\n").arg(id).arg(rw).arg(rh);
-                code += QString("    lv_obj_set_style_bg_color(ui_rect_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, fillHex);
+                if (rect->hasGradientFill() && !rect->gradientFill().stops.isEmpty()) {
+                    const ComponentGradient& g = rect->gradientFill();
+                    QString c1 = g.stops.first().color.name().mid(1).toUpper();
+                    QString c2 = g.stops.last().color.name().mid(1).toUpper();
+                    code += QString("    lv_obj_set_style_bg_color(ui_rect_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, c1);
+                    code += QString("    lv_obj_set_style_bg_grad_color(ui_rect_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, c2);
+                    int angle = ((static_cast<int>(g.angle) % 360) + 360) % 360;
+                    if ((angle >= 45 && angle < 135) || (angle >= 225 && angle < 315)) {
+                        code += QString("    lv_obj_set_style_bg_grad_dir(ui_rect_%1, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
+                    } else {
+                        code += QString("    lv_obj_set_style_bg_grad_dir(ui_rect_%1, LV_GRAD_DIR_HOR, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
+                    }
+                } else {
+                    code += QString("    lv_obj_set_style_bg_color(ui_rect_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, fillHex);
+                }
                 code += QString("    lv_obj_set_style_bg_opa(ui_rect_%1, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
                 if (rad > 0) {
                     code += QString("    lv_obj_set_style_radius(ui_rect_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(rad);
@@ -720,7 +745,16 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    lv_bar_set_range(ui_bar_%1, 0, 100);\n").arg(id);
                 code += QString("    lv_bar_set_value(ui_bar_%1, %2, LV_ANIM_OFF);\n").arg(id).arg(val);
                 code += QString("    lv_obj_set_style_bg_color(ui_bar_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, trackHex);
-                code += QString("    lv_obj_set_style_bg_color(ui_bar_%1, lv_color_hex(0x%2), LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id, barHex);
+                if (prog->hasGradientFill() && !prog->gradientFill().stops.isEmpty()) {
+                    const ComponentGradient& g = prog->gradientFill();
+                    QString c1 = g.stops.first().color.name().mid(1).toUpper();
+                    QString c2 = g.stops.last().color.name().mid(1).toUpper();
+                    code += QString("    lv_obj_set_style_bg_color(ui_bar_%1, lv_color_hex(0x%2), LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id, c1);
+                    code += QString("    lv_obj_set_style_bg_grad_color(ui_bar_%1, lv_color_hex(0x%2), LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id, c2);
+                    code += QString("    lv_obj_set_style_bg_grad_dir(ui_bar_%1, LV_GRAD_DIR_HOR, LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id);
+                } else {
+                    code += QString("    lv_obj_set_style_bg_color(ui_bar_%1, lv_color_hex(0x%2), LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id, barHex);
+                }
                 if (rad > 0) {
                     code += QString("    lv_obj_set_style_radius(ui_bar_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(rad);
                     code += QString("    lv_obj_set_style_radius(ui_bar_%1, %2, LV_PART_INDICATOR | LV_STATE_DEFAULT);\n").arg(id).arg(rad);
@@ -897,7 +931,21 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    ui_btn_%1 = lv_btn_create(ui_Screen);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_btn_%1, %2, %3);\n").arg(id).arg(bx).arg(by);
                 code += QString("    lv_obj_set_size(ui_btn_%1, %2, %3);\n").arg(id).arg(bw).arg(bh);
-                code += QString("    lv_obj_set_style_bg_color(ui_btn_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, bgHex);
+                if (btn->hasGradientFill() && !btn->gradientFill().stops.isEmpty()) {
+                    const ComponentGradient& g = btn->gradientFill();
+                    QString c1 = g.stops.first().color.name().mid(1).toUpper();
+                    QString c2 = g.stops.last().color.name().mid(1).toUpper();
+                    code += QString("    lv_obj_set_style_bg_color(ui_btn_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, c1);
+                    code += QString("    lv_obj_set_style_bg_grad_color(ui_btn_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, c2);
+                    int angle = ((static_cast<int>(g.angle) % 360) + 360) % 360;
+                    if ((angle >= 45 && angle < 135) || (angle >= 225 && angle < 315)) {
+                        code += QString("    lv_obj_set_style_bg_grad_dir(ui_btn_%1, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
+                    } else {
+                        code += QString("    lv_obj_set_style_bg_grad_dir(ui_btn_%1, LV_GRAD_DIR_HOR, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id);
+                    }
+                } else {
+                    code += QString("    lv_obj_set_style_bg_color(ui_btn_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, bgHex);
+                }
                 if (rad > 0) {
                     code += QString("    lv_obj_set_style_radius(ui_btn_%1, %2, LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id).arg(rad);
                 }

@@ -6,8 +6,12 @@
 
 class SwitchComponent : public UIComponent {
     Q_OBJECT
+    Q_PROPERTY(bool value READ isChecked WRITE setChecked)
 
 public:
+    enum { Type = UserType + 10 };
+    int type() const override { return Type; }
+
     explicit SwitchComponent(const QString& id, QGraphicsItem* parent = nullptr);
 
     bool isChecked() const { return m_checked; }

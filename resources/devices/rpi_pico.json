@@ -1,0 +1,24 @@
+{
+  "family": "RP2040",
+  "devices": [
+    {
+      "name": "Raspberry Pi Pico",
+      "ram_kb": 264,
+      "flash_kb": 2048,
+      "cpu_speed_mhz": 133,
+      "peripherals": ["UART0", "UART1", "SPI0", "SPI1", "I2C0", "I2C1", "PIO"],
+      "supported_frameworks": ["lvgl", "ugfx"],
+      "notes": "Dual-core Cortex-M0+ with programmable I/O"
+    },
+    {
+      "name": "Raspberry Pi Pico 2",
+      "family": "RP2350",
+      "ram_kb": 520,
+      "flash_kb": 4096,
+      "cpu_speed_mhz": 150,
+      "peripherals": ["UART0", "UART1", "SPI0", "SPI1", "I2C0", "I2C1", "PIO"],
+      "supported_frameworks": ["lvgl", "ugfx", "qt-for-mcus"],
+      "notes": "Dual Hazard3 RISC-V / Cortex-M33 @ 150MHz"
+    }
+  ]
+}

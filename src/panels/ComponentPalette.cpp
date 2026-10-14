@@ -1,4 +1,5 @@
 #include "ComponentPalette.h"
+#include "theme/Theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -20,29 +21,32 @@ public:
         setViewMode(QListView::ListMode);
         setIconSize(QSize(28, 28));
         setSpacing(4);
-        setStyleSheet(
-            "QListWidget { background-color: transparent; color: #e4ecf7; border: none; outline: none; padding: 0px; }"
+        setStyleSheet(QString(
+            "QListWidget { background-color: transparent; color: %1; border: none; outline: none; padding: 0px; }"
             "QListWidget::item { "
-            "  background: #1c1f26; "
-            "  color: #e4ecf7; "
-            "  border: 1px solid #252933; "
-            "  border-radius: 10px; "
+            "  background: %2; "
+            "  color: %1; "
+            "  border: 1px solid %3; "
+            "  border-radius: %4px; "
             "  padding: 6px 10px; "
             "  margin: 2px 2px; "
             "  font-size: 12px; "
             "  font-weight: 500; "
             "}"
             "QListWidget::item:hover { "
-            "  background: #232731; "
-            "  border-color: #323746; "
-            "  color: #ffffff; "
+            "  background: %5; "
+            "  border-color: %6; "
+            "  color: %1; "
             "}"
             "QListWidget::item:selected { "
-            "  background: #1a73e8; "
-            "  border-color: #4285f4; "
-            "  color: #ffffff; "
+            "  background: %7; "
+            "  border-color: %8; "
+            "  color: %1; "
             "  font-weight: 600; "
-            "}"
+            "}")
+            .arg(Theme::TextPrimary, Theme::BgRaised, Theme::BorderSubtle)
+            .arg(Theme::RadiusMd)
+            .arg(Theme::BgOverlay, Theme::BorderStrong, Theme::AccentSoft, Theme::Accent)
         );
     }
 
@@ -192,7 +196,7 @@ void ComponentPalette::setupUi() {
     layout->setSpacing(4);
 
     QLabel* title = new QLabel("UI COMPONENTS", this);
-    title->setStyleSheet("color: #5a6475; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; padding-left: 8px; padding-top: 6px; padding-bottom: 2px;");
+    title->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; padding-left: 8px; padding-top: 6px; padding-bottom: 2px;").arg(Theme::TextMuted));
     layout->addWidget(title);
 
     m_listWidget = new DraggableListWidget(this);
@@ -201,7 +205,7 @@ void ComponentPalette::setupUi() {
         QListWidgetItem* item = new QListWidgetItem(catTitle, m_listWidget);
         item->setFlags(Qt::NoItemFlags);
         item->setData(Qt::UserRole, QString("HEADER_%1").arg(catTitle));
-        item->setForeground(QColor("#64748b"));
+        item->setForeground(Theme::cTextMuted());
         QFont f = item->font();
         f.setBold(true);
         f.setPixelSize(10);
@@ -234,12 +238,15 @@ void ComponentPalette::setupUi() {
     m_shapeButton->setPopupMode(QToolButton::InstantPopup);
     m_shapeButton->setCursor(Qt::PointingHandCursor);
     m_shapeButton->setToolTip("Choose a shape drawing tool");
-    m_shapeButton->setStyleSheet(
-        "QToolButton { background: #1c1f26; color: #e4ecf7; border: 1px solid #252933; "
-        "border-radius: 10px; padding: 6px 10px; text-align: left; font-size: 12px; font-weight: 500; }"
-        "QToolButton:hover { background: #232731; border-color: #323746; color: #ffffff; }"
+    m_shapeButton->setStyleSheet(QString(
+        "QToolButton { background: %1; color: %2; border: 1px solid %3; "
+        "border-radius: %4px; padding: 6px 10px; text-align: left; font-size: 12px; font-weight: 500; }"
+        "QToolButton:hover { background: %5; border-color: %6; color: %2; }"
         "QToolButton::menu-indicator { image: url(:/combo_arrow.png); subcontrol-origin: padding; "
-        "subcontrol-position: top right; width: 12px; height: 7px; margin-right: 6px; }"
+        "subcontrol-position: top right; width: 12px; height: 7px; margin-right: 6px; }")
+        .arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle)
+        .arg(Theme::RadiusMd)
+        .arg(Theme::BgOverlay, Theme::BorderStrong)
     );
     QMenu* shapeMenu = new QMenu(m_shapeButton);
     const QStringList shapes = {"Circle", "Triangle", "Square", "Rectangle", "Custom"};
@@ -282,6 +289,18 @@ void ComponentPalette::setupUi() {
     addItem("List", "List", "≡", QColor(100, 116, 139));
     addItem("Table", "Table", "▦", QColor(100, 116, 139));
 
+    // ── LVGL EMBEDDED PRESETS ─────────────────────────────────────────────
+    addCategoryHeader("LVGL (espboards.dev)");
+    addItem("LVGL Container", "Rectangle", "CNT", QColor(139, 92, 246));
+    addItem("LVGL Button", "Button", "BTN", QColor(26, 115, 232));
+    addItem("LVGL Label", "Label", "LBL", QColor(2, 132, 199));
+    addItem("LVGL Slider", "Slider", "SLD", QColor(0, 137, 123));
+    addItem("LVGL Switch", "Switch", "SW", QColor(13, 148, 136));
+    addItem("LVGL Gauge", "Gauge", "GAU", QColor(14, 165, 233));
+    addItem("LVGL Chart", "Table", "CHT", QColor(59, 130, 246));
+    addItem("LVGL Spinbox", "TextInput", "SPN", QColor(225, 29, 72));
+    addItem("LVGL Keyboard", "TabView", "KBD", QColor(100, 116, 139));
+
     layout->addWidget(m_listWidget);
 
     connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
@@ -296,7 +315,7 @@ void ComponentPalette::setupUi() {
     // ── My Components section ──────────────────────────────────────────────
     QFrame* separator = new QFrame(this);
     separator->setFrameShape(QFrame::HLine);
-    separator->setStyleSheet("color:#252a35; margin: 6px 0;");
+    separator->setStyleSheet(QString("color: %1; margin: 6px 0;").arg(Theme::BorderSubtle));
     layout->addWidget(separator);
 
     QWidget* myCompHeader = new QWidget(this);
@@ -305,16 +324,19 @@ void ComponentPalette::setupUi() {
     myCompHeaderLayout->setSpacing(4);
 
     QLabel* myCompTitle = new QLabel("MY COMPONENTS", this);
-    myCompTitle->setStyleSheet("color:#5a6475;font-size:10px;font-weight:bold;letter-spacing:0.5px;");
+    myCompTitle->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;").arg(Theme::TextMuted));
     myCompHeaderLayout->addWidget(myCompTitle, 1);
 
     QPushButton* saveAsBtn = new QPushButton("+ Save", this);
     saveAsBtn->setToolTip("Save selected canvas component as a reusable component");
     saveAsBtn->setCursor(Qt::PointingHandCursor);
-    saveAsBtn->setStyleSheet(
-        "QPushButton { background:#1c2a1e; color:#34a853; border:1px solid #2e4a32; "
-        "border-radius:5px; padding:2px 8px; font-size:10px; font-weight:bold; }"
-        "QPushButton:hover { background:#243628; }"
+    saveAsBtn->setStyleSheet(QString(
+        "QPushButton { background: %1; color: %2; border: 1px solid %3; "
+        "border-radius: %4px; padding: 2px 8px; font-size: 10px; font-weight: 600; }"
+        "QPushButton:hover { background: %5; }")
+        .arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::BgOverlay)
     );
     connect(saveAsBtn, &QPushButton::clicked, this, &ComponentPalette::saveAsComponentRequested);
     myCompHeaderLayout->addWidget(saveAsBtn);
@@ -327,7 +349,7 @@ void ComponentPalette::setupUi() {
     });
 
     QLabel* hint = new QLabel("Tip: Drag item onto canvas", this);
-    hint->setStyleSheet("color:#566070;font-size:11px;padding:8px 4px 4px 4px;");
+    hint->setStyleSheet(QString("color: %1; font-size: 11px; padding: 8px 4px 4px 4px;").arg(Theme::TextMuted));
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
 }
@@ -345,6 +367,6 @@ void ComponentPalette::refreshCustomComponents(const QStringList& definitionName
     if (definitionNames.isEmpty()) {
         QListWidgetItem* placeholder = new QListWidgetItem("No custom components yet", m_customListWidget);
         placeholder->setFlags(Qt::NoItemFlags);
-        placeholder->setForeground(QColor("#4a5568"));
+        placeholder->setForeground(Theme::cTextDisabled());
     }
 }

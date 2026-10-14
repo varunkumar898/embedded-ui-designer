@@ -23,6 +23,8 @@ void PinoutViewWidget::setEngine(PinMuxEngine* engine) {
     update();
 }
 
+#include "theme/Theme.h"
+
 void PinoutViewWidget::setSelectedPin(const QString& pinName) {
     if (m_selectedPin != pinName) {
         m_selectedPin = pinName;
@@ -31,38 +33,38 @@ void PinoutViewWidget::setSelectedPin(const QString& pinName) {
 }
 
 QColor PinoutViewWidget::pinColor(const QString& pinName) const {
-    if (!m_engine) return QColor("#334155");
+    if (!m_engine) return Theme::cBorderStrong();
 
     DeviceDefinition dev = m_engine->currentDevice();
     const PinDefinition* pdef = dev.findPin(pinName);
     if (pdef) {
-        if (pdef->isPower) return QColor("#b91c1c"); // Red
-        if (pdef->isGround) return QColor("#475569"); // Slate
-        if (pdef->isReset) return QColor("#ea580c"); // Orange
-        if (pdef->isReserved) return QColor("#7c3aed"); // Purple-gray / debug
+        if (pdef->isPower) return Theme::cDanger(); // Red / Power
+        if (pdef->isGround) return Theme::cBorderStrong(); // Slate / Ground
+        if (pdef->isReset) return Theme::cWarning(); // Orange / Reset
+        if (pdef->isReserved) return Theme::cAccent(); // Purple / debug
     }
 
     QString owner = m_engine->getPinOwner(pinName);
     if (owner.isEmpty()) {
-        return QColor("#3f3f46"); // Unconfigured
+        return Theme::cBgOverlay(); // Unconfigured
     }
 
     if (owner.contains("SPI", Qt::CaseInsensitive) || owner.contains("I2C", Qt::CaseInsensitive) ||
         owner.contains("UART", Qt::CaseInsensitive) || owner.contains("CAN", Qt::CaseInsensitive) ||
         owner.contains("USB", Qt::CaseInsensitive)) {
-        return QColor("#0284c7"); // Peripheral AF - Vivid Blue
+        return Theme::cInfo(); // Peripheral AF
     }
     if (owner.contains("ADC", Qt::CaseInsensitive) || owner.contains("Analog", Qt::CaseInsensitive)) {
-        return QColor("#d97706"); // Analog - Amber
+        return Theme::cWarning(); // Analog
     }
     if (owner.contains("PWM", Qt::CaseInsensitive) || owner.contains("Timer", Qt::CaseInsensitive)) {
-        return QColor("#0d9488"); // Teal
+        return Theme::cInfo(); // Timer
     }
     if (owner.contains("GPIO", Qt::CaseInsensitive)) {
-        return QColor("#16a34a"); // GPIO - Green
+        return Theme::cSuccess(); // GPIO - Green
     }
 
-    return QColor("#0284c7");
+    return Theme::cInfo();
 }
 
 void PinoutViewWidget::computeLayout() {
@@ -147,10 +149,10 @@ void PinoutViewWidget::paintEvent(QPaintEvent* /*event*/) {
     painter.setRenderHint(QPainter::Antialiasing);
 
     // Background
-    painter.fillRect(rect(), QColor("#141418"));
+    painter.fillRect(rect(), Theme::cBgBase());
 
     if (!m_engine || m_engine->currentDevice().partNumber.isEmpty()) {
-        painter.setPen(QColor("#71717a"));
+        painter.setPen(Theme::cTextMuted());
         painter.drawText(rect(), Qt::AlignCenter, "No hardware target selected.");
         return;
     }
@@ -173,17 +175,17 @@ void PinoutViewWidget::paintEvent(QPaintEvent* /*event*/) {
     }
 
     // Chip shadow & body
-    painter.setPen(QPen(QColor("#3f3f46"), 1.5));
-    painter.setBrush(QColor("#202026"));
+    painter.setPen(QPen(Theme::cBorderStrong(), 1.5));
+    painter.setBrush(Theme::cBgRaised());
     painter.drawRoundedRect(chipRect, 6, 6);
 
     // Pin 1 orientation index (small notch / dot)
-    painter.setBrush(QColor("#52525b"));
+    painter.setBrush(Theme::cBorderSubtle());
     painter.setPen(Qt::NoPen);
     painter.drawEllipse(QPointF(chipRect.left() + 16, chipRect.top() + 16), 5, 5);
 
     // Chip labels
-    painter.setPen(QColor("#f4f4f5"));
+    painter.setPen(Theme::cTextPrimary());
     QFont titleFont = font();
     titleFont.setBold(true);
     titleFont.setPointSize(11);
@@ -193,7 +195,7 @@ void PinoutViewWidget::paintEvent(QPaintEvent* /*event*/) {
     QFont subFont = font();
     subFont.setPointSize(9);
     painter.setFont(subFont);
-    painter.setPen(QColor("#a1a1aa"));
+    painter.setPen(Theme::cTextSecondary());
     painter.drawText(QRectF(chipRect.left() + 10, chipRect.top() + chipRect.height() * 0.3 + 24, chipRect.width() - 20, 20), Qt::AlignCenter, dev.vendor);
     painter.drawText(QRectF(chipRect.left() + 10, chipRect.top() + chipRect.height() * 0.3 + 44, chipRect.width() - 20, 20), Qt::AlignCenter, QString("%1 (%2)").arg(dev.core, dev.package));
 
@@ -208,18 +210,18 @@ void PinoutViewWidget::paintEvent(QPaintEvent* /*event*/) {
         bool isHover = (pr.pinName == m_hoverPin);
 
         if (isSel) {
-            painter.setPen(QPen(QColor("#38bdf8"), 2.0));
+            painter.setPen(QPen(Theme::cAccent(), 2.0));
         } else if (isHover) {
-            painter.setPen(QPen(QColor("#93c5fd"), 1.5));
+            painter.setPen(QPen(Theme::cAccentHover(), 1.5));
         } else {
-            painter.setPen(QPen(QColor("#27272a"), 1.0));
+            painter.setPen(QPen(Theme::cBorderSubtle(), 1.0));
         }
 
         painter.setBrush(fill);
         painter.drawRoundedRect(pr.rect, 2, 2);
 
         // Pin text label
-        painter.setPen(QColor("#ffffff"));
+        painter.setPen(Theme::cTextPrimary());
         QString owner = m_engine ? m_engine->getPinOwner(pr.pinName) : QString();
         QString text = pr.pinName;
         if (!owner.isEmpty() && !fourSided) {

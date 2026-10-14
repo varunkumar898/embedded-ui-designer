@@ -60,6 +60,18 @@ def run_tests(port=8765):
             failed += 1
             print(f"  [FAIL] {name} {details}")
 
+    # Authenticate using local session token if available
+    import os
+    token_path = os.path.expanduser("~/.config/embedded-ui-designer/mcp_token")
+    if os.path.exists(token_path):
+        try:
+            with open(token_path, "r", encoding="utf-8") as f:
+                token = f.read().strip()
+                auth_res = send_rpc(s, "authenticate", {"token": token})
+                assert_test("authenticate (session token)", auth_res.get("result", {}).get("authenticated") is True, "Token handshake succeeded")
+        except Exception as e:
+            print(f"  [WARN] Failed to read token: {e}")
+
     # 1. Component discovery
     res = send_rpc(s, "list_component_types")
     types = [t["type"] for t in res.get("result", {}).get("types", [])]

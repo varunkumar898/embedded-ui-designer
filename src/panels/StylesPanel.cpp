@@ -2,6 +2,7 @@
 #include "Project.h"
 #include "ColorStyle.h"
 #include "ColorPickerDialog.h"
+#include "theme/Theme.h"
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QPainter>
@@ -41,15 +42,18 @@ void StylesPanel::setupUi() {
     headerLayout->setContentsMargins(2, 2, 2, 2);
 
     QLabel* titleLabel = new QLabel("THEME STYLES", this);
-    titleLabel->setStyleSheet("color: #717C8F; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;");
+    titleLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;").arg(Theme::TextMuted));
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch(1);
 
     QPushButton* addBtn = new QPushButton("+ Add Style", this);
-    addBtn->setStyleSheet(
-        "QPushButton { background: #2B303C; color: #64B5F6; font-size: 11px; font-weight: bold; border: 1px solid #3B4252; border-radius: 4px; padding: 4px 10px; }"
-        "QPushButton:hover { background: #353B4A; border-color: #64B5F6; color: #FFFFFF; }"
-        "QPushButton:pressed { background: #2196F3; color: #FFFFFF; }"
+    addBtn->setStyleSheet(QString(
+        "QPushButton { background: %1; color: %2; font-size: 11px; font-weight: 600; border: 1px solid %3; border-radius: %4px; padding: 4px 10px; }"
+        "QPushButton:hover { background: %5; border-color: %6; color: %7; }"
+        "QPushButton:pressed { background: %8; color: %7; }")
+        .arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::BgOverlay, Theme::Accent, Theme::TextPrimary, Theme::AccentPressed)
     );
     connect(addBtn, &QPushButton::clicked, this, &StylesPanel::onAddStyleClicked);
     headerLayout->addWidget(addBtn);
@@ -96,9 +100,12 @@ void StylesPanel::refreshStyles() {
 
 QWidget* StylesPanel::createStyleRow(const ColorStyle& style) {
     QWidget* row = new QWidget(m_listContainer);
-    row->setStyleSheet(
-        "QWidget { background: #1C1F26; border: 1px solid #2B303C; border-radius: 6px; padding: 4px; }"
-        "QWidget:hover { border-color: #3E4756; }"
+    row->setStyleSheet(QString(
+        "QWidget { background: %1; border: 1px solid %2; border-radius: %3px; padding: 4px; }"
+        "QWidget:hover { border-color: %4; }")
+        .arg(Theme::BgRaised, Theme::BorderSubtle)
+        .arg(Theme::RadiusMd)
+        .arg(Theme::BorderStrong)
     );
 
     QHBoxLayout* layout = new QHBoxLayout(row);
@@ -111,9 +118,9 @@ QWidget* StylesPanel::createStyleRow(const ColorStyle& style) {
     swatchBtn->setCursor(Qt::PointingHandCursor);
     swatchBtn->setToolTip("Click to change color");
     swatchBtn->setStyleSheet(QString(
-        "QPushButton { background-color: %1; border: 2px solid #FFFFFF; border-radius: 5px; }"
-        "QPushButton:hover { border: 2px solid #64B5F6; }"
-    ).arg(style.color.name()));
+        "QPushButton { background-color: %1; border: 2px solid %2; border-radius: 5px; }"
+        "QPushButton:hover { border: 2px solid %3; }"
+    ).arg(style.color.name(), Theme::BorderStrong, Theme::Accent));
 
     connect(swatchBtn, &QPushButton::clicked, this, [this, style]() {
         if (!m_project) return;
@@ -127,9 +134,12 @@ QWidget* StylesPanel::createStyleRow(const ColorStyle& style) {
     // Style Name Edit
     QLineEdit* nameEdit = new QLineEdit(style.name, row);
     nameEdit->setPlaceholderText("Style Name");
-    nameEdit->setStyleSheet(
-        "QLineEdit { background: #14161C; color: #FFFFFF; font-size: 12px; font-weight: bold; border: 1px solid #2B303C; border-radius: 4px; padding: 4px 6px; }"
-        "QLineEdit:focus { border-color: #2196F3; }"
+    nameEdit->setStyleSheet(QString(
+        "QLineEdit { background: %1; color: %2; font-size: 12px; font-weight: 600; border: 1px solid %3; border-radius: %4px; padding: 4px 6px; }"
+        "QLineEdit:focus { border-color: %5; }")
+        .arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::Accent)
     );
     QString originalName = style.name;
     connect(nameEdit, &QLineEdit::editingFinished, this, [this, nameEdit, originalName, style]() {
@@ -152,9 +162,12 @@ QWidget* StylesPanel::createStyleRow(const ColorStyle& style) {
     // Hex Edit
     QLineEdit* hexEdit = new QLineEdit(style.color.name().toUpper(), row);
     hexEdit->setFixedWidth(70);
-    hexEdit->setStyleSheet(
-        "QLineEdit { background: #14161C; color: #A0ABC0; font-family: monospace; font-size: 11px; border: 1px solid #2B303C; border-radius: 4px; padding: 4px; }"
-        "QLineEdit:focus { border-color: #2196F3; color: #FFFFFF; }"
+    hexEdit->setStyleSheet(QString(
+        "QLineEdit { background: %1; color: %2; font-family: monospace; font-size: 11px; border: 1px solid %3; border-radius: %4px; padding: 4px; }"
+        "QLineEdit:focus { border-color: %5; color: %6; }")
+        .arg(Theme::BgBase, Theme::TextSecondary, Theme::BorderSubtle)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::Accent, Theme::TextPrimary)
     );
     connect(hexEdit, &QLineEdit::editingFinished, this, [this, hexEdit, style]() {
         if (!m_project) return;
@@ -174,9 +187,10 @@ QWidget* StylesPanel::createStyleRow(const ColorStyle& style) {
     delBtn->setFixedSize(22, 22);
     delBtn->setCursor(Qt::PointingHandCursor);
     delBtn->setToolTip("Delete style");
-    delBtn->setStyleSheet(
-        "QPushButton { background: transparent; color: #717C8F; font-size: 11px; font-weight: bold; border: none; border-radius: 3px; }"
-        "QPushButton:hover { background: #E53935; color: #FFFFFF; }"
+    delBtn->setStyleSheet(QString(
+        "QPushButton { background: transparent; color: %1; font-size: 11px; font-weight: 600; border: none; border-radius: 3px; }"
+        "QPushButton:hover { background: %2; color: %3; }")
+        .arg(Theme::TextMuted, Theme::Danger, Theme::TextPrimary)
     );
     connect(delBtn, &QPushButton::clicked, this, [this, style]() {
         if (m_project) {
@@ -198,6 +212,6 @@ void StylesPanel::onAddStyleClicked() {
         if (m_project->hasColorStyle(name)) {
             name += "_new";
         }
-        m_project->addColorStyle({name, QColor("#2196F3")});
+        m_project->addColorStyle({name, Theme::cAccent()});
     }
 }

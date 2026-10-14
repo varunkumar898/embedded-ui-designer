@@ -1,0 +1,64 @@
+{
+  "id": "arduino_nano_esp32",
+  "name": "Arduino Nano ESP32",
+  "manufacturer": "Arduino",
+  "family": "ESP32-S3",
+  "mcu": "ESP32-S3",
+  "architecture": "Xtensa Dual-Core 32-bit LX7",
+  "frequency_mhz": 240,
+  "flash_kb": 16384,
+  "ram_kb": 512,
+  "gpio_count": 22,
+  "analog_pins": [
+    "A0",
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7"
+  ],
+  "pwm_pins": [
+    "D2",
+    "D3",
+    "D5",
+    "D6",
+    "D9",
+    "D10"
+  ],
+  "digital_pins": [
+    "D0",
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6",
+    "D7",
+    "D8",
+    "D9",
+    "D10",
+    "D11",
+    "D12",
+    "D13"
+  ],
+  "usb_adapter": {
+    "type": "Arduino USB DFU / JTAG",
+    "vid": "2341",
+    "pid": "0070",
+    "driver": "cmsis-dap"
+  },
+  "openocd": {
+    "interface": "interface/esp_usb_jtag.cfg",
+    "target": "target/esp32s3.cfg",
+    "config_file": "board/esp32s3-builtin.cfg",
+    "transport": "jtag"
+  },
+  "toolchain": {
+    "compiler": "xtensa-esp32s3-elf-gcc",
+    "hal_header": "Arduino.h",
+    "flags": "-mlongcalls"
+  },
+  "datasheet_url": "https://docs.arduino.cc/resources/datasheets/ABX00083-datasheet.pdf"
+}

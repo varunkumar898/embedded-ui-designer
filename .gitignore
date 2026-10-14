@@ -68,3 +68,12 @@ desktop.ini
 *.tmp
 build2/
 build_linux/
+.env
+
+# Node.js dependencies
+node_modules/
+
+# Test outputs
+report.txt
+*.elf
+*.bin

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Device Operation Hardware Mapper - Embedded UI Designer</title>
+  <style>
+    :root {
+      --bg-dark: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      flex: 1;
+      height: calc(100vh - 61px);
+    }
+    .col-panel {
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .col-panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+    .col-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .op-list { flex: 1; overflow-y: auto; padding: 12px; }
+    .op-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .op-card:hover { border-color: var(--accent); }
+    .op-card.active { border-color: var(--accent); background: #1f6feb22; }
+    .op-name { font-size: 13px; font-weight: 600; }
+    .op-type-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #388bfd33;
+      color: #58a6ff;
+      margin-top: 4px;
+    }
+    .center-pane {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: #090d13;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .card-title { font-size: 14.5px; font-weight: 600; margin-bottom: 12px; }
+    .form-group { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    input, select {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .btn {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+    .hardware-pin {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-input);
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-title">
+      <span>⚙️ Device Operation Hardware Mapper</span>
+    </div>
+    <button class="btn btn-primary" id="btnSaveHardwareMap">Save Hardware Map</button>
+  </header>
+
+  <div class="main-grid">
+    <!-- Left: Operations list -->
+    <div class="col-panel">
+      <div class="col-header">
+        <span>Hardware Operations</span>
+        <button class="btn" style="padding: 3px 8px; font-size: 11px;" id="btnAddOp">+ New</button>
+      </div>
+      <div class="op-list" id="operationsList">
+        <div class="op-card active">
+          <div class="op-name">read_analog_sensor</div>
+          <div class="op-type-badge">ADC_READ</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">ADC Channel 1 (PA0)</div>
+        </div>
+
+        <div class="op-card">
+          <div class="op-name">toggle_status_led</div>
+          <div class="op-type-badge">GPIO_WRITE</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">LED On/Off (PA5)</div>
+        </div>
+
+        <div class="op-card">
+          <div class="op-name">set_motor_speed</div>
+          <div class="op-type-badge">PWM_WRITE</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">TIM2 CH1 (PB3)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Operation Config -->
+    <div class="center-pane">
+      <div class="card">
+        <div class="card-title">Operation Details</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>Operation ID</label>
+            <input type="text" id="opId" value="read_analog_sensor">
+          </div>
+          <div class="form-group">
+            <label>Device Op Type</label>
+            <select id="opType">
+              <option value="ADC_READ" selected>ADC_READ</option>
+              <option value="GPIO_READ">GPIO_READ</option>
+              <option value="GPIO_WRITE">GPIO_WRITE</option>
+              <option value="PWM_WRITE">PWM_WRITE</option>
+              <option value="SPI_TRANSFER">SPI_TRANSFER</option>
+              <option value="I2C_READ">I2C_READ</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="opDesc" value="Samples voltage on physical ADC channel and normalizes value">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>Execution Time (ms)</label>
+            <input type="number" id="opExecTime" value="5">
+          </div>
+          <div class="form-group">
+            <label>Execution Mode</label>
+            <select id="opBlocking">
+              <option value="false" selected>Non-blocking (Interrupt / DMA)</option>
+              <option value="true">Blocking (Busy loop)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Physical Hardware Resources</div>
+        <div id="hardwareResources">
+          <div class="hardware-pin">
+            <div>
+              <div style="font-weight: 600; font-size: 13px;">ADC1_IN0 (PA0)</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Pin: 14 | STM32: GPIOA / PIN_0 | ESP32: GPIO36</div>
+            </div>
+            <span class="op-type-badge" style="background: #23863633; color: #3fb950;">ASSIGNED</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated HAL Dispatcher Code</div>
+        <pre style="background: #090d13; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #7ee787;">
+// Generated Target-Aware HAL Dispatcher
+uint16_t hal_execute_read_analog_sensor() {
+#if defined(TARGET_STM32)
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 10);
+    return (uint16_t)HAL_ADC_GetValue(&hadc1);
+#elif defined(TARGET_ESP32)
+    return (uint16_t)adc1_get_raw(ADC1_CHANNEL_0);
+#endif
+}
+        </pre>
+      </div>
+    </div>
+
+    <!-- Right: Supported Boards -->
+    <div class="col-panel">
+      <div class="col-header">
+        <span>Target Board Compatibility</span>
+      </div>
+      <div class="op-list">
+        <div style="padding: 10px; background: var(--bg-input); border-radius: 6px; margin-bottom: 8px;">
+          <div style="font-weight: 600; font-size: 12px;">STM32 NUCLEO-F030R8</div>
+          <div style="font-size: 11px; color: #3fb950; margin-top: 2px;">✓ Supported (Native ADC / DMA)</div>
+        </div>
+        <div style="padding: 10px; background: var(--bg-input); border-radius: 6px; margin-bottom: 8px;">
+          <div style="font-weight: 600; font-size: 12px;">ESP32 DEVKIT V1</div>
+          <div style="font-size: 11px; color: #3fb950; margin-top: 2px;">✓ Supported (ADC1 SAR)</div>
+        </div>
+        <div style="padding: 10px; background: var(--bg-input); border-radius: 6px; margin-bottom: 8px;">
+          <div style="font-weight: 600; font-size: 12px;">Raspberry Pi Pico (RP2040)</div>
+          <div style="font-size: 11px; color: #3fb950; margin-top: 2px;">✓ Supported (ADC_0 / GP26)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("btnSaveHardwareMap").onclick = () => {
+      alert("✓ Hardware Operation mapped to PA0 / ADC1_IN0 successfully!");
+    };
+  </script>
+</body>
+</html>

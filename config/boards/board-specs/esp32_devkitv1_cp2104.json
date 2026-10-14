@@ -1,0 +1,63 @@
+{
+  "id": "esp32_devkitv1_cp2104",
+  "name": "ESP32 DEVKIT V1 (CP2104)",
+  "manufacturer": "DOIT / Espressif",
+  "family": "ESP32",
+  "mcu": "ESP32-D0WDQ6",
+  "architecture": "Xtensa Dual-Core 32-bit LX6",
+  "frequency_mhz": 240,
+  "flash_kb": 4096,
+  "ram_kb": 520,
+  "gpio_count": 36,
+  "analog_pins": [
+    "GPIO32",
+    "GPIO33",
+    "GPIO34",
+    "GPIO35",
+    "GPIO36",
+    "GPIO39"
+  ],
+  "pwm_pins": [
+    "GPIO16",
+    "GPIO17",
+    "GPIO18",
+    "GPIO19",
+    "GPIO21",
+    "GPIO22",
+    "GPIO23"
+  ],
+  "digital_pins": [
+    "GPIO2",
+    "GPIO4",
+    "GPIO5",
+    "GPIO12",
+    "GPIO13",
+    "GPIO14",
+    "GPIO15",
+    "GPIO16",
+    "GPIO17",
+    "GPIO18",
+    "GPIO19",
+    "GPIO21",
+    "GPIO22",
+    "GPIO23"
+  ],
+  "usb_adapter": {
+    "type": "Silicon Labs CP2104 / CP2102",
+    "vid": "10c4",
+    "pid": "ea60",
+    "driver": "cp210x"
+  },
+  "openocd": {
+    "interface": "interface/ftdi/esp32_devkitj_v1.cfg",
+    "target": "target/esp32.cfg",
+    "config_file": "config/openocd/esp32-devkitv1-cp210x.cfg",
+    "transport": "jtag"
+  },
+  "toolchain": {
+    "compiler": "xtensa-esp32-elf-gcc",
+    "hal_header": "driver/gpio.h",
+    "flags": "-mlongcalls -Wno-frame-address"
+  },
+  "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf"
+}

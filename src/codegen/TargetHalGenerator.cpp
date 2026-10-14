@@ -23,6 +23,8 @@ QString TargetHalGenerator::generateHalHeader(const Project* project) {
 
     code += "/* HAL Initialization */\n";
     code += "void target_hal_init(void);\n\n";
+    code += "/* Periodic HAL Polling */\n";
+    code += "void target_hal_poll(void);\n\n";
 
     code += "/* Digital GPIO */\n";
     code += "bool hal_read_digital_pin(const char* pin_name);\n";
@@ -164,6 +166,10 @@ QString TargetHalGenerator::generateHalSource(const Project* project) {
         code += "    return 50.0f;\n";
         code += "}\n";
     }
+
+    code += "\nvoid target_hal_poll(void) {\n";
+    code += "    /* Poll hardware peripherals and tick counters */\n";
+    code += "}\n";
 
     return code;
 }

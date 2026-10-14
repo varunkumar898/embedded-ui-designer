@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QColor>
+#include "theme/Theme.h"
 
 BuildOutputPanel::BuildOutputPanel(Project* project, QWidget* parent)
     : QWidget(parent)
@@ -62,7 +63,7 @@ void BuildOutputPanel::setupUi() {
 
     m_configureBtn = new QPushButton("Configure CMake", this);
     m_buildBtn = new QPushButton("Build Target", this);
-    m_buildBtn->setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 4px 10px;");
+    m_buildBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 10px; border-radius: %3px;").arg(Theme::Accent, Theme::TextPrimary).arg(Theme::RadiusSm));
     m_cleanBtn = new QPushButton("Clean", this);
     m_cancelBtn = new QPushButton("Cancel", this);
     m_cancelBtn->setEnabled(false);
@@ -79,7 +80,7 @@ void BuildOutputPanel::setupUi() {
     toolBarLayout->addStretch();
 
     m_statusLabel = new QLabel("Ready", this);
-    m_statusLabel->setStyleSheet("color: #888; font-weight: bold;");
+    m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::TextMuted));
     toolBarLayout->addWidget(m_statusLabel);
 
     m_busyIndicator = new QProgressBar(this);
@@ -97,7 +98,7 @@ void BuildOutputPanel::setupUi() {
     // 1. Raw Output Console
     m_consoleOutput = new QPlainTextEdit(this);
     m_consoleOutput->setReadOnly(true);
-    m_consoleOutput->setStyleSheet("background-color: #1a1a1a; color: #f0f0f0; font-family: monospace, 'Courier New'; font-size: 12px;");
+    m_consoleOutput->setStyleSheet(QString("background-color: %1; color: %2; font-family: monospace, 'Courier New'; font-size: 12px;").arg(Theme::BgBase, Theme::TextPrimary));
     m_tabWidget->addTab(m_consoleOutput, "Build Console");
 
     // 2. Parsed Diagnostics Table
@@ -127,8 +128,8 @@ BuildConfiguration BuildOutputPanel::currentConfiguration() const {
     cfg.enableLto = true;
     cfg.parallelJobs = 4;
 
-    if (m_project && !m_project->projectFilePath().isEmpty()) {
-        cfg.workingDirectory = QFileInfo(m_project->projectFilePath()).absolutePath();
+    if (m_project) {
+        cfg.workingDirectory = m_project->firmwareDirectory();
     } else {
         cfg.workingDirectory = QDir::currentPath();
     }
@@ -185,7 +186,7 @@ void BuildOutputPanel::updateButtonStates() {
 
 void BuildOutputPanel::onBuildStarted(const QString& description) {
     m_statusLabel->setText(description);
-    m_statusLabel->setStyleSheet("color: #3498db; font-weight: bold;");
+    m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::Info));
     updateButtonStates();
 }
 
@@ -206,13 +207,13 @@ void BuildOutputPanel::onDiagnosticFound(const CompilerDiagnostic& diag) {
     QString sevStr = diagnosticSeverityToString(diag.severity);
     auto* sevItem = new QTableWidgetItem(sevStr);
     if (diag.severity == DiagnosticSeverity::Error) {
-        sevItem->setForeground(QColor("#e74c3c"));
+        sevItem->setForeground(Theme::cDanger());
         sevItem->setText("❌ " + sevStr);
     } else if (diag.severity == DiagnosticSeverity::Warning) {
-        sevItem->setForeground(QColor("#f39c12"));
+        sevItem->setForeground(Theme::cWarning());
         sevItem->setText("⚠️ " + sevStr);
     } else {
-        sevItem->setForeground(QColor("#3498db"));
+        sevItem->setForeground(Theme::cInfo());
         sevItem->setText("ℹ️ " + sevStr);
     }
 
@@ -232,10 +233,10 @@ void BuildOutputPanel::onBuildFinished(bool success, int exitCode, qint64 durati
     updateButtonStates();
     if (success) {
         m_statusLabel->setText(QString("Build Succeeded (%1 ms)").arg(durationMs));
-        m_statusLabel->setStyleSheet("color: #2ecc71; font-weight: bold;");
+        m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::Success));
     } else {
         m_statusLabel->setText(QString("Build Failed (Exit %1, %2 ms)").arg(exitCode).arg(durationMs));
-        m_statusLabel->setStyleSheet("color: #e74c3c; font-weight: bold;");
+        m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::Danger));
         // Automatically switch to Issues tab if diagnostics found
         if (m_diagnosticsTable->rowCount() > 0) {
             m_tabWidget->setCurrentIndex(1);

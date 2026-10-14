@@ -1,4 +1,5 @@
 #include "SimulationControlPanel.h"
+#include "theme/Theme.h"
 #include <QHeaderView>
 #include <QScrollArea>
 #include <QGroupBox>
@@ -25,22 +26,23 @@ void SimulationControlPanel::setupUi() {
     mainLayout->setContentsMargins(4, 4, 4, 4);
     mainLayout->setSpacing(6);
 
-    setStyleSheet(
-        "QWidget { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }"
-        "QTabWidget::pane { border: 1px solid #334155; background-color: #0f172a; }"
-        "QTabBar::tab { background-color: #1e293b; color: #94a3b8; padding: 6px 12px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
-        "QTabBar::tab:selected { background-color: #334155; color: #38bdf8; font-weight: bold; }"
-        "QGroupBox { font-weight: bold; border: 1px solid #334155; border-radius: 6px; margin-top: 6px; padding-top: 10px; }"
-        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #38bdf8; }"
-        "QPushButton { background-color: #1e293b; border: 1px solid #475569; border-radius: 4px; padding: 5px 10px; color: #f8fafc; }"
-        "QPushButton:hover { background-color: #334155; border-color: #38bdf8; }"
-        "QSlider::groove:horizontal { height: 4px; background: #334155; border-radius: 2px; }"
-        "QSlider::sub-page:horizontal { background: #38bdf8; border-radius: 2px; }"
-        "QSlider::handle:horizontal { background: #f8fafc; border: 1px solid #0284c7; width: 14px; margin-top: -5px; margin-bottom: -5px; border-radius: 7px; }"
-        "QSpinBox, QDoubleSpinBox, QLineEdit, QComboBox { background-color: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 3px 6px; color: #f8fafc; }"
-        "QTableWidget { background-color: #0f172a; gridline-color: #1e293b; border: 1px solid #334155; color: #e2e8f0; }"
-        "QHeaderView::section { background-color: #1e293b; color: #94a3b8; padding: 4px; border: 1px solid #334155; }"
-    );
+    setStyleSheet(QString(
+        "QWidget { background-color: %1; color: %2; }"
+        "QTabWidget::pane { border: 1px solid %3; background-color: %1; }"
+        "QTabBar::tab { background-color: %4; color: %5; padding: 6px 12px; margin-right: 2px; border-top-left-radius: %6px; border-top-right-radius: %6px; }"
+        "QTabBar::tab:selected { background-color: %7; color: %8; font-weight: bold; }"
+        "QGroupBox { font-weight: bold; border: 1px solid %3; border-radius: %9px; margin-top: 6px; padding-top: 10px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: %8; }"
+        "QPushButton { background-color: %4; border: 1px solid %3; border-radius: %6px; padding: 5px 10px; color: %2; }"
+        "QPushButton:hover { background-color: %7; border-color: %8; }"
+        "QSlider::groove:horizontal { height: 4px; background: %7; border-radius: 2px; }"
+        "QSlider::sub-page:horizontal { background: %8; border-radius: 2px; }"
+        "QSlider::handle:horizontal { background: %2; border: 1px solid %8; width: 14px; margin-top: -5px; margin-bottom: -5px; border-radius: 7px; }"
+        "QSpinBox, QDoubleSpinBox, QLineEdit, QComboBox { background-color: %4; border: 1px solid %3; border-radius: %6px; padding: 3px 6px; color: %2; }"
+        "QTableWidget { background-color: %1; gridline-color: %4; border: 1px solid %3; color: %2; }"
+        "QHeaderView::section { background-color: %4; color: %5; padding: 4px; border: 1px solid %3; }"
+    ).arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::BgRaised, Theme::TextSecondary,
+          QString::number(Theme::RadiusSm), Theme::BgOverlay, Theme::Accent, QString::number(Theme::RadiusMd)));
 
     // Preset selection header
     auto* presetBox = new QGroupBox("Automotive / Dashboard Presets", this);
@@ -90,13 +92,13 @@ QWidget* SimulationControlPanel::createHardwareTab() {
 
     auto* lblSafe = new QLabel("Safety Isolation: Physical hardware access is LOCKED in Simulation mode.", grpStatus);
     lblSafe->setWordWrap(true);
-    lblSafe->setStyleSheet("color: #38bdf8; font-size: 11px;");
+    lblSafe->setStyleSheet(QString("color: %1; font-size: 11px;").arg(Theme::Info));
     statusLayout->addWidget(lblSafe);
 
     m_btnConnection = new QPushButton("Virtual Connection: ONLINE", grpStatus);
     m_btnConnection->setCheckable(true);
     m_btnConnection->setChecked(true);
-    m_btnConnection->setStyleSheet("background-color: #065f46; color: #a7f3d0; font-weight: bold;");
+    m_btnConnection->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold;").arg(Theme::SuccessBg, Theme::Success));
     connect(m_btnConnection, &QPushButton::toggled, this, &SimulationControlPanel::onToggleConnection);
     statusLayout->addWidget(m_btnConnection);
 
@@ -161,7 +163,8 @@ void SimulationControlPanel::rebuildDataSourceControls() {
 
             row.ledIndicator = new QLabel(row.container);
             row.ledIndicator->setFixedSize(14, 14);
-            row.ledIndicator->setStyleSheet(row.checkBox->isChecked() ? "background: #22c55e; border-radius: 7px;" : "background: #475569; border-radius: 7px;");
+            row.ledIndicator->setStyleSheet(QString("background: %1; border-radius: 7px;")
+                .arg(row.checkBox->isChecked() ? Theme::Success : Theme::BorderStrong));
 
             connect(row.checkBox, &QCheckBox::toggled, this, [this, id](bool checked) {
                 if (m_runtime) m_runtime->setDataSourceValue(id, checked);
@@ -239,7 +242,8 @@ void SimulationControlPanel::refreshValues() {
                 row.checkBox->blockSignals(false);
             }
             if (row.ledIndicator) {
-                row.ledIndicator->setStyleSheet(b ? "background: #22c55e; border-radius: 7px;" : "background: #475569; border-radius: 7px;");
+                row.ledIndicator->setStyleSheet(QString("background: %1; border-radius: 7px;")
+                    .arg(b ? Theme::Success : Theme::BorderStrong));
             }
         }
         if (row.doubleSpin) {
@@ -275,8 +279,9 @@ void SimulationControlPanel::onToggleConnection(bool checked) {
     if (m_runtime && m_runtime->simulationBackend()) {
         m_runtime->simulationBackend()->setSimulatedConnected(checked);
         m_btnConnection->setText(checked ? "Virtual Connection: ONLINE" : "Virtual Connection: OFFLINE (Simulated Disconnect)");
-        m_btnConnection->setStyleSheet(checked ? "background-color: #065f46; color: #a7f3d0; font-weight: bold;"
-                                               : "background-color: #7f1d1d; color: #fecaca; font-weight: bold;");
+        m_btnConnection->setStyleSheet(checked
+            ? QString("background-color: %1; color: %2; font-weight: bold;").arg(Theme::SuccessBg, Theme::Success)
+            : QString("background-color: %1; color: %2; font-weight: bold;").arg(Theme::DangerBg, Theme::Danger));
     }
 }
 

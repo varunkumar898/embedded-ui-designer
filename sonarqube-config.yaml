@@ -1,0 +1,12 @@
+# SonarQube SAST Configuration
+sonar.projectKey=embedded-ui-designer
+sonar.projectName=Embedded UI Designer
+sonar.projectVersion=1.0.0
+sonar.sources=src
+sonar.tests=tests
+sonar.exclusions=**/build/**,**/dist/**,**/node_modules/**
+sonar.sourceEncoding=UTF-8
+sonar.c.file.suffixes=.c,.h
+sonar.cpp.file.suffixes=.cpp,.hpp
+sonar.cfamily.build-wrapper-output=build/bw-output
+sonar.qualitygate.wait=true

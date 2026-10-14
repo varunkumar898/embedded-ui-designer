@@ -22,12 +22,16 @@ public:
     void setProject(Project* project);
     DeviceMonitorRuntime* runtime() { return &m_runtime; }
 
+    void updateConnectionStatus();
+
 public slots:
     void refreshPortList();
     void onConnectClicked();
     void onSendClicked();
     void onExportCsvClicked();
     void onClearLogClicked();
+    void onOpenOcdConnectClicked();
+    void onGPIOStateChanged(const QString& pin, int newState, int latency);
 
 private slots:
     void onConnectionStateChanged(bool connected, const QString& portName);
@@ -41,6 +45,12 @@ private:
 
     Project* m_project = nullptr;
     DeviceMonitorRuntime m_runtime;
+
+    // OpenOCD Hardware Controls
+    class OpenOCDManager* m_openocd = nullptr;
+    QLabel* m_statusLabel = nullptr;
+    QLabel* m_gpioDisplay = nullptr;
+    QPushButton* m_openocdConnectBtn = nullptr;
 
     // Controls
     QComboBox* m_portCombo = nullptr;

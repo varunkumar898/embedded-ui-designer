@@ -2,6 +2,7 @@
 #include "project/Project.h"
 #include "models/Screen.h"
 #include "models/UIComponent.h"
+#include "models/DiagnosticsEngine.h"
 #include "hardware/HardwareManager.h"
 #include <QRegularExpression>
 
@@ -193,28 +194,11 @@ QJsonObject AIProjectContext::buildHardwareContext(const Project* project) {
 }
 
 QJsonObject AIProjectContext::buildDiagnosticsContext(const Project* project) {
-    QJsonObject diag;
-    if (!project) return diag;
+    if (!project) return QJsonObject();
 
-    // Check for unbound components or out-of-bounds items
-    QJsonArray issues;
-    if (auto* screen = project->activeScreen()) {
-        int sw = screen->width() > 0 ? screen->width() : project->displayConfig().width;
-        int sh = screen->height() > 0 ? screen->height() : project->displayConfig().height;
-
-        for (const auto* comp : screen->components()) {
-            if (!comp) continue;
-            if (comp->compX() < 0 || comp->compY() < 0 || comp->compX() + comp->compWidth() > sw || comp->compY() + comp->compHeight() > sh) {
-                QJsonObject iss;
-                iss["component_id"] = comp->componentId();
-                iss["type"] = "out_of_bounds";
-                iss["message"] = QString("Component '%1' extends outside screen bounds (%2x%3).").arg(comp->componentId()).arg(sw).arg(sh);
-                issues.append(iss);
-            }
-        }
-    }
-    diag["issues"] = issues;
-    return diag;
+    Diagnostics::DiagnosticsEngine::instance().scanProject(project);
+    return Diagnostics::DiagnosticsEngine::instance().toJson();
 }
 
 } // namespace AI
+

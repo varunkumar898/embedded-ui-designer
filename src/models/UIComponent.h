@@ -11,6 +11,7 @@
 #include <QCursor>
 #include "ComponentState.h"
 #include "DataBinding.h"
+#include "ComponentGradient.h"
 
 enum class ResizeHandle {
     None,
@@ -31,6 +32,30 @@ enum class CornerRadiusHandle {
     BottomLeft,
     BottomRight
 };
+
+enum class UIComponentType {
+    Unknown,
+    Switch,
+    Button,
+    Label,
+    Rectangle,
+    ProgressBar,
+    Slider,
+    Checkbox,
+    TextInput,
+    Circle,
+    Path
+};
+
+inline bool operator==(int typeVal, UIComponentType ct) {
+    if (ct == UIComponentType::Switch) {
+        return (typeVal == QGraphicsItem::UserType + 10);
+    }
+    return false;
+}
+inline bool operator==(UIComponentType ct, int typeVal) { return typeVal == ct; }
+inline bool operator!=(int typeVal, UIComponentType ct) { return !(typeVal == ct); }
+inline bool operator!=(UIComponentType ct, int typeVal) { return !(typeVal == ct); }
 
 class UIComponent : public QGraphicsObject {
     Q_OBJECT
@@ -60,6 +85,48 @@ public:
 
     void setCompPos(qreal x, qreal y);
     void setCompSize(qreal w, qreal h);
+
+    // Rotation
+    qreal rotationAngle() const { return rotation(); }
+    void setRotationAngle(qreal angle);
+    bool isRotating() const { return m_isRotating; }
+    ResizeHandle activeRotateHandle() const { return m_activeRotateHandle; }
+    void rotateByWheelDelta(qreal deltaY);
+
+    // Locking (Canva-inspired canvas editing)
+    bool isLocked() const { return m_isLocked; }
+    void setLocked(bool locked) {
+        m_isLocked = locked;
+        setFlag(ItemIsMovable, !locked);
+        update();
+        emit propertyChanged(this);
+    }
+
+    // Flip Transforms
+    bool flipHorizontal() const { return m_flipH; }
+    void setFlipHorizontal(bool flip) {
+        m_flipH = flip;
+        update();
+        emit propertyChanged(this);
+    }
+    bool flipVertical() const { return m_flipV; }
+    void setFlipVertical(bool flip) {
+        m_flipV = flip;
+        update();
+        emit propertyChanged(this);
+    }
+
+    static bool isMidpointHandle(ResizeHandle handle) {
+        return handle == ResizeHandle::Top || handle == ResizeHandle::Bottom ||
+               handle == ResizeHandle::Left || handle == ResizeHandle::Right;
+    }
+    static bool isCornerHandle(ResizeHandle handle) {
+        return handle == ResizeHandle::TopLeft || handle == ResizeHandle::TopRight ||
+               handle == ResizeHandle::BottomLeft || handle == ResizeHandle::BottomRight;
+    }
+
+    ResizeHandle handleAt(const QPointF& pos) const;
+    QRectF handleRect(ResizeHandle handle) const;
 
     void recordInitialPosition() { m_initialGeom = QRectF(pos().x(), pos().y(), m_width, m_height); }
     QPointF initialPos() const { return m_initialGeom.topLeft(); }
@@ -105,6 +172,21 @@ public:
     /// Components override this; the base is a no-op.
     virtual void applyColorStyle(const QString& styleName, const QColor& color);
 
+    // ── Gradient Fill Support ──────────────────────────────────────────
+    bool hasGradientFill() const { return m_gradientFill.isEnabled(); }
+    ComponentGradient gradientFill() const { return m_gradientFill; }
+    void setGradientFill(const ComponentGradient& grad) {
+        m_gradientFill = grad;
+        m_gradientFill.setEnabled(true);
+        update();
+        emit propertyChanged(this);
+    }
+    void clearGradientFill() {
+        m_gradientFill.setEnabled(false);
+        update();
+        emit propertyChanged(this);
+    }
+
     // ── Hardware Protocol & Pin Binding ──────────────────────────────────
     QString protocol() const { return m_protocol; }
     void setProtocol(const QString& proto);
@@ -114,6 +196,21 @@ public:
     void setProtocolPin(const QString& role, const QString& pin);
     void setProtocolPins(const QMap<QString, QString>& pins);
     void clearProtocol();
+
+    QVariant getProperty(const QString& name) const {
+        if (name == "gpio_pin") {
+            if (property("gpio_pin").isValid() && !property("gpio_pin").toString().isEmpty()) {
+                return property("gpio_pin");
+            }
+            if (m_protocolPins.contains("pin") && !m_protocolPins.value("pin").isEmpty()) {
+                return m_protocolPins.value("pin");
+            }
+            if (m_protocolPins.contains("gpio_pin") && !m_protocolPins.value("gpio_pin").isEmpty()) {
+                return m_protocolPins.value("gpio_pin");
+            }
+        }
+        return property(name.toUtf8().constData());
+    }
 
     /// Serialize a color as either a plain hex string (no ref) or a
     /// {"styleRef": "<name>"} object. Deserialization restores both.
@@ -158,12 +255,11 @@ protected:
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
     void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;
+    void wheelEvent(QGraphicsSceneWheelEvent* event) override;
 
     virtual void paintComponent(QPainter* painter) = 0;
     void paintSelectionHandles(QPainter* painter);
 
-    ResizeHandle handleAt(const QPointF& pos) const;
-    QRectF handleRect(ResizeHandle handle) const;
     void updateCursorForHandle(ResizeHandle handle);
 
     QString m_id;
@@ -177,6 +273,10 @@ protected:
     ResizeHandle m_activeHandle = ResizeHandle::None;
     QPointF m_dragStartPos;
     QRectF m_initialGeom;
+
+    bool m_isRotating = false;
+    ResizeHandle m_activeRotateHandle = ResizeHandle::None;
+    qreal m_initialRotation = 0.0;
 
     bool m_draggingRadius = false;
     CornerRadiusHandle m_activeRadiusHandle = CornerRadiusHandle::None;
@@ -192,5 +292,13 @@ protected:
 
     // Data Bindings
     QList<DataBinding> m_bindings;
+
+    // Gradient Fill
+    ComponentGradient m_gradientFill;
+
+    // Lock and Flip state
+    bool m_isLocked = false;
+    bool m_flipH = false;
+    bool m_flipV = false;
 };
 

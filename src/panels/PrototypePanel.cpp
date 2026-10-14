@@ -1,4 +1,5 @@
 #include "PrototypePanel.h"
+#include "theme/Theme.h"
 
 #include "CanvasScene.h"
 #include "UIComponent.h"
@@ -32,11 +33,11 @@ PrototypePanel::PrototypePanel(CanvasScene* scene, QWidget* parent)
 
     auto* header = new QHBoxLayout();
     auto* title = new QLabel("INTERACTIONS", this);
-    title->setStyleSheet("color: #8490a1; font-size: 10px; font-weight: bold;");
+    title->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold;").arg(Theme::TextMuted));
     auto* addButton = new QPushButton("+ Add Interaction", this);
     addButton->setObjectName("addInteractionButton");
     addButton->setToolTip("Add a same-screen interaction");
-    addButton->setStyleSheet("QPushButton { padding: 5px 8px; border-radius: 4px; }");
+    addButton->setStyleSheet(QString("QPushButton { padding: 5px 8px; border-radius: %1px; }").arg(Theme::RadiusSm));
     header->addWidget(title);
     header->addStretch(1);
     header->addWidget(addButton);
@@ -45,7 +46,7 @@ PrototypePanel::PrototypePanel(CanvasScene* scene, QWidget* parent)
 
     m_emptyState = new QLabel("Select a component to add interactions.", this);
     static_cast<QLabel*>(m_emptyState)->setAlignment(Qt::AlignCenter);
-    static_cast<QLabel*>(m_emptyState)->setStyleSheet("color: #697384; padding: 18px 8px;");
+    static_cast<QLabel*>(m_emptyState)->setStyleSheet(QString("color: %1; padding: 18px 8px;").arg(Theme::TextMuted));
     root->addWidget(m_emptyState);
 
     auto* scroll = new QScrollArea(this);
@@ -112,14 +113,14 @@ void PrototypePanel::rebuildRows() {
         const QJsonObject data = interactions.at(index).toObject();
         auto* row = new QFrame(m_rowsWidget);
         row->setObjectName("interactionRow");
-        row->setStyleSheet("QFrame#interactionRow { background: #171a20; border: 1px solid #303642; border-radius: 4px; }");
+        row->setStyleSheet(QString("QFrame#interactionRow { background: %1; border: 1px solid %2; border-radius: %3px; }").arg(Theme::BgRaised, Theme::BorderSubtle).arg(Theme::RadiusSm));
         auto* rowLayout = new QVBoxLayout(row);
         rowLayout->setContentsMargins(8, 8, 8, 8);
         rowLayout->setSpacing(5);
 
         auto* deleteRow = new QHBoxLayout();
         auto* rowTitle = new QLabel(QString("Interaction %1").arg(index + 1), row);
-        rowTitle->setStyleSheet("color: #9ba6b6; font-size: 11px; font-weight: bold;");
+        rowTitle->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold;").arg(Theme::TextSecondary));
         auto* removeButton = new QPushButton("×", row);
         removeButton->setFixedSize(22, 22);
         removeButton->setToolTip("Remove interaction");

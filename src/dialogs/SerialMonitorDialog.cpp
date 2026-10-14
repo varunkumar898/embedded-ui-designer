@@ -1,6 +1,6 @@
 #include "SerialMonitorDialog.h"
-
 #include "DeviceManager.h"
+#include "theme/Theme.h"
 
 #include <QComboBox>
 #include <QFormLayout>
@@ -48,7 +48,8 @@ SerialMonitorDialog::SerialMonitorDialog(DeviceManager* deviceManager, QWidget* 
     m_log = new QPlainTextEdit(this);
     m_log->setReadOnly(true);
     m_log->setMaximumBlockCount(10000);
-    m_log->setStyleSheet("QPlainTextEdit { background: #101216; color: #c8d2df; border: 1px solid #303642; border-radius: 4px; font-family: monospace; }");
+    m_log->setStyleSheet(QString("QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; font-family: monospace; }")
+        .arg(Theme::BgBase, Theme::TextSecondary, Theme::BorderSubtle, QString::number(Theme::RadiusSm)));
     root->addWidget(m_log, 1);
 
     auto* sendRow = new QHBoxLayout();

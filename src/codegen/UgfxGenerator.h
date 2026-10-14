@@ -11,17 +11,16 @@ public:
     virtual ~UgfxGenerator() override;
 
     bool generate(const QString& outputDirectory) override;
+    QString generateUiSource();
+    QString generateCMakeLists();
+    QString generateGfxConf();
+    QString generateUiHeader();
+    QString generateMainSource();
+    QString generateReadme();
 
 private:
     CanvasScene* m_scene = nullptr;
     bool m_ownsProjectAndScene = false;
-
-    QString generateCMakeLists();
-    QString generateGfxConf();
-    QString generateUiHeader();
-    QString generateUiSource();
-    QString generateMainSource();
-    QString generateReadme();
 
     // PC-Simulator subfolder generators
     QString generateSimulatorCMakeLists();

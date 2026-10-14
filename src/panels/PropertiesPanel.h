@@ -15,6 +15,7 @@
 #include <QList>
 #include "UIComponent.h"
 #include "ComponentDefinition.h"
+#include "ComponentGradient.h"
 
 class Project;
 
@@ -42,6 +43,7 @@ public:
     void commitPropertyChange(const QString& desc);
 
     friend class TestFunctionalRunner;
+    friend class TestAllCases;
 
 signals:
     void alignLeftRequested();
@@ -86,6 +88,7 @@ private:
     QSpinBox* m_spinY = nullptr;
     QSpinBox* m_spinW = nullptr;
     QSpinBox* m_spinH = nullptr;
+    QSpinBox* m_spinRotation = nullptr;
     QGroupBox* m_geometryGroup = nullptr;
     QList<QToolButton*> m_distributeButtons;
 
@@ -153,6 +156,10 @@ private:
     QWidget* m_protocolNoneWidget = nullptr;
     QWidget* m_gpioWidget = nullptr;
     QComboBox* m_comboGpioPin = nullptr;
+    QComboBox* m_comboGpioMode = nullptr;
+    QComboBox* m_comboGpioAction = nullptr;
+    QPushButton* m_btnApplyHardwareBinding = nullptr;
+    QLabel* m_lblHwBindingFeedback = nullptr;
     QWidget* m_pwmWidget = nullptr;
     QComboBox* m_comboPwmPin = nullptr;
     QWidget* m_adcWidget = nullptr;
@@ -176,7 +183,7 @@ private:
 
     void setupUi();
     void rebuildSpecificEditors();
-    void updateColorButton(QPushButton* btn, const QColor& color);
+    void updateColorButton(QPushButton* btn, const QColor& color, const ComponentGradient& grad = ComponentGradient());
     void updateDataBindingSection();
     void onBindingChanged();
 

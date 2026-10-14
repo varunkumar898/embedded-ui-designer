@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QPointer>
 
 class UIComponent;
@@ -21,11 +22,31 @@ enum class PinMode {
     DigitalOut,
     PwmOutput,
     AnalogIn,
-    SpiRawTransfer
+    SpiRawTransfer,
+    InputPullUp,
+    InputPullDown,
+    OpenDrainOut,
+    AlternateFunction,
+    InterruptInput,
+    I2cBus,
+    UartTxRx,
+    CanBus
 };
 
 QString pinModeToString(PinMode mode);
 PinMode stringToPinMode(const QString& str);
+
+enum class ConnectionState {
+    Disconnected,
+    DetectingProbe,
+    Connecting,
+    Connected,
+    ConnectionFailed,
+    DeviceRemoved,
+    SimulationMode
+};
+
+QString connectionStateToString(ConnectionState state);
 
 struct AdcMapping {
     bool available = false;
@@ -56,10 +77,28 @@ struct SpiMapping {
     quint32 srReg = 0x40013008;
 };
 
+struct PinConflict {
+    bool hasConflict = false;
+    QString pin;
+    QString reason;
+    QString conflictingTask;
+};
+
 struct PinProfile {
     QString pinName;
     QList<PinMode> supportedModes;
-    PinMode activeMode = PinMode::None;
+    PinMode activeMode = PinMode::None; // Legacy / Active Task mode
+    PinMode taskAMode = PinMode::None;
+    PinMode taskBMode = PinMode::None;
+    QString taskAPeripheral;
+    QString taskBPeripheral;
+    QString taskAComponentId;
+    QString taskBComponentId;
+    QString portGroup; // "Port A", "Port B", "GPIO", etc.
+    QString description;
+    bool isReserved = false;
+    QString reservedReason;
+    QStringList supportedPeripherals;
     AdcMapping adc;
     PwmMapping pwm;
     SpiMapping spi;
@@ -71,12 +110,14 @@ struct BoardProfile {
     QString id;
     QString name;
     QString mcuFamily;
+    QString connectionType = "openocd"; // "openocd", "serial", "linux", "mock", "linkserver", "stcisp"
     quint32 gpioBase = 0x48000000;
     quint32 bsrrOffset = 0x18;
     QString openocdInterface = "interface/stlink.cfg";
     QString openocdTarget = "target/stm32f0x.cfg";
     QMap<QString, PinProfile> pins;
     QStringList spiBusses;
+    QStringList portGroups;
 };
 
 class HardwareBridge : public QObject {
@@ -95,10 +136,27 @@ public:
 
     // Pin Capability & Mode Inspection
     QStringList availablePins() const;
+    QStringList availablePinsForPort(const QString& portFilter) const;
+    QStringList portGroupsForCurrentBoard() const;
     PinProfile pinProfile(const QString& pin) const;
     bool isModeAvailable(const QString& pin, PinMode mode) const;
     PinMode activePinMode(const QString& pin) const;
     bool setPinMode(const QString& pin, PinMode mode);
+
+    // Multi-task Pin Assignment (Task A, Task B, All Tasks)
+    QString activeTask() const { return m_activeTask; }
+    void setActiveTask(const QString& task);
+    PinMode taskPinMode(const QString& pin, const QString& task) const;
+    bool setTaskPinMode(const QString& pin, const QString& task, PinMode mode);
+    QString taskPeripheral(const QString& pin, const QString& task) const;
+    bool setTaskPeripheral(const QString& pin, const QString& task, const QString& peripheral);
+    QString taskComponentBinding(const QString& pin, const QString& task) const;
+    void setTaskComponentBinding(const QString& pin, const QString& task, const QString& componentId);
+
+    // Conflict & Validation Checking
+    PinConflict checkPinConflict(const QString& pin) const;
+    QList<PinConflict> allConflicts() const;
+    bool validateAssignments(QStringList* outErrors = nullptr, QStringList* outWarnings = nullptr) const;
 
     // ADC setup and poll (Task A)
     bool setupAdc(const QString& pin);
@@ -129,17 +187,24 @@ public:
     PinMode boundModeForComponent(const UIComponent* comp) const;
     UIComponent* componentBoundToPin(const QString& pin) const;
 
-    // OpenOCD & Probe Subsystem
+    // Connection Controls & Multi-Platform Probe Management
     OpenOcdManager& openOcdManager() { return m_openOcd; }
     const OpenOcdManager& openOcdManager() const { return m_openOcd; }
+    ConnectionState connectionState() const { return m_connectionState; }
+    QString connectionStatusText() const;
+    QString connectionButtonLabel() const;
+    QString lastConnectionError() const { return m_lastConnectionError; }
     QString connectedProbeName() const;
-    bool isProbeDetected() const { return m_openOcd.isProbeDetected(); }
-    QString detectedBoardName() const { return m_openOcd.detectedBoardName(); }
+    bool isProbeDetected() const;
+    QString detectedBoardName() const;
+    bool detectProbe();
     bool connectHardware();
     bool disconnectHardware();
 
-    // Simulation / Test overrides (when physical OpenOCD/ST-Link probe is disconnected)
-    bool isHardwareConnected() const { return m_openOcd.isConnected() || m_hardwareConnected; }
+    // Simulation / Test overrides
+    bool isHardwareConnected() const { return (m_connectionState == ConnectionState::Connected); }
+    bool isSimulationMode() const { return m_simulationMode; }
+    void setSimulationMode(bool enabled);
     void setHardwareConnected(bool connected);
     void setSimulatedAdcCount(const QString& pin, quint32 rawCount);
     quint32 simulatedAdcCount(const QString& pin) const;
@@ -149,9 +214,16 @@ public:
     void startLivePolling(int intervalMs = 50);
     void stopLivePolling();
 
+    // Serialization / Deserialization
+    QJsonObject saveHardwareStateToJson() const;
+    bool loadHardwareStateFromJson(const QJsonObject& json);
+
 signals:
     void boardChanged(const QString& boardId);
     void pinConfigChanged(const QString& pin, PinMode mode);
+    void taskPinConfigChanged(const QString& pin, const QString& task, PinMode mode);
+    void taskPeripheralChanged(const QString& pin, const QString& task, const QString& peripheral);
+    void connectionStateChanged(ConnectionState state, const QString& info);
     void adcValueChanged(const QString& pin, quint32 rawCount, int resolutionBits);
     void pwmDutyChanged(const QString& pin, double dutyPercent);
     void spiTransferCompleted(const QString& bus, quint8 byteOut, quint8 byteIn, bool success);
@@ -169,8 +241,10 @@ private:
     ~HardwareBridge() override = default;
 
     void initializeDefaultBoards();
+    void updateConnectionState(ConnectionState state, const QString& info = QString());
 
     QString m_currentBoardId = "stm32f030r8";
+    QString m_activeTask = "Task A"; // "Task A", "Task B", "All Tasks"
     QMap<QString, BoardProfile> m_boards;
 
     // Active component bindings
@@ -178,6 +252,7 @@ private:
         QPointer<UIComponent> component;
         QString pin;
         PinMode mode;
+        QString task = "Task A";
     };
     QList<ComponentBinding> m_bindings;
 
@@ -186,7 +261,11 @@ private:
     QMap<QString, double> m_pwmDutyValues;
     QMap<QString, bool> m_digitalStates;
 
+    ConnectionState m_connectionState = ConnectionState::Disconnected;
+    bool m_simulationMode = false;
     bool m_hardwareConnected = false;
+    QString m_lastConnectionError;
+
     OpenOcdManager m_openOcd;
     QTimer m_pollTimer;
     QElapsedTimer m_pwmThrottleTimer;

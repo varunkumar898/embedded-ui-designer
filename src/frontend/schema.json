@@ -1,0 +1,92 @@
+{
+  "formatVersion": 1,
+  "metadata": {
+    "projectName": "EmbeddedDeviceServer",
+    "projectId": "proj_device_001",
+    "version": "1.0.0",
+    "targetFramework": "Generic"
+  },
+  "apiSchema": {
+    "basePath": "/api/v1",
+    "endpoints": [
+      {
+        "endpointId": "ep_gpio_read",
+        "path": "/device/{deviceId}/gpio/read",
+        "method": "GET",
+        "operationId": "readGPIO",
+        "description": "Read GPIO pin state",
+        "parameters": [
+          {
+            "paramName": "deviceId",
+            "typeId": "string",
+            "paramLocation": "path",
+            "required": true
+          },
+          {
+            "paramName": "pinNumber",
+            "typeId": "uint8",
+            "paramLocation": "query",
+            "required": true
+          }
+        ],
+        "responses": [
+          {
+            "statusCode": 200,
+            "description": "Success",
+            "responseTypeId": "GPIO_Result"
+          }
+        ]
+      },
+      {
+        "endpointId": "ep_adc_read",
+        "path": "/adc/read",
+        "method": "GET",
+        "operationId": "readADC",
+        "description": "Read analog channel voltage",
+        "parameters": [
+          {
+            "paramName": "channel",
+            "typeId": "uint8",
+            "paramLocation": "query",
+            "required": true
+          }
+        ],
+        "responses": [
+          {
+            "statusCode": 200,
+            "description": "Success",
+            "responseTypeId": "ADC_Result"
+          }
+        ]
+      },
+      {
+        "endpointId": "ep_pwm_write",
+        "path": "/pwm/write",
+        "method": "POST",
+        "operationId": "setPWM",
+        "description": "Set PWM duty cycle",
+        "parameters": [
+          {
+            "paramName": "pin",
+            "typeId": "uint8",
+            "paramLocation": "body",
+            "required": true
+          },
+          {
+            "paramName": "dutyCycle",
+            "typeId": "uint8",
+            "paramLocation": "body",
+            "required": true
+          }
+        ],
+        "responses": [
+          {
+            "statusCode": 200,
+            "description": "Success",
+            "responseTypeId": "PWM_Result"
+          }
+        ]
+      }
+    ]
+  }
+}

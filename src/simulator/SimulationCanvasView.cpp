@@ -8,6 +8,7 @@
 #include "ListComponent.h"
 #include "TableComponent.h"
 #include "ValueVisualizationComponent.h"
+#include "theme/Theme.h"
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
@@ -26,7 +27,7 @@ SimulationCanvasView::SimulationCanvasView(SimulationRuntime* runtime, QWidget* 
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setStyleSheet("background-color: #0b0f19; border: 1px solid #1e293b;");
+    setStyleSheet(QString("background-color: %1; border: 1px solid %2;").arg(Theme::CanvasBg, Theme::BorderSubtle));
 
     if (m_runtime) {
         connect(m_runtime, &SimulationRuntime::activeScreenChanged, this, &SimulationCanvasView::refreshScreen);
@@ -96,7 +97,7 @@ void SimulationCanvasView::resizeEvent(QResizeEvent* event) {
 }
 
 void SimulationCanvasView::drawBackground(QPainter* painter, const QRectF& rect) {
-    painter->fillRect(rect, QColor("#0b0f19"));
+    painter->fillRect(rect, Theme::cCanvasBg());
 
     QRectF sceneR = m_simScene->sceneRect();
     if (sceneR.isValid()) {
@@ -107,7 +108,7 @@ void SimulationCanvasView::drawBackground(QPainter* painter, const QRectF& rect)
         painter->fillRect(sceneR, scrBg);
 
         // Subtle frame around display
-        painter->setPen(QPen(QColor("#38bdf8"), 1.5, Qt::SolidLine));
+        painter->setPen(QPen(Theme::cAccent(), 1.5, Qt::SolidLine));
         painter->drawRect(sceneR);
     }
 }

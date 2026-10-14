@@ -1,0 +1,23 @@
+{
+  "family": "STM32H7",
+  "devices": [
+    {
+      "name": "STM32H745",
+      "ram_kb": 512,
+      "flash_kb": 2048,
+      "cpu_speed_mhz": 480,
+      "peripherals": ["UART1", "UART2", "UART3", "SPI1", "SPI2", "SPI3", "I2C1", "I2C2", "CAN1"],
+      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl"],
+      "notes": "Dual-core Cortex-M7 (480MHz) + Cortex-M4 (240MHz)"
+    },
+    {
+      "name": "STM32H743",
+      "ram_kb": 512,
+      "flash_kb": 2048,
+      "cpu_speed_mhz": 400,
+      "peripherals": ["UART1", "UART2", "SPI1", "SPI2", "I2C1", "I2C2"],
+      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl"],
+      "notes": "High-performance single-core Cortex-M7"
+    }
+  ]
+}

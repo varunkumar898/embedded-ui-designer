@@ -11,6 +11,10 @@
 #include "CanvasScene.h"
 #include "PathComponent.h"
 
+#include "BoardHAL.h"
+#include "OpenOCDManager.h"
+class UIComponent;
+
 class CanvasView : public QGraphicsView {
     Q_OBJECT
 
@@ -28,9 +32,18 @@ public:
     void setUndoStack(class QUndoStack* stack) { m_undoStack = stack; }
     class QUndoStack* undoStack() const { return m_undoStack; }
 
+    // Live Test Mode & OpenOCD Hardware Control
+    void setOpenOCDManager(OpenOCDManager* openocd);
+    bool isLiveTestMode() const { return m_liveTestMode; }
+    void onComponentClicked(UIComponent* component);
+
+public slots:
+    void setLiveTestMode(bool enabled);
+
 signals:
     void zoomChanged(qreal factor);
     void statusMessageRequested(const QString& msg);
+    void gpioStateChanged(const QString& pin, int newState, int latency);
 
 protected:
     void wheelEvent(QWheelEvent* event) override;
@@ -90,4 +103,23 @@ private:
     void drawRulers(QPainter* painter);
     bool hitTestGuide(const QPoint& viewPos, bool* isHorizontal, qreal* guidePos) const;
     class QUndoStack* m_undoStack = nullptr;
+
+    // NEW: Live Test Mode state and GPIO control
+    bool m_liveTestMode = false;
+    int m_lastLatency = 0;  // Track latency for Device Monitor
+
+    // NEW: Pointer to OpenOCD manager
+    OpenOCDManager* m_openocd = nullptr;  // Will be set from MainWindow
+
+    // NEW: Methods to handle GPIO toggle and selection
+    void handleSwitchToggle(UIComponent* switchComponent);
+    void selectComponent(UIComponent* component);
+
+    /**
+     * @brief Get the board HAL from OpenOCDManager.
+     * Used to validate GPIO pins and get board-specific settings.
+     */
+    BoardHAL* getBoardHAL() const {
+        return m_openocd ? m_openocd->getBoardHAL() : nullptr;
+    }
 };

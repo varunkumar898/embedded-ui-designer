@@ -1,0 +1,7 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/styles">
+        <file alias="DarkTheme.qss">../src/styles/DarkTheme.qss</file>
+        <file alias="LightTheme.qss">../src/styles/LightTheme.qss</file>
+    </qresource>
+</RCC>

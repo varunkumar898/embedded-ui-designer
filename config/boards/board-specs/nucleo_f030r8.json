@@ -1,0 +1,61 @@
+{
+  "id": "nucleo_f030r8",
+  "name": "STM32 NUCLEO-F030R8",
+  "manufacturer": "STMicroelectronics",
+  "family": "STM32F0",
+  "mcu": "STM32F030R8T6",
+  "architecture": "ARM Cortex-M0",
+  "frequency_mhz": 48,
+  "flash_kb": 64,
+  "ram_kb": 8,
+  "gpio_count": 55,
+  "analog_pins": [
+    "PA0",
+    "PA1",
+    "PA2",
+    "PA3",
+    "PA4",
+    "PA5",
+    "PA6",
+    "PA7"
+  ],
+  "pwm_pins": [
+    "PB0",
+    "PB1",
+    "PB4",
+    "PB5"
+  ],
+  "digital_pins": [
+    "PA0",
+    "PA1",
+    "PA2",
+    "PA3",
+    "PA4",
+    "PA5",
+    "PA6",
+    "PA7",
+    "PB0",
+    "PB1",
+    "PB4",
+    "PB5",
+    "PC13"
+  ],
+  "usb_adapter": {
+    "type": "ST-Link/V2-1",
+    "vid": "0483",
+    "pid": "374b",
+    "driver": "stlink"
+  },
+  "openocd": {
+    "interface": "interface/stlink.cfg",
+    "target": "target/stm32f0x.cfg",
+    "config_file": "config/openocd/stm32f030r8.cfg",
+    "transport": "hla_swd"
+  },
+  "toolchain": {
+    "compiler": "arm-none-eabi-gcc",
+    "hal_header": "stm32f0xx_hal.h",
+    "flags": "-mcpu=cortex-m0 -mthumb"
+  },
+  "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f030r8.pdf"
+}

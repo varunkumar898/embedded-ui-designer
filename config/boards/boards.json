@@ -1,0 +1,453 @@
+{
+  "version": "1.0",
+  "source": "https://www.espboards.dev/blog/",
+  "updated": "2026-10-14",
+  "boards": [
+    {
+      "id": "nucleo_f030r8",
+      "name": "STM32 NUCLEO-F030R8",
+      "manufacturer": "STMicroelectronics",
+      "family": "STM32F0",
+      "mcuModel": "STM32F030R8",
+      "mcu": "STM32F030R8T6",
+      "architecture": "ARM Cortex-M0",
+      "frequency_mhz": 48,
+      "flashMb": 0.064,
+      "flash_kb": 64,
+      "ramKb": 8,
+      "ram_kb": 8,
+      "gpioPins": 37,
+      "gpio_count": 55,
+      "usbAdapter": "ST-Link",
+      "openOcdConfig": "target/stm32f0x.cfg",
+      "toolchain": "arm-none-eabi-gcc",
+      "productUrl": "https://www.st.com/en/evaluation-tools/nucleo-f030r8.html",
+      "features": ["UART", "SPI", "I2C", "ADC", "Timers"],
+      "analog_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7"],
+      "pwm_pins": ["PB0", "PB1", "PB4", "PB5"],
+      "digital_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7", "PB0", "PB1", "PB4", "PB5", "PC13"],
+      "usb_adapter": {
+        "type": "ST-Link",
+        "vid": "0483",
+        "pid": "374b",
+        "driver": "stlink"
+      },
+      "openocd": {
+        "interface": "interface/stlink.cfg",
+        "target": "target/stm32f0x.cfg",
+        "config_file": "config/openocd/stm32f030r8.cfg",
+        "transport": "hla_swd"
+      },
+      "datasheetUrl": "https://www.st.com/resource/en/datasheet/stm32f030r8.pdf",
+      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f030r8.pdf"
+    },
+    {
+      "id": "nucleo_f401re",
+      "name": "STM32 NUCLEO-F401RE",
+      "manufacturer": "STMicroelectronics",
+      "family": "STM32F4",
+      "mcu": "STM32F401RET6",
+      "architecture": "ARM Cortex-M4",
+      "frequency_mhz": 84,
+      "flash_kb": 512,
+      "ram_kb": 96,
+      "gpio_count": 50,
+      "analog_pins": ["PA0", "PA1", "PA4", "PB0", "PC0", "PC1"],
+      "pwm_pins": ["PA5", "PA6", "PB3", "PB10"],
+      "digital_pins": ["PA0", "PA1", "PA4", "PA5", "PA6", "PB0", "PB3", "PB10", "PC0", "PC1", "PC13"],
+      "usb_adapter": {
+        "type": "ST-Link/V2-1",
+        "vid": "0483",
+        "pid": "374b",
+        "driver": "stlink"
+      },
+      "openocd": {
+        "interface": "interface/stlink.cfg",
+        "target": "target/stm32f4x.cfg",
+        "config_file": "board/st_nucleo_f4.cfg",
+        "transport": "hla_swd"
+      },
+      "toolchain": {
+        "compiler": "arm-none-eabi-gcc",
+        "hal_header": "stm32f4xx_hal.h",
+        "flags": "-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
+      },
+      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f401re.pdf"
+    },
+    {
+      "id": "stm32_bluepill",
+      "name": "STM32 Blue Pill (STM32F103C8)",
+      "manufacturer": "Generic / STMicroelectronics",
+      "family": "STM32F1",
+      "mcu": "STM32F103C8T6",
+      "architecture": "ARM Cortex-M3",
+      "frequency_mhz": 72,
+      "flash_kb": 64,
+      "ram_kb": 20,
+      "gpio_count": 37,
+      "analog_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7"],
+      "pwm_pins": ["PA8", "PA9", "PA10", "PB6", "PB7"],
+      "digital_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7", "PB0", "PB1", "PC13"],
+      "usb_adapter": {
+        "type": "ST-Link V2",
+        "vid": "0483",
+        "pid": "3748",
+        "driver": "stlink"
+      },
+      "openocd": {
+        "interface": "interface/stlink.cfg",
+        "target": "target/stm32f1x.cfg",
+        "config_file": "target/stm32f1x.cfg",
+        "transport": "hla_swd"
+      },
+      "toolchain": {
+        "compiler": "arm-none-eabi-gcc",
+        "hal_header": "stm32f1xx_hal.h",
+        "flags": "-mcpu=cortex-m3 -mthumb"
+      },
+      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf"
+    },
+    {
+      "id": "esp32_devkitv1",
+      "name": "ESP32 DEVKITV1",
+      "manufacturer": "Espressif",
+      "family": "ESP32",
+      "mcuModel": "ESP32",
+      "mcu": "ESP32",
+      "architecture": "Xtensa Dual-Core 32-bit LX6",
+      "frequency_mhz": 240,
+      "flashMb": 4,
+      "flash_kb": 4096,
+      "ramKb": 520,
+      "ram_kb": 520,
+      "gpioPins": 34,
+      "gpio_count": 34,
+      "usbAdapter": "CP2104",
+      "usb_adapter": {
+        "type": "CP2104",
+        "vid": "10c4",
+        "pid": "ea60",
+        "driver": "cp210x"
+      },
+      "openOcdConfig": "target/esp32.cfg",
+      "openocd": {
+        "interface": "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target": "target/esp32.cfg",
+        "config_file": "target/esp32.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": "esp-idf",
+      "datasheetUrl": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
+      "productUrl": "https://www.espressif.com/en/products/devkits",
+      "features": ["WiFi", "Bluetooth", "802.15.4", "ADC", "SPI", "I2C"]
+    },
+    {
+      "id": "esp32_devkitv1_cp2104",
+      "name": "ESP32 DEVKIT V1 (CP2104)",
+      "manufacturer": "DOIT / Espressif",
+      "family": "ESP32",
+      "mcu": "ESP32-D0WDQ6",
+      "architecture": "Xtensa Dual-Core 32-bit LX6",
+      "frequency_mhz": 240,
+      "flash_kb": 4096,
+      "ram_kb": 520,
+      "gpio_count": 36,
+      "analog_pins": ["GPIO32", "GPIO33", "GPIO34", "GPIO35", "GPIO36", "GPIO39"],
+      "pwm_pins": ["GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
+      "digital_pins": ["GPIO2", "GPIO4", "GPIO5", "GPIO12", "GPIO13", "GPIO14", "GPIO15", "GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
+      "usb_adapter": {
+        "type": "Silicon Labs CP2104 / CP2102",
+        "vid": "10c4",
+        "pid": "ea60",
+        "driver": "cp210x"
+      },
+      "openocd": {
+        "interface": "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target": "target/esp32.cfg",
+        "config_file": "config/openocd/esp32-devkitv1-cp210x.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": {
+        "compiler": "xtensa-esp32-elf-gcc",
+        "hal_header": "driver/gpio.h",
+        "flags": "-mlongcalls -Wno-frame-address"
+      },
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf"
+    },
+    {
+      "id": "esp32_devkitv1_ch340",
+      "name": "ESP32 DEVKIT V1 (CH340)",
+      "manufacturer": "Generic / Espressif",
+      "family": "ESP32",
+      "mcu": "ESP32-D0WD",
+      "architecture": "Xtensa Dual-Core 32-bit LX6",
+      "frequency_mhz": 240,
+      "flash_kb": 4096,
+      "ram_kb": 520,
+      "gpio_count": 36,
+      "analog_pins": ["GPIO32", "GPIO33", "GPIO34", "GPIO35", "GPIO36", "GPIO39"],
+      "pwm_pins": ["GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
+      "digital_pins": ["GPIO2", "GPIO4", "GPIO5", "GPIO12", "GPIO13", "GPIO14", "GPIO15", "GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
+      "usb_adapter": {
+        "type": "WCH CH340 / CH341",
+        "vid": "1a86",
+        "pid": "7523",
+        "driver": "ch341"
+      },
+      "openocd": {
+        "interface": "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target": "target/esp32.cfg",
+        "config_file": "config/openocd/esp32-devkitv1-cp210x.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": {
+        "compiler": "xtensa-esp32-elf-gcc",
+        "hal_header": "driver/gpio.h",
+        "flags": "-mlongcalls"
+      },
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf"
+    },
+    {
+      "id": "esp32_s3_devkitc",
+      "name": "ESP32-S3-DevKitC-1",
+      "manufacturer": "Espressif Systems",
+      "family": "ESP32-S3",
+      "mcu": "ESP32-S3-WROOM-1",
+      "architecture": "Xtensa Dual-Core 32-bit LX7 with Vector Instructions",
+      "frequency_mhz": 240,
+      "flash_kb": 8192,
+      "ram_kb": 512,
+      "gpio_count": 45,
+      "analog_pins": ["GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5", "GPIO6", "GPIO7", "GPIO8"],
+      "pwm_pins": ["GPIO9", "GPIO10", "GPIO11", "GPIO12", "GPIO13", "GPIO14"],
+      "digital_pins": ["GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5", "GPIO6", "GPIO7", "GPIO8", "GPIO9", "GPIO10", "GPIO21", "GPIO47", "GPIO48"],
+      "usb_adapter": {
+        "type": "Built-in USB Serial/JTAG",
+        "vid": "303a",
+        "pid": "1001",
+        "driver": "esp_usb_jtag"
+      },
+      "openocd": {
+        "interface": "interface/esp_usb_jtag.cfg",
+        "target": "target/esp32s3.cfg",
+        "config_file": "board/esp32s3-builtin.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": {
+        "compiler": "xtensa-esp32s3-elf-gcc",
+        "hal_header": "driver/gpio.h",
+        "flags": "-mlongcalls"
+      },
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf"
+    },
+    {
+      "id": "esp32_c3_devkitm",
+      "name": "ESP32-C3-DevKitM-1",
+      "manufacturer": "Espressif Systems",
+      "family": "ESP32-C3",
+      "mcu": "ESP32-C3-MINI-1",
+      "architecture": "RISC-V 32-bit Single-Core",
+      "frequency_mhz": 160,
+      "flash_kb": 4096,
+      "ram_kb": 400,
+      "gpio_count": 22,
+      "analog_pins": ["GPIO0", "GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5"],
+      "pwm_pins": ["GPIO6", "GPIO7", "GPIO8", "GPIO10"],
+      "digital_pins": ["GPIO0", "GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5", "GPIO6", "GPIO7", "GPIO8", "GPIO9"],
+      "usb_adapter": {
+        "type": "Built-in USB Serial/JTAG",
+        "vid": "303a",
+        "pid": "1001",
+        "driver": "esp_usb_jtag"
+      },
+      "openocd": {
+        "interface": "interface/esp_usb_jtag.cfg",
+        "target": "target/esp32c3.cfg",
+        "config_file": "board/esp32c3-builtin.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": {
+        "compiler": "riscv32-esp-elf-gcc",
+        "hal_header": "driver/gpio.h",
+        "flags": "-march=rv32imc -mabi=ilp32"
+      },
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf"
+    },
+    {
+      "id": "rpi_pico_rp2040",
+      "name": "Raspberry Pi Pico",
+      "manufacturer": "Raspberry Pi",
+      "family": "RP2040",
+      "mcuModel": "RP2040",
+      "mcu": "RP2040",
+      "architecture": "Dual ARM Cortex-M0+",
+      "frequency_mhz": 133,
+      "flashMb": 2,
+      "flash_kb": 2048,
+      "ramKb": 264,
+      "ram_kb": 264,
+      "gpioPins": 26,
+      "gpio_count": 26,
+      "usbAdapter": "CMSIS-DAP",
+      "openOcdConfig": "target/rp2040.cfg",
+      "toolchain": "arm-none-eabi-gcc",
+      "productUrl": "https://www.raspberrypi.com/products/raspberry-pi-pico/",
+      "features": ["USB Device", "Dual Core", "ADC", "SPI", "I2C", "UART"],
+      "datasheetUrl": "https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf",
+      "analog_pins": ["GP26", "GP27", "GP28"],
+      "pwm_pins": ["GP0", "GP1", "GP2", "GP3", "GP16", "GP17"],
+      "digital_pins": ["GP0", "GP1", "GP2", "GP3", "GP4", "GP5", "GP16", "GP17", "GP25", "GP26", "GP27", "GP28"],
+      "usb_adapter": {
+        "type": "Raspberry Pi Debug Probe / CMSIS-DAP",
+        "vid": "2e8a",
+        "pid": "000c",
+        "driver": "cmsis-dap"
+      },
+      "openocd": {
+        "interface": "interface/cmsis-dap.cfg",
+        "target": "target/rp2040.cfg",
+        "config_file": "target/rp2040.cfg",
+        "transport": "swd"
+      },
+      "toolchain": {
+        "compiler": "arm-none-eabi-gcc",
+        "hal_header": "hardware/gpio.h",
+        "flags": "-mcpu=cortex-m0plus -mthumb"
+      },
+      "datasheet_url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf"
+    },
+    {
+      "id": "rpi_pico2_rp2350",
+      "name": "Raspberry Pi Pico 2 (RP2350)",
+      "manufacturer": "Raspberry Pi Ltd",
+      "family": "RP2350",
+      "mcu": "RP2350A",
+      "architecture": "Dual ARM Cortex-M33 / Dual Hazard3 RISC-V",
+      "frequency_mhz": 150,
+      "flash_kb": 4096,
+      "ram_kb": 520,
+      "gpio_count": 30,
+      "analog_pins": ["GP26", "GP27", "GP28"],
+      "pwm_pins": ["GP0", "GP1", "GP2", "GP3", "GP16", "GP17"],
+      "digital_pins": ["GP0", "GP1", "GP2", "GP3", "GP4", "GP5", "GP16", "GP17", "GP25"],
+      "usb_adapter": {
+        "type": "Raspberry Pi Debug Probe / CMSIS-DAP",
+        "vid": "2e8a",
+        "pid": "000f",
+        "driver": "cmsis-dap"
+      },
+      "openocd": {
+        "interface": "interface/cmsis-dap.cfg",
+        "target": "target/rp2350.cfg",
+        "config_file": "target/rp2350.cfg",
+        "transport": "swd"
+      },
+      "toolchain": {
+        "compiler": "arm-none-eabi-gcc",
+        "hal_header": "hardware/gpio.h",
+        "flags": "-mcpu=cortex-m33 -mthumb"
+      },
+      "datasheet_url": "https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf"
+    },
+    {
+      "id": "nxp_imxrt1060_evk",
+      "name": "NXP i.MX RT1060 EVK",
+      "manufacturer": "NXP Semiconductors",
+      "family": "i.MX RT1060",
+      "mcu": "MIMXRT1062DVL6A",
+      "architecture": "ARM Cortex-M7",
+      "frequency_mhz": 600,
+      "flash_kb": 8192,
+      "ram_kb": 1024,
+      "gpio_count": 64,
+      "analog_pins": ["GPIO_AD_B0_12", "GPIO_AD_B0_13", "GPIO_AD_B0_14"],
+      "pwm_pins": ["GPIO_AD_B0_02", "GPIO_AD_B0_03"],
+      "digital_pins": ["GPIO_AD_B0_02", "GPIO_AD_B0_03", "GPIO_AD_B0_12", "GPIO_AD_B0_13", "GPIO_B1_00"],
+      "usb_adapter": {
+        "type": "DAPLink / OpenSDA CMSIS-DAP",
+        "vid": "0d28",
+        "pid": "0204",
+        "driver": "cmsis-dap"
+      },
+      "openocd": {
+        "interface": "interface/cmsis-dap.cfg",
+        "target": "target/imxrt1060.cfg",
+        "config_file": "board/nxp_imxrt1060_evk.cfg",
+        "transport": "swd"
+      },
+      "toolchain": {
+        "compiler": "arm-none-eabi-gcc",
+        "hal_header": "fsl_gpio.h",
+        "flags": "-mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard"
+      },
+      "datasheet_url": "https://www.nxp.com/docs/en/data-sheet/IMXRT1060CEC.pdf"
+    },
+    {
+      "id": "arduino_nano_esp32",
+      "name": "Arduino Nano ESP32",
+      "manufacturer": "Arduino",
+      "family": "ESP32-S3",
+      "mcu": "ESP32-S3",
+      "architecture": "Xtensa Dual-Core 32-bit LX7",
+      "frequency_mhz": 240,
+      "flash_kb": 16384,
+      "ram_kb": 512,
+      "gpio_count": 22,
+      "analog_pins": ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7"],
+      "pwm_pins": ["D2", "D3", "D5", "D6", "D9", "D10"],
+      "digital_pins": ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D13"],
+      "usb_adapter": {
+        "type": "Arduino USB DFU / JTAG",
+        "vid": "2341",
+        "pid": "0070",
+        "driver": "cmsis-dap"
+      },
+      "openocd": {
+        "interface": "interface/esp_usb_jtag.cfg",
+        "target": "target/esp32s3.cfg",
+        "config_file": "board/esp32s3-builtin.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": {
+        "compiler": "xtensa-esp32s3-elf-gcc",
+        "hal_header": "Arduino.h",
+        "flags": "-mlongcalls"
+      },
+      "datasheet_url": "https://docs.arduino.cc/resources/datasheets/ABX00083-datasheet.pdf"
+    },
+    {
+      "id": "seeed_xiao_esp32c3",
+      "name": "Seeed Studio XIAO ESP32C3",
+      "manufacturer": "Seeed Studio",
+      "family": "ESP32-C3",
+      "mcu": "ESP32-C3",
+      "architecture": "RISC-V 32-bit Single-Core",
+      "frequency_mhz": 160,
+      "flash_kb": 4096,
+      "ram_kb": 400,
+      "gpio_count": 11,
+      "analog_pins": ["A0", "A1", "A2", "A3"],
+      "pwm_pins": ["D0", "D1", "D2", "D3"],
+      "digital_pins": ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10"],
+      "usb_adapter": {
+        "type": "Built-in USB Serial/JTAG",
+        "vid": "303a",
+        "pid": "1001",
+        "driver": "esp_usb_jtag"
+      },
+      "openocd": {
+        "interface": "interface/esp_usb_jtag.cfg",
+        "target": "target/esp32c3.cfg",
+        "config_file": "board/esp32c3-builtin.cfg",
+        "transport": "jtag"
+      },
+      "toolchain": {
+        "compiler": "riscv32-esp-elf-gcc",
+        "hal_header": "driver/gpio.h",
+        "flags": "-march=rv32imc -mabi=ilp32"
+      },
+      "datasheet_url": "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/"
+    }
+  ]
+}

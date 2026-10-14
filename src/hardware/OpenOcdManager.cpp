@@ -183,6 +183,15 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
             qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
             return found;
         }
+        if (vid == 0x10c4 || desc.contains("cp210") || desc.contains("esp32")) {
+            found.detected = true;
+            found.vendorId = QString::number(vid, 16);
+            found.productId = QString::number(pid, 16);
+            found.name = "ESP32 DEVKIT V1 via CP210x";
+            found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+            qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
+            return found;
+        }
     }
 #endif
 
@@ -199,6 +208,24 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                 found.productId = "374b";
                 found.name = "STM32F030R8 via ST-Link";
                 found.suggestedInterface = "interface/stlink.cfg";
+                qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
+                return found;
+            }
+            if (out.contains("10c4:ea60") || out.contains("CP210", Qt::CaseInsensitive)) {
+                found.detected = true;
+                found.vendorId = "10c4";
+                found.productId = "ea60";
+                found.name = "ESP32 DEVKIT V1 via CP210x";
+                found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+                qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
+                return found;
+            }
+            if (out.contains("1a86:7523") || out.contains("CH340", Qt::CaseInsensitive)) {
+                found.detected = true;
+                found.vendorId = "1a86";
+                found.productId = "7523";
+                found.name = "ESP32 DEVKIT V1 via CH340";
+                found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
                 qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                 return found;
             }

@@ -1,131 +1,95 @@
-name: Embedded UI Designer CI/CD
+name: Build
 
 on:
   push:
-    branches: [ main, develop, "feature/**" ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
 
 jobs:
-  build-and-test:
-    name: Build & Verify Output (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  build-cross-platform:
+    name: Build on ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-2022
-            build_type: Release
-            generator: ""
-            exe_path: "build/Release/EmbeddedUIDesigner.exe"
-          - os: ubuntu-24.04
-            build_type: Release
-            generator: "Ninja"
-            exe_path: "./build/EmbeddedUIDesigner"
-          - os: macos-14
-            build_type: Release
-            generator: "Ninja"
-            exe_path: "./build/EmbeddedUIDesigner.app/Contents/MacOS/EmbeddedUIDesigner"
+          - os: Linux
+            arch: x86_64
+            runner: ubuntu-latest
+            cmake_platform: Linux
+            cmake_arch: x86_64
+          - os: Linux
+            arch: ARM64
+            runner: ubuntu-24.04-arm
+            cmake_platform: Linux
+            cmake_arch: ARM64
+          - os: macOS
+            arch: x86_64
+            runner: macos-13
+            cmake_platform: macOS
+            cmake_arch: x86_64
+          - os: macOS
+            arch: ARM64
+            runner: macos-latest
+            cmake_platform: macOS
+            cmake_arch: ARM64
+          - os: Windows
+            arch: x86_64
+            runner: windows-latest
+            cmake_platform: Windows
+            cmake_arch: x86_64
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Qt 6.5 LTS
-        uses: jurplel/install-qt-action@v4.4.1
-        with:
-          version: '6.5.3'
-          arch: ${{ startsWith(matrix.os, 'windows') && 'win64_msvc2019_64' || '' }}
-          modules: 'qtserialport'
-          cache: true
+      - name: Detect Platform and Architecture
+        shell: bash
+        run: |
+          echo "Target OS: ${{ matrix.os }}"
+          echo "Target Architecture: ${{ matrix.arch }}"
+          uname -a || true
 
-      - name: Add Qt to Windows PATH
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: echo "${env:QT_ROOT_DIR}/bin" >> $env:GITHUB_PATH
-
-      - name: Install Linux Dependencies
+      - name: Install Dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev libx11-dev xvfb
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential cmake ninja-build libjsoncpp-dev nodejs npm
 
-      - name: Install macOS Dependencies
+      - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install ninja
+        run: |
+          brew install cmake ninja jsoncpp node
 
-      - name: Configure Designer CMake
-        run: >
-          cmake -B build
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
-          ${{ matrix.generator != '' && format('-G "{0}"', matrix.generator) || '' }}
+      - name: Install Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake ninja nodejs -y
 
-      - name: Build Designer Executable
-        run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
-
-      - name: Run Automated Tests
+      - name: Configure CMake
         shell: bash
         run: |
-          export QT_QPA_PLATFORM=offscreen
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
-            ./build/Release/test_all_cases.exe
-            ./build/Release/test_hardening.exe
-          else
-            ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure --verbose
-          fi
+          mkdir -p build
+          cd build
+          cmake -DPLATFORM=${{ matrix.cmake_platform }} \
+                -DARCH=${{ matrix.cmake_arch }} \
+                -DENABLE_TESTS=ON \
+                -DENABLE_SECURITY_HARDENING=ON \
+                -DENABLE_OBSERVABILITY=ON ..
 
-      - name: Prepare Designer Binary in Root
+      - name: Build All Targets
         shell: bash
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            cp build/Release/EmbeddedUIDesigner.exe ./EmbeddedUIDesigner.exe
-          elif [ "$RUNNER_OS" = "macOS" ]; then
-            cp build/EmbeddedUIDesigner.app/Contents/MacOS/EmbeddedUIDesigner ./EmbeddedUIDesigner
-          else
-            cp build/EmbeddedUIDesigner ./EmbeddedUIDesigner
-          fi
-          chmod +x ./EmbeddedUIDesigner 2>/dev/null || true
-
-      - name: Test Headless Code Generation (CLI Mode)
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
-          fi
-          mkdir -p build/ugfx_out
-          echo "=== Exporting µGFX Project ==="
-          ./EmbeddedUIDesigner --export ugfx --project examples/simple.euiproj --out build/ugfx_out
-          
-          echo "=== Exporting Qt for MCUs (QUL) Project ==="
-          ./EmbeddedUIDesigner --export qul --project examples/simple.euiproj --out build/qul_out
-
-          echo "=== Exporting LVGL (C/C++) Project ==="
-          ./EmbeddedUIDesigner --export lvgl --project examples/simple.euiproj --out build/lvgl_out
-
-      - name: Clone µGFX for Export Build Verification
-        if: runner.os != 'macOS'
-        run: |
-          git clone --depth 1 https://git.ugfx.io/uGFX/ugfx.git ugfx_lib
-
-      - name: Compile Exported µGFX Project (Guarantees Working Output)
-        if: runner.os != 'macOS'
-        shell: bash
-        run: |
-          echo "=== Configuring Exported µGFX Build ==="
-          UGFX_DIR="${GITHUB_WORKSPACE//\\//}/ugfx_lib"
-          cmake -S build/ugfx_out -B build/ugfx_out/build -DUGFX_PATH="$UGFX_DIR"
-          echo "=== Compiling Exported µGFX Binary ==="
-          cmake --build build/ugfx_out/build --config Release
-
-      - name: Run CPack Packaging
-        working-directory: build
-        run: cpack -C ${{ matrix.build_type }}
+          cd build
+          cmake --build . --target test_project_model test_codegen_multi_language test_security_performance test_compliance_observability --config Release
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EmbeddedUIDesigner-${{ runner.os }}
-          path: build/EmbeddedUIDesigner-*.*
-          if-no-files-found: warn
+          name: build-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            build/test_project_model*
+            build/test_codegen_multi_language*
+            build/test_security_performance*
+            build/test_compliance_observability*

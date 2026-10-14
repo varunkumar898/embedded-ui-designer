@@ -4,6 +4,7 @@
 #include "providers/AnthropicProvider.h"
 #include "providers/GeminiProvider.h"
 #include "providers/CustomOpenAICompatibleProvider.h"
+#include "CredentialManager.h"
 #include <QSettings>
 
 namespace AI {
@@ -123,8 +124,9 @@ std::shared_ptr<AIProvider> AIProviderRegistry::providerForTask(TaskType type) c
 }
 
 void AIProviderRegistry::saveSettings() {
-    // SECURITY: Stored in user-specific local app settings (QSettings)
-    // NEVER in project JSON, .euiproj, git repo, or logs!
+    // SECURITY: API Keys are stored in the platform-neutral host-encrypted CredentialManager vault!
+    // Non-sensitive preferences (selected model, base URL, profiles) are stored in QSettings.
+    // NEVER stored in project JSON, .euiproj, git repo, or logs!
     QSettings settings("EmbeddedUIDesigner", "AISettings");
     settings.beginGroup("General");
     settings.setValue("defaultProviderId", m_defaultProviderId);
@@ -135,9 +137,17 @@ void AIProviderRegistry::saveSettings() {
     for (auto it = m_providers.begin(); it != m_providers.end(); ++it) {
         auto p = it.value();
         settings.beginGroup(p->providerId());
-        // Simple obfuscation so keys aren't in plain ascii if file is opened
-        QByteArray keyBytes = p->apiKey().toUtf8();
-        settings.setValue("apiKey", QString::fromLatin1(keyBytes.toBase64()));
+
+        // Remove any legacy insecure apiKey from QSettings
+        settings.remove("apiKey");
+
+        // Save secret to secure CredentialManager vault
+        if (!p->apiKey().isEmpty()) {
+            Security::CredentialManager::instance().storeCredential("AIProvider", p->providerId(), p->apiKey());
+        } else {
+            Security::CredentialManager::instance().deleteCredential("AIProvider", p->providerId());
+        }
+
         settings.setValue("model", p->currentModel());
         settings.setValue("baseUrl", p->baseUrl());
         settings.setValue("cachedModels", p->cachedModels());
@@ -170,13 +180,23 @@ void AIProviderRegistry::loadSettings() {
     for (auto it = m_providers.begin(); it != m_providers.end(); ++it) {
         auto p = it.value();
         settings.beginGroup(p->providerId());
-        if (settings.contains("apiKey")) {
+
+        QString key = Security::CredentialManager::instance().retrieveCredential("AIProvider", p->providerId());
+
+        // Automatic safe migration: If not in vault yet, check legacy QSettings Base64
+        if (key.isEmpty() && settings.contains("apiKey")) {
             QByteArray decodedKey = QByteArray::fromBase64(settings.value("apiKey").toString().toLatin1());
-            QString key = QString::fromUtf8(decodedKey);
-            QString model = settings.value("model").toString();
-            QString baseUrl = settings.value("baseUrl").toString();
-            p->configure(key, model, baseUrl);
+            key = QString::fromUtf8(decodedKey);
+            if (!key.isEmpty()) {
+                Security::CredentialManager::instance().storeCredential("AIProvider", p->providerId(), key);
+            }
+            settings.remove("apiKey"); // Purge from plain settings file
         }
+
+        QString model = settings.value("model").toString();
+        QString baseUrl = settings.value("baseUrl").toString();
+        p->configure(key, model, baseUrl);
+
         if (settings.contains("cachedModels")) {
             p->setCachedModels(settings.value("cachedModels").toStringList());
         }
@@ -199,6 +219,7 @@ void AIProviderRegistry::loadSettings() {
 
 void AIProviderRegistry::clearAllCredentials() {
     for (auto& p : m_providers) {
+        Security::CredentialManager::instance().deleteCredential("AIProvider", p->providerId());
         p->configure("", p->currentModel(), p->baseUrl());
     }
     saveSettings();

@@ -627,14 +627,29 @@ RESOURCES_DEFINITION = [
 ]
 
 
+import os
+
 class DesignerClient:
-    def __init__(self, host="127.0.0.1", port=DEFAULT_PORT):
+    def __init__(self, host="127.0.0.1", port=DEFAULT_PORT, token=None):
         self.host = host
         self.port = port
+        self.token = token or self._load_token()
+
+    def _load_token(self):
+        token_path = os.path.expanduser("~/.config/embedded-ui-designer/mcp_token")
+        if os.path.exists(token_path):
+            try:
+                with open(token_path, "r", encoding="utf-8") as f:
+                    return f.read().strip()
+            except Exception:
+                pass
+        return None
 
     def send_command(self, method: str, params: dict = None) -> dict:
         if params is None:
             params = {}
+        if self.token and "token" not in params and "auth_token" not in params:
+            params["token"] = self.token
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -800,9 +815,10 @@ def main():
     parser = argparse.ArgumentParser(description="Embedded UI Designer MCP Server")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port where Embedded UI Designer is listening")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host address of Embedded UI Designer")
+    parser.add_argument("--token", type=str, default=None, help="Session authentication token for Embedded UI Designer")
     args = parser.parse_args()
 
-    client = DesignerClient(host=args.host, port=args.port)
+    client = DesignerClient(host=args.host, port=args.port, token=args.token)
     logger.info("Embedded UI Designer MCP Server initialized (connecting to %s:%d)", args.host, args.port)
 
     # Process stdin JSON-RPC requests line by line

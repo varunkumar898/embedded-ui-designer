@@ -199,6 +199,13 @@ QJsonObject DesignerController::saveProject(const QString& filePath) {
         return res;
     }
 
+    QString sandboxErr;
+    if (!validateFileSandbox(path, &sandboxErr)) {
+        res["success"] = false;
+        res["error"] = sandboxErr;
+        return res;
+    }
+
     bool ok = m_project->saveToFile(path);
     res["success"] = ok;
     if (ok) {
@@ -214,6 +221,13 @@ QJsonObject DesignerController::loadProject(const QString& filePath) {
     if (!m_project) {
         res["success"] = false;
         res["error"] = "No active project";
+        return res;
+    }
+
+    QString sandboxErr;
+    if (!validateFileSandbox(filePath, &sandboxErr)) {
+        res["success"] = false;
+        res["error"] = sandboxErr;
         return res;
     }
 
@@ -832,6 +846,13 @@ QJsonObject DesignerController::exportProject(const QString& target, const QStri
     QString out = outputDir;
     if (out.isEmpty()) {
         out = QDir::tempPath() + "/embedded_ui_export_" + t;
+    } else {
+        QString sandboxErr;
+        if (!validateFileSandbox(out, &sandboxErr)) {
+            res["success"] = false;
+            res["error"] = sandboxErr;
+            return res;
+        }
     }
     QDir().mkpath(out);
 
@@ -1841,6 +1862,12 @@ QJsonObject DesignerController::createCustomHardware(const QJsonObject& definiti
 
 QJsonObject DesignerController::saveHardwareDefinition(const QString& id, const QString& filePath) {
     QJsonObject res;
+    QString sandboxErr;
+    if (!validateFileSandbox(filePath, &sandboxErr)) {
+        res["success"] = false;
+        res["error"] = sandboxErr;
+        return res;
+    }
     QString err;
     bool ok = Hardware::DeviceDatabase::instance().exportHardwareDefinition(id, filePath, &err);
     res["success"] = ok;
@@ -1855,6 +1882,12 @@ QJsonObject DesignerController::saveHardwareDefinition(const QString& id, const 
 
 QJsonObject DesignerController::loadHardwareDefinition(const QString& filePath) {
     QJsonObject res;
+    QString sandboxErr;
+    if (!validateFileSandbox(filePath, &sandboxErr)) {
+        res["success"] = false;
+        res["error"] = sandboxErr;
+        return res;
+    }
     QString id, err;
     bool ok = Hardware::DeviceDatabase::instance().importHardwareDefinition(filePath, &id, &err);
     res["success"] = ok;
@@ -1865,5 +1898,53 @@ QJsonObject DesignerController::loadHardwareDefinition(const QString& filePath) 
         res["error"] = err;
     }
     return res;
+}
+
+bool DesignerController::validateFileSandbox(const QString& filePath, QString* outError) const {
+    if (filePath.trimmed().isEmpty()) {
+        if (outError) *outError = "File path is empty.";
+        return false;
+    }
+
+    // 1. Directory traversal prevention
+    if (filePath.contains("..") || filePath.contains("/./") || filePath.contains("\\.\\")) {
+        if (outError) *outError = "Access denied: Directory traversal (..) is not permitted.";
+        return false;
+    }
+
+    QString cleanPath = QDir::cleanPath(filePath);
+    QFileInfo fi(cleanPath);
+    QString absPath = fi.absoluteFilePath();
+
+    // 2. Restricted system directories
+    static const QStringList forbiddenPrefixes = {
+        "/etc", "/boot", "/sys", "/proc", "/dev", "/root",
+        "/bin", "/sbin", "/usr/bin", "/usr/sbin", "/var/run",
+        "C:/Windows", "C:\\Windows"
+    };
+
+    for (const QString& prefix : forbiddenPrefixes) {
+        if (absPath.startsWith(prefix, Qt::CaseInsensitive)) {
+            if (outError) *outError = QString("Access denied: Path is inside restricted system directory '%1'.").arg(prefix);
+            return false;
+        }
+    }
+
+    // 3. User secrets, credentials and sensitive dotfiles
+    QString home = QDir::homePath();
+    if (!home.isEmpty()) {
+        static const QStringList forbiddenPatterns = {
+            "/.ssh", "/.gnupg", "/.aws", "/credentials.vault",
+            "/mcp_token", "/.bashrc", "/.bash_history", "/.zshrc", "/.profile"
+        };
+        for (const QString& pat : forbiddenPatterns) {
+            if (absPath.contains(pat, Qt::CaseInsensitive)) {
+                if (outError) *outError = "Access denied: Cannot access sensitive user credentials or configuration files.";
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embedded UI Controller</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation -->
+        <nav class="top-nav">
+            <h1 id="appTitle">Device Controller</h1>
+            <div class="nav-status">
+                <span id="connectionStatus" class="status-indicator disconnected">Disconnected</span>
+                <button id="settingsBtn" class="icon-btn" title="Toggle Debug Console">⚙️</button>
+            </div>
+        </nav>
+        
+        <!-- Pages Container -->
+        <div class="pages-container">
+            <div id="mainPage" class="page active">
+                <!-- GPIO Read Example -->
+                <section class="component-section">
+                    <h2>GPIO Control</h2>
+                    
+                    <div class="form-group">
+                        <label for="deviceId">Device ID</label>
+                        <input type="text" id="deviceId" placeholder="device_1" value="device_1" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pinNumber">Pin Number (0 - 255)</label>
+                        <input type="number" id="pinNumber" min="0" max="255" placeholder="0" value="0" class="form-control">
+                    </div>
+                    
+                    <button id="readGpioBtn" class="btn btn-primary">Read GPIO</button>
+                    
+                    <div id="gpioResult" class="result-panel" style="display: none;">
+                        <h3>Result</h3>
+                        <pre id="gpioResultJson"></pre>
+                        <p id="gpioResultStatus"></p>
+                    </div>
+                </section>
+                
+                <!-- ADC Read Example -->
+                <section class="component-section">
+                    <h2>ADC Reading</h2>
+                    
+                    <div class="form-group">
+                        <label for="adcChannel">ADC Channel (0 - 15)</label>
+                        <input type="number" id="adcChannel" min="0" max="15" placeholder="0" value="0" class="form-control">
+                    </div>
+                    
+                    <button id="readAdcBtn" class="btn btn-primary">Read ADC</button>
+                    
+                    <div id="adcResult" class="result-panel" style="display: none;">
+                        <h3>Result</h3>
+                        <pre id="adcResultJson"></pre>
+                        <p id="adcResultStatus"></p>
+                    </div>
+                </section>
+                
+                <!-- PWM Write Example -->
+                <section class="component-section">
+                    <h2>PWM Control</h2>
+                    
+                    <div class="form-group">
+                        <label for="pwmPin">PWM Pin (0 - 255)</label>
+                        <input type="number" id="pwmPin" min="0" max="255" placeholder="10" value="10" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pwmDutyCycle">Duty Cycle (%)</label>
+                        <input type="range" id="pwmDutyCycle" min="0" max="100" value="50" class="form-control">
+                        <span id="pwmDutyCycleDisplay">50%</span>
+                    </div>
+                    
+                    <button id="setPwmBtn" class="btn btn-primary">Set PWM</button>
+                    
+                    <div id="pwmResult" class="result-panel" style="display: none;">
+                        <h3>Result</h3>
+                        <pre id="pwmResultJson"></pre>
+                        <p id="pwmResultStatus"></p>
+                    </div>
+                </section>
+            </div>
+        </div>
+        
+        <!-- Debug Panel -->
+        <div id="debugPanel" class="debug-panel" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3>Debug Console</h3>
+                <button id="clearDebugBtn" class="btn btn-small">Clear</button>
+            </div>
+            <div id="debugLog" class="debug-log"></div>
+        </div>
+    </div>
+    
+    <script src="api-client.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

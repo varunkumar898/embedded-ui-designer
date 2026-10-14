@@ -3,36 +3,53 @@
 #include <QWidget>
 #include <QLabel>
 #include <QProgressBar>
-#include <QTableWidget>
+#include <QComboBox>
+#include <QListWidget>
 #include <QPushButton>
-#include <QTreeWidget>
+#include <QGroupBox>
 #include <QVBoxLayout>
-#include "analyzer/ResourceAnalyzer.h"
+#include "ResourceEstimator.h"
+#include "ResourceAnalysis.h"
+#include "CapabilityDatabase.h"
 
 class Project;
+class UIComponent;
 
 class ResourceAnalyzerPanel : public QWidget {
     Q_OBJECT
 
 public:
-    explicit ResourceAnalyzerPanel(Project* project, QWidget* parent = nullptr);
+    explicit ResourceAnalyzerPanel(QWidget* parent = nullptr);
     ~ResourceAnalyzerPanel() override = default;
 
     void setProject(Project* project);
+    void setDevice(const DeviceProfile& device);
+    void setDevice(const QString& deviceName);
+
+    ResourceAnalysis lastAnalysis() const { return m_last_analysis; }
+    ResourceEstimator& estimator() { return m_estimator; }
 
 public slots:
-    void refreshAnalysis();
+    void refresh();
+
+private slots:
+    void onProjectModified();
+    void onDeviceComboChanged(int index);
 
 private:
     void setupUi();
-    void updateUi(const ResourceReport& report);
-    void formatProgressBar(QProgressBar* bar, double percent);
+    void updateUI(const ResourceAnalysis& analysis);
 
+    ResourceEstimator m_estimator;
     Project* m_project = nullptr;
-    ResourceAnalyzer m_analyzer;
+    DeviceProfile m_device;
+    ResourceAnalysis m_last_analysis;
+    bool m_updatingCombo = false;
 
-    QLabel* m_targetLabel = nullptr;
-    QLabel* m_resolutionLabel = nullptr;
+    // UI elements
+    QComboBox* m_deviceCombo = nullptr;
+    QLabel* m_deviceInfoLabel = nullptr;
+    QLabel* m_statusBadge = nullptr;
 
     QProgressBar* m_flashBar = nullptr;
     QLabel* m_flashDetailsLabel = nullptr;
@@ -40,9 +57,10 @@ private:
     QProgressBar* m_ramBar = nullptr;
     QLabel* m_ramDetailsLabel = nullptr;
 
-    QLabel* m_framebufferDetailsLabel = nullptr;
+    QProgressBar* m_cpuBar = nullptr;
+    QLabel* m_cpuDetailsLabel = nullptr;
 
-    QTreeWidget* m_breakdownTree = nullptr;
+    QLabel* m_breakdownLabel = nullptr;
     QListWidget* m_warningsList = nullptr;
     QPushButton* m_refreshBtn = nullptr;
 };

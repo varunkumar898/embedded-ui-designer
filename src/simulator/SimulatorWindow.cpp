@@ -1,4 +1,5 @@
 #include "SimulatorWindow.h"
+#include "theme/Theme.h"
 #include <QStatusBar>
 #include <QCloseEvent>
 #include <QTime>
@@ -29,12 +30,12 @@ SimulatorWindow::~SimulatorWindow() {
 void SimulatorWindow::setupUi() {
     setWindowTitle("Embedded UI Designer — Desktop Simulator");
     resize(1200, 750);
-    setStyleSheet(
-        "QMainWindow { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }"
-        "QToolBar { background-color: #1e293b; border-bottom: 1px solid #334155; spacing: 6px; padding: 4px; }"
-        "QStatusBar { background-color: #1e293b; color: #94a3b8; border-top: 1px solid #334155; }"
-        "QSplitter::handle { background-color: #334155; width: 2px; }"
-    );
+    setStyleSheet(QString(
+        "QMainWindow { background-color: %1; color: %2; }"
+        "QToolBar { background-color: %3; border-bottom: 1px solid %4; spacing: 6px; padding: 4px; }"
+        "QStatusBar { background-color: %3; color: %5; border-top: 1px solid %4; }"
+        "QSplitter::handle { background-color: %4; width: 2px; }"
+    ).arg(Theme::BgBase, Theme::TextPrimary, Theme::BgSurface, Theme::BorderSubtle, Theme::TextMuted));
 
     setupToolBar();
 
@@ -53,7 +54,7 @@ void SimulatorWindow::setupUi() {
     // Status bar
     statusBar()->showMessage("Desktop Simulation Engine Ready | Hardware Isolated");
     m_clockLabel = new QLabel("Sim Time: 00:00:00.000", this);
-    m_clockLabel->setStyleSheet("color: #38bdf8; font-family: monospace; padding-right: 12px;");
+    m_clockLabel->setStyleSheet(QString("color: %1; font-family: monospace; padding-right: 12px;").arg(Theme::Info));
     statusBar()->addPermanentWidget(m_clockLabel);
 }
 
@@ -64,35 +65,35 @@ void SimulatorWindow::setupToolBar() {
     // Run Button
     m_btnRun = new QPushButton("▶ Run", this);
     m_btnRun->setObjectName("simRunBtn");
-    m_btnRun->setStyleSheet("background-color: #15803d; color: #f0fdf4; font-weight: bold; padding: 5px 12px; border-radius: 4px;");
+    m_btnRun->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 12px; border-radius: %3px;").arg(Theme::SuccessBg, Theme::Success, QString::number(Theme::RadiusSm)));
     connect(m_btnRun, &QPushButton::clicked, this, &SimulatorWindow::onRun);
     m_toolBar->addWidget(m_btnRun);
 
     // Pause Button
     m_btnPause = new QPushButton("⏸ Pause", this);
     m_btnPause->setObjectName("simPauseBtn");
-    m_btnPause->setStyleSheet("background-color: #b45309; color: #fef3c7; font-weight: bold; padding: 5px 12px; border-radius: 4px;");
+    m_btnPause->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 12px; border-radius: %3px;").arg(Theme::WarningBg, Theme::Warning, QString::number(Theme::RadiusSm)));
     connect(m_btnPause, &QPushButton::clicked, this, &SimulatorWindow::onPause);
     m_toolBar->addWidget(m_btnPause);
 
     // Step Button
     m_btnStep = new QPushButton("⏯ Step", this);
     m_btnStep->setObjectName("simStepBtn");
-    m_btnStep->setStyleSheet("background-color: #334155; color: #f8fafc; font-weight: bold; padding: 5px 10px; border-radius: 4px;");
+    m_btnStep->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 10px; border-radius: %3px;").arg(Theme::BgRaised, Theme::TextPrimary, QString::number(Theme::RadiusSm)));
     connect(m_btnStep, &QPushButton::clicked, this, &SimulatorWindow::onStep);
     m_toolBar->addWidget(m_btnStep);
 
     // Stop Button
     m_btnStop = new QPushButton("⏹ Stop", this);
     m_btnStop->setObjectName("simStopBtn");
-    m_btnStop->setStyleSheet("background-color: #b91c1c; color: #fef2f2; font-weight: bold; padding: 5px 12px; border-radius: 4px;");
+    m_btnStop->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 12px; border-radius: %3px;").arg(Theme::DangerBg, Theme::Danger, QString::number(Theme::RadiusSm)));
     connect(m_btnStop, &QPushButton::clicked, this, &SimulatorWindow::onStop);
     m_toolBar->addWidget(m_btnStop);
 
     // Restart Button
     m_btnRestart = new QPushButton("🔄 Restart", this);
     m_btnRestart->setObjectName("simRestartBtn");
-    m_btnRestart->setStyleSheet("background-color: #0369a1; color: #f0f9ff; font-weight: bold; padding: 5px 12px; border-radius: 4px;");
+    m_btnRestart->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 12px; border-radius: %3px;").arg(Theme::InfoBg, Theme::Info, QString::number(Theme::RadiusSm)));
     connect(m_btnRestart, &QPushButton::clicked, this, &SimulatorWindow::onRestart);
     m_toolBar->addWidget(m_btnRestart);
 
@@ -144,7 +145,7 @@ void SimulatorWindow::setupToolBar() {
     // Mode Status Badge
     m_statusBadge = new QLabel(" ● SIMULATION MODE (Hardware Isolated) ", this);
     m_statusBadge->setObjectName("simStatusBadge");
-    m_statusBadge->setStyleSheet("background-color: #0c4a6e; color: #38bdf8; font-weight: bold; border-radius: 4px; padding: 4px 8px;");
+    m_statusBadge->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border-radius: %3px; padding: 4px 8px;").arg(Theme::InfoBg, Theme::Info, QString::number(Theme::RadiusSm)));
     m_toolBar->addWidget(m_statusBadge);
 }
 
@@ -242,13 +243,13 @@ void SimulatorWindow::updateStatusIndicator() {
 
     if (m_runtime->isRunning()) {
         m_statusBadge->setText(" ● RUNNING (Simulation HAL) ");
-        m_statusBadge->setStyleSheet("background-color: #065f46; color: #a7f3d0; font-weight: bold; border-radius: 4px; padding: 4px 8px;");
+        m_statusBadge->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border-radius: %3px; padding: 4px 8px;").arg(Theme::SuccessBg, Theme::Success, QString::number(Theme::RadiusSm)));
     } else if (m_runtime->isPaused()) {
         m_statusBadge->setText(" ⏸ PAUSED ");
-        m_statusBadge->setStyleSheet("background-color: #78350f; color: #fde68a; font-weight: bold; border-radius: 4px; padding: 4px 8px;");
+        m_statusBadge->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border-radius: %3px; padding: 4px 8px;").arg(Theme::WarningBg, Theme::Warning, QString::number(Theme::RadiusSm)));
     } else {
         m_statusBadge->setText(" ⏹ STOPPED ");
-        m_statusBadge->setStyleSheet("background-color: #450a0a; color: #fca5a5; font-weight: bold; border-radius: 4px; padding: 4px 8px;");
+        m_statusBadge->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border-radius: %3px; padding: 4px 8px;").arg(Theme::DangerBg, Theme::Danger, QString::number(Theme::RadiusSm)));
     }
 }
 

@@ -1,0 +1,23 @@
+{
+  "family": "i.MX RT",
+  "devices": [
+    {
+      "name": "NXP i.MX RT1060",
+      "ram_kb": 1024,
+      "flash_kb": 8192,
+      "cpu_speed_mhz": 600,
+      "peripherals": ["UART1", "UART2", "SPI1", "SPI2", "I2C1", "CAN1"],
+      "supported_frameworks": ["qt-for-mcus", "lvgl", "ugfx"],
+      "notes": "Cortex-M7 Crossover MCU @ 600MHz"
+    },
+    {
+      "name": "NXP i.MX RT1050",
+      "ram_kb": 512,
+      "flash_kb": 4096,
+      "cpu_speed_mhz": 600,
+      "peripherals": ["UART1", "UART2", "SPI1", "I2C1"],
+      "supported_frameworks": ["qt-for-mcus", "lvgl", "ugfx"],
+      "notes": "Cortex-M7 Crossover MCU @ 600MHz"
+    }
+  ]
+}

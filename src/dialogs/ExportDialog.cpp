@@ -1,5 +1,7 @@
 #include "ExportDialog.h"
 #include "project/Project.h"
+#include "analyzer/ResourceEstimator.h"
+#include "theme/Theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -53,10 +55,12 @@ void ExportDialog::setupUi() {
     m_frameworkCombo->addItem("LVGL v8 / v9 (C Embedded Library)", "lvgl");
     m_frameworkCombo->addItem("µGFX (Lightweight C Library)", "ugfx");
     m_frameworkCombo->addItem("Qt for MCUs (QUL QML Engine)", "qtmcu");
+    m_frameworkCombo->addItem("EmbedWeb (Native Bounded C Runtime - Prototype)", "embedweb");
     if (m_project) {
         QString fw = m_project->targetFramework().toLower();
         if (fw.contains("ugfx")) m_frameworkCombo->setCurrentIndex(1);
         else if (fw.contains("qtmcu")) m_frameworkCombo->setCurrentIndex(2);
+        else if (fw.contains("embedweb")) m_frameworkCombo->setCurrentIndex(3);
         else m_frameworkCombo->setCurrentIndex(0);
     }
     formLayout->addRow("Target Framework:", m_frameworkCombo);
@@ -91,7 +95,8 @@ void ExportDialog::setupUi() {
     auto* summaryLayout = new QVBoxLayout(summaryGroup);
     m_summaryEdit = new QTextEdit(this);
     m_summaryEdit->setReadOnly(true);
-    m_summaryEdit->setStyleSheet("background-color: #1e1e1e; color: #dcdcdc; font-family: monospace; font-size: 11px;");
+    m_summaryEdit->setStyleSheet(QString("background-color: %1; color: %2; font-family: monospace; font-size: 11px; border: 1px solid %3; border-radius: %4px;")
+        .arg(Theme::BgBase, Theme::TextSecondary, Theme::BorderSubtle, QString::number(Theme::RadiusSm)));
     summaryLayout->addWidget(m_summaryEdit);
     mainLayout->addWidget(summaryGroup);
 
@@ -99,7 +104,8 @@ void ExportDialog::setupUi() {
     auto* btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
     m_exportBtn = new QPushButton("Export Firmware", this);
-    m_exportBtn->setStyleSheet("background-color: #2980b9; color: white; font-weight: bold; padding: 6px 16px;");
+    m_exportBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 6px 16px; border-radius: %3px;")
+        .arg(Theme::Accent, Theme::BgBase, QString::number(Theme::RadiusSm)));
     connect(m_exportBtn, &QPushButton::clicked, this, &ExportDialog::onExportClicked);
 
     m_closeBtn = new QPushButton("Close", this);
@@ -108,15 +114,55 @@ void ExportDialog::setupUi() {
     btnLayout->addWidget(m_exportBtn);
     btnLayout->addWidget(m_closeBtn);
     mainLayout->addLayout(btnLayout);
+
+    connect(m_frameworkCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ExportDialog::updateValidation);
+    connect(m_targetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ExportDialog::updateValidation);
+    updateValidation();
 }
 
 void ExportDialog::updateValidation() {
+    QString fw = m_frameworkCombo->currentData().toString();
+    QString target = m_targetCombo->currentData().toString();
     QString summary = "Ready to export firmware project.\n";
     summary += QString("Target Framework: %1\n").arg(m_frameworkCombo->currentText());
-    summary += QString("Hardware Target: %1\n").arg(m_targetCombo->currentText());
+    summary += QString("Hardware Target:  %1\n").arg(m_targetCombo->currentText());
+    if (fw == "embedweb") {
+        summary += "Runtime Architecture: Bounded POD runtime, zero dynamic allocations during rendering.\n";
+        summary += "Output Files: generated/ui/, generated/runtime/, generated/runtime/adapters/, generated/bindings/, user/main.c, CMakeLists.txt\n\n";
+
+        // Resource & Toolchain Evaluation
+        ResourceEstimator estimator;
+        auto evaluations = estimator.evaluateEmbedWebTargets(m_project);
+        summary += "--- Candidate MCU Target Evaluations ---\n";
+        for (const auto& ev : evaluations) {
+            QString compStatus;
+            switch (ev.compatibility) {
+                case ResourceEstimator::EmbedWebTargetEvaluation::Compatible: compStatus = "[COMPATIBLE]"; break;
+                case ResourceEstimator::EmbedWebTargetEvaluation::CompatibleWithWarnings: compStatus = "[WARNING]"; break;
+                case ResourceEstimator::EmbedWebTargetEvaluation::InsufficientFlash: compStatus = "[INSUFFICIENT FLASH]"; break;
+                case ResourceEstimator::EmbedWebTargetEvaluation::InsufficientRAM: compStatus = "[INSUFFICIENT RAM]"; break;
+                case ResourceEstimator::EmbedWebTargetEvaluation::MissingToolchain: compStatus = "[MISSING TOOLCHAIN]"; break;
+                case ResourceEstimator::EmbedWebTargetEvaluation::NotValidated: compStatus = "[NOT TESTED]"; break;
+                case ResourceEstimator::EmbedWebTargetEvaluation::AdapterNotImplemented: compStatus = "[NO ADAPTER]"; break;
+                default: compStatus = "[MISMATCH]"; break;
+            }
+            summary += QString("• %1 (%2, %3): %4 - %5\n")
+                           .arg(ev.targetName, ev.family, ev.architecture, compStatus, ev.reason);
+        }
+        summary += "\n";
+
+        if (target == "esp32") {
+            summary += "Target Notice: ESP32-S3 validation is NOT TESTED (Xtensa/ESP-IDF toolchain absent on host).\n";
+        } else if (target == "stm32") {
+            summary += "Target Notice: STM32 Cortex-M target compiler verified (arm-none-eabi-gcc).\n";
+        } else if (target == "pico") {
+            summary += "Target Notice: RP2040 Cortex-M0+ target compiler verified (arm-none-eabi-gcc).\n";
+        }
+    }
     summary += "User preservation: ON (Existing user/ files will not be overwritten)\n";
     m_summaryEdit->setText(summary);
 }
+
 
 void ExportDialog::onBrowseClicked() {
     QString dir = QFileDialog::getExistingDirectory(this, "Select Export Directory", m_outputPathEdit->text());

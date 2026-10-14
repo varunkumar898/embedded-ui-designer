@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>config/openocd/esp32-devkitv1.cfg</file>
+        <file>config/openocd/esp32-devkitv1-usb.cfg</file>
+        <file>config/openocd/esp32-devkitv1-cp210x.cfg</file>
+        <file>config/openocd/stm32f030r8.cfg</file>
+    </qresource>
+</RCC>

@@ -56,7 +56,11 @@ void CircleComponent::paintComponent(QPainter* painter) {
     }
 
     if (m_isFilled) {
-        painter->setBrush(m_fillColor);
+        if (hasGradientFill()) {
+            painter->setBrush(gradientFill().toQBrush(QRectF(x, y, effDim, effDim)));
+        } else {
+            painter->setBrush(m_fillColor);
+        }
     } else {
         painter->setBrush(Qt::NoBrush);
     }

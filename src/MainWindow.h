@@ -15,9 +15,30 @@
 #include "StylesPanel.h"
 #include "ScreensPanel.h"
 #include "Project.h"
+#include "OpenOCDManager.h"
+#include "workspace/WorkspaceMode.h"
+#include "workspace/WorkspaceManager.h"
+#include "workspace/DesignWorkspace.h"
+#include "hardware/BoardDetector.h"
+#include "hardware/BoardDatabase.h"
+
+class ContextualTopToolbar;
+class FloatingSelectionToolbar;
+class EffectsPanel;
+class UploadsPanel;
+class ResourceAnalyzerPanel;
+class QToolButton;
+class QToolBar;
+class QStackedWidget;
+class QButtonGroup;
+class CodeWorkspaceView;
 
 namespace Simulator {
 class SimulatorWindow;
+}
+
+namespace AI {
+class AIAssistantPanel;
 }
 
 class DeviceManager;
@@ -25,6 +46,9 @@ class DesignerController;
 class DesignerLocalServer;
 class ResourceAnalyzerPanel;
 class BuildOutputPanel;
+class QProgressBar;
+class OpenOCDWorker;
+class QThread;
 class DeviceMonitorPanel;
 
 class MainWindow : public QMainWindow {
@@ -41,20 +65,40 @@ public:
     PropertiesPanel* propertiesPanel() const { return m_propertiesPanel; }
     LayerPanel* layerPanel() const { return m_layerPanel; }
     ScreensPanel* screensPanel() const { return m_screensPanel; }
+    ContextualTopToolbar* contextualTopToolbar() const { return m_topToolbar; }
+    FloatingSelectionToolbar* floatingToolbar() const { return m_floatingToolbar; }
+    EffectsPanel* effectsPanel() const { return m_effectsPanel; }
+    UploadsPanel* uploadsPanel() const { return m_uploadsPanel; }
     ResourceAnalyzerPanel* resourceAnalyzerPanel() const { return m_resourcePanel; }
-    BuildOutputPanel* buildOutputPanel() const { return m_buildPanel; }
-    DeviceMonitorPanel* deviceMonitorPanel() const { return m_deviceMonitorPanel; }
 
     DesignerController* designerController() const { return m_controller; }
     DesignerLocalServer* localServer() const { return m_localServer; }
     bool startLocalMcpServer(quint16 port = 8765);
     void stopLocalMcpServer();
 
+    // Hardware-in-the-Loop & OpenOCD Controls
+    class OpenOCDManager& openOcdManager() { return m_openocd; }
+    void createGpioControls();
+
+    // Workspace Switching
+    WorkspaceMode workspaceMode() const { return m_workspaceMode; }
+    WorkspaceManager* workspaceManager() const { return m_workspaceManager; }
+    DesignWorkspace* designWorkspace() const { return m_designWorkspace; }
+    CodeWorkspaceView* codeWorkspaceView() const { return m_codeWorkspace; }
+    BoardDetector& boardDetector() { return m_boardDetector; }
+    void setWorkspaceMode(WorkspaceMode mode);
+
+public slots:
+    void switchToDesignWorkspace();
+    void switchToCodeWorkspace();
+    void onOpenBoardSelectorDialog();
+
 private slots:
     // File Actions
     void onNewProject();
     void onCreateEmbeddedProject();
     void onOpenProject();
+    void onOpenFirmwareFolder();
     void onOpenSampleProject();
     void onImportProject();
     void onSaveProject();
@@ -68,6 +112,7 @@ private slots:
     void onPinConfiguration();
     void onImportBoardConfig();
     void onImportQmlDesign();
+    void onImportHtmlCss();
 
     // Edit Actions
     void onDeleteSelected();
@@ -82,6 +127,9 @@ private slots:
     void onResolutionPresetChanged(int index);
     void onProjectSettingsDialog();
     void onAISettingsDialog();
+    void onGitDialog();
+    void onCICDDialog();
+    void onDiagnosticsDialog();
     void onAbout();
     void onRunSimulator();
 
@@ -104,35 +152,82 @@ private slots:
     void onBooleanXor();
     void runBooleanOp(int opCode);
 
+signals:
+    void liveTestModeChanged(bool enabled);
+
     friend class TestFunctionalRunner;
 
 private:
     // Core Subsystems
     CanvasScene* m_scene = nullptr;
     CanvasView* m_view = nullptr;
+    CanvasView* m_canvasView = nullptr;
     Project* m_project = nullptr;
     DeviceManager* m_deviceManager = nullptr;
     class QUndoStack* m_undoStack = nullptr;
 
     // Dock Panels
     ComponentPalette* m_palette = nullptr;
+    QDockWidget* m_paletteDock = nullptr;
     PropertiesPanel* m_propertiesPanel = nullptr;
+    QDockWidget* m_propDock = nullptr;
     PrototypePanel* m_prototypePanel = nullptr;
+    QDockWidget* m_prototypeDock = nullptr;
     LayerPanel* m_layerPanel = nullptr;
+    QDockWidget* m_layerDock = nullptr;
     StylesPanel* m_stylesPanel = nullptr;
+    QDockWidget* m_stylesDock = nullptr;
     ScreensPanel* m_screensPanel = nullptr;
+    QDockWidget* m_screensDock = nullptr;
+    AI::AIAssistantPanel* m_aiAssistantPanel = nullptr;
+    QDockWidget* m_aiDockWidget = nullptr;
+    EffectsPanel* m_effectsPanel = nullptr;
+    QDockWidget* m_effectsDock = nullptr;
+    UploadsPanel* m_uploadsPanel = nullptr;
+    QDockWidget* m_uploadsDock = nullptr;
     ResourceAnalyzerPanel* m_resourcePanel = nullptr;
-    BuildOutputPanel* m_buildPanel = nullptr;
+    QDockWidget* m_resourceDock = nullptr;
+    QDockWidget* m_resourceAnalyzerPanel = nullptr;
+    BuildOutputPanel* m_buildOutputPanel = nullptr;
+    QDockWidget* m_buildDock = nullptr;
     DeviceMonitorPanel* m_deviceMonitorPanel = nullptr;
+    DeviceMonitorPanel* m_deviceMonitor = nullptr;
+    QDockWidget* m_deviceMonitorDock = nullptr;
+
+    // Workspace Central Stack & Switcher
+    WorkspaceMode m_workspaceMode = WorkspaceMode::Design;
+    WorkspaceManager* m_workspaceManager = nullptr;
+    DesignWorkspace* m_designWorkspace = nullptr;
+    BoardDetector m_boardDetector;
+    QStackedWidget* m_centralStack = nullptr;
+    QWidget* m_designContainer = nullptr;
+    CodeWorkspaceView* m_codeWorkspace = nullptr;
+    QToolButton* m_designModeBtn = nullptr;
+    QToolButton* m_codeModeBtn = nullptr;
+    QButtonGroup* m_workspaceGroup = nullptr;
+    QMap<QString, bool> m_dockVisibilityBeforeCodeMode;
+
+    ContextualTopToolbar* m_topToolbar = nullptr;
+    QWidget* m_contextualToolbar = nullptr;
+    FloatingSelectionToolbar* m_floatingToolbar = nullptr;
+    OpenOCDManager m_openocd;
+
+    bool validateExportResources(const QString& targetFramework);
 
 
     // UI Chrome
+    QToolBar* m_toolbar = nullptr;
     QComboBox* m_resolutionCombo = nullptr;
     QLabel* m_tipLabel = nullptr;
     QLabel* m_statusLabel = nullptr;
     QLabel* m_zoomLabel = nullptr;
     QLabel* m_hardwareStatusBadge = nullptr;
     QPushButton* m_hardwareConnectBtn = nullptr;
+
+    // NEW: Live Test Mode
+    bool m_liveTestMode = false;
+    QToolButton* m_liveTestButton = nullptr;
+    void toggleLiveTestMode(bool enabled);
 
     void updateHardwareStatusBadge(bool connected, const QString& probeName);
 
@@ -142,12 +237,37 @@ private:
     DesignerLocalServer* m_localServer = nullptr;
     Simulator::SimulatorWindow* m_simulatorWindow = nullptr;
 
+    // OpenOCD connection in background thread
+    QThread* m_openocdThread = nullptr;
+    OpenOCDWorker* m_openocdWorker = nullptr;
+    
+    // UI for connection progress
+    QProgressBar* m_connectionProgressBar = nullptr;
+    QPushButton* m_cancelConnectionButton = nullptr;
+    QLabel* m_connectionStatusLabel = nullptr;
+    
+    // MCU selection
+    QComboBox* m_mcuSelectComboBox = nullptr;
+    QPushButton* m_browseMCUConfigButton = nullptr;
+    QDockWidget* m_mcuDock = nullptr;
+
     void setupUi();
     void setupMenusAndToolbars();
     void setupDocks();
+    void setupMCUSelection();
     void applyTheme();
+    void setTheme(const QString& theme);
     void updateWindowTitle();
 
     /// Returns the current UIComponent selection (convenience).
     QList<UIComponent*> selectedComponents() const;
+
+private slots:
+    void onConnectToBoard();
+    void onOpenOCDConnected(const QString& boardName);
+    void onOpenOCDConnectionFailed(const QString& errorMessage);
+    void onOpenOCDProgress(const QString& message, int progress);
+    void onCancelOpenOCDConnection();
+    void onMCUSelectionChanged(const QString& mcuName);
+    void onBrowseMCUConfig();
 };

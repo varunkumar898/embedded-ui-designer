@@ -25,11 +25,34 @@ public:
     QString projectName() const { return m_name; }
     void setProjectName(const QString& name);
 
+    QString displayName() const { return m_displayName.isEmpty() ? m_name : m_displayName; }
+    void setDisplayName(const QString& name) { m_displayName = name; setDirty(true); }
+
     QString projectFilePath() const { return m_filePath; }
     void setProjectFilePath(const QString& path) { m_filePath = path; }
 
+    QString projectDirectory() const;
+    void setProjectDirectory(const QString& dir);
+
+    // UI Project Root (.euiproj visual design project)
+    QString uiProjectDirectory() const;
+    void setUiProjectDirectory(const QString& dir);
+
+    // Firmware Project Root (bare-metal/RTOS C/C++ firmware project)
+    QString firmwareDirectory() const;
+    void setFirmwareDirectory(const QString& dir);
+
+    // Build directory (intermediate object files, binaries, maps)
+    QString buildDirectory() const;
+    void setBuildDirectory(const QString& dir);
+
+    bool syncFirmwareFiles(QString* errorMsg = nullptr);
+
     QString targetFramework() const { return m_targetFramework; }
     void setTargetFramework(const QString& target);
+
+    QString targetBoard() const { return m_targetBoard; }
+    void setTargetBoard(const QString& board) { m_targetBoard = board; }
 
     DisplayConfig displayConfig() const { return m_displayConfig; }
     void setDisplayConfig(const DisplayConfig& config);
@@ -109,6 +132,8 @@ signals:
     void projectModified();
     void projectLoaded();
     void projectSaved(const QString& filePath);
+    void projectDirectoryChanged(const QString& dir);
+    void firmwareDirectoryChanged(const QString& dir);
     void colorStylesChanged();
     void hardwareConfigChanged();
 
@@ -131,9 +156,15 @@ private:
 
     QPointer<CanvasScene> m_scene;
     QString m_name = "MyEmbeddedApp";
+    QString m_displayName;
 
     QString m_filePath;
+    QString m_projectDir;
+    QString m_uiProjectDir;
+    QString m_firmwareDir;
+    QString m_buildDir;
     QString m_targetFramework = "ugfx"; // Default to µGFX (royalty-free)
+    QString m_targetBoard = "nucleo_f030r8"; // Default target board
     DisplayConfig m_displayConfig;
     Hardware::HardwareConfig m_hardwareConfig;
     bool m_dirty = false;

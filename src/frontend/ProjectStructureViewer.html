@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Structure Viewer - Embedded UI Designer</title>
+  <style>
+    :root {
+      --bg-dark: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      flex: 1;
+      height: calc(100vh - 61px);
+    }
+    .tree-pane {
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .detail-pane {
+      background: #090d13;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .tree-node {
+      margin-left: 14px;
+      margin-top: 6px;
+      cursor: pointer;
+    }
+    .tree-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .tree-label:hover { background: var(--bg-input); }
+    .tree-label.active { background: #1f6feb33; color: var(--accent); }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .prop-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .prop-name { color: var(--text-muted); }
+    .prop-val { font-weight: 600; font-family: monospace; }
+    .btn {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-title">
+      <span>🌳 Project Structure & Schema Viewer</span>
+      <span style="font-size: 12px; color: var(--text-muted);">Format: v1.0 (EmbeddedUI)</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn" id="btnDownloadEuiproj">Export .euiproj JSON</button>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <div class="tree-pane">
+      <div style="font-weight: 700; font-size: 14px; margin-bottom: 10px;">Project Explorer</div>
+
+      <div class="tree-node">
+        <div class="tree-label active" data-section="meta">📁 Project Metadata (SmartHMI)</div>
+      </div>
+
+      <div class="tree-node">
+        <div class="tree-label" data-section="types">📁 TypeRegistry (6 Types)</div>
+        <div class="tree-node"><div class="tree-label">🔹 bool</div></div>
+        <div class="tree-node"><div class="tree-label">🔹 int32</div></div>
+        <div class="tree-node"><div class="tree-label">🔹 uint32</div></div>
+        <div class="tree-node"><div class="tree-label">🔹 string</div></div>
+        <div class="tree-node"><div class="tree-label">🔹 float</div></div>
+        <div class="tree-node"><div class="tree-label">🔹 uint8</div></div>
+      </div>
+
+      <div class="tree-node">
+        <div class="tree-label" data-section="api">📁 ApiSchema (2 Endpoints)</div>
+        <div class="tree-node"><div class="tree-label">⚡ GET /api/v1/device/gpio/read</div></div>
+        <div class="tree-node"><div class="tree-label">⚡ POST /api/v1/device/gpio/write</div></div>
+      </div>
+
+      <div class="tree-node">
+        <div class="tree-label" data-section="pages">📁 UI Pages (1 Page)</div>
+        <div class="tree-node"><div class="tree-label">📄 dashboard_main (800x480)</div></div>
+      </div>
+
+      <div class="tree-node">
+        <div class="tree-label" data-section="ops">📁 Device Operations (2 Operations)</div>
+        <div class="tree-node"><div class="tree-label">⚙️ gpio_read_pa0</div></div>
+        <div class="tree-node"><div class="tree-label">⚙️ gpio_write_pa5</div></div>
+      </div>
+
+      <div class="tree-node">
+        <div class="tree-label" data-section="build">📁 Build Configurations (2 Targets)</div>
+        <div class="tree-node"><div class="tree-label">🛠️ release_stm32 (C/C++)</div></div>
+        <div class="tree-node"><div class="tree-label">🛠️ release_esp32 (ESP-IDF)</div></div>
+      </div>
+    </div>
+
+    <div class="detail-pane" id="detailPane">
+      <div class="card">
+        <div class="card-title">Project Metadata</div>
+        <div class="prop-row"><span class="prop-name">Project Name</span><span class="prop-val">SmartHMI_Cluster</span></div>
+        <div class="prop-row"><span class="prop-name">Project ID</span><span class="prop-val">proj_7f8a10bc</span></div>
+        <div class="prop-row"><span class="prop-name">Schema Version</span><span class="prop-val">1.0.0</span></div>
+        <div class="prop-row"><span class="prop-name">Target Framework</span><span class="prop-val">STM32 / ESP32 Universal</span></div>
+        <div class="prop-row"><span class="prop-name">Author</span><span class="prop-val">Embedded Team</span></div>
+        <div class="prop-row"><span class="prop-name">Description</span><span class="prop-val">Full-stack embedded visual UI and REST control firmware</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Project JSON Representation</div>
+        <pre style="background: #090d13; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #7ee787; overflow-x: auto;" id="jsonPreview">
+{
+  "formatVersion": 1,
+  "metadata": {
+    "projectName": "SmartHMI_Cluster",
+    "version": "1.0.0",
+    "targetFramework": "STM32"
+  },
+  "apiSchema": {
+    "basePath": "/api/v1",
+    "endpoints": [
+      {
+        "endpointId": "read_gpio",
+        "path": "/api/v1/device/gpio/read",
+        "method": 0,
+        "operationId": "readGPIO"
+      }
+    ]
+  }
+}
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll(".tree-label").forEach(label => {
+      label.onclick = () => {
+        document.querySelectorAll(".tree-label").forEach(l => l.classList.remove("active"));
+        label.classList.add("active");
+      };
+    });
+
+    document.getElementById("btnDownloadEuiproj").onclick = () => {
+      const data = {
+        formatVersion: 1,
+        metadata: {
+          projectName: "SmartHMI_Cluster",
+          version: "1.0.0",
+          targetFramework: "STM32"
+        },
+        apiSchema: {
+          basePath: "/api/v1",
+          endpoints: [
+            { endpointId: "read_gpio", path: "/api/v1/device/gpio/read", method: 0 }
+          ]
+        }
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "project.euiproj";
+      a.click();
+    };
+  </script>
+</body>
+</html>

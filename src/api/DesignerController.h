@@ -100,6 +100,9 @@ public:
     UIComponent* findComponentById(const QString& id) const;
     QString generateUniqueId(const QString& typePrefix) const;
 
+    // Workspace Sandbox & Filesystem Boundary (Phase 6B)
+    bool validateFileSandbox(const QString& filePath, QString* outError = nullptr) const;
+
 private:
     void notifyUiChanges(UIComponent* targetComp = nullptr);
     QJsonObject serializeComponentFull(const UIComponent* comp) const;

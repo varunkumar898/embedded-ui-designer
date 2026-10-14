@@ -1,5 +1,8 @@
 #include "DeviceMonitorPanel.h"
 #include "project/Project.h"
+#include "OpenOCDManager.h"
+#include "HardwareBridge.h"
+#include "theme/Theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -12,6 +15,8 @@ DeviceMonitorPanel::DeviceMonitorPanel(Project* project, QWidget* parent)
     , m_project(project)
     , m_runtime(project, this)
 {
+    m_openocd = new OpenOCDManager(this);
+
     setupUi();
     setProject(project);
 
@@ -20,6 +25,24 @@ DeviceMonitorPanel::DeviceMonitorPanel(Project* project, QWidget* parent)
     connect(&m_runtime, &DeviceMonitorRuntime::logEntryAdded, this, &DeviceMonitorPanel::onLogEntryAdded);
     connect(&m_runtime, &DeviceMonitorRuntime::errorOccurred, this, &DeviceMonitorPanel::onErrorOccurred);
 
+    // HardwareBridge & OpenOCD Live Synchronization
+    connect(&HardwareBridge::instance(), &HardwareBridge::connectionStatusChanged, this, [this](bool, const QString&) {
+        updateConnectionStatus();
+    });
+    connect(&HardwareBridge::instance(), &HardwareBridge::digitalStateChanged, this, [this](const QString&, bool) {
+        updateConnectionStatus();
+    });
+    connect(&HardwareBridge::instance(), &HardwareBridge::connectionStateChanged, this, [this](ConnectionState, const QString&) {
+        updateConnectionStatus();
+    });
+    connect(m_openocd, &OpenOCDManager::connectionChanged, this, [this](bool) {
+        updateConnectionStatus();
+    });
+    connect(m_openocd, &OpenOCDManager::gpioStateChanged, this, [this](const QString&, bool) {
+        updateConnectionStatus();
+    });
+
+    updateConnectionStatus();
     refreshPortList();
 }
 
@@ -42,6 +65,30 @@ void DeviceMonitorPanel::setupUi() {
     mainLayout->setContentsMargins(6, 6, 6, 6);
     mainLayout->setSpacing(6);
 
+    // OpenOCD Hardware Section
+    auto* openocdGroup = new QGroupBox("Hardware-in-the-Loop: OpenOCD & Live GPIO Debugger", this);
+    auto* openocdLayout = new QHBoxLayout(openocdGroup);
+    openocdLayout->setContentsMargins(8, 4, 8, 4);
+
+    m_statusLabel = new QLabel("✗ OpenOCD Disconnected (Simulated)", this);
+    m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::Danger));
+    openocdLayout->addWidget(m_statusLabel);
+
+    openocdLayout->addSpacing(16);
+    openocdLayout->addWidget(new QLabel("Live GPIO State:", this));
+    m_gpioDisplay = new QLabel("PA4: LOW (OFF)", this);
+    m_gpioDisplay->setStyleSheet(QString("color: %1; font-weight: bold; font-family: monospace;").arg(Theme::AccentText));
+    openocdLayout->addWidget(m_gpioDisplay);
+
+    openocdLayout->addStretch();
+
+    m_openocdConnectBtn = new QPushButton("Connect OpenOCD", this);
+    m_openocdConnectBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 12px; border-radius: %3px;").arg(Theme::Accent, Theme::TextPrimary).arg(Theme::RadiusSm));
+    connect(m_openocdConnectBtn, &QPushButton::clicked, this, &DeviceMonitorPanel::onOpenOcdConnectClicked);
+    openocdLayout->addWidget(m_openocdConnectBtn);
+
+    mainLayout->addWidget(openocdGroup);
+
     // 1. Connection Toolbar
     auto* toolBarLayout = new QHBoxLayout();
 
@@ -63,12 +110,12 @@ void DeviceMonitorPanel::setupUi() {
     toolBarLayout->addWidget(m_baudCombo);
 
     m_connectBtn = new QPushButton("Connect", this);
-    m_connectBtn->setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 4px 12px;");
+    m_connectBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 12px; border-radius: %3px;").arg(Theme::Accent, Theme::TextPrimary).arg(Theme::RadiusSm));
     connect(m_connectBtn, &QPushButton::clicked, this, &DeviceMonitorPanel::onConnectClicked);
     toolBarLayout->addWidget(m_connectBtn);
 
     m_statusBadge = new QLabel("🔴 Disconnected", this);
-    m_statusBadge->setStyleSheet("color: #e74c3c; font-weight: bold; margin-left: 8px;");
+    m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; margin-left: 8px;").arg(Theme::Danger));
     toolBarLayout->addWidget(m_statusBadge);
 
     toolBarLayout->addStretch();
@@ -191,15 +238,15 @@ void DeviceMonitorPanel::onConnectClicked() {
 void DeviceMonitorPanel::onConnectionStateChanged(bool connected, const QString& portName) {
     if (connected) {
         m_connectBtn->setText("Disconnect");
-        m_connectBtn->setStyleSheet("background-color: #c0392b; color: white; font-weight: bold; padding: 4px 12px;");
+        m_connectBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 12px; border-radius: %3px; border: 1px solid %4;").arg(Theme::DangerBg, Theme::Danger).arg(Theme::RadiusSm).arg(Theme::BorderSubtle));
         m_statusBadge->setText(QString("🟢 Connected (%1)").arg(portName));
-        m_statusBadge->setStyleSheet("color: #2ecc71; font-weight: bold; margin-left: 8px;");
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; margin-left: 8px;").arg(Theme::Success));
         m_sendBtn->setEnabled(true);
     } else {
         m_connectBtn->setText("Connect");
-        m_connectBtn->setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 4px 12px;");
+        m_connectBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 12px; border-radius: %3px;").arg(Theme::Accent, Theme::TextPrimary).arg(Theme::RadiusSm));
         m_statusBadge->setText("🔴 Disconnected");
-        m_statusBadge->setStyleSheet("color: #e74c3c; font-weight: bold; margin-left: 8px;");
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; margin-left: 8px;").arg(Theme::Danger));
         m_sendBtn->setEnabled(false);
     }
 }
@@ -256,7 +303,7 @@ void DeviceMonitorPanel::updateDataSourceRow(const QString& sourceId, const QStr
     m_dataSourceUpdateCounts[sourceId]++;
 
     auto* valItem = new QTableWidgetItem(value.toString());
-    valItem->setForeground(QColor("#2ecc71"));
+    valItem->setForeground(Theme::cSuccess());
     m_dataSourcesTable->setItem(row, 2, valItem);
     m_dataSourcesTable->setItem(row, 3, new QTableWidgetItem(QString::number(m_dataSourceUpdateCounts[sourceId])));
     m_dataSourcesTable->setItem(row, 4, new QTableWidgetItem(QDateTime::currentDateTime().toString("hh:mm:ss.zzz")));
@@ -269,7 +316,7 @@ void DeviceMonitorPanel::onLogEntryAdded(const TelemetryLogEntry& entry) {
     m_logTable->setItem(row, 0, new QTableWidgetItem(entry.timestamp.toString("hh:mm:ss.zzz")));
 
     auto* dirItem = new QTableWidgetItem(entry.direction);
-    dirItem->setForeground(entry.direction == "TX" ? QColor("#3498db") : QColor("#2ecc71"));
+    dirItem->setForeground(entry.direction == "TX" ? Theme::cInfo() : Theme::cSuccess());
     m_logTable->setItem(row, 1, dirItem);
 
     m_logTable->setItem(row, 2, new QTableWidgetItem(entry.sourceId));
@@ -282,7 +329,7 @@ void DeviceMonitorPanel::onLogEntryAdded(const TelemetryLogEntry& entry) {
         rawItem->setText(entry.rawMessage);
     } else {
         rawItem->setText(QString("❌ %1 (Raw: %2)").arg(entry.errorMessage, entry.rawMessage));
-        rawItem->setForeground(QColor("#e74c3c"));
+        rawItem->setForeground(Theme::cDanger());
     }
     m_logTable->setItem(row, 6, rawItem);
 
@@ -319,3 +366,67 @@ void DeviceMonitorPanel::onExportCsvClicked() {
         }
     }
 }
+
+void DeviceMonitorPanel::updateConnectionStatus() {
+    if (!m_statusLabel) return;
+
+    if (m_openocd && m_openocd->isConnected()) {
+        m_statusLabel->setText("✓ OpenOCD Connected (LIVE)");
+        m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::Success));
+        if (m_openocdConnectBtn) {
+            m_openocdConnectBtn->setText("Disconnect OpenOCD");
+            m_openocdConnectBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 12px; border-radius: %3px; border: 1px solid %4;").arg(Theme::DangerBg, Theme::Danger).arg(Theme::RadiusSm).arg(Theme::BorderSubtle));
+        }
+
+        // Show real-time GPIO state
+        QString gpioStatus = m_openocd->sendCommand("gpio_status");
+        if (m_gpioDisplay) {
+            m_gpioDisplay->setText(gpioStatus);
+        }
+    } else {
+        m_statusLabel->setText("✗ OpenOCD Disconnected (Simulated)");
+        m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(Theme::Danger));
+        if (m_openocdConnectBtn) {
+            m_openocdConnectBtn->setText("Connect OpenOCD");
+            m_openocdConnectBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: 600; padding: 4px 12px; border-radius: %3px;").arg(Theme::Accent, Theme::TextPrimary).arg(Theme::RadiusSm));
+        }
+        if (m_gpioDisplay) {
+            bool high = HardwareBridge::instance().openOcdManager().simulatedMemoryWord(0x48000014) & (1u << 4);
+            m_gpioDisplay->setText(QString("PA4: %1 (Simulated)").arg(high ? "HIGH (ON)" : "LOW (OFF)"));
+        }
+    }
+}
+
+void DeviceMonitorPanel::onOpenOcdConnectClicked() {
+    if (m_openocd && m_openocd->isConnected()) {
+        HardwareBridge::instance().disconnectHardware();
+        m_openocd->disconnect();
+    } else {
+        if (!HardwareBridge::instance().isHardwareConnected()) {
+            HardwareBridge::instance().connectHardware();
+        }
+        if (m_openocd) {
+            m_openocd->connect();
+        }
+    }
+    updateConnectionStatus();
+}
+
+void DeviceMonitorPanel::onGPIOStateChanged(const QString& pin, int newState, int latency) {
+    if (m_gpioDisplay) {
+        m_gpioDisplay->setText(QString("%1: %2 (%3ms)").arg(pin, newState ? "HIGH (ON)" : "LOW (OFF)", QString::number(latency)));
+    }
+    TelemetryLogEntry entry;
+    entry.timestamp = QDateTime::currentDateTime();
+    entry.direction = "GPIO";
+    entry.sourceId = pin;
+    entry.dataType = "DIGITAL";
+    entry.value = newState ? "HIGH" : "LOW";
+    entry.isValid = true;
+    entry.rawMessage = QString("GPIO %1 -> %2 (%3ms)").arg(pin, newState ? "HIGH" : "LOW", QString::number(latency));
+    onLogEntryAdded(entry);
+    updateDataSourceRow(pin, "GPIO", newState ? "HIGH" : "LOW");
+    qDebug() << "[DeviceMonitor] GPIO Event:" << pin << (newState ? "HIGH" : "LOW") << latency << "ms";
+}
+
+

@@ -1,0 +1,51 @@
+{
+  "frameworks": {
+    "qt-for-mcus": {
+      "flash_minimum_kb": 400,
+      "ram_minimum_kb": 50,
+      "flash_per_component_bytes": 200,
+      "ram_per_component_bytes": 50
+    },
+    "ugfx": {
+      "flash_minimum_kb": 120,
+      "ram_minimum_kb": 30,
+      "flash_per_component_bytes": 150,
+      "ram_per_component_bytes": 40
+    },
+    "lvgl": {
+      "flash_minimum_kb": 80,
+      "ram_minimum_kb": 25,
+      "flash_per_component_bytes": 100,
+      "ram_per_component_bytes": 30
+    }
+  },
+  "components": {
+    "Button": { "ram_bytes": 80, "flash_bytes": 200, "cpu_percent": 1.5 },
+    "Label": { "ram_bytes": 40, "flash_bytes": 100, "cpu_percent": 0.5 },
+    "Text": { "ram_bytes": 40, "flash_bytes": 100, "cpu_percent": 0.5 },
+    "TextInput": { "ram_bytes": 150, "flash_bytes": 300, "cpu_percent": 2.0 },
+    "Image": { "ram_bytes": 100, "flash_bytes": 150, "cpu_percent": 3.0 },
+    "ProgressBar": { "ram_bytes": 60, "flash_bytes": 120, "cpu_percent": 1.0 },
+    "LinearProgress": { "ram_bytes": 60, "flash_bytes": 120, "cpu_percent": 1.0 },
+    "CircularProgress": { "ram_bytes": 70, "flash_bytes": 150, "cpu_percent": 1.5 },
+    "Slider": { "ram_bytes": 70, "flash_bytes": 140, "cpu_percent": 1.5 },
+    "Rectangle": { "ram_bytes": 30, "flash_bytes": 80, "cpu_percent": 0.3 },
+    "Circle": { "ram_bytes": 40, "flash_bytes": 100, "cpu_percent": 0.5 },
+    "Switch": { "ram_bytes": 50, "flash_bytes": 110, "cpu_percent": 1.0 },
+    "Checkbox": { "ram_bytes": 50, "flash_bytes": 110, "cpu_percent": 1.0 },
+    "Gauge": { "ram_bytes": 90, "flash_bytes": 220, "cpu_percent": 2.0 },
+    "Speedometer": { "ram_bytes": 100, "flash_bytes": 240, "cpu_percent": 2.0 },
+    "Battery": { "ram_bytes": 60, "flash_bytes": 130, "cpu_percent": 1.0 },
+    "Pressure": { "ram_bytes": 80, "flash_bytes": 200, "cpu_percent": 1.5 },
+    "Rpm": { "ram_bytes": 90, "flash_bytes": 220, "cpu_percent": 2.0 },
+    "Temperature": { "ram_bytes": 70, "flash_bytes": 160, "cpu_percent": 1.2 },
+    "TabView": { "ram_bytes": 180, "flash_bytes": 350, "cpu_percent": 2.5 },
+    "NavigationBar": { "ram_bytes": 150, "flash_bytes": 300, "cpu_percent": 2.0 },
+    "List": { "ram_bytes": 200, "flash_bytes": 400, "cpu_percent": 3.0 },
+    "Table": { "ram_bytes": 250, "flash_bytes": 500, "cpu_percent": 3.5 },
+    "Group": { "ram_bytes": 20, "flash_bytes": 50, "cpu_percent": 0.2 },
+    "Path": { "ram_bytes": 200, "flash_bytes": 400, "cpu_percent": 5.0 },
+    "PathComponent": { "ram_bytes": 200, "flash_bytes": 400, "cpu_percent": 5.0 },
+    "CustomInstance": { "ram_bytes": 120, "flash_bytes": 250, "cpu_percent": 1.5 }
+  }
+}

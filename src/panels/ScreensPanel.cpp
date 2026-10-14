@@ -3,6 +3,7 @@
 #include <QUndoStack>
 #include <QInputDialog>
 #include <QMessageBox>
+#include "theme/Theme.h"
 
 ScreensPanel::ScreensPanel(Project* project, QWidget* parent)
     : QWidget(parent)
@@ -40,19 +41,31 @@ void ScreensPanel::setupUi() {
 
     m_btnAdd = new QPushButton("+ Add", this);
     m_btnAdd->setToolTip("Create a new screen");
-    m_btnAdd->setStyleSheet("QPushButton { font-weight: bold; background-color: #2563EB; color: white; border-radius: 4px; padding: 4px 8px; }"
-                            "QPushButton:hover { background-color: #1D4ED8; }");
+    m_btnAdd->setStyleSheet(QString(
+        "QPushButton { font-weight: 600; background-color: %1; color: %2; border-radius: %3px; padding: 4px 8px; border: none; }"
+        "QPushButton:hover { background-color: %4; }")
+        .arg(Theme::Accent, Theme::TextPrimary)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::AccentHover));
 
     m_btnDuplicate = new QPushButton("Clone", this);
     m_btnDuplicate->setToolTip("Duplicate selected screen");
-    m_btnDuplicate->setStyleSheet("QPushButton { background-color: #374151; color: white; border-radius: 4px; padding: 4px 8px; }"
-                                  "QPushButton:hover { background-color: #4B5563; }");
+    m_btnDuplicate->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border-radius: %3px; padding: 4px 8px; border: 1px solid %4; }"
+        "QPushButton:hover { background-color: %5; }")
+        .arg(Theme::BgRaised, Theme::TextPrimary)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::BorderSubtle, Theme::BgOverlay));
 
     m_btnDelete = new QPushButton("Delete", this);
     m_btnDelete->setToolTip("Delete selected screen");
-    m_btnDelete->setStyleSheet("QPushButton { background-color: #7F1D1D; color: #FCA5A5; border-radius: 4px; padding: 4px 8px; }"
-                               "QPushButton:hover { background-color: #991B1B; color: white; }"
-                               "QPushButton:disabled { background-color: #2D333F; color: #555E6D; }");
+    m_btnDelete->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border-radius: %3px; padding: 4px 8px; border: 1px solid %4; }"
+        "QPushButton:hover { background-color: %2; color: %5; }"
+        "QPushButton:disabled { background-color: %6; color: %7; }")
+        .arg(Theme::DangerBg, Theme::Danger)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::BorderSubtle, Theme::TextPrimary, Theme::BgSurface, Theme::TextDisabled));
 
     m_btnUp = new QPushButton("▲", this);
     m_btnUp->setToolTip("Move screen up");
@@ -74,12 +87,16 @@ void ScreensPanel::setupUi() {
     // List of screens
     m_listWidget = new QListWidget(this);
     m_listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_listWidget->setStyleSheet(
-        "QListWidget { background-color: #1A1C23; border: 1px solid #2D3342; border-radius: 6px; color: #E2E8F0; font-size: 12px; }"
-        "QListWidget::item { padding: 8px 10px; border-bottom: 1px solid #222632; border-radius: 4px; margin: 2px 4px; }"
-        "QListWidget::item:hover { background-color: #262B3B; }"
-        "QListWidget::item:selected { background-color: #2563EB; color: white; font-weight: bold; }"
-    );
+    m_listWidget->setStyleSheet(QString(
+        "QListWidget { background-color: %1; border: 1px solid %2; border-radius: %3px; color: %4; font-size: 12px; }"
+        "QListWidget::item { padding: 8px 10px; border-bottom: 1px solid %2; border-radius: %5px; margin: 2px 4px; }"
+        "QListWidget::item:hover { background-color: %6; }"
+        "QListWidget::item:selected { background-color: %7; color: %4; font-weight: 600; }")
+        .arg(Theme::BgSurface, Theme::BorderSubtle)
+        .arg(Theme::RadiusMd)
+        .arg(Theme::TextPrimary)
+        .arg(Theme::RadiusSm)
+        .arg(Theme::BgOverlay, Theme::AccentSoft));
     mainLayout->addWidget(m_listWidget);
 
     connect(m_listWidget, &QListWidget::currentItemChanged, this, &ScreensPanel::onScreenSelected);

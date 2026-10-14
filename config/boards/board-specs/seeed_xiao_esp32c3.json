@@ -1,0 +1,55 @@
+{
+  "id": "seeed_xiao_esp32c3",
+  "name": "Seeed Studio XIAO ESP32C3",
+  "manufacturer": "Seeed Studio",
+  "family": "ESP32-C3",
+  "mcu": "ESP32-C3",
+  "architecture": "RISC-V 32-bit Single-Core",
+  "frequency_mhz": 160,
+  "flash_kb": 4096,
+  "ram_kb": 400,
+  "gpio_count": 11,
+  "analog_pins": [
+    "A0",
+    "A1",
+    "A2",
+    "A3"
+  ],
+  "pwm_pins": [
+    "D0",
+    "D1",
+    "D2",
+    "D3"
+  ],
+  "digital_pins": [
+    "D0",
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6",
+    "D7",
+    "D8",
+    "D9",
+    "D10"
+  ],
+  "usb_adapter": {
+    "type": "Built-in USB Serial/JTAG",
+    "vid": "303a",
+    "pid": "1001",
+    "driver": "esp_usb_jtag"
+  },
+  "openocd": {
+    "interface": "interface/esp_usb_jtag.cfg",
+    "target": "target/esp32c3.cfg",
+    "config_file": "board/esp32c3-builtin.cfg",
+    "transport": "jtag"
+  },
+  "toolchain": {
+    "compiler": "riscv32-esp-elf-gcc",
+    "hal_header": "driver/gpio.h",
+    "flags": "-march=rv32imc -mabi=ilp32"
+  },
+  "datasheet_url": "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/"
+}

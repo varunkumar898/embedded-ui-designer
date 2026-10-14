@@ -1,0 +1,83 @@
+name: Acceptance Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+
+jobs:
+  acceptance-tests:
+    name: Run 102 Acceptance Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+          - os: macOS
+            runner: macos-latest
+          - os: Windows
+            runner: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install System Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential cmake ninja-build libjsoncpp-dev
+
+      - name: Install System Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja jsoncpp
+
+      - name: Install System Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake ninja -y
+
+      - name: Configure and Build Test Targets
+        shell: bash
+        run: |
+          mkdir -p build && cd build
+          cmake -DENABLE_TESTS=ON ..
+          cmake --build . --target test_project_model test_codegen_multi_language test_security_performance test_compliance_observability --config Release
+
+      - name: Phase 1 (Weeks 3-4): Project Model & Schema Tests (20 Tests)
+        shell: bash
+        run: ./build/test_project_model
+
+      - name: Phase 2 (Weeks 5-6): Multi-Language Code Generators (24 Tests)
+        shell: bash
+        run: ./build/test_codegen_multi_language
+
+      - name: Phase 3 (Weeks 7-8): Frontend Integration & Full-Stack Tests (18 Tests)
+        shell: bash
+        run: node src/frontend/tests/integration_runner.js
+
+      - name: Phase 4 (Weeks 9-10): Security Hardening & Performance Optimization (24 Tests)
+        shell: bash
+        run: ./build/test_security_performance
+
+      - name: Phase 5 (Weeks 11-12): Documentation, CI/CD & Observability (16 Tests)
+        shell: bash
+        run: ./build/test_compliance_observability
+
+      - name: Run Full CTest Verification Suite
+        shell: bash
+        run: |
+          cd build
+          ctest --verbose --output-on-failure

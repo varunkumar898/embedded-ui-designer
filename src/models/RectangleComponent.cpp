@@ -9,6 +9,7 @@ RectangleComponent::RectangleComponent(const QString& id, QGraphicsItem* parent)
 {
     m_width = 160;
     m_height = 80;
+    setTransformOriginPoint(QPointF(m_width / 2.0, m_height / 2.0));
 }
 
 void RectangleComponent::setFillColor(const QColor& color) {
@@ -53,7 +54,11 @@ void RectangleComponent::paintComponent(QPainter* painter) {
 
     // 1. Draw rounded fill
     painter->setPen(Qt::NoPen);
-    painter->setBrush(QBrush(m_fillColor));
+    if (hasGradientFill()) {
+        painter->setBrush(gradientFill().toQBrush(rect));
+    } else {
+        painter->setBrush(QBrush(m_fillColor));
+    }
     painter->drawRoundedRect(rect, m_cornerRadius, m_cornerRadius);
 
     // 2. Draw border stroke with half-width inset for crispness

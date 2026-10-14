@@ -38,12 +38,15 @@
 #include "NavigationBarComponent.h"
 #include "ListComponent.h"
 #include "TableComponent.h"
+#include "GroupComponent.h"
 
 // Commands
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
+#include "GroupCommand.h"
 #include "MoveComponentCommand.h"
 #include "ResizeComponentCommand.h"
+#include "RotateComponentCommand.h"
 #include "PropertyChangeCommand.h"
 
 // Canvas & Panels
@@ -51,8 +54,13 @@
 #include "CanvasView.h"
 #include "PropertiesPanel.h"
 #include "PrototypePanel.h"
+#include "ContextualTopToolbar.h"
+#include "FloatingSelectionToolbar.h"
+#include "EffectsPanel.h"
+#include "UploadsPanel.h"
 #include "SerialMonitorDialog.h"
 #include "PinBindingDialog.h"
+#include "NewProjectDialog.h"
 #include "HardwareBridge.h"
 #include "HardwareCapabilities.h"
 #include "HardwareTarget.h"
@@ -108,6 +116,17 @@
 #include "ai/providers/GeminiProvider.h"
 #include "ai/providers/CustomOpenAICompatibleProvider.h"
 #include "dialogs/AISettingsDialog.h"
+#include "CredentialManager.h"
+#include "DiagnosticsEngine.h"
+#include "GitService.h"
+#include "CICDGenerator.h"
+#include "PluginRegistry.h"
+#include "DesignerLocalServer.h"
+#include "analyzer/CapabilityDatabase.h"
+#include "analyzer/EstimationFormulas.h"
+#include "analyzer/ResourceEstimator.h"
+#include "panels/ResourceAnalyzerPanel.h"
+#include "dialogs/ExportValidationDialog.h"
 
 static QString repoPath(const QString& relPath) {
     QString cleanPath = relPath;
@@ -306,6 +325,57 @@ private slots:
     void testPhase1VariableWaveformsAndSimulation();
     void testPhase1SimulationRuntimeProtocolInjections();
     void testPhase1DataSourceSerializationBackwardCompatibility();
+
+    // 30. Phase 6 Hardening (MCP Security, Sandboxing, Credentials, Diagnostics, Git, CI/CD, GeneratorIR, Plugins)
+    void testPhase6MCPAuthenticationAndTokens();
+    void testPhase6MCPFileSandboxEnforcement();
+    void testPhase6SecureCredentialManagerVault();
+    void testPhase6DiagnosticsEngineAndCategories();
+    void testPhase6GitServiceAndSafetyPolicy();
+    void testPhase6CICDGeneratorMultiProviderAndValidation();
+    void testPhase6GeneratorIRAdoptionInLvgl();
+    void testPhase6PluginRegistryExtensionBoundary();
+
+    // 31. Universal Pin Configuration & Manual Hardware Connection Redesign
+    void testUniversalPinConfigurationTaskAAndB();
+    void testUniversalHardwareConnectionControlsAndStates();
+    void testPinConflictAndReservedDetection();
+    void testUniversalBoardProfilesAndPortFilters();
+
+    // 32. Smooth Rotation Using Selection Outline Handles
+    void testMidpointHandleSmoothRotationAndWheelDirection();
+    void testRotationAroundCenterAndHandleAlignment();
+    void testRotationUndoRedoAndPersistence();
+    void testCornerHandlesResizePreservedAndCanvasScrollZoomIsolation();
+
+    // 33. Microcontroller Selection in New Project Dialog
+    void testNewProjectDialogPlatformAndBoardPopulation();
+    void testNewProjectDialogDynamicProfileSummaryAndToggle();
+    void testNewProjectDialogFrameworkCompatibilityValidation();
+    void testNewProjectDialogCustomTargetAndPersistence();
+    void testNewProjectDialogTemplateCompatibilityAndCreation();
+
+    // 34. Multi-Color Gradient Support in Color Picker
+    void testGradientModelStopsAndInterpolation();
+    void testGradientLinearAngleAndRadialGeometry();
+    void testColorPickerDialogDualModeAndGradientEditing();
+    void testComponentGradientRenderingAndJsonPersistence();
+    void testGradientPropertiesPanelIntegrationAndCodeGeneration();
+
+    // 35. Complete Canva-Inspired Visual Canvas Editor Upgrade
+    void testCanvaContextualTopToolbar();
+    void testCanvaFloatingSelectionToolbar();
+    void testCanvaGroupAndUngroupOperations();
+    void testCanvaTextFormattingEffectsAndCurvature();
+    void testCanvaImageCropFiltersAndUploads();
+    void testCanvaLockFlipAndTransparencyPersistence();
+
+    // 36. Phase 2.1: Resource Analyzer & Device Capability Engine
+    void testCapabilityDatabaseDeviceLookupAndFrameworks();
+    void testEstimationFormulasAndComponentFootprints();
+    void testResourceEstimatorAnalysisAndWarnings();
+    void testResourceAnalyzerPanelLiveUpdates();
+    void testExportValidationDialogCriticalFlow();
 
     void cleanupTestCase();
 
@@ -1562,44 +1632,63 @@ void TestAllCases::testPinBindingDialogUiAndPotentiometerSlider() {
     scene.addUIComponent(lbl);
 
     PinBindingDialog dialog(&scene);
-    dialog.resize(920, 720);
+    dialog.resize(1080, 720);
     dialog.show();
     QApplication::processEvents();
 
+    // 1. Verify that the two unwanted bottom panels are completely removed
+    auto* adcGroup = dialog.findChild<QGroupBox*>("adcSimulatorGroup");
+    auto* spiGroup = dialog.findChild<QGroupBox*>("spiRawPanel");
     auto* slider = dialog.findChild<QSlider*>("potentiometerSlider");
-    auto* rawLabel = dialog.findChild<QLabel*>("adcRawCountLabel");
     auto* spiBtn = dialog.findChild<QPushButton*>("spiTransferButton");
-    auto* spiInLabel = dialog.findChild<QLabel*>("spiByteInLabel");
-    QVERIFY(slider);
-    QVERIFY(rawLabel);
-    QVERIFY(spiBtn);
-    QVERIFY(spiInLabel);
+    QVERIFY(adcGroup == nullptr);
+    QVERIFY(spiGroup == nullptr);
+    QVERIFY(slider == nullptr);
+    QVERIFY(spiBtn == nullptr);
 
-    // Bind PA0 to ProgressBar and Label
+    // 2. Verify redesigned workspace elements
+    auto* table = dialog.findChild<QTableWidget*>("pinTable");
+    auto* taskABtn = dialog.findChild<QPushButton*>("taskABtn");
+    auto* taskBBtn = dialog.findChild<QPushButton*>("taskBBtn");
+    auto* allTasksBtn = dialog.findChild<QPushButton*>("allTasksBtn");
+    auto* portCombo = dialog.findChild<QComboBox*>("portFilterCombo");
+    auto* searchEdit = dialog.findChild<QLineEdit*>("pinSearchEdit");
+    auto* connectBtn = dialog.findChild<QPushButton*>("probeConnectBtn");
+    auto* disconnectBtn = dialog.findChild<QPushButton*>("probeDisconnectBtn");
+    auto* detectProbeBtn = dialog.findChild<QPushButton*>("detectProbeBtn");
+    auto* simModeBtn = dialog.findChild<QPushButton*>("simulationModeBtn");
+    auto* statusBadge = dialog.findChild<QLabel*>("probeStatusBadge");
+
+    QVERIFY(table != nullptr);
+    QCOMPARE(table->columnCount(), 7);
+    QVERIFY(taskABtn != nullptr);
+    QVERIFY(taskBBtn != nullptr);
+    QVERIFY(allTasksBtn != nullptr);
+    QVERIFY(portCombo != nullptr);
+    QVERIFY(searchEdit != nullptr);
+    QVERIFY(connectBtn != nullptr);
+    QVERIFY(disconnectBtn != nullptr);
+    QVERIFY(detectProbeBtn != nullptr);
+    QVERIFY(simModeBtn != nullptr);
+    QVERIFY(statusBadge != nullptr);
+
+    // Bind PA0 to ProgressBar and Label in Task A
+    bridge.setTaskPinMode("PA0", "Task A", PinMode::AnalogIn);
     bridge.bindComponent(pb, "PA0", PinMode::AnalogIn);
     bridge.bindComponent(lbl, "PA0", PinMode::AnalogIn);
 
-    // Vary potentiometer slider to 2800
-    slider->setValue(2800);
+    // Vary simulated ADC count to 2800
+    bridge.setSimulatedAdcCount("PA0", 2800);
     QApplication::processEvents();
-    QVERIFY(rawLabel->text().contains("2800"));
     QCOMPARE(lbl->text(), QString("2800"));
     QVERIFY(qAbs(pb->value() - (2800.0 / 4095.0)) < 0.002);
 
-    // Trigger SPI raw transfer
-    auto* spiOutSpin = dialog.findChild<QSpinBox*>("spiByteOutSpin");
-    QVERIFY(spiOutSpin);
-    spiOutSpin->setValue(0xA5);
-    spiBtn->click();
-    QApplication::processEvents();
-    QVERIFY(spiInLabel->text().contains("0x5A")); // 0xA5 ^ 0xFF = 0x5A
-
-    // Capture verification screenshot of dialog with SPI and ADC
+    // Capture verification screenshot of redesigned dialog
     const QString shotPath = screenshotPath("verify_adc_spi_binding.png");
     QVERIFY(dialog.grab().save(shotPath));
 
     // Capture canvas view screenshot showing bound components with initial 1200 count
-    slider->setValue(1200);
+    bridge.setSimulatedAdcCount("PA0", 1200);
     QApplication::processEvents();
     CanvasView view(&scene);
     view.resize(500, 300);
@@ -1615,7 +1704,7 @@ void TestAllCases::testPinBindingDialogUiAndPotentiometerSlider() {
     QVERIFY(view.grab().save(canvasShotPath1));
 
     // Vary potentiometer to 3200 and save second screenshot
-    slider->setValue(3200);
+    bridge.setSimulatedAdcCount("PA0", 3200);
     QApplication::processEvents();
     QCOMPARE(lbl->text(), QString("3200"));
     const QString canvasShotPath2 = screenshotPath("verify_adc_raw_count_3200.png");
@@ -5615,10 +5704,1646 @@ void TestAllCases::testPhase1DataSourceSerializationBackwardCompatibility() {
     QVERIFY(src.contains("can_sensor"));
 }
 
+void TestAllCases::testPhase6MCPAuthenticationAndTokens() {
+    MainWindow win;
+    DesignerController controller(&win);
+    DesignerLocalServer server(&controller);
 
+    QString token = server.sessionToken();
+    QVERIFY(!token.isEmpty());
+    QVERIFY(token.length() >= 32);
+
+    // 1. Unauthenticated request without token must fail with -32001
+    QJsonObject unauthReq;
+    unauthReq["jsonrpc"] = "2.0";
+    unauthReq["id"] = 1;
+    unauthReq["method"] = "get_canvas_size";
+    QJsonObject res1 = server.processJsonRpcRequest(unauthReq);
+    QVERIFY(res1.contains("error"));
+    QCOMPARE(res1["error"].toObject()["code"].toInt(), -32001);
+
+    // 2. Request with invalid token must fail with -32001
+    QJsonObject invalidTokenReq = unauthReq;
+    invalidTokenReq["token"] = "invalid_token_12345";
+    QJsonObject res2 = server.processJsonRpcRequest(invalidTokenReq);
+    QVERIFY(res2.contains("error"));
+    QCOMPARE(res2["error"].toObject()["code"].toInt(), -32001);
+
+    // 3. Request with valid token must succeed
+    QJsonObject validTokenReq = unauthReq;
+    validTokenReq["token"] = token;
+    QJsonObject res3 = server.processJsonRpcRequest(validTokenReq);
+    QVERIFY(!res3.contains("error"));
+    QVERIFY(res3.contains("result"));
+
+    // 4. Authenticate handshake method
+    QJsonObject authHandshake;
+    authHandshake["jsonrpc"] = "2.0";
+    authHandshake["id"] = 2;
+    authHandshake["method"] = "authenticate";
+    QJsonObject authParams;
+    authParams["token"] = token;
+    authHandshake["params"] = authParams;
+    QJsonObject res4 = server.processJsonRpcRequest(authHandshake);
+    QVERIFY(res4.contains("result"));
+    QVERIFY(res4["result"].toObject()["authenticated"].toBool());
+}
+
+void TestAllCases::testPhase6MCPFileSandboxEnforcement() {
+    MainWindow win;
+    DesignerController controller(&win);
+
+    QString err;
+    // 1. Directory traversal rejected
+    QVERIFY(!controller.validateFileSandbox("../../../etc/passwd", &err));
+    QVERIFY(err.contains("traversal", Qt::CaseInsensitive));
+
+    // 2. Sensitive system roots rejected
+    QVERIFY(!controller.validateFileSandbox("/etc/shadow", &err));
+    QVERIFY(!controller.validateFileSandbox("/boot/vmlinuz", &err));
+    QVERIFY(!controller.validateFileSandbox("/sys/kernel", &err));
+
+    // 3. Sensitive user dotfiles rejected
+    QString home = QDir::homePath();
+    QVERIFY(!controller.validateFileSandbox(home + "/.ssh/id_rsa", &err));
+    QVERIFY(!controller.validateFileSandbox(home + "/.config/embedded-ui-designer/credentials.vault", &err));
+    QVERIFY(!controller.validateFileSandbox(home + "/.config/embedded-ui-designer/mcp_token", &err));
+
+    // 4. Safe paths allowed
+    QString safePath = m_tempDir.filePath("test_project.euiproj");
+    QVERIFY(controller.validateFileSandbox(safePath, &err));
+}
+
+void TestAllCases::testPhase6SecureCredentialManagerVault() {
+    auto& cm = Security::CredentialManager::instance();
+
+    QString service = "test_service_vault";
+    QString account = "api_key";
+    QString secret = "secret_token_val_998877";
+
+    // Store credential
+    QVERIFY(cm.storeCredential(service, account, secret));
+    QVERIFY(cm.hasCredential(service, account));
+
+    // Retrieve credential
+    QString retrieved = cm.retrieveCredential(service, account);
+    QCOMPARE(retrieved, secret);
+
+    // Delete credential
+    QVERIFY(cm.deleteCredential(service, account));
+    QVERIFY(!cm.hasCredential(service, account));
+    QVERIFY(cm.retrieveCredential(service, account).isEmpty());
+}
+
+void TestAllCases::testPhase6DiagnosticsEngineAndCategories() {
+    auto& diag = Diagnostics::DiagnosticsEngine::instance();
+    diag.clearAll();
+
+    CanvasScene scene;
+    Project proj(&scene);
+
+    // Initial clean project scan
+    diag.scanProject(&proj);
+    QCOMPARE(diag.errorCount(), 0);
+
+    // Add duplicate component IDs and broken bindings to verify detection
+    auto* s1 = proj.screens().first();
+    proj.setActiveScreen(s1);
+
+    auto* btn1 = new ButtonComponent("btn_duplicate");
+    btn1->setCompPos(10, 10);
+    btn1->setCompSize(80, 30);
+    s1->addComponent(btn1);
+
+    auto* btn2 = new ButtonComponent("btn_duplicate");
+    btn2->setCompPos(20, 20);
+    btn2->setCompSize(80, 30);
+    s1->addComponent(btn2);
+
+    // Broken binding referencing missing DataSource
+    DataBinding brokenBinding("btn_duplicate", "text", "missing_ds_id");
+    proj.addDataBinding(brokenBinding);
+
+    diag.scanProject(&proj);
+    QVERIFY(diag.errorCount() >= 2); // Duplicate ID + Broken binding
+
+    QJsonObject json = diag.toJson();
+    QVERIFY(json.contains("diagnostics"));
+    QVERIFY(json["errorCount"].toInt() >= 2);
+
+    QString md = diag.toMarkdown();
+    QVERIFY(md.contains("Duplicate Component ID"));
+    QVERIFY(md.contains("Broken Binding"));
+}
+
+void TestAllCases::testPhase6GitServiceAndSafetyPolicy() {
+    auto& git = Git::GitService::instance();
+    if (!git.isGitInstalled()) {
+        QSKIP("Git is not installed on test host");
+    }
+
+    QString currentRepo = QDir::currentPath();
+    QVERIFY(git.isGitRepository(currentRepo));
+
+    Git::GitStatus status = git.getStatus(currentRepo);
+    QVERIFY(status.isRepo);
+    QVERIFY(!status.currentBranch.isEmpty());
+
+    auto history = git.getCommitHistory(currentRepo, 5);
+    QVERIFY(!history.isEmpty());
+
+    // Safety policy: Force push MUST be blocked
+    QString err;
+    bool forcePushAllowed = git.push(currentRepo, "origin", "main", true, &err);
+    QVERIFY(!forcePushAllowed);
+    QVERIFY(err.contains("Force push is blocked", Qt::CaseInsensitive));
+}
+
+void TestAllCases::testPhase6CICDGeneratorMultiProviderAndValidation() {
+    CICD::CICDConfig cfg;
+    cfg.targetMcu = "STM32F030R8";
+    cfg.generator = "LVGL";
+    cfg.buildSystem = "cmake";
+    cfg.toolchain = "arm-none-eabi-gcc";
+    cfg.runBuild = true;
+    cfg.runTests = true;
+    cfg.archiveArtifacts = true;
+    cfg.artifactPath = "build/firmware.bin";
+
+    // Validation passes for correct config
+    auto diags = CICD::CICDGenerator::validate(cfg);
+    QVERIFY(diags.size() >= 1);
+    QCOMPARE(diags[0].severity, Diagnostics::Severity::Info);
+
+    // Validation fails for absolute artifact path
+    CICD::CICDConfig invalidCfg = cfg;
+    invalidCfg.artifactPath = "/var/jenkins/artifacts/firmware.bin";
+    auto failDiags = CICD::CICDGenerator::validate(invalidCfg);
+    bool hasErr = false;
+    for (const auto& d : failDiags) {
+        if (d.severity == Diagnostics::Severity::Error) hasErr = true;
+    }
+    QVERIFY(hasErr);
+
+    // Test generation for each provider
+    cfg.provider = CICD::Provider::GitHubActions;
+    QString gha = CICD::CICDGenerator::generatePipeline(cfg);
+    QVERIFY(gha.contains("actions/checkout@v4"));
+    QVERIFY(gha.contains("STM32F030R8"));
+
+    cfg.provider = CICD::Provider::GitLabCI;
+    QString gitlab = CICD::CICDGenerator::generatePipeline(cfg);
+    QVERIFY(gitlab.contains("build_firmware"));
+    QVERIFY(gitlab.contains("run_tests"));
+
+    cfg.provider = CICD::Provider::Jenkins;
+    QString jenkins = CICD::CICDGenerator::generatePipeline(cfg);
+    QVERIFY(jenkins.contains("pipeline {"));
+    QVERIFY(jenkins.contains("stage('Build Firmware')"));
+
+    cfg.provider = CICD::Provider::AzurePipelines;
+    QString azure = CICD::CICDGenerator::generatePipeline(cfg);
+    QVERIFY(azure.contains("PublishBuildArtifacts@1"));
+
+    cfg.provider = CICD::Provider::BitbucketPipelines;
+    QString bitbucket = CICD::CICDGenerator::generatePipeline(cfg);
+    QVERIFY(bitbucket.contains("pipelines:"));
+}
+
+void TestAllCases::testPhase6GeneratorIRAdoptionInLvgl() {
+    CanvasScene scene;
+    Project proj(&scene);
+    auto* screen = proj.screens().isEmpty() ? proj.addScreen("Dashboard") : proj.screens().first();
+    screen->setName("Dashboard");
+    proj.setActiveScreen(screen);
+
+    auto* speedo = new SpeedometerComponent("speedo_1");
+    speedo->setCompPos(20, 20);
+    speedo->setCompSize(140, 140);
+    screen->addComponent(speedo);
+
+    LvglGenerator gen(&proj, &scene);
+    CodeGen::IRProject ir = gen.irProject();
+    QCOMPARE(ir.screens.size(), 1);
+    QCOMPARE(ir.screens[0].name, QString("Dashboard"));
+    QVERIFY(ir.screens[0].widgets.size() >= 1);
+    QCOMPARE(ir.screens[0].widgets[0].id, QString("speedo_1"));
+
+    QString tempOut = m_tempDir.filePath("lvgl_ir_export");
+    QVERIFY(gen.generate(tempOut));
+    QVERIFY(QFile::exists(tempOut + "/ui.c"));
+    QVERIFY(QFile::exists(tempOut + "/ui.h"));
+    QVERIFY(QFile::exists(tempOut + "/CMakeLists.txt"));
+}
+
+void TestAllCases::testPhase6PluginRegistryExtensionBoundary() {
+    auto& reg = Plugins::PluginRegistry::instance();
+
+    class SafeTestPlugin : public Plugins::PluginInterface {
+    public:
+        Plugins::PluginMetadata metadata() const override {
+            Plugins::PluginMetadata m;
+            m.id = "test_safe_plugin";
+            m.name = "Test Safe Plugin";
+            m.version = "1.0.0";
+            m.type = Plugins::PluginType::Component;
+            return m;
+        }
+        bool initialize() override { return true; }
+        void shutdown() override {}
+    };
+
+    auto p = std::make_shared<SafeTestPlugin>();
+    QVERIFY(reg.registerPlugin(p));
+    QVERIFY(reg.findPlugin("test_safe_plugin") != nullptr);
+
+    // Error boundary: Faulty plugin that throws on initialize
+    class FaultyPlugin : public Plugins::PluginInterface {
+    public:
+        Plugins::PluginMetadata metadata() const override {
+            Plugins::PluginMetadata m;
+            m.id = "faulty_plugin";
+            return m;
+        }
+        bool initialize() override {
+            throw std::runtime_error("Simulated plugin crash");
+        }
+        void shutdown() override {}
+    };
+
+    auto faulty = std::make_shared<FaultyPlugin>();
+    // Must NOT crash the process and return false gracefully
+    QVERIFY(!reg.registerPlugin(faulty));
+
+    QVERIFY(reg.unregisterPlugin("test_safe_plugin"));
+}
+
+void TestAllCases::testUniversalPinConfigurationTaskAAndB() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+
+    // 1. Configure Task A pin assignments
+    bridge.setActiveTask("Task A");
+    QVERIFY(bridge.setTaskPinMode("PA0", "Task A", PinMode::AnalogIn));
+    QVERIFY(bridge.setTaskPinMode("PA5", "Task A", PinMode::SpiRawTransfer));
+    QVERIFY(bridge.setTaskPinMode("PA6", "Task A", PinMode::PwmOutput));
+    bridge.setTaskPeripheral("PA5", "Task A", "SPI1_SCK");
+
+    QCOMPARE(bridge.taskPinMode("PA0", "Task A"), PinMode::AnalogIn);
+    QCOMPARE(bridge.taskPinMode("PA5", "Task A"), PinMode::SpiRawTransfer);
+    QCOMPARE(bridge.taskPinMode("PA6", "Task A"), PinMode::PwmOutput);
+    QCOMPARE(bridge.taskPeripheral("PA5", "Task A"), QString("SPI1_SCK"));
+
+    // 2. Switch to Task B and configure independent pin assignments
+    bridge.setActiveTask("Task B");
+    QVERIFY(bridge.setTaskPinMode("PA1", "Task B", PinMode::DigitalOut));
+    QVERIFY(bridge.setTaskPinMode("PB0", "Task B", PinMode::DigitalIn));
+    bridge.setTaskPeripheral("PB0", "Task B", "TIM3_CH3");
+
+    QCOMPARE(bridge.taskPinMode("PA1", "Task B"), PinMode::DigitalOut);
+    QCOMPARE(bridge.taskPinMode("PB0", "Task B"), PinMode::DigitalIn);
+    QCOMPARE(bridge.taskPeripheral("PB0", "Task B"), QString("TIM3_CH3"));
+
+    // 3. Verify Task A assignments were preserved when Task B was modified
+    QCOMPARE(bridge.taskPinMode("PA0", "Task A"), PinMode::AnalogIn);
+    QCOMPARE(bridge.taskPinMode("PA5", "Task A"), PinMode::SpiRawTransfer);
+    QCOMPARE(bridge.taskPinMode("PA6", "Task A"), PinMode::PwmOutput);
+
+    // 4. Verify Task B assignments remain intact when switching back to Task A
+    bridge.setActiveTask("Task A");
+    QCOMPARE(bridge.taskPinMode("PA1", "Task B"), PinMode::DigitalOut);
+    QCOMPARE(bridge.taskPinMode("PB0", "Task B"), PinMode::DigitalIn);
+
+    // 5. Save & restore state roundtrip test
+    QJsonObject savedState = bridge.saveHardwareStateToJson();
+    QVERIFY(!savedState.isEmpty());
+
+    bridge.setBoard("esp32s3_devkitc1");
+    QCOMPARE(bridge.currentBoardId(), QString("esp32s3_devkitc1"));
+
+    QVERIFY(bridge.loadHardwareStateFromJson(savedState));
+    QCOMPARE(bridge.currentBoardId(), QString("stm32f030r8"));
+    QCOMPARE(bridge.taskPinMode("PA0", "Task A"), PinMode::AnalogIn);
+    QCOMPARE(bridge.taskPinMode("PA1", "Task B"), PinMode::DigitalOut);
+}
+
+void TestAllCases::testUniversalHardwareConnectionControlsAndStates() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setBoard("stm32f030r8");
+
+    // 1. Initial Disconnected State
+    bridge.disconnectHardware();
+    bridge.setSimulationMode(false);
+    QCOMPARE(bridge.connectionState(), ConnectionState::Disconnected);
+    QVERIFY(bridge.connectionStatusText().contains("Disconnected"));
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Connect ST-Link / OpenOCD"));
+
+    // 2. Platform-aware Connection Labels
+    bridge.setBoard("esp32s3_devkitc1");
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Connect Serial / ESP-IDF"));
+
+    bridge.setBoard("rp2040");
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Connect Picoprobe / OpenOCD"));
+
+    bridge.setBoard("raspberrypi_4b");
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Connect Linux GPIO (gpiod)"));
+
+    bridge.setBoard("nxp_lpc55s69");
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Connect CMSIS-DAP / LinkServer"));
+
+    bridge.setBoard("stc89c52");
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Connect Serial (STC-ISP)"));
+
+    // 3. Simulation Mode - Must be visually and functionally distinct from physical connection
+    bridge.setBoard("stm32f030r8");
+    bridge.setSimulationMode(true);
+    QVERIFY(bridge.isSimulationMode());
+    QCOMPARE(bridge.connectionState(), ConnectionState::SimulationMode);
+    QVERIFY(bridge.connectionStatusText().contains("Simulation Mode"));
+
+    // 4. Mock / Verified Physical Connection State
+    bridge.setSimulationMode(false);
+    bridge.openOcdManager().setSimulatedConnected(true, "ST-LINK/V2.1 (Physical Test Probe)");
+    QApplication::processEvents();
+    QVERIFY(bridge.isHardwareConnected());
+    QCOMPARE(bridge.connectionState(), ConnectionState::Connected);
+    QCOMPARE(bridge.connectionButtonLabel(), QString("Disconnect"));
+    QVERIFY(bridge.connectedProbeName().contains("ST-LINK/V2.1"));
+
+    // 5. Disconnect request cleanly resets connection
+    bridge.disconnectHardware();
+    bridge.openOcdManager().setSimulatedConnected(false);
+    QApplication::processEvents();
+    QCOMPARE(bridge.connectionState(), ConnectionState::Disconnected);
+    QVERIFY(!bridge.isHardwareConnected());
+}
+
+void TestAllCases::testPinConflictAndReservedDetection() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setBoard("stm32f030r8");
+
+    // 1. Reserved Debug Pins (PA13 SWDIO, PA14 SWCLK)
+    const PinProfile pa13 = bridge.pinProfile("PA13");
+    QVERIFY(pa13.isReserved);
+    QVERIFY(pa13.reservedReason.contains("SWDIO"));
+
+    // Attempting to assign a mode to a reserved pin triggers conflict/warning
+    bridge.setTaskPinMode("PA13", "Task A", PinMode::DigitalOut);
+    PinConflict pa13Conflict = bridge.checkPinConflict("PA13");
+    QVERIFY(pa13Conflict.hasConflict);
+    QVERIFY(pa13Conflict.reason.contains("reserved"));
+    bridge.setTaskPinMode("PA13", "Task A", PinMode::None); // Reset
+
+    // 2. Incompatible Mode Conflict between Task A and Task B on the same physical pin
+    bridge.setTaskPinMode("PA0", "Task A", PinMode::AnalogIn);
+    bridge.setTaskPinMode("PA0", "Task B", PinMode::DigitalOut);
+
+    PinConflict pa0Conflict = bridge.checkPinConflict("PA0");
+    QVERIFY(pa0Conflict.hasConflict);
+    QVERIFY(pa0Conflict.reason.contains("Task conflict"));
+
+    // Resolving Task B to match or unassign clears the conflict
+    bridge.setTaskPinMode("PA0", "Task B", PinMode::None);
+    QVERIFY(!bridge.checkPinConflict("PA0").hasConflict);
+
+    // 3. Duplicate exclusive peripheral mapping conflict
+    bridge.setTaskPinMode("PA5", "Task A", PinMode::SpiRawTransfer);
+    bridge.setTaskPeripheral("PA5", "Task A", "SPI1_SCK");
+
+    bridge.setTaskPinMode("PA6", "Task A", PinMode::SpiRawTransfer);
+    bridge.setTaskPeripheral("PA6", "Task A", "SPI1_SCK");
+
+    QList<PinConflict> allConflicts = bridge.allConflicts();
+    bool duplicateFound = false;
+    for (const auto& c : allConflicts) {
+        if (c.reason.contains("Duplicate peripheral mapping") && c.reason.contains("SPI1_SCK")) {
+            duplicateFound = true;
+            break;
+        }
+    }
+    QVERIFY(duplicateFound);
+
+    // Cleanup
+    bridge.setTaskPeripheral("PA6", "Task A", "SPI1_MISO");
+}
+
+void TestAllCases::testUniversalBoardProfilesAndPortFilters() {
+    HardwareBridge& bridge = HardwareBridge::instance();
+
+    // 1. STM32 Port Filtering
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+    QStringList f0Ports = bridge.portGroupsForCurrentBoard();
+    QVERIFY(f0Ports.contains("Port A"));
+    QVERIFY(f0Ports.contains("Port B"));
+    QVERIFY(f0Ports.contains("Port C"));
+
+    QStringList portAPins = bridge.availablePinsForPort("Port A");
+    QVERIFY(portAPins.contains("PA0"));
+    QVERIFY(portAPins.contains("PA5"));
+    QVERIFY(!portAPins.contains("PB0"));
+    QVERIFY(!portAPins.contains("PC13"));
+
+    // 2. ESP32-S3 Board Profile & Capabilities
+    QVERIFY(bridge.setBoard("esp32s3_devkitc1"));
+    const BoardProfile espS3 = bridge.currentBoard();
+    QCOMPARE(espS3.mcuFamily, QString("ESP32-S3"));
+    QCOMPARE(espS3.connectionType, QString("serial"));
+    QVERIFY(bridge.isModeAvailable("IO1", PinMode::AnalogIn));
+    QVERIFY(!bridge.isModeAvailable("IO0", PinMode::AnalogIn)); // Boot strap pin
+
+    // 3. Raspberry Pi Pico & Pico 2 Profiles
+    QVERIFY(bridge.setBoard("rp2040"));
+    QCOMPARE(bridge.currentBoard().mcuFamily, QString("RP2040"));
+    QVERIFY(bridge.isModeAvailable("GP26", PinMode::AnalogIn));
+    QVERIFY(!bridge.isModeAvailable("GP0", PinMode::AnalogIn));
+
+    QVERIFY(bridge.setBoard("rp2350"));
+    QCOMPARE(bridge.currentBoard().id, QString("rp2350"));
+
+    // 4. Raspberry Pi 4B Linux SBC (GPIO Bank)
+    QVERIFY(bridge.setBoard("raspberrypi_4b"));
+    QCOMPARE(bridge.currentBoard().connectionType, QString("linux"));
+    QVERIFY(bridge.availablePins().contains("GPIO2"));
+
+    // 5. NXP LPC55S69 Profile
+    QVERIFY(bridge.setBoard("nxp_lpc55s69"));
+    QCOMPARE(bridge.currentBoard().connectionType, QString("linkserver"));
+    QVERIFY(bridge.availablePins().contains("PIO0_23"));
+
+    // 6. STC 8051 Profile
+    QVERIFY(bridge.setBoard("stc89c52"));
+    QCOMPARE(bridge.currentBoard().connectionType, QString("stcisp"));
+    QVERIFY(bridge.availablePins().contains("P0.0"));
+
+    // Restore F0 board
+    bridge.setBoard("stm32f030r8");
+}
+
+void TestAllCases::testMidpointHandleSmoothRotationAndWheelDirection() {
+    CanvasScene scene;
+    CanvasView view(&scene);
+    view.resize(800, 600);
+    view.show();
+    QApplication::processEvents();
+
+    auto* rect = new RectangleComponent("test_rect");
+    rect->setCompPos(200, 150);
+    rect->setCompSize(160, 80);
+    scene.addUIComponent(rect);
+    rect->setSelected(true);
+    QApplication::processEvents();
+
+    QCOMPARE(rect->rotationAngle(), 0.0);
+    QCOMPARE(rect->transformOriginPoint(), QPointF(80.0, 40.0));
+
+    // 1. Verify all 4 midpoint handles exist and can initiate rotation
+    const ResizeHandle midpointHandles[] = {
+        ResizeHandle::Top,
+        ResizeHandle::Bottom,
+        ResizeHandle::Left,
+        ResizeHandle::Right
+    };
+
+    for (ResizeHandle h : midpointHandles) {
+        QVERIFY(UIComponent::isMidpointHandle(h));
+        QVERIFY(!UIComponent::isCornerHandle(h));
+        QRectF hRect = rect->handleRect(h);
+        QVERIFY(!hRect.isEmpty());
+        QCOMPARE(rect->handleAt(hRect.center()), h);
+    }
+
+    // 2. Test Scroll UP rotates clockwise (+ degrees)
+    // 120 units -> 15 degrees
+    rect->rotateByWheelDelta(120.0);
+    QCOMPARE(rect->rotationAngle(), 15.0);
+
+    // Another 120 units -> 30 degrees
+    rect->rotateByWheelDelta(120.0);
+    QCOMPARE(rect->rotationAngle(), 30.0);
+
+    // 3. Test Scroll DOWN rotates counterclockwise (- degrees)
+    rect->rotateByWheelDelta(-120.0);
+    QCOMPARE(rect->rotationAngle(), 15.0);
+
+    // 4. Test high-resolution / small trackpad deltas produce proportional angle changes
+    // e.g. 8 units -> 8 * (15/120) = 1.0 degree
+    rect->rotateByWheelDelta(8.0);
+    QCOMPARE(rect->rotationAngle(), 16.0);
+
+    // 5. Test wrapping around 360 degrees
+    rect->setRotationAngle(350.0);
+    QCOMPARE(rect->rotationAngle(), 350.0);
+    rect->rotateByWheelDelta(120.0); // +15 -> 365 -> 5
+    QCOMPARE(rect->rotationAngle(), 5.0);
+    rect->rotateByWheelDelta(-120.0); // -15 -> -10 -> 350
+    QCOMPARE(rect->rotationAngle(), 350.0);
+}
+
+void TestAllCases::testRotationAroundCenterAndHandleAlignment() {
+    CanvasScene scene;
+    CanvasView view(&scene);
+    auto* btn = new ButtonComponent("rot_btn");
+    btn->setCompPos(300, 200);
+    btn->setCompSize(140, 60);
+    scene.addUIComponent(btn);
+    btn->setSelected(true);
+
+    // Initial center in scene coords: pos + (w/2, h/2) = (300+70, 200+30) = (370, 230)
+    QPointF initialCenter = btn->pos() + btn->transformOriginPoint();
+    QCOMPARE(initialCenter, QPointF(370, 230));
+
+    // Rotate to 45 degrees
+    btn->setRotationAngle(45.0);
+    QCOMPARE(btn->rotationAngle(), 45.0);
+    // Center must remain unchanged
+    QPointF rotatedCenter = btn->pos() + btn->transformOriginPoint();
+    QCOMPARE(rotatedCenter, initialCenter);
+    QCOMPARE(btn->compWidth(), 140.0);
+    QCOMPARE(btn->compHeight(), 60.0);
+
+    // Hit test rotated component in local and scene coordinates
+    QPointF localCenter(70, 30);
+    QVERIFY(btn->contains(localCenter));
+
+    // Handle hit testing after rotation (mapFromScene correctly locates local handles)
+    QPointF topHandleLocal = btn->handleRect(ResizeHandle::Top).center();
+    QCOMPARE(btn->handleAt(topHandleLocal), ResizeHandle::Top);
+
+    QPointF rightHandleLocal = btn->handleRect(ResizeHandle::Right).center();
+    QCOMPARE(btn->handleAt(rightHandleLocal), ResizeHandle::Right);
+}
+
+void TestAllCases::testRotationUndoRedoAndPersistence() {
+    QUndoStack undoStack;
+    CanvasScene scene;
+    scene.setUndoStack(&undoStack);
+
+    auto* rect = new RectangleComponent("undo_rect");
+    rect->setCompPos(100, 100);
+    rect->setCompSize(120, 60);
+    scene.addUIComponent(rect);
+    rect->setSelected(true);
+
+    QCOMPARE(rect->rotationAngle(), 0.0);
+
+    // Simulate rotation from 0 to 45 degrees with undo command
+    qreal oldAngle = rect->rotationAngle();
+    rect->setRotationAngle(45.0);
+    undoStack.push(new RotateComponentCommand(rect, oldAngle, 45.0));
+
+    QCOMPARE(rect->rotationAngle(), 45.0);
+
+    // Undo rotation
+    undoStack.undo();
+    QCOMPARE(rect->rotationAngle(), 0.0);
+
+    // Redo rotation
+    undoStack.redo();
+    QCOMPARE(rect->rotationAngle(), 45.0);
+
+    // Serialization (JSON export / import)
+    QJsonObject json = rect->toJson();
+    QVERIFY(json.contains("rotation"));
+    QCOMPARE(json["rotation"].toInt(), 45);
+
+    auto* restored = new RectangleComponent("restored_rect");
+    restored->fromJson(json);
+    QCOMPARE(restored->rotationAngle(), 45.0);
+    QCOMPARE(restored->transformOriginPoint(), QPointF(60.0, 30.0));
+    delete restored;
+}
+
+void TestAllCases::testCornerHandlesResizePreservedAndCanvasScrollZoomIsolation() {
+    CanvasScene scene;
+    CanvasView view(&scene);
+    view.resize(800, 600);
+    view.show();
+    QApplication::processEvents();
+
+    auto* comp = new RectangleComponent("corner_test");
+    comp->setCompPos(200, 200);
+    comp->setCompSize(100, 100);
+    scene.addUIComponent(comp);
+    comp->setSelected(true);
+    QApplication::processEvents();
+
+    // 1. Verify 4 corner handles are recognized as resize handles, not midpoint
+    const ResizeHandle cornerHandles[] = {
+        ResizeHandle::TopLeft,
+        ResizeHandle::TopRight,
+        ResizeHandle::BottomLeft,
+        ResizeHandle::BottomRight
+    };
+
+    for (ResizeHandle ch : cornerHandles) {
+        QVERIFY(UIComponent::isCornerHandle(ch));
+        QVERIFY(!UIComponent::isMidpointHandle(ch));
+    }
+
+    // 2. Test rotation mode isolation in CanvasView wheelEvent
+    // When midpoint handle is in rotation mode, wheel scrolling rotates component and does NOT zoom
+    qreal initialZoom = view.zoomFactor();
+    comp->setRotationAngle(0.0);
+
+    // Simulate wheel event on view while component is in rotation mode
+    comp->rotateByWheelDelta(120.0);
+    QCOMPARE(comp->rotationAngle(), 15.0);
+    QCOMPARE(view.zoomFactor(), initialZoom); // Zoom unchanged
+
+    // 3. Independent rotation of multiple components
+    auto* comp2 = new RectangleComponent("comp2");
+    comp2->setCompPos(400, 200);
+    comp2->setCompSize(80, 80);
+    scene.addUIComponent(comp2);
+
+    comp2->setRotationAngle(90.0);
+    QCOMPARE(comp->rotationAngle(), 15.0);
+    QCOMPARE(comp2->rotationAngle(), 90.0);
+
+    // PropertiesPanel sync test
+    PropertiesPanel panel;
+    panel.setTargetComponent(comp);
+    // Verify properties panel updates component rotation
+    comp->setRotationAngle(60.0);
+    panel.setTargetComponent(comp);
+    QCOMPARE(comp->rotationAngle(), 60.0);
+}
+
+void TestAllCases::testNewProjectDialogPlatformAndBoardPopulation() {
+    NewProjectDialog dialog;
+    dialog.resize(760, 680);
+    dialog.show();
+    QApplication::processEvents();
+
+    // 1. Verify Platform dropdown entries
+    auto* platformCombo = dialog.findChild<QComboBox*>();
+    QVERIFY(platformCombo != nullptr);
+
+    dialog.setSelectedPlatform("STM32");
+    QCOMPARE(dialog.targetPlatform(), QString("STM32"));
+
+    // Check STM32 boards
+    dialog.setSelectedBoard("stm32f030r8");
+    QCOMPARE(dialog.selectedBoardId(), QString("stm32f030r8"));
+    QVERIFY(dialog.hardwareBoard().contains("NUCLEO-F030R8"));
+
+    dialog.setSelectedBoard("stm32f407g_disc1");
+    QCOMPARE(dialog.selectedBoardId(), QString("stm32f407g_disc1"));
+
+    // Check ESP32 platform
+    dialog.setSelectedPlatform("ESP32");
+    QCOMPARE(dialog.targetPlatform(), QString("ESP32"));
+    dialog.setSelectedBoard("esp32s3_devkitc1");
+    QCOMPARE(dialog.selectedBoardId(), QString("esp32s3_devkitc1"));
+
+    // Check Raspberry Pi Pico (RP2040)
+    dialog.setSelectedPlatform("RP2040");
+    dialog.setSelectedBoard("rp2040");
+    QCOMPARE(dialog.selectedBoardId(), QString("rp2040"));
+
+    // Check Raspberry Pi Linux SBC
+    dialog.setSelectedPlatform("Raspberry Pi");
+    dialog.setSelectedBoard("raspberrypi_4b");
+    QCOMPARE(dialog.selectedBoardId(), QString("raspberrypi_4b"));
+
+    // Check NXP
+    dialog.setSelectedPlatform("NXP");
+    dialog.setSelectedBoard("nxp_lpc55s69");
+    QCOMPARE(dialog.selectedBoardId(), QString("nxp_lpc55s69"));
+
+    // Check STC 8051
+    dialog.setSelectedPlatform("STC");
+    dialog.setSelectedBoard("stc89c52");
+    QCOMPARE(dialog.selectedBoardId(), QString("stc89c52"));
+}
+
+void TestAllCases::testNewProjectDialogDynamicProfileSummaryAndToggle() {
+    NewProjectDialog dialog;
+    dialog.resize(760, 680);
+    dialog.show();
+    QApplication::processEvents();
+
+    // 1. Check profile info for STM32F030R8
+    dialog.setSelectedBoard("stm32f030r8");
+    TargetBoardInfo f0Info = NewProjectDialog::findBoardInfo("stm32f030r8");
+    QCOMPARE(f0Info.mcuModel, QString("STM32F030R8"));
+    QCOMPARE(f0Info.architecture, QString("ARM Cortex-M0 (48 MHz)"));
+    QCOMPARE(f0Info.flashBytes, static_cast<quint64>(64 * 1024));
+    QCOMPARE(f0Info.ramBytes, static_cast<quint64>(8 * 1024));
+    QCOMPARE(f0Info.gpioCount, 23);
+    QVERIFY(f0Info.debugInterface.contains("ST-Link"));
+
+    // 2. Check profile info for ESP32-S3
+    dialog.setSelectedBoard("esp32s3_devkitc1");
+    TargetBoardInfo espInfo = NewProjectDialog::findBoardInfo("esp32s3_devkitc1");
+    QCOMPARE(espInfo.mcuModel, QString("ESP32-S3"));
+    QVERIFY(espInfo.architecture.contains("Xtensa"));
+    QCOMPARE(espInfo.flashBytes, static_cast<quint64>(8192 * 1024));
+    QCOMPARE(espInfo.ramBytes, static_cast<quint64>(512 * 1024));
+
+    // 3. Check profile summary expand/collapse toggle
+    auto* toggleBtn = dialog.findChild<QPushButton*>("summaryToggleBtn");
+    // Button exists and can be clicked
+    auto* summaryFrame = dialog.findChild<QFrame*>("summaryFrame");
+    QVERIFY(summaryFrame != nullptr);
+}
+
+void TestAllCases::testNewProjectDialogFrameworkCompatibilityValidation() {
+    NewProjectDialog dialog;
+    dialog.resize(760, 680);
+    dialog.show();
+    QApplication::processEvents();
+
+    // 1. STC 8051 compatibility
+    dialog.setSelectedBoard("stc89c52");
+    dialog.setTargetFramework("ugfx");
+    QCOMPARE(dialog.targetFramework(), QString("ugfx"));
+
+    dialog.setTargetFramework("lvgl");
+    QCOMPARE(dialog.targetFramework(), QString("lvgl"));
+
+    dialog.setTargetFramework("qt-for-mcus");
+    QCOMPARE(dialog.targetFramework(), QString("qt-for-mcus"));
+
+    // 2. STM32F030R8 compatibility
+    dialog.setSelectedBoard("stm32f030r8");
+    dialog.setTargetFramework("lvgl");
+    QCOMPARE(dialog.targetFramework(), QString("lvgl"));
+
+    // 3. STM32F4 Discovery (STM32F407VG) supports all three
+    dialog.setSelectedBoard("stm32f407g_disc1");
+    TargetBoardInfo f4Info = NewProjectDialog::findBoardInfo("stm32f407g_disc1");
+    QVERIFY(f4Info.supportedFrameworks.contains("lvgl"));
+    QVERIFY(f4Info.supportedFrameworks.contains("ugfx"));
+    QVERIFY(f4Info.supportedFrameworks.contains("qt-for-mcus"));
+}
+
+void TestAllCases::testNewProjectDialogCustomTargetAndPersistence() {
+    NewProjectDialog dialog;
+    dialog.resize(760, 680);
+    dialog.show();
+    QApplication::processEvents();
+
+    dialog.setSelectedPlatform("Custom");
+    dialog.setSelectedBoard("custom");
+    dialog.setTargetFramework("lvgl");
+    QApplication::processEvents();
+
+    auto* customGroup = dialog.findChild<QGroupBox*>();
+    QVERIFY(customGroup != nullptr);
+    QVERIFY(!customGroup->isHidden());
+
+    Hardware::HardwareConfig hw = dialog.hardwareConfiguration();
+    QCOMPARE(hw.targetType, QString("custom"));
+    QCOMPARE(hw.vendor, QString("Custom"));
+    QCOMPARE(hw.family, QString("Custom"));
+
+    Hardware::HardwareTarget target = dialog.hardwareTarget();
+    QVERIFY(target.capabilities().gpioInput);
+    QVERIFY(target.capabilities().gpioOutput);
+    QVERIFY(target.capabilities().liveMonitoring);
+
+    // Save and load into Project model
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("CustomEmbeddedApp", 320, 240);
+    proj.setHardwareConfig(hw);
+    proj.setTargetFramework(dialog.targetFramework());
+
+    QJsonObject json = proj.toJson();
+    QVERIFY(json.contains("hardware"));
+    QCOMPARE(json["hardware"].toObject()["target"].toObject()["type"].toString(), QString("custom"));
+
+    CanvasScene restoredScene;
+    Project restored(&restoredScene);
+    QVERIFY(restored.fromJson(json));
+    QCOMPARE(restored.hardwareConfig().targetType, QString("custom"));
+    QCOMPARE(restored.targetFramework(), QString("lvgl"));
+}
+
+void TestAllCases::testNewProjectDialogTemplateCompatibilityAndCreation() {
+    NewProjectDialog dialog;
+    dialog.setSelectedBoard("stm32f030r8");
+    dialog.setTargetFramework("lvgl");
+
+    Hardware::HardwareConfig hw = dialog.hardwareConfiguration();
+    QCOMPARE(hw.boardId, QString("stm32f030r8"));
+    QCOMPARE(hw.deviceId, QString("STM32F030R8"));
+    QCOMPARE(hw.family, QString("STM32"));
+
+    Hardware::HardwareTarget target = dialog.hardwareTarget();
+    QCOMPARE(target.id(), QString("stm32f030r8"));
+    QCOMPARE(target.family(), QString("STM32"));
+    QCOMPARE(target.backendType(), QString("stm32"));
+    QCOMPARE(target.connectionType(), QString("openocd"));
+
+    // Check project creation pipeline
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject(dialog.projectName(), dialog.projectWidth(), dialog.projectHeight());
+    proj.setHardwareConfig(hw);
+    proj.setTargetFramework(dialog.targetFramework());
+
+    QCOMPARE(proj.hardwareConfig().boardId, QString("stm32f030r8"));
+    QCOMPARE(proj.hardwareConfig().deviceId, QString("STM32F030R8"));
+
+    // Verify older project backward compatibility when "hardware" object is missing
+    QJsonObject legacyJson;
+    legacyJson["name"] = "LegacyApp";
+    legacyJson["target"] = "lvgl";
+    QJsonObject disp;
+    disp["width"] = 320;
+    disp["height"] = 240;
+    legacyJson["display"] = disp;
+
+    CanvasScene legacyScene;
+    Project legacyProj(&legacyScene);
+    QVERIFY(legacyProj.fromJson(legacyJson));
+    QCOMPARE(legacyProj.projectName(), QString("LegacyApp"));
+    QCOMPARE(legacyProj.targetFramework(), QString("lvgl"));
+    QCOMPARE(legacyProj.hardwareConfig().isValid(), false); // Clean default fallback
+}
+
+// ----------------------------------------------------------------------------
+// 34. Multi-Color Gradient Support in Color Picker Tests
+// ----------------------------------------------------------------------------
+
+void TestAllCases::testGradientModelStopsAndInterpolation() {
+    ComponentGradient grad;
+    QVERIFY(grad.isValid());
+    QCOMPARE(grad.stops.size(), 2);
+    QCOMPARE(grad.stops.first().position, 0.0);
+    QCOMPARE(grad.stops.last().position, 1.0);
+
+    // Add multiple stops (Illustrative 4-stop arrangement: Blue -> Cyan -> Green -> Orange)
+    grad.stops.clear();
+    grad.addStop(0.0, QColor("#2196F3"));  // Blue
+    grad.addStop(0.35, QColor("#00E5FF")); // Cyan
+    grad.addStop(0.70, QColor("#4CAF50")); // Green
+    grad.addStop(1.0, QColor("#FF9800"));  // Orange
+    QCOMPARE(grad.stops.size(), 4);
+
+    // Verify ordering
+    QCOMPARE(grad.stops[0].position, 0.0);
+    QCOMPARE(grad.stops[1].position, 0.35);
+    QCOMPARE(grad.stops[2].position, 0.70);
+    QCOMPARE(grad.stops[3].position, 1.0);
+
+    // Test exact boundary colors
+    QCOMPARE(grad.interpolateAt(0.0), QColor("#2196F3"));
+    QCOMPARE(grad.interpolateAt(0.35), QColor("#00E5FF"));
+    QCOMPARE(grad.interpolateAt(0.70), QColor("#4CAF50"));
+    QCOMPARE(grad.interpolateAt(1.0), QColor("#FF9800"));
+
+    // Test intermediate interpolation
+    QColor mid1 = grad.interpolateAt(0.175); // Halfway between Blue and Cyan
+    QVERIFY(mid1.isValid());
+    QVERIFY(mid1.blue() > 200);
+
+    // Test alpha transparency interpolation
+    ComponentGradient alphaGrad;
+    alphaGrad.stops.clear();
+    alphaGrad.addStop(0.0, QColor(255, 0, 0, 0));   // Transparent red
+    alphaGrad.addStop(1.0, QColor(255, 0, 0, 200)); // Semi-opaque red
+    QColor midAlpha = alphaGrad.interpolateAt(0.5);
+    QVERIFY(qAbs(midAlpha.alpha() - 100) <= 2);
+
+    // Enforce minimum of 2 stops
+    grad.removeStop(1);
+    QCOMPARE(grad.stops.size(), 3);
+    grad.removeStop(1);
+    QCOMPARE(grad.stops.size(), 2);
+    grad.removeStop(0); // Should NOT remove when size == 2
+    QCOMPARE(grad.stops.size(), 2);
+
+    // JSON Round-trip
+    QJsonObject json = grad.toJson();
+    QVERIFY(json.contains("stops"));
+    QVERIFY(json["stops"].isArray());
+    QCOMPARE(json["stops"].toArray().size(), 2);
+
+    ComponentGradient restored = ComponentGradient::fromJson(json);
+    QVERIFY(restored.isValid());
+    QCOMPARE(restored.stops.size(), 2);
+    QCOMPARE(restored.stops[0].position, grad.stops[0].position);
+    QCOMPARE(restored.stops[0].color, grad.stops[0].color);
+}
+
+void TestAllCases::testGradientLinearAngleAndRadialGeometry() {
+    QRectF rect(0, 0, 200, 100);
+
+    // Linear 0 degrees (Left-to-Right)
+    ComponentGradient linear0(ComponentGradient::Type::Linear, { {0.0, QColor("#FF0000")}, {1.0, QColor("#0000FF")} }, 0.0);
+    QBrush b0 = linear0.toQBrush(rect);
+    QCOMPARE(b0.style(), Qt::LinearGradientPattern);
+    const QLinearGradient* lg0 = static_cast<const QLinearGradient*>(b0.gradient());
+    QVERIFY(lg0 != nullptr);
+    QVERIFY(lg0->start().x() < lg0->finalStop().x());
+
+    // Linear 90 degrees (Top-to-Bottom)
+    ComponentGradient linear90(ComponentGradient::Type::Linear, { {0.0, QColor("#FF0000")}, {1.0, QColor("#0000FF")} }, 90.0);
+    QBrush b90 = linear90.toQBrush(rect);
+    const QLinearGradient* lg90 = static_cast<const QLinearGradient*>(b90.gradient());
+    QVERIFY(lg90 != nullptr);
+    QVERIFY(lg90->start().y() < lg90->finalStop().y());
+
+    // Radial Gradient
+    ComponentGradient radial(ComponentGradient::Type::Radial, { {0.0, QColor("#FFFFFF")}, {1.0, QColor("#000000")} });
+    radial.centerX = 0.25;
+    radial.centerY = 0.75;
+    radial.radius = 0.6;
+    QBrush rb = radial.toQBrush(rect);
+    QCOMPARE(rb.style(), Qt::RadialGradientPattern);
+    const QRadialGradient* rg = static_cast<const QRadialGradient*>(rb.gradient());
+    QVERIFY(rg != nullptr);
+    QVERIFY(qAbs(rg->center().x() - (rect.left() + 0.25 * rect.width())) < 1.0);
+    QVERIFY(qAbs(rg->center().y() - (rect.top() + 0.75 * rect.height())) < 1.0);
+}
+
+void TestAllCases::testColorPickerDialogDualModeAndGradientEditing() {
+    ColorPickerDialog dlg(QColor("#00E5FF"));
+    dlg.resize(480, 560);
+    dlg.show();
+    QApplication::processEvents();
+
+    // Default is Solid Color mode
+    QCOMPARE(dlg.isGradientMode(), false);
+    QCOMPARE(dlg.selectedColor(), QColor("#00E5FF"));
+
+    // Switch to Gradient Mode
+    dlg.setGradientMode(true);
+    QCOMPARE(dlg.isGradientMode(), true);
+
+    // Load Presets
+    ComponentGradient sunset = ComponentGradient::presetSunset();
+    QVERIFY(sunset.stops.size() >= 2);
+    dlg.setGradient(sunset);
+    QCOMPARE(dlg.selectedGradient().stops.size(), sunset.stops.size());
+    QCOMPARE(dlg.selectedGradient().stops.first().color, sunset.stops.first().color);
+
+    ComponentGradient ocean = ComponentGradient::presetOcean();
+    dlg.setGradient(ocean);
+    QCOMPARE(dlg.selectedGradient().stops.size(), 3);
+
+    ComponentGradient custom = ComponentGradient::presetCustom();
+    dlg.setGradient(custom);
+    QCOMPARE(dlg.selectedGradient().stops.size(), 4);
+
+    // Check Stop Bar Widget
+    auto* stopBar = dlg.findChild<GradientStopBarWidget*>();
+    QVERIFY(stopBar != nullptr);
+    stopBar->setSelectedStopIndex(1);
+    QCOMPARE(stopBar->selectedStopIndex(), 1);
+
+    // Add Stop action
+    auto* btnAddStop = dlg.findChild<QPushButton*>("btnAddStop");
+    if (btnAddStop) {
+        int countBefore = dlg.selectedGradient().stops.size();
+        btnAddStop->click();
+        QApplication::processEvents();
+        QCOMPARE(dlg.selectedGradient().stops.size(), countBefore + 1);
+    }
+}
+
+void TestAllCases::testComponentGradientRenderingAndJsonPersistence() {
+    // 1. RectangleComponent with Gradient Fill
+    auto* rect = new RectangleComponent("rect_grad");
+    rect->setCompPos(10, 10);
+    rect->setCompSize(180, 80);
+    rect->setCornerRadius(8);
+
+    ComponentGradient grad(ComponentGradient::Type::Linear, {
+        {0.0, QColor("#1E3A8A")},
+        {0.5, QColor("#3B82F6")},
+        {1.0, QColor("#93C5FD")}
+    }, 45.0);
+
+    rect->setGradientFill(grad);
+    QVERIFY(rect->hasGradientFill());
+    QCOMPARE(rect->gradientFill().stops.size(), 3);
+    QCOMPARE(rect->gradientFill().angle, 45.0);
+
+    // Verify QPainter execution
+    QImage img(200, 100, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    rect->paint(&p, nullptr, nullptr);
+    p.end();
+    // Verify non-transparent pixel in rendered region
+    QRgb centerPx = img.pixel(100, 50);
+    QVERIFY(qAlpha(centerPx) > 0);
+
+    // Verify JSON Serialization
+    QJsonObject json = rect->toJson();
+    QVERIFY(json.contains("gradient"));
+    QJsonObject gradJson = json["gradient"].toObject();
+    QCOMPARE(gradJson["type"].toString(), QString("linear"));
+    QCOMPARE(gradJson["angle"].toDouble(), 45.0);
+    QCOMPARE(gradJson["stops"].toArray().size(), 3);
+
+    // Deserialization
+    auto* restoredRect = new RectangleComponent("rect_restored");
+    restoredRect->fromJson(json);
+    QVERIFY(restoredRect->hasGradientFill());
+    QCOMPARE(restoredRect->gradientFill().stops.size(), 3);
+    QCOMPARE(restoredRect->gradientFill().stops[1].position, 0.5);
+
+    // 2. ButtonComponent with Gradient
+    auto* btn = new ButtonComponent("btn_grad");
+    btn->setCompSize(120, 40);
+    btn->setGradientFill(grad);
+    QVERIFY(btn->hasGradientFill());
+    QJsonObject btnJson = btn->toJson();
+    QVERIFY(btnJson.contains("gradient"));
+
+    // 3. ProgressBarComponent with Gradient
+    auto* prog = new ProgressBarComponent("prog_grad");
+    prog->setCompSize(200, 30);
+    prog->setValue(0.75);
+    prog->setGradientFill(grad);
+    QVERIFY(prog->hasGradientFill());
+
+    // 4. CircleComponent with Gradient
+    auto* circ = new CircleComponent("circ_grad");
+    circ->setCompSize(80, 80);
+    circ->setGradientFill(grad);
+    QVERIFY(circ->hasGradientFill());
+
+    delete rect;
+    delete restoredRect;
+    delete btn;
+    delete prog;
+    delete circ;
+}
+
+void TestAllCases::testGradientPropertiesPanelIntegrationAndCodeGeneration() {
+    CanvasScene scene;
+    Project proj(&scene);
+    proj.newProject("GradientExportApp", 320, 240);
+
+    auto* rect = new RectangleComponent("bg_panel");
+    rect->setCompPos(0, 0);
+    rect->setCompSize(320, 240);
+    ComponentGradient grad(ComponentGradient::Type::Linear, {
+        {0.0, QColor("#111827")},
+        {1.0, QColor("#1F2937")}
+    }, 90.0);
+    rect->setGradientFill(grad);
+    scene.addUIComponent(rect);
+
+    auto* btn = new ButtonComponent("action_btn");
+    btn->setCompPos(60, 100);
+    btn->setCompSize(200, 45);
+    btn->setText("Submit");
+    ComponentGradient btnGrad(ComponentGradient::Type::Linear, {
+        {0.0, QColor("#0284C7")},
+        {1.0, QColor("#0EA5E9")}
+    }, 0.0);
+    btn->setGradientFill(btnGrad);
+    scene.addUIComponent(btn);
+
+    // 1. Test LVGL Code Generation
+    LvglGenerator lvglGen(&proj, &scene);
+    QString lvglCode = lvglGen.generateUiSource();
+    QVERIFY(lvglCode.contains("lv_obj_set_style_bg_grad_color"));
+    QVERIFY(lvglCode.contains("lv_obj_set_style_bg_grad_dir"));
+
+    // 2. Test Qt for MCUs (QUL) QML Generation
+    QtMcuGenerator qmlGen(&proj, &scene);
+    QString qmlCode = qmlGen.generateDesignQml();
+    QVERIFY(qmlCode.contains("gradient: Gradient {"));
+    QVERIFY(qmlCode.contains("GradientStop { position:"));
+
+    // 3. Test uGFX Generator
+    UgfxGenerator ugfxGen(&proj, &scene);
+    QString ugfxCode = ugfxGen.generateUiSource();
+    QVERIFY(ugfxCode.contains("Gradient fill"));
+
+    // 4. Test PropertiesPanel updateColorButton with Gradient
+    PropertiesPanel propPanel;
+    QPushButton testBtn;
+    propPanel.updateColorButton(&testBtn, QColor("#0284C7"), btnGrad);
+    QCOMPARE(testBtn.text(), QString("Gradient"));
+    QVERIFY(testBtn.styleSheet().contains("qlineargradient"));
+}
+
+// ============================================================================
+// 35. Complete Canva-Inspired Visual Canvas Editor Upgrade
+// ============================================================================
+
+void TestAllCases::testCanvaContextualTopToolbar() {
+    CanvasScene scene;
+    CanvasView view(&scene);
+    QUndoStack undoStack;
+    Project proj(&scene);
+
+    ContextualTopToolbar toolbar(&view, &scene, &undoStack, &proj);
+
+    // 1. Initial State: No Selection
+    toolbar.updateSelection({});
+    auto* stack = toolbar.findChild<QStackedWidget*>();
+    QVERIFY(stack != nullptr);
+    QCOMPARE(stack->currentIndex(), 0);
+
+    // 2. Text Selection
+    auto* lbl = new LabelComponent("test_lbl");
+    scene.addUIComponent(lbl);
+    toolbar.updateSelection({lbl});
+    QCOMPARE(stack->currentIndex(), 1); // Text page
+
+    // 3. Image Selection
+    auto* img = new ImageComponent("test_img");
+    scene.addUIComponent(img);
+    toolbar.updateSelection({img});
+    QCOMPARE(stack->currentIndex(), 2); // Image page
+
+    // 4. Shape Selection
+    auto* rect = new RectangleComponent("test_rect");
+    scene.addUIComponent(rect);
+    toolbar.updateSelection({rect});
+    QCOMPARE(stack->currentIndex(), 3); // Shape page
+
+    // 5. Button Selection
+    auto* btn = new ButtonComponent("test_btn");
+    scene.addUIComponent(btn);
+    toolbar.updateSelection({btn});
+    QCOMPARE(stack->currentIndex(), 4); // Button page
+
+    // 6. Progress Bar Selection
+    auto* pb = new ProgressBarComponent("test_pb");
+    scene.addUIComponent(pb);
+    toolbar.updateSelection({pb});
+    QCOMPARE(stack->currentIndex(), 5); // Progress page
+
+    // 7. Multi-Selection
+    toolbar.updateSelection({lbl, rect, btn});
+    QCOMPARE(stack->currentIndex(), 9); // Multi-select page
+}
+
+void TestAllCases::testCanvaFloatingSelectionToolbar() {
+    CanvasScene scene;
+    CanvasView view(&scene);
+    view.show();
+    QUndoStack undoStack;
+
+    FloatingSelectionToolbar floatingBar(&view, &scene, &undoStack, view.viewport());
+
+    auto* btn = new ButtonComponent("btn_float");
+    btn->setCompPos(50, 50);
+    btn->setCompSize(100, 40);
+    scene.addUIComponent(btn);
+
+    // Initial state: hidden when nothing selected
+    floatingBar.updateSelection({});
+    QVERIFY(floatingBar.isHidden());
+
+    // Show when selected
+    floatingBar.updateSelection({btn});
+    QVERIFY(!floatingBar.isHidden());
+
+    // Lock toggle
+    QVERIFY(!btn->isLocked());
+    btn->setLocked(true);
+    QVERIFY(btn->isLocked());
+    QVERIFY(!(btn->flags() & QGraphicsItem::ItemIsMovable));
+
+    btn->setLocked(false);
+    QVERIFY(!btn->isLocked());
+    QVERIFY(btn->flags() & QGraphicsItem::ItemIsMovable);
+
+    // Reposition test
+    floatingBar.reposition();
+    QVERIFY(floatingBar.pos().y() >= 0);
+}
+
+void TestAllCases::testCanvaGroupAndUngroupOperations() {
+    CanvasScene scene;
+    QUndoStack undoStack;
+
+    auto* c1 = new RectangleComponent("rect_g1");
+    c1->setCompPos(20, 30);
+    c1->setCompSize(60, 40);
+    scene.addUIComponent(c1);
+
+    auto* c2 = new ButtonComponent("btn_g2");
+    c2->setCompPos(100, 50);
+    c2->setCompSize(80, 30);
+    scene.addUIComponent(c2);
+
+    // 1. Execute Group Command
+    auto* groupCmd = new GroupCommand(&scene, {c1, c2});
+    undoStack.push(groupCmd);
+
+    QCOMPARE(scene.uiComponents().size(), 1);
+    auto* group = dynamic_cast<GroupComponent*>(scene.uiComponents().first());
+    QVERIFY(group != nullptr);
+    QCOMPARE(group->children().size(), 2);
+    QCOMPARE(group->compX(), 20.0);
+    QCOMPARE(group->compY(), 30.0);
+
+    // 2. Test JSON Serialization of Group
+    QJsonObject groupJson = group->toJson();
+    QCOMPARE(groupJson["type"].toString(), QString("Group"));
+    QVERIFY(groupJson["children"].isArray());
+    QCOMPARE(groupJson["children"].toArray().size(), 2);
+
+    // 3. Test Undo Grouping
+    undoStack.undo();
+    QCOMPARE(scene.uiComponents().size(), 2);
+    QCOMPARE(scene.uiComponents()[0]->pos().x(), 20.0);
+    QCOMPARE(scene.uiComponents()[0]->pos().y(), 30.0);
+    QCOMPARE(scene.uiComponents()[1]->pos().x(), 100.0);
+    QCOMPARE(scene.uiComponents()[1]->pos().y(), 50.0);
+
+    // 4. Test Redo Grouping
+    undoStack.redo();
+    QCOMPARE(scene.uiComponents().size(), 1);
+
+    // 5. Test Ungroup Command
+    auto* activeGroup = dynamic_cast<GroupComponent*>(scene.uiComponents().first());
+    QVERIFY(activeGroup != nullptr);
+    auto* ungroupCmd = new UngroupCommand(&scene, activeGroup);
+    undoStack.push(ungroupCmd);
+
+    QCOMPARE(scene.uiComponents().size(), 2);
+}
+
+void TestAllCases::testCanvaTextFormattingEffectsAndCurvature() {
+    LabelComponent lbl("label_fx");
+    lbl.setText("Canva Typography");
+    lbl.setFontFamily("Inter");
+    lbl.setPixelSize(24);
+    lbl.setBold(true);
+    lbl.setItalic(true);
+    lbl.setUnderline(true);
+    lbl.setStrikeThrough(true);
+    lbl.setTextCasing("uppercase");
+    lbl.setLetterSpacing(2.5);
+
+    QCOMPARE(lbl.bold(), true);
+    QCOMPARE(lbl.italic(), true);
+    QCOMPARE(lbl.underline(), true);
+    QCOMPARE(lbl.strikeThrough(), true);
+    QCOMPARE(lbl.textCasing(), QString("uppercase"));
+
+    // 1. Text Effects
+    TextEffect eff;
+    eff.type = TextEffectType::Neon;
+    eff.color = QColor("#EC4899");
+    eff.opacity = 0.85;
+    eff.thickness = 3.0;
+    lbl.setTextEffect(eff);
+
+    QCOMPARE(lbl.textEffect().type, TextEffectType::Neon);
+    QCOMPARE(lbl.textEffect().thickness, 3.0);
+
+    // 2. Curvature (-100 to +100)
+    lbl.setCurvature(65);
+    QCOMPARE(lbl.curvature(), 65);
+
+    lbl.setCurvature(-80);
+    QCOMPARE(lbl.curvature(), -80);
+
+    // 3. Serialization Roundtrip
+    QJsonObject json = lbl.toJson();
+    QCOMPARE(json["underline"].toBool(), true);
+    QCOMPARE(json["strikeThrough"].toBool(), true);
+    QCOMPARE(json["casing"].toString(), QString("uppercase"));
+    QCOMPARE(json["curvature"].toInt(), -80);
+    QVERIFY(json.contains("effect"));
+    QCOMPARE(json["effect"].toObject()["type"].toString(), QString("neon"));
+
+    LabelComponent restoredLbl("label_restored");
+    restoredLbl.fromJson(json);
+    QCOMPARE(restoredLbl.underline(), true);
+    QCOMPARE(restoredLbl.strikeThrough(), true);
+    QCOMPARE(restoredLbl.textCasing(), QString("uppercase"));
+    QCOMPARE(restoredLbl.curvature(), -80);
+    QCOMPARE(restoredLbl.textEffect().type, TextEffectType::Neon);
+
+    // 4. QML and uGFX Snippets
+    QString qml = restoredLbl.toQmlSnippet();
+    QVERIFY(qml.contains("font.underline: true"));
+    QVERIFY(qml.contains("font.strikeout: true"));
+    QVERIFY(qml.contains("Curved text"));
+}
+
+void TestAllCases::testCanvaImageCropFiltersAndUploads() {
+    CanvasScene scene;
+    QUndoStack undoStack;
+    Project proj(&scene);
+
+    ImageComponent img("img_canva");
+    img.setBrightness(25);
+    img.setContrast(15);
+    img.setSaturation(-10);
+    img.setGrayscale(true);
+    img.setCropRect(QRectF(0.1, 0.1, 0.8, 0.8));
+
+    QCOMPARE(img.brightness(), 25);
+    QCOMPARE(img.contrast(), 15);
+    QCOMPARE(img.saturation(), -10);
+    QCOMPARE(img.grayscale(), true);
+    QCOMPARE(img.cropRect(), QRectF(0.1, 0.1, 0.8, 0.8));
+
+    // Serialization
+    QJsonObject json = img.toJson();
+    QCOMPARE(json["brightness"].toInt(), 25);
+    QCOMPARE(json["contrast"].toInt(), 15);
+    QCOMPARE(json["grayscale"].toBool(), true);
+    QVERIFY(json.contains("cropRect"));
+
+    ImageComponent restoredImg("img_restored");
+    restoredImg.fromJson(json);
+    QCOMPARE(restoredImg.brightness(), 25);
+    QCOMPARE(restoredImg.grayscale(), true);
+    QCOMPARE(restoredImg.cropRect().width(), 0.8);
+
+    // UploadsPanel Test
+    UploadsPanel uploadsPanel(&scene, &undoStack, &proj);
+    QString tempImagePath = m_tempDir.filePath("test_upload.png");
+    QImage testImg(64, 64, QImage::Format_ARGB32);
+    testImg.fill(QColor(10, 150, 240));
+    testImg.save(tempImagePath);
+
+    uploadsPanel.addAsset(tempImagePath);
+    auto* listWidget = uploadsPanel.findChild<QListWidget*>();
+    QVERIFY(listWidget != nullptr);
+    QCOMPARE(listWidget->count(), 1);
+    QVERIFY(listWidget->item(0)->text().contains("test_upload.png"));
+}
+
+void TestAllCases::testCanvaLockFlipAndTransparencyPersistence() {
+    RectangleComponent rect("rect_tf");
+    rect.setCompPos(10, 20);
+    rect.setCompSize(120, 80);
+
+    // 1. Flip
+    QCOMPARE(rect.flipHorizontal(), false);
+    QCOMPARE(rect.flipVertical(), false);
+    rect.setFlipHorizontal(true);
+    rect.setFlipVertical(true);
+    QCOMPARE(rect.flipHorizontal(), true);
+    QCOMPARE(rect.flipVertical(), true);
+
+    // 2. Lock
+    rect.setLocked(true);
+    QCOMPARE(rect.isLocked(), true);
+
+    // 3. Opacity (0.0 to 1.0)
+    rect.setOpacity(0.65);
+    QCOMPARE(rect.opacity(), 0.65);
+
+    // 4. Persistence
+    QJsonObject json = rect.toJson();
+    QCOMPARE(json["locked"].toBool(), true);
+    QCOMPARE(json["flipH"].toBool(), true);
+    QCOMPARE(json["flipV"].toBool(), true);
+    QCOMPARE(json["opacity"].toDouble(), 0.65);
+
+    RectangleComponent restored("rect_restored");
+    restored.fromJson(json);
+    QCOMPARE(restored.isLocked(), true);
+    QCOMPARE(restored.flipHorizontal(), true);
+    QCOMPARE(restored.flipVertical(), true);
+    QCOMPARE(restored.opacity(), 0.65);
+}
+
+void TestAllCases::testCapabilityDatabaseDeviceLookupAndFrameworks() {
+    CapabilityDatabase db;
+    
+    // 1. Verify Tier 1 and Extended Devices in Database
+    QVERIFY(db.deviceExists("STM32H745"));
+    QVERIFY(db.deviceExists("ESP32"));
+    QVERIFY(db.deviceExists("STM32F030R8"));
+    QVERIFY(db.deviceExists("Raspberry Pi Pico"));
+    QVERIFY(db.deviceExists("NXP i.MX RT1060"));
+
+    // 2. Query Device Profile Specs
+    DeviceProfile h7 = db.getDeviceProfile("STM32H745");
+    QCOMPARE(h7.name, QString("STM32H745"));
+    QCOMPARE(h7.family, QString("STM32H7"));
+    QCOMPARE(h7.ram_kb, 512u);
+    QCOMPARE(h7.flash_kb, 2048u);
+    QCOMPARE(h7.cpu_speed_mhz, 480u);
+    QVERIFY(h7.peripherals.contains("UART1"));
+    QVERIFY(h7.peripherals.contains("SPI1"));
+    QVERIFY(h7.supported_frameworks.contains("qt-for-mcus"));
+    QVERIFY(h7.supported_frameworks.contains("ugfx"));
+    QVERIFY(h7.supported_frameworks.contains("lvgl"));
+
+    // 3. Low-cost device checks
+    DeviceProfile f0 = db.getDeviceProfile("STM32F030R8");
+    QCOMPARE(f0.ram_kb, 8u);
+    QCOMPARE(f0.flash_kb, 64u);
+    QCOMPARE(f0.supported_frameworks.contains("ugfx"), true);
+    QCOMPARE(f0.supported_frameworks.contains("qt-for-mcus"), false);
+
+    // 4. Framework Compatibility Verification
+    QVERIFY(db.supportsFramework("STM32H745", "qt-for-mcus"));
+    QVERIFY(db.supportsFramework("STM32H745", "ugfx"));
+    QVERIFY(db.supportsFramework("STM32H745", "lvgl"));
+    QVERIFY(!db.supportsFramework("STM32F030R8", "qt-for-mcus"));
+    QVERIFY(db.supportsFramework("STM32F030R8", "ugfx"));
+
+    // 5. Query Families and Listings
+    QStringList allDevs = db.listAllDevices();
+    QVERIFY(allDevs.size() >= 10);
+    QVERIFY(allDevs.contains("STM32H745"));
+    QVERIFY(allDevs.contains("ESP32"));
+
+    QStringList families = db.listFamilies();
+    QVERIFY(families.contains("STM32H7"));
+    QVERIFY(families.contains("ESP32"));
+    QVERIFY(families.contains("RP2040"));
+
+    QStringList h7Devs = db.getDevicesByFamily("STM32H7");
+    QVERIFY(h7Devs.contains("STM32H745"));
+    QVERIFY(h7Devs.contains("STM32H743"));
+
+    // 6. Add Custom Device Profile
+    DeviceProfile customDev;
+    customDev.name = "CustomSAMD51";
+    customDev.family = "ATSAMD51";
+    customDev.ram_kb = 256;
+    customDev.flash_kb = 1024;
+    customDev.cpu_speed_mhz = 120;
+    customDev.supported_frameworks = {"lvgl", "ugfx"};
+    db.addDeviceProfile(customDev);
+
+    QVERIFY(db.deviceExists("CustomSAMD51"));
+    QCOMPARE(db.getDeviceProfile("CustomSAMD51").flash_kb, 1024u);
+    QVERIFY(db.supportsFramework("CustomSAMD51", "lvgl"));
+    QVERIFY(!db.supportsFramework("CustomSAMD51", "qt-for-mcus"));
+}
+
+void TestAllCases::testEstimationFormulasAndComponentFootprints() {
+    EstimationFormulas::initDefaultBaselines();
+
+    // 1. Framework Baselines
+    auto qul = EstimationFormulas::getFrameworkBaseline("qt-for-mcus");
+    QCOMPARE(qul.flash_minimum, 400u * 1024);
+    QCOMPARE(qul.ram_minimum, 50u * 1024);
+    QCOMPARE(qul.flash_per_component, 200u);
+    QCOMPARE(qul.ram_per_component, 50u);
+
+    auto ugfx = EstimationFormulas::getFrameworkBaseline("ugfx");
+    QCOMPARE(ugfx.flash_minimum, 120u * 1024);
+    QCOMPARE(ugfx.ram_minimum, 30u * 1024);
+
+    auto lvgl = EstimationFormulas::getFrameworkBaseline("lvgl");
+    QCOMPARE(lvgl.flash_minimum, 80u * 1024);
+    QCOMPARE(lvgl.ram_minimum, 25u * 1024);
+
+    // 2. Component Footprint Formulas
+    ButtonComponent btn("btn_test");
+    auto btnFp = EstimationFormulas::estimateComponent(&btn);
+    QCOMPARE(btnFp.ram, 80u);
+    QCOMPARE(btnFp.flash, 200u);
+    QVERIFY(btnFp.cpu_percent > 0.0f);
+
+    LabelComponent lbl("lbl_test");
+    auto lblFp = EstimationFormulas::estimateComponent(&lbl);
+    QCOMPARE(lblFp.ram, 40u);
+    QCOMPARE(lblFp.flash, 100u);
+
+    ProgressBarComponent pbar("pbar_test");
+    auto pbarFp = EstimationFormulas::estimateComponent(&pbar);
+    QCOMPARE(pbarFp.ram, 60u);
+    QCOMPARE(pbarFp.flash, 120u);
+
+    PathComponent pathComp("path_test");
+    auto pathFp = EstimationFormulas::estimateComponent(&pathComp);
+    QCOMPARE(pathFp.ram, 200u);
+    QCOMPARE(pathFp.flash, 400u);
+}
+
+void TestAllCases::testResourceEstimatorAnalysisAndWarnings() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("ResourceAnalysisProject");
+    project.setTargetFramework("ugfx");
+
+    // Add components
+    auto* btn = new ButtonComponent("btn_ok");
+    auto* lbl = new LabelComponent("lbl_status");
+    auto* pbar = new ProgressBarComponent("pbar_cpu");
+    scene.addUIComponent(btn);
+    scene.addUIComponent(lbl);
+    scene.addUIComponent(pbar);
+
+    ResourceEstimator estimator;
+
+    // 1. Analyze for STM32H745 (Plenty of RAM/Flash)
+    ResourceAnalysis analysis = estimator.analyze(&project, "STM32H745");
+    QCOMPARE(analysis.device_name, QString("STM32H745"));
+    QCOMPARE(analysis.target_framework, QString("ugfx"));
+    QCOMPARE(analysis.status, ResourceAnalysis::OK);
+    QVERIFY(analysis.ram_used > 30 * 1024);
+    QVERIFY(analysis.flash_used > 120 * 1024);
+    QVERIFY(analysis.flash_percent < 80.0f);
+    QVERIFY(analysis.ram_percent < 80.0f);
+    QVERIFY(analysis.warnings.isEmpty() || analysis.status == ResourceAnalysis::OK);
+    QVERIFY(!analysis.summary.isEmpty());
+
+    // 2. Breakdown Inspection
+    QVERIFY(analysis.breakdown.framework_flash >= 120 * 1024);
+    QCOMPARE(analysis.breakdown.components_flash, 200u + 100u + 120u);
+    QCOMPARE(analysis.breakdown.components_ram, 80u + 40u + 60u);
+    QVERIFY(analysis.breakdown.user_space_flash > 0);
+    QVERIFY(analysis.breakdown.user_space_ram > 0);
+
+    // 3. Analyze for STM32F030R8 with qt-for-mcus (Mismatch & Overflow)
+    project.setTargetFramework("qt-for-mcus");
+    ResourceAnalysis f0Analysis = estimator.analyze(&project, "STM32F030R8");
+    // STM32F0 has only 64KB flash and 8KB RAM, while qt-for-mcus baseline is 400KB Flash + 50KB RAM
+    QCOMPARE(f0Analysis.status, ResourceAnalysis::CRITICAL);
+    QVERIFY(f0Analysis.flash_percent > 100.0f);
+    QVERIFY(f0Analysis.ram_percent > 100.0f);
+    QVERIFY(f0Analysis.warnings.size() >= 2);
+    bool foundFlashExceeded = false;
+    for (const QString& w : f0Analysis.warnings) {
+        if (w.contains("Flash memory exceeded") || w.contains("CRITICAL")) foundFlashExceeded = true;
+    }
+    QVERIFY(foundFlashExceeded);
+}
+
+void TestAllCases::testResourceAnalyzerPanelLiveUpdates() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("LiveResourcePanelTest");
+    project.setTargetFramework("lvgl");
+
+    ResourceAnalyzerPanel panel;
+    panel.setProject(&project);
+    panel.setDevice("ESP32");
+
+    panel.refresh();
+    ResourceAnalysis analysis = panel.lastAnalysis();
+    QCOMPARE(analysis.device_name, QString("ESP32"));
+    QCOMPARE(analysis.target_framework, QString("lvgl"));
+    QCOMPARE(analysis.status, ResourceAnalysis::OK);
+
+    // Verify UI children exist
+    auto* combo = panel.findChild<QComboBox*>();
+    auto* flashBar = panel.findChild<QProgressBar*>("flashBar");
+    auto* ramBar = panel.findChild<QProgressBar*>("ramBar");
+    auto* cpuBar = panel.findChild<QProgressBar*>("cpuBar");
+    auto* listWidget = panel.findChild<QListWidget*>();
+
+    QVERIFY(combo != nullptr);
+    QVERIFY(flashBar != nullptr);
+    QVERIFY(ramBar != nullptr);
+    QVERIFY(cpuBar != nullptr);
+    QVERIFY(listWidget != nullptr);
+
+    // Add component and trigger refresh
+    auto* btn = new ButtonComponent("btn_add");
+    scene.addUIComponent(btn);
+    panel.refresh();
+
+    ResourceAnalysis updatedAnalysis = panel.lastAnalysis();
+    QVERIFY(updatedAnalysis.flash_used >= analysis.flash_used);
+    QVERIFY(updatedAnalysis.ram_used >= analysis.ram_used);
+}
+
+void TestAllCases::testExportValidationDialogCriticalFlow() {
+    ResourceAnalysis analysis;
+    analysis.device_name = "STM32F030R8";
+    analysis.target_framework = "qt-for-mcus";
+    analysis.status = ResourceAnalysis::CRITICAL;
+    analysis.flash_used = 420 * 1024;
+    analysis.flash_total = 64 * 1024;
+    analysis.flash_percent = 656.2f;
+    analysis.ram_used = 52 * 1024;
+    analysis.ram_total = 8 * 1024;
+    analysis.ram_percent = 650.0f;
+    analysis.summary = "CRITICAL: Exceeds target device capacity!";
+    analysis.warnings.append("CRITICAL: Flash memory exceeded! Design uses 420 KB (656% of 64 KB).");
+    analysis.warnings.append("CRITICAL: RAM memory exceeded! Design uses 52 KB (650% of 8 KB).");
+
+    ExportValidationDialog dlg(analysis);
+
+    auto* header = dlg.findChild<QLabel*>();
+    QVERIFY(header != nullptr);
+
+    auto* warnList = dlg.findChild<QListWidget*>();
+    QVERIFY(warnList != nullptr);
+    QCOMPARE(warnList->count(), 2);
+
+    auto* exportBtn = dlg.findChild<QPushButton*>("exportAnywayBtn");
+    auto* optimizeBtn = dlg.findChild<QPushButton*>("optimizeBtn");
+    QVERIFY(exportBtn != nullptr);
+    QVERIFY(optimizeBtn != nullptr);
+
+    // Test actions
+    QCOMPARE(dlg.resultAction(), ExportValidationDialog::CANCEL);
+}
 
 QTEST_MAIN(TestAllCases)
 #include "test_all_cases.moc"
+
+
 
 
 

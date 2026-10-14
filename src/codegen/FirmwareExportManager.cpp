@@ -5,6 +5,7 @@
 #include "codegen/QtMcuGenerator.h"
 #include "codegen/BindingLayerGenerator.h"
 #include "codegen/TargetHalGenerator.h"
+#include "codegen/EmbedWebGenerator.h"
 #include <QFile>
 #include <QTextStream>
 #include <QFileInfo>
@@ -84,6 +85,7 @@ bool FirmwareExportManager::createDirectoryStructure(const QDir& rootDir, QStrin
     QStringList subdirs = {
         "generated",
         "generated/ui",
+        "generated/runtime",
         "generated/bindings",
         "generated/assets",
         "generated/target",
@@ -161,7 +163,7 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
         QFile hFile(uiDir.filePath("gui.h"));
         if (hFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&hFile);
-            out << gen.generateGuiHeader();
+            out << gen.generateUiHeader();
             hFile.close();
             result.generatedFiles.append("generated/ui/gui.h");
         }
@@ -169,7 +171,7 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
         QFile cFile(uiDir.filePath("gui.c"));
         if (cFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&cFile);
-            out << gen.generateGuiSource();
+            out << gen.generateUiSource();
             cFile.close();
             result.generatedFiles.append("generated/ui/gui.c");
         }
@@ -179,9 +181,14 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
         QFile qmlFile(uiDir.filePath("MainScreen.qml"));
         if (qmlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&qmlFile);
-            out << gen.generateMainQml();
+            out << gen.generateDesignQml();
             qmlFile.close();
             result.generatedFiles.append("generated/ui/MainScreen.qml");
+        }
+    } else if (fw.contains("embedweb")) {
+        CodeGen::EmbedWebGenerator gen(project);
+        if (!gen.generate(genDir, result.generatedFiles, &result.errorMessage)) {
+            return false;
         }
     } else {
         // Default to LVGL v8 / v9
@@ -273,6 +280,7 @@ bool FirmwareExportManager::generateRootCMake(const Project* project, const QDir
     out << "include_directories(\n";
     out << "    ${CMAKE_CURRENT_SOURCE_DIR}/user\n";
     out << "    ${CMAKE_CURRENT_SOURCE_DIR}/generated/ui\n";
+    out << "    ${CMAKE_CURRENT_SOURCE_DIR}/generated/runtime\n";
     out << "    ${CMAKE_CURRENT_SOURCE_DIR}/generated/bindings\n";
     out << "    ${CMAKE_CURRENT_SOURCE_DIR}/generated/target\n";
     out << "    ${CMAKE_CURRENT_SOURCE_DIR}/generated/assets\n";
@@ -321,6 +329,8 @@ QString FirmwareExportManager::generateMainEntryCode(const Project* project, con
 
     if (fw.contains("ugfx")) {
         code += "#include \"gui.h\"\n\n";
+    } else if (fw.contains("embedweb")) {
+        code += "#include \"ui_tree.h\"\n#include \"ew_hal.h\"\n\n";
     } else if (!fw.contains("qtmcu")) {
         code += "#include \"ui.h\"\n\n";
     }
@@ -332,6 +342,10 @@ QString FirmwareExportManager::generateMainEntryCode(const Project* project, con
     if (fw.contains("ugfx")) {
         code += "    // 2. Initialize uGFX GUI\n";
         code += "    gui_init();\n\n";
+    } else if (fw.contains("embedweb")) {
+        code += "    // 2. Initialize EmbedWeb Native GUI\n";
+        code += "    static ew_tree_t ui_tree;\n";
+        code += "    ui_tree_init(&ui_tree);\n\n";
     } else if (!fw.contains("qtmcu")) {
         code += "    // 2. Initialize LVGL GUI\n";
         code += "    ui_init();\n\n";

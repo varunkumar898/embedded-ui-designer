@@ -1,0 +1,57 @@
+{
+  "id": "rpi_pico_rp2040",
+  "name": "Raspberry Pi Pico (RP2040)",
+  "manufacturer": "Raspberry Pi Ltd",
+  "family": "RP2040",
+  "mcu": "RP2040",
+  "architecture": "Dual ARM Cortex-M0+",
+  "frequency_mhz": 133,
+  "flash_kb": 2048,
+  "ram_kb": 264,
+  "gpio_count": 30,
+  "analog_pins": [
+    "GP26",
+    "GP27",
+    "GP28"
+  ],
+  "pwm_pins": [
+    "GP0",
+    "GP1",
+    "GP2",
+    "GP3",
+    "GP16",
+    "GP17"
+  ],
+  "digital_pins": [
+    "GP0",
+    "GP1",
+    "GP2",
+    "GP3",
+    "GP4",
+    "GP5",
+    "GP16",
+    "GP17",
+    "GP25",
+    "GP26",
+    "GP27",
+    "GP28"
+  ],
+  "usb_adapter": {
+    "type": "Raspberry Pi Debug Probe / CMSIS-DAP",
+    "vid": "2e8a",
+    "pid": "000c",
+    "driver": "cmsis-dap"
+  },
+  "openocd": {
+    "interface": "interface/cmsis-dap.cfg",
+    "target": "target/rp2040.cfg",
+    "config_file": "target/rp2040.cfg",
+    "transport": "swd"
+  },
+  "toolchain": {
+    "compiler": "arm-none-eabi-gcc",
+    "hal_header": "hardware/gpio.h",
+    "flags": "-mcpu=cortex-m0plus -mthumb"
+  },
+  "datasheet_url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf"
+}

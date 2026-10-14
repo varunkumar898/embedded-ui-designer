@@ -1,4 +1,5 @@
 #include "HardwareWizardDialog.h"
+#include "theme/Theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -109,14 +110,14 @@ void HardwareWizardDialog::setupUi() {
     titleFont.setPointSize(13);
     titleFont.setBold(true);
     titleLabel->setFont(titleFont);
-    titleLabel->setStyleSheet("color: #ffffff;");
+    titleLabel->setStyleSheet(QString("color: %1;").arg(Theme::TextPrimary));
     headerLayout->addWidget(titleLabel);
 
     m_stepIndicatorLabel = new QLabel("Select hardware to start project creation", headerBox);
     QFont subFont = font();
     subFont.setPointSize(10);
     m_stepIndicatorLabel->setFont(subFont);
-    m_stepIndicatorLabel->setStyleSheet("color: #94a3b8;");
+    m_stepIndicatorLabel->setStyleSheet(QString("color: %1;").arg(Theme::TextSecondary));
     headerLayout->addWidget(m_stepIndicatorLabel);
 
     rootLayout->addWidget(headerBox);
@@ -124,7 +125,7 @@ void HardwareWizardDialog::setupUi() {
     QFrame* headerLine = new QFrame(this);
     headerLine->setFrameShape(QFrame::HLine);
     headerLine->setFrameShadow(QFrame::Plain);
-    headerLine->setStyleSheet("background-color: #27272a; max-height: 1px; margin-bottom: 2px;");
+    headerLine->setStyleSheet(QString("background-color: %1; max-height: 1px; margin-bottom: 2px;").arg(Theme::BorderSubtle));
     rootLayout->addWidget(headerLine);
 
     // Central stack for steps
@@ -177,7 +178,7 @@ QWidget* HardwareWizardDialog::createHardwareSelectionPage() {
 
     // Selected Target Banner
     m_targetBanner = new QLabel("Selected Hardware: None", page);
-    m_targetBanner->setStyleSheet("background-color: #1e1e24; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-weight: bold; font-size: 11.5px;");
+    m_targetBanner->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 7px 12px; color: %4; font-weight: bold; font-size: 11.5px;").arg(Theme::BgRaised, Theme::BorderStrong, QString::number(Theme::RadiusSm), Theme::TextPrimary));
     mainLayout->addWidget(m_targetBanner);
 
     connect(m_hwTabs, &QTabWidget::currentChanged, this, [this](int idx) {
@@ -216,12 +217,12 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
     fhFont.setPointSize(11);
     fhFont.setBold(true);
     filterHeader->setFont(fhFont);
-    filterHeader->setStyleSheet("color: #ffffff; padding-bottom: 2px; border-bottom: 1px solid #3f3f46;");
+    filterHeader->setStyleSheet(QString("color: %1; padding-bottom: 2px; border-bottom: 1px solid %2;").arg(Theme::TextPrimary, Theme::BorderSubtle));
     filterLayout->addWidget(filterHeader);
 
     // Vendor
     QLabel* lblVendor = new QLabel("Vendor", filterPanel);
-    lblVendor->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblVendor->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblVendor);
     m_vendorFilterCombo = new QComboBox(filterPanel);
     m_vendorFilterCombo->addItem("All");
@@ -230,7 +231,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
 
     // Family
     QLabel* lblFamily = new QLabel("Family", filterPanel);
-    lblFamily->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblFamily->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblFamily);
     m_familyFilterCombo = new QComboBox(filterPanel);
     m_familyFilterCombo->addItem("All");
@@ -239,7 +240,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
 
     // Architecture
     QLabel* lblArch = new QLabel("Architecture", filterPanel);
-    lblArch->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblArch->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblArch);
     m_archFilterCombo = new QComboBox(filterPanel);
     m_archFilterCombo->addItem("All");
@@ -248,7 +249,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
 
     // Core
     QLabel* lblCore = new QLabel("Core", filterPanel);
-    lblCore->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblCore->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblCore);
     m_coreFilterCombo = new QComboBox(filterPanel);
     m_coreFilterCombo->addItem("All");
@@ -257,7 +258,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
 
     // Package
     QLabel* lblPackage = new QLabel("Package", filterPanel);
-    lblPackage->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblPackage->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblPackage);
     m_packageFilterCombo = new QComboBox(filterPanel);
     m_packageFilterCombo->addItem("All");
@@ -266,14 +267,14 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
 
     // Device Type
     QLabel* lblType = new QLabel("Device Type", filterPanel);
-    lblType->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblType->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblType);
     m_typeFilterCombo = new QComboBox(filterPanel);
     for (const QString& t : m_db.allDeviceTypes()) m_typeFilterCombo->addItem(t);
     filterLayout->addWidget(m_typeFilterCombo);
 
     m_btnResetFilters = new QPushButton("Reset Filters", filterPanel);
-    m_btnResetFilters->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
+    m_btnResetFilters->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 5px 10px; color: %4; font-size: 11px; margin-top: 8px;").arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextSecondary));
     filterLayout->addWidget(m_btnResetFilters);
 
     filterLayout->addStretch(1);
@@ -283,7 +284,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
     QFrame* vSep = new QFrame(widget);
     vSep->setFrameShape(QFrame::VLine);
     vSep->setFrameShadow(QFrame::Plain);
-    vSep->setStyleSheet("background-color: #27272a; max-width: 1px;");
+    vSep->setStyleSheet(QString("background-color: %1; max-width: 1px;").arg(Theme::BorderSubtle));
     tabLayout->addWidget(vSep);
 
     // ── RIGHT: SEARCH BOX + MASTER TABLE ──
@@ -296,7 +297,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
     m_searchHardwareEdit->setObjectName("searchHardwareEdit");
     m_searchHardwareEdit->setPlaceholderText("Search MCU, MPU, Board...");
     m_searchHardwareEdit->setClearButtonEnabled(true);
-    m_searchHardwareEdit->setStyleSheet("QLineEdit { background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-size: 12px; } QLineEdit:focus { border: 1px solid #38bdf8; }");
+    m_searchHardwareEdit->setStyleSheet(QString("QLineEdit { background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 7px 12px; color: %4; font-size: 12px; } QLineEdit:focus { border: 1px solid %5; }").arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextPrimary, Theme::Accent));
     rightLayout->addWidget(m_searchHardwareEdit);
 
     m_allTable = new QTableWidget(rightArea);
@@ -314,7 +315,7 @@ QWidget* HardwareWizardDialog::createAllSelectorTab() {
     m_allTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_allTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_allTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_allTable->setStyleSheet("QTableWidget { background-color: #121214; gridline-color: #27272a; selection-background-color: #1e3a5f; selection-color: #ffffff; }");
+    m_allTable->setStyleSheet(QString("QTableWidget { background-color: %1; gridline-color: %2; selection-background-color: %3; selection-color: %4; }").arg(Theme::BgBase, Theme::BorderSubtle, Theme::AccentSoft, Theme::AccentText));
     rightLayout->addWidget(m_allTable, 1);
 
     tabLayout->addWidget(rightArea, 1);
@@ -351,11 +352,11 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     fhFont.setPointSize(11);
     fhFont.setBold(true);
     filterHeader->setFont(fhFont);
-    filterHeader->setStyleSheet("color: #ffffff; padding-bottom: 2px; border-bottom: 1px solid #3f3f46;");
+    filterHeader->setStyleSheet(QString("color: %1; padding-bottom: 2px; border-bottom: 1px solid %2;").arg(Theme::TextPrimary, Theme::BorderSubtle));
     filterLayout->addWidget(filterHeader);
 
     QLabel* lblVendor = new QLabel("Vendor", filterPanel);
-    lblVendor->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblVendor->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblVendor);
     m_mcuVendorCombo = new QComboBox(filterPanel);
     m_mcuVendorCombo->addItem("All");
@@ -363,7 +364,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     filterLayout->addWidget(m_mcuVendorCombo);
 
     QLabel* lblFamily = new QLabel("Family", filterPanel);
-    lblFamily->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblFamily->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblFamily);
     m_mcuFamilyCombo = new QComboBox(filterPanel);
     m_mcuFamilyCombo->addItem("All");
@@ -371,7 +372,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     filterLayout->addWidget(m_mcuFamilyCombo);
 
     QLabel* lblArch = new QLabel("Architecture", filterPanel);
-    lblArch->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblArch->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblArch);
     m_mcuArchCombo = new QComboBox(filterPanel);
     m_mcuArchCombo->addItem("All");
@@ -379,7 +380,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     filterLayout->addWidget(m_mcuArchCombo);
 
     QLabel* lblCore = new QLabel("Core", filterPanel);
-    lblCore->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblCore->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblCore);
     m_mcuCoreCombo = new QComboBox(filterPanel);
     m_mcuCoreCombo->addItem("All");
@@ -387,7 +388,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     filterLayout->addWidget(m_mcuCoreCombo);
 
     QLabel* lblPackage = new QLabel("Package", filterPanel);
-    lblPackage->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblPackage->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblPackage);
     m_mcuPackageCombo = new QComboBox(filterPanel);
     m_mcuPackageCombo->addItem("All");
@@ -395,7 +396,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     filterLayout->addWidget(m_mcuPackageCombo);
 
     QPushButton* btnResetMcu = new QPushButton("Reset Filters", filterPanel);
-    btnResetMcu->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
+    btnResetMcu->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 5px 10px; color: %4; font-size: 11px; margin-top: 8px;").arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextSecondary));
     filterLayout->addWidget(btnResetMcu);
     connect(btnResetMcu, &QPushButton::clicked, this, &HardwareWizardDialog::resetFilters);
 
@@ -406,7 +407,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     QFrame* vSep = new QFrame(widget);
     vSep->setFrameShape(QFrame::VLine);
     vSep->setFrameShadow(QFrame::Plain);
-    vSep->setStyleSheet("background-color: #27272a; max-width: 1px;");
+    vSep->setStyleSheet(QString("background-color: %1; max-width: 1px;").arg(Theme::BorderSubtle));
     tabLayout->addWidget(vSep);
 
     // Right Content
@@ -418,7 +419,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     m_mcuSearchEdit = new QLineEdit(rightArea);
     m_mcuSearchEdit->setPlaceholderText("Search MCU, MPU...");
     m_mcuSearchEdit->setClearButtonEnabled(true);
-    m_mcuSearchEdit->setStyleSheet("QLineEdit { background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-size: 12px; } QLineEdit:focus { border: 1px solid #38bdf8; }");
+    m_mcuSearchEdit->setStyleSheet(QString("QLineEdit { background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 7px 12px; color: %4; font-size: 12px; } QLineEdit:focus { border: 1px solid %5; }").arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextPrimary, Theme::Accent));
     rightLayout->addWidget(m_mcuSearchEdit);
 
     m_deviceTable = new QTableWidget(rightArea);
@@ -435,7 +436,7 @@ QWidget* HardwareWizardDialog::createMcuSelectorTab() {
     m_deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_deviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_deviceTable->setStyleSheet("QTableWidget { background-color: #121214; gridline-color: #27272a; selection-background-color: #1e3a5f; selection-color: #ffffff; }");
+    m_deviceTable->setStyleSheet(QString("QTableWidget { background-color: %1; gridline-color: %2; selection-background-color: %3; selection-color: %4; }").arg(Theme::BgBase, Theme::BorderSubtle, Theme::AccentSoft, Theme::AccentText));
     rightLayout->addWidget(m_deviceTable, 1);
 
     tabLayout->addWidget(rightArea, 1);
@@ -475,11 +476,11 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     fhFont.setPointSize(11);
     fhFont.setBold(true);
     filterHeader->setFont(fhFont);
-    filterHeader->setStyleSheet("color: #ffffff; padding-bottom: 2px; border-bottom: 1px solid #3f3f46;");
+    filterHeader->setStyleSheet(QString("color: %1; padding-bottom: 2px; border-bottom: 1px solid %2;").arg(Theme::TextPrimary, Theme::BorderSubtle));
     filterLayout->addWidget(filterHeader);
 
     QLabel* lblVendor = new QLabel("Manufacturer", filterPanel);
-    lblVendor->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblVendor->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblVendor);
     m_boardVendorCombo = new QComboBox(filterPanel);
     m_boardVendorCombo->addItem("All");
@@ -487,7 +488,7 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     filterLayout->addWidget(m_boardVendorCombo);
 
     QLabel* lblFamily = new QLabel("Board Family", filterPanel);
-    lblFamily->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblFamily->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblFamily);
     m_boardFamilyCombo = new QComboBox(filterPanel);
     m_boardFamilyCombo->addItem("All");
@@ -495,7 +496,7 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     filterLayout->addWidget(m_boardFamilyCombo);
 
     QLabel* lblArch = new QLabel("Architecture", filterPanel);
-    lblArch->setStyleSheet("color: #a1a1aa; font-size: 11px; font-weight: 600; margin-top: 4px;");
+    lblArch->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; margin-top: 4px;").arg(Theme::TextSecondary));
     filterLayout->addWidget(lblArch);
     m_boardArchCombo = new QComboBox(filterPanel);
     m_boardArchCombo->addItem("All");
@@ -503,7 +504,7 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     filterLayout->addWidget(m_boardArchCombo);
 
     QPushButton* btnResetBoard = new QPushButton("Reset Filters", filterPanel);
-    btnResetBoard->setStyleSheet("background-color: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 5px 10px; color: #e4e4e7; font-size: 11px; margin-top: 8px;");
+    btnResetBoard->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 5px 10px; color: %4; font-size: 11px; margin-top: 8px;").arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextSecondary));
     filterLayout->addWidget(btnResetBoard);
     connect(btnResetBoard, &QPushButton::clicked, this, &HardwareWizardDialog::resetFilters);
 
@@ -514,7 +515,7 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     QFrame* vSep = new QFrame(widget);
     vSep->setFrameShape(QFrame::VLine);
     vSep->setFrameShadow(QFrame::Plain);
-    vSep->setStyleSheet("background-color: #27272a; max-width: 1px;");
+    vSep->setStyleSheet(QString("background-color: %1; max-width: 1px;").arg(Theme::BorderSubtle));
     tabLayout->addWidget(vSep);
 
     // Right Content
@@ -526,7 +527,7 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     m_boardSearchEdit = new QLineEdit(rightArea);
     m_boardSearchEdit->setPlaceholderText("Search Boards, SBCs...");
     m_boardSearchEdit->setClearButtonEnabled(true);
-    m_boardSearchEdit->setStyleSheet("QLineEdit { background-color: #18181b; border: 1px solid #3f3f46; border-radius: 4px; padding: 7px 12px; color: #f4f4f5; font-size: 12px; } QLineEdit:focus { border: 1px solid #38bdf8; }");
+    m_boardSearchEdit->setStyleSheet(QString("QLineEdit { background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 7px 12px; color: %4; font-size: 12px; } QLineEdit:focus { border: 1px solid %5; }").arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextPrimary, Theme::Accent));
     rightLayout->addWidget(m_boardSearchEdit);
 
     m_boardTable = new QTableWidget(rightArea);
@@ -542,7 +543,7 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     m_boardTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_boardTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_boardTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_boardTable->setStyleSheet("QTableWidget { background-color: #121214; gridline-color: #27272a; selection-background-color: #1e3a5f; selection-color: #ffffff; }");
+    m_boardTable->setStyleSheet(QString("QTableWidget { background-color: %1; gridline-color: %2; selection-background-color: %3; selection-color: %4; }").arg(Theme::BgBase, Theme::BorderSubtle, Theme::AccentSoft, Theme::AccentText));
     rightLayout->addWidget(m_boardTable, 1);
 
     tabLayout->addWidget(rightArea, 1);
@@ -999,7 +1000,7 @@ QWidget* HardwareWizardDialog::createReviewPage() {
     layout->addWidget(m_reviewSummaryEdit, 1);
 
     m_validationStatusLabel = new QLabel("Validation: Checking...", page);
-    m_validationStatusLabel->setStyleSheet("padding: 8px; border-radius: 4px; font-weight: bold; background-color: #14532d; color: #86efac;");
+    m_validationStatusLabel->setStyleSheet(QString("padding: 8px; border-radius: %1px; font-weight: bold; background-color: %2; color: %3;").arg(QString::number(Theme::RadiusSm), Theme::SuccessBg, Theme::Success));
     layout->addWidget(m_validationStatusLabel);
 
     return page;
@@ -1124,15 +1125,15 @@ void HardwareWizardDialog::populateAllTable() {
         QTableWidgetItem* typeItem = new QTableWidgetItem(item.deviceType);
         typeItem->setTextAlignment(Qt::AlignCenter);
         if (item.deviceType == "MCU") {
-            typeItem->setForeground(QColor("#38bdf8"));
+            typeItem->setForeground(Theme::cInfo());
         } else if (item.deviceType == "MPU") {
-            typeItem->setForeground(QColor("#fbbf24"));
+            typeItem->setForeground(Theme::cWarning());
         } else if (item.deviceType == "SBC") {
-            typeItem->setForeground(QColor("#34d399"));
+            typeItem->setForeground(Theme::cSuccess());
         } else if (item.deviceType == "BOARD") {
-            typeItem->setForeground(QColor("#10b981"));
+            typeItem->setForeground(Theme::cSuccess());
         } else if (item.deviceType == "CUSTOM") {
-            typeItem->setForeground(QColor("#f97316"));
+            typeItem->setForeground(Theme::cWarning());
         }
         m_allTable->setItem(r, 2, typeItem);
 
@@ -1200,7 +1201,7 @@ void HardwareWizardDialog::populateDeviceTable() {
         QString devType = (dev.architecture.contains("Cortex-A") || dev.partNumber.contains("BCM")) ? "MPU" : "MCU";
         QTableWidgetItem* tItem = new QTableWidgetItem(devType);
         tItem->setTextAlignment(Qt::AlignCenter);
-        tItem->setForeground(devType == "MCU" ? QColor("#38bdf8") : QColor("#fbbf24"));
+        tItem->setForeground(devType == "MCU" ? Theme::cInfo() : Theme::cWarning());
         m_deviceTable->setItem(r, 2, tItem);
         m_deviceTable->setItem(r, 3, new QTableWidgetItem(QString("%1 (%2)").arg(dev.core, dev.architecture)));
         m_deviceTable->setItem(r, 4, new QTableWidgetItem(dev.package));
@@ -1247,7 +1248,7 @@ void HardwareWizardDialog::populateBoardTable() {
         m_boardTable->setItem(r, 1, new QTableWidgetItem(b.manufacturer));
         QTableWidgetItem* tItem = new QTableWidgetItem(isSbc ? "SBC" : "BOARD");
         tItem->setTextAlignment(Qt::AlignCenter);
-        tItem->setForeground(isSbc ? QColor("#34d399") : QColor("#10b981"));
+        tItem->setForeground(Theme::cSuccess());
         m_boardTable->setItem(r, 2, tItem);
         m_boardTable->setItem(r, 3, new QTableWidgetItem(b.mcuPartNumber));
         m_boardTable->setItem(r, 4, new QTableWidgetItem(b.architecture));
@@ -1673,29 +1674,31 @@ void HardwareWizardDialog::updateReviewSummary() {
     bool valid = m_engine.validateConfiguration(&errors, &warnings);
     if (valid) {
         m_validationStatusLabel->setText("✓ Validation: Hardware configuration is valid. Ready to generate project.");
-        m_validationStatusLabel->setStyleSheet("padding: 8px; border-radius: 4px; font-weight: bold; background-color: #14532d; color: #86efac;");
+        m_validationStatusLabel->setStyleSheet(QString("padding: 8px; border-radius: %1px; font-weight: bold; background-color: %2; color: %3;").arg(QString::number(Theme::RadiusSm), Theme::SuccessBg, Theme::Success));
     } else {
         m_validationStatusLabel->setText(QString("⚠ Validation Warnings:\n- %1").arg(errors.join("\n- ")));
-        m_validationStatusLabel->setStyleSheet("padding: 8px; border-radius: 4px; font-weight: bold; background-color: #78350f; color: #fde68a;");
+        m_validationStatusLabel->setStyleSheet(QString("padding: 8px; border-radius: %1px; font-weight: bold; background-color: %2; color: %3;").arg(QString::number(Theme::RadiusSm), Theme::WarningBg, Theme::Warning));
     }
 }
 
 void HardwareWizardDialog::applyDarkEngineeringTheme() {
-    setStyleSheet(
-        "QDialog { background-color: #141418; color: #f4f4f5; }"
-        "QTabWidget::pane { border: 1px solid #27272a; background-color: #18181c; border-radius: 4px; }"
-        "QTabBar::tab { background: #202026; color: #a1a1aa; padding: 6px 14px; border: 1px solid #27272a; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
-        "QTabBar::tab:selected { background: #272730; color: #38bdf8; font-weight: bold; }"
-        "QTableWidget { background-color: #18181c; color: #f4f4f5; gridline-color: #27272a; border: 1px solid #27272a; selection-background-color: #0284c7; }"
-        "QHeaderView::section { background-color: #202026; color: #d4d4d8; padding: 4px; border: 1px solid #27272a; font-weight: bold; }"
-        "QGroupBox { border: 1px solid #27272a; border-radius: 4px; margin-top: 10px; font-weight: bold; color: #e4e4e7; }"
+    setStyleSheet(QString(
+        "QDialog { background-color: %1; color: %2; }"
+        "QTabWidget::pane { border: 1px solid %3; background-color: %4; border-radius: %5px; }"
+        "QTabBar::tab { background: %6; color: %7; padding: 6px 14px; border: 1px solid %3; border-bottom: none; border-top-left-radius: %5px; border-top-right-radius: %5px; }"
+        "QTabBar::tab:selected { background: %8; color: %9; font-weight: bold; }"
+        "QTableWidget { background-color: %4; color: %2; gridline-color: %3; border: 1px solid %3; selection-background-color: %10; selection-color: %11; }"
+        "QHeaderView::section { background-color: %6; color: %7; padding: 4px; border: 1px solid %3; font-weight: bold; }"
+        "QGroupBox { border: 1px solid %3; border-radius: %5px; margin-top: 10px; font-weight: bold; color: %2; }"
         "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 4px; }"
-        "QLineEdit, QSpinBox, QComboBox { background-color: #202026; color: #f4f4f5; border: 1px solid #3f3f46; border-radius: 3px; padding: 4px 6px; }"
-        "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid #38bdf8; }"
-        "QPushButton { background-color: #272730; color: #f4f4f5; border: 1px solid #3f3f46; border-radius: 3px; padding: 6px 14px; min-width: 70px; font-weight: 500; }"
-        "QPushButton:hover { background-color: #32323e; border-color: #52525b; }"
-        "QPushButton:pressed { background-color: #1c1c22; }"
-        "QPushButton:disabled { color: #52525b; border-color: #27272a; background-color: #18181c; }"
-        "QTextEdit { background-color: #18181c; color: #f4f4f5; border: 1px solid #27272a; font-family: monospace; font-size: 11px; }"
-    );
+        "QLineEdit, QSpinBox, QComboBox { background-color: %6; color: %2; border: 1px solid %3; border-radius: %12px; padding: 4px 6px; }"
+        "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid %9; }"
+        "QPushButton { background-color: %6; color: %2; border: 1px solid %3; border-radius: %12px; padding: 6px 14px; min-width: 70px; font-weight: 500; }"
+        "QPushButton:hover { background-color: %8; border-color: %9; }"
+        "QPushButton:pressed { background-color: %1; }"
+        "QPushButton:disabled { color: %13; border-color: %3; background-color: %4; }"
+        "QTextEdit { background-color: %4; color: %2; border: 1px solid %3; font-family: monospace; font-size: 11px; }"
+    ).arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::BgSurface, QString::number(Theme::RadiusSm),
+          Theme::BgRaised, Theme::TextSecondary, Theme::BgOverlay, Theme::Accent, Theme::AccentSoft,
+          Theme::AccentText, QString::number(Theme::RadiusSm), Theme::TextDisabled));
 }

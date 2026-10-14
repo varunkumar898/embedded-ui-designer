@@ -1,0 +1,63 @@
+{
+  "id": "esp32_s3_devkitc",
+  "name": "ESP32-S3-DevKitC-1",
+  "manufacturer": "Espressif Systems",
+  "family": "ESP32-S3",
+  "mcu": "ESP32-S3-WROOM-1",
+  "architecture": "Xtensa Dual-Core 32-bit LX7 with Vector Instructions",
+  "frequency_mhz": 240,
+  "flash_kb": 8192,
+  "ram_kb": 512,
+  "gpio_count": 45,
+  "analog_pins": [
+    "GPIO1",
+    "GPIO2",
+    "GPIO3",
+    "GPIO4",
+    "GPIO5",
+    "GPIO6",
+    "GPIO7",
+    "GPIO8"
+  ],
+  "pwm_pins": [
+    "GPIO9",
+    "GPIO10",
+    "GPIO11",
+    "GPIO12",
+    "GPIO13",
+    "GPIO14"
+  ],
+  "digital_pins": [
+    "GPIO1",
+    "GPIO2",
+    "GPIO3",
+    "GPIO4",
+    "GPIO5",
+    "GPIO6",
+    "GPIO7",
+    "GPIO8",
+    "GPIO9",
+    "GPIO10",
+    "GPIO21",
+    "GPIO47",
+    "GPIO48"
+  ],
+  "usb_adapter": {
+    "type": "Built-in USB Serial/JTAG",
+    "vid": "303a",
+    "pid": "1001",
+    "driver": "esp_usb_jtag"
+  },
+  "openocd": {
+    "interface": "interface/esp_usb_jtag.cfg",
+    "target": "target/esp32s3.cfg",
+    "config_file": "board/esp32s3-builtin.cfg",
+    "transport": "jtag"
+  },
+  "toolchain": {
+    "compiler": "xtensa-esp32s3-elf-gcc",
+    "hal_header": "driver/gpio.h",
+    "flags": "-mlongcalls"
+  },
+  "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf"
+}

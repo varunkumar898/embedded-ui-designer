@@ -429,6 +429,12 @@ QString UgfxGenerator::generateUiSource() {
                 int rh = static_cast<int>(rect->compHeight());
                 int rad = rect->cornerRadius();
                 QString fillHex = rect->fillColor().name().mid(1).toUpper();
+                if (rect->hasGradientFill() && !rect->gradientFill().stops.isEmpty()) {
+                    fillHex = rect->gradientFill().stops.first().color.name().mid(1).toUpper();
+                    code += QString("    // Gradient fill (%1 stops, %2° linear)\n")
+                        .arg(rect->gradientFill().stops.size())
+                        .arg(rect->gradientFill().angle);
+                }
                 QString strokeHex = rect->strokeColor().name().mid(1).toUpper();
 
                 if (rad > 0) {

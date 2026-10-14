@@ -1,242 +1,319 @@
 #include "ResourceAnalyzerPanel.h"
-#include "project/Project.h"
+#include "Project.h"
+#include "theme/Theme.h"
+#include <QScrollArea>
+#include <QGridLayout>
 #include <QHBoxLayout>
-#include <QGroupBox>
-#include <QHeaderView>
-#include <QListWidget>
+#include <QFrame>
+#include <algorithm>
 
-ResourceAnalyzerPanel::ResourceAnalyzerPanel(Project* project, QWidget* parent)
+ResourceAnalyzerPanel::ResourceAnalyzerPanel(QWidget* parent)
     : QWidget(parent)
-    , m_project(project)
 {
     setupUi();
-    setProject(project);
+    m_device = m_estimator.capabilityDatabase().getDeviceProfile("STM32H745");
+    refresh();
+}
+
+void ResourceAnalyzerPanel::setupUi() {
+    setObjectName("ResourceAnalyzerPanel");
+    setStyleSheet(QString(
+        "#ResourceAnalyzerPanel { background-color: %1; color: %2; }"
+        "QGroupBox { font-size: 11px; font-weight: 600; color: %3; border: 1px solid %4; border-radius: %5px; margin-top: 8px; padding-top: 10px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
+        "QLabel { color: %6; font-size: 11px; }"
+        "QComboBox { background: %7; color: %2; border: 1px solid %4; border-radius: %8px; padding: 4px 8px; font-size: 11px; font-weight: 600; }"
+        "QProgressBar { background-color: %7; border: 1px solid %4; border-radius: %8px; text-align: center; color: %2; font-weight: 600; font-size: 10px; height: 16px; }"
+        "QProgressBar::chunk { border-radius: 3px; }"
+        "QPushButton { background: %9; color: %2; border: none; border-radius: %8px; padding: 6px 12px; font-size: 11px; font-weight: 600; }"
+        "QPushButton:hover { background: %10; }"
+        "QListWidget { background-color: %7; border: 1px solid %4; border-radius: %8px; font-size: 11px; }"
+        "QListWidget::item { padding: 4px 6px; border-bottom: 1px solid %4; }"
+    ).arg(Theme::BgSurface, Theme::TextPrimary, Theme::TextSecondary, Theme::BorderSubtle)
+     .arg(Theme::RadiusMd)
+     .arg(Theme::TextSecondary, Theme::BgBase)
+     .arg(Theme::RadiusSm)
+     .arg(Theme::BgRaised, Theme::BgOverlay));
+
+    QVBoxLayout* rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(6, 6, 6, 6);
+
+    QScrollArea* sa = new QScrollArea(this);
+    sa->setWidgetResizable(true);
+    sa->setFrameShape(QFrame::NoFrame);
+
+    QWidget* container = new QWidget(sa);
+    QVBoxLayout* l = new QVBoxLayout(container);
+    l->setContentsMargins(4, 4, 4, 4);
+    l->setSpacing(8);
+
+    // 1. Target Device Selector & Info
+    QGroupBox* devGroup = new QGroupBox("Target Microcontroller", container);
+    QVBoxLayout* dgl = new QVBoxLayout(devGroup);
+
+    m_deviceCombo = new QComboBox(devGroup);
+    m_deviceCombo->setObjectName("deviceCombo");
+    const QStringList devices = m_estimator.capabilityDatabase().listAllDevices();
+    for (const QString& d : devices) {
+        m_deviceCombo->addItem(d);
+    }
+    connect(m_deviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ResourceAnalyzerPanel::onDeviceComboChanged);
+    dgl->addWidget(m_deviceCombo);
+
+    m_deviceInfoLabel = new QLabel(devGroup);
+    m_deviceInfoLabel->setObjectName("deviceInfoLabel");
+    m_deviceInfoLabel->setWordWrap(true);
+    dgl->addWidget(m_deviceInfoLabel);
+
+    m_statusBadge = new QLabel(devGroup);
+    m_statusBadge->setObjectName("statusBadge");
+    m_statusBadge->setAlignment(Qt::AlignCenter);
+    dgl->addWidget(m_statusBadge);
+
+    l->addWidget(devGroup);
+
+    // 2. Resource Gauges Group
+    QGroupBox* gaugeGroup = new QGroupBox("Estimated Hardware Footprint", container);
+    QVBoxLayout* ggl = new QVBoxLayout(gaugeGroup);
+
+    // Flash Gauge
+    QHBoxLayout* flashHeader = new QHBoxLayout();
+    flashHeader->addWidget(new QLabel("Flash Usage (ROM):", gaugeGroup));
+    m_flashDetailsLabel = new QLabel(gaugeGroup);
+    m_flashDetailsLabel->setObjectName("flashDetailsLabel");
+    m_flashDetailsLabel->setAlignment(Qt::AlignRight);
+    flashHeader->addWidget(m_flashDetailsLabel);
+    ggl->addLayout(flashHeader);
+
+    m_flashBar = new QProgressBar(gaugeGroup);
+    m_flashBar->setObjectName("flashBar");
+    m_flashBar->setRange(0, 100);
+    ggl->addWidget(m_flashBar);
+
+    // RAM Gauge
+    QHBoxLayout* ramHeader = new QHBoxLayout();
+    ramHeader->addWidget(new QLabel("RAM Usage (SRAM):", gaugeGroup));
+    m_ramDetailsLabel = new QLabel(gaugeGroup);
+    m_ramDetailsLabel->setObjectName("ramDetailsLabel");
+    ramHeader->addWidget(m_ramDetailsLabel);
+    ggl->addLayout(ramHeader);
+
+    m_ramBar = new QProgressBar(gaugeGroup);
+    m_ramBar->setObjectName("ramBar");
+    m_ramBar->setRange(0, 100);
+    ggl->addWidget(m_ramBar);
+
+    // CPU Overhead Gauge
+    QHBoxLayout* cpuHeader = new QHBoxLayout();
+    cpuHeader->addWidget(new QLabel("CPU Rendering Load:", gaugeGroup));
+    m_cpuDetailsLabel = new QLabel(gaugeGroup);
+    m_cpuDetailsLabel->setObjectName("cpuDetailsLabel");
+    cpuHeader->addWidget(m_cpuDetailsLabel);
+    ggl->addLayout(cpuHeader);
+
+    m_cpuBar = new QProgressBar(gaugeGroup);
+    m_cpuBar->setObjectName("cpuBar");
+    m_cpuBar->setRange(0, 100);
+    ggl->addWidget(m_cpuBar);
+
+    l->addWidget(gaugeGroup);
+
+    // 3. Breakdown Summary
+    QGroupBox* breakdownGroup = new QGroupBox("Resource Breakdown", container);
+    QVBoxLayout* bgl = new QVBoxLayout(breakdownGroup);
+
+    m_breakdownLabel = new QLabel(breakdownGroup);
+    m_breakdownLabel->setObjectName("breakdownLabel");
+    m_breakdownLabel->setTextFormat(Qt::RichText);
+    m_breakdownLabel->setWordWrap(true);
+    bgl->addWidget(m_breakdownLabel);
+
+    l->addWidget(breakdownGroup);
+
+    // 4. Warnings & Recommendations
+    QGroupBox* warnGroup = new QGroupBox("Diagnostics & Warnings", container);
+    QVBoxLayout* wgl = new QVBoxLayout(warnGroup);
+
+    m_warningsList = new QListWidget(warnGroup);
+    m_warningsList->setObjectName("warningsList");
+    m_warningsList->setMinimumHeight(100);
+    wgl->addWidget(m_warningsList);
+
+    l->addWidget(warnGroup);
+
+    // 5. Actions / Refresh
+    m_refreshBtn = new QPushButton("Recalculate Estimates", container);
+    m_refreshBtn->setObjectName("refreshBtn");
+    connect(m_refreshBtn, &QPushButton::clicked, this, &ResourceAnalyzerPanel::refresh);
+    l->addWidget(m_refreshBtn);
+
+    l->addStretch();
+    sa->setWidget(container);
+    rootLayout->addWidget(sa);
 }
 
 void ResourceAnalyzerPanel::setProject(Project* project) {
+    if (m_project == project) return;
     if (m_project) {
         disconnect(m_project, nullptr, this, nullptr);
     }
     m_project = project;
     if (m_project) {
-        connect(m_project, &Project::projectModified, this, &ResourceAnalyzerPanel::refreshAnalysis);
-        connect(m_project, &Project::projectLoaded, this, &ResourceAnalyzerPanel::refreshAnalysis);
-        connect(m_project, &Project::hardwareConfigChanged, this, &ResourceAnalyzerPanel::refreshAnalysis);
-        connect(m_project, &Project::screenListChanged, this, &ResourceAnalyzerPanel::refreshAnalysis);
-        connect(m_project, &Project::dataSourcesChanged, this, &ResourceAnalyzerPanel::refreshAnalysis);
-        connect(m_project, &Project::dataBindingsChanged, this, &ResourceAnalyzerPanel::refreshAnalysis);
+        connect(m_project, &Project::projectModified, this, &ResourceAnalyzerPanel::onProjectModified);
+        connect(m_project, &Project::screenListChanged, this, &ResourceAnalyzerPanel::onProjectModified);
+        connect(m_project, &Project::activeScreenChanged, this, &ResourceAnalyzerPanel::onProjectModified);
+        connect(m_project, &Project::hardwareConfigChanged, this, &ResourceAnalyzerPanel::onProjectModified);
     }
-    refreshAnalysis();
+    refresh();
 }
 
-void ResourceAnalyzerPanel::setupUi() {
-    auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(8, 8, 8, 8);
-    mainLayout->setSpacing(8);
-
-    // Header Toolbar
-    auto* headerLayout = new QHBoxLayout();
-    m_targetLabel = new QLabel("Target: <b>None (Generic Estimation)</b>", this);
-    m_resolutionLabel = new QLabel("Resolution: 320x240", this);
-    m_resolutionLabel->setStyleSheet("color: #888;");
-
-    m_refreshBtn = new QPushButton("Refresh", this);
-    m_refreshBtn->setFixedWidth(70);
-    connect(m_refreshBtn, &QPushButton::clicked, this, &ResourceAnalyzerPanel::refreshAnalysis);
-
-    headerLayout->addWidget(m_targetLabel);
-    headerLayout->addStretch();
-    headerLayout->addWidget(m_resolutionLabel);
-    headerLayout->addWidget(m_refreshBtn);
-    mainLayout->addLayout(headerLayout);
-
-    // 1. Memory Gauges Group
-    auto* gaugesGroup = new QGroupBox("Memory Footprint & Hardware Utilization", this);
-    auto* gaugesLayout = new QVBoxLayout(gaugesGroup);
-
-    // Flash Gauge
-    auto* flashTitleLayout = new QHBoxLayout();
-    flashTitleLayout->addWidget(new QLabel("<b>Flash Memory (ROM)</b>", this));
-    m_flashDetailsLabel = new QLabel("0 KB / Unknown", this);
-    flashTitleLayout->addStretch();
-    flashTitleLayout->addWidget(m_flashDetailsLabel);
-    gaugesLayout->addLayout(flashTitleLayout);
-
-    m_flashBar = new QProgressBar(this);
-    m_flashBar->setRange(0, 100);
-    m_flashBar->setValue(0);
-    m_flashBar->setTextVisible(true);
-    m_flashBar->setFixedHeight(18);
-    gaugesLayout->addWidget(m_flashBar);
-
-    // RAM Gauge
-    auto* ramTitleLayout = new QHBoxLayout();
-    ramTitleLayout->addWidget(new QLabel("<b>RAM (SRAM)</b>", this));
-    m_ramDetailsLabel = new QLabel("0 KB / Unknown", this);
-    ramTitleLayout->addStretch();
-    ramTitleLayout->addWidget(m_ramDetailsLabel);
-    gaugesLayout->addLayout(ramTitleLayout);
-
-    m_ramBar = new QProgressBar(this);
-    m_ramBar->setRange(0, 100);
-    m_ramBar->setValue(0);
-    m_ramBar->setTextVisible(true);
-    m_ramBar->setFixedHeight(18);
-    gaugesLayout->addWidget(m_ramBar);
-
-    // Framebuffer Details
-    m_framebufferDetailsLabel = new QLabel("Framebuffer: 0 KB (RGB565, 1 buffer, 16-byte DMA aligned)", this);
-    m_framebufferDetailsLabel->setStyleSheet("color: #aaa; font-size: 11px;");
-    gaugesLayout->addWidget(m_framebufferDetailsLabel);
-
-    mainLayout->addWidget(gaugesGroup);
-
-    // 2. Resource Breakdown Tree
-    m_breakdownTree = new QTreeWidget(this);
-    m_breakdownTree->setHeaderLabels(QStringList() << "Subsystem / Component" << "Flash Footprint" << "RAM Footprint" << "Details");
-    m_breakdownTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_breakdownTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_breakdownTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_breakdownTree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_breakdownTree->setAlternatingRowColors(true);
-    m_breakdownTree->setRootIsDecorated(true);
-    mainLayout->addWidget(m_breakdownTree, 2);
-
-    // 3. Diagnostics & Warnings List
-    auto* warnGroup = new QGroupBox("Analyzer Diagnostics & Advisory", this);
-    auto* warnLayout = new QVBoxLayout(warnGroup);
-    m_warningsList = new QListWidget(this);
-    m_warningsList->setAlternatingRowColors(true);
-    m_warningsList->setFixedHeight(75);
-    warnLayout->addWidget(m_warningsList);
-    mainLayout->addWidget(warnGroup);
+void ResourceAnalyzerPanel::setDevice(const DeviceProfile& device) {
+    m_device = device;
+    m_updatingCombo = true;
+    if (m_deviceCombo) {
+        int idx = m_deviceCombo->findText(device.name);
+        if (idx >= 0) {
+            m_deviceCombo->setCurrentIndex(idx);
+        }
+    }
+    m_updatingCombo = false;
+    refresh();
 }
 
-void ResourceAnalyzerPanel::formatProgressBar(QProgressBar* bar, double percent) {
-    if (!bar) return;
-    int intVal = std::min(100, static_cast<int>(percent));
-    bar->setValue(intVal);
-    bar->setFormat(QString("%1%").arg(QString::number(percent, 'f', 1)));
-
-    QString chunkColor;
-    if (percent > 100.0) {
-        chunkColor = "#d9534f"; // Exceeded (Red)
-    } else if (percent >= 95.0) {
-        chunkColor = "#e67e22"; // Critical (Orange/Amber)
-    } else if (percent >= 80.0) {
-        chunkColor = "#f1c40f"; // Warning (Yellow)
-    } else {
-        chunkColor = "#2ecc71"; // Normal (Green)
+void ResourceAnalyzerPanel::setDevice(const QString& deviceName) {
+    DeviceProfile dev = m_estimator.capabilityDatabase().getDeviceProfile(deviceName);
+    if (!dev.name.isEmpty()) {
+        setDevice(dev);
     }
-
-    bar->setStyleSheet(QString(
-        "QProgressBar { border: 1px solid #444; border-radius: 3px; text-align: center; background-color: #222; color: white; }"
-        "QProgressBar::chunk { background-color: %1; border-radius: 2px; }"
-    ).arg(chunkColor));
 }
 
-void ResourceAnalyzerPanel::refreshAnalysis() {
-    if (!m_project) return;
-    ResourceReport report = m_analyzer.analyzeProject(m_project);
-    updateUi(report);
+void ResourceAnalyzerPanel::onDeviceComboChanged(int index) {
+    if (m_updatingCombo || index < 0) return;
+    QString devName = m_deviceCombo->currentText();
+    m_device = m_estimator.capabilityDatabase().getDeviceProfile(devName);
+    refresh();
 }
 
-void ResourceAnalyzerPanel::updateUi(const ResourceReport& report) {
-    // Target & Resolution
-    if (!report.targetDeviceName.isEmpty()) {
-        m_targetLabel->setText(QString("Target: <b>%1</b>").arg(report.targetDeviceName));
+void ResourceAnalyzerPanel::onProjectModified() {
+    refresh();
+}
+
+void ResourceAnalyzerPanel::refresh() {
+    if (m_device.name.isEmpty()) {
+        m_device = m_estimator.capabilityDatabase().getDeviceProfile("STM32H745");
+    }
+
+    // Determine target framework
+    QString framework = "lvgl";
+    if (m_project) {
+        framework = m_project->targetFramework().toLower();
+        if (framework.isEmpty()) framework = "lvgl";
+    }
+
+    m_last_analysis = m_estimator.analyzeProject(m_project, m_device, framework);
+    updateUI(m_last_analysis);
+}
+
+void ResourceAnalyzerPanel::updateUI(const ResourceAnalysis& analysis) {
+    // Device info text
+    QString devFamily = !m_device.family.isEmpty() ? m_device.family : (!analysis.device.family.isEmpty() ? analysis.device.family : m_device.name);
+    uint32_t speed = m_device.cpu_speed_mhz > 0 ? m_device.cpu_speed_mhz : analysis.device.cpu_speed_mhz;
+    uint32_t flashKb = m_device.flash_kb > 0 ? m_device.flash_kb : (analysis.flash_total / 1024);
+    uint32_t ramKb = m_device.ram_kb > 0 ? m_device.ram_kb : (analysis.ram_total / 1024);
+
+    uint32_t internalSramKb = m_device.internal_sram_kb > 0 ? m_device.internal_sram_kb : ramKb;
+    QString memLine = QString("Flash: %1 KB | Internal SRAM: %2 KB").arg(flashKb).arg(internalSramKb);
+    if (m_device.psram_kb > 0) {
+        memLine += QString(" | PSRAM: %1 KB").arg(m_device.psram_kb);
+    }
+    QString targetStatus = !m_device.embedweb_adapter_status.isEmpty() ?
+        QString("\nStatus: %1 (Toolchain: %2)").arg(m_device.embedweb_adapter_status, m_device.required_toolchain) : "";
+
+    m_deviceInfoLabel->setText(QString("Target: %1 (%2) @ %3 MHz\n%4%5")
+                                   .arg(m_device.name.isEmpty() ? analysis.device_name : m_device.name)
+                                   .arg(devFamily)
+                                   .arg(speed)
+                                   .arg(memLine)
+                                   .arg(targetStatus));
+
+    // Status Badge
+    if (analysis.status == ResourceAnalysis::OK) {
+        m_statusBadge->setText("✓ Fits on Device");
+        m_statusBadge->setStyleSheet(QString("background: %1; color: %2; padding: 4px 8px; border-radius: %3px; font-weight: 600;").arg(Theme::SuccessBg, Theme::Success).arg(Theme::RadiusSm));
+    } else if (analysis.status == ResourceAnalysis::WARNING) {
+        m_statusBadge->setText("⚠ Resource Warning (>80% used)");
+        m_statusBadge->setStyleSheet(QString("background: %1; color: %2; padding: 4px 8px; border-radius: %3px; font-weight: 600;").arg(Theme::WarningBg, Theme::Warning).arg(Theme::RadiusSm));
+    } else if (analysis.status == ResourceAnalysis::CRITICAL) {
+        m_statusBadge->setText("✕ CRITICAL: Out of Memory!");
+        m_statusBadge->setStyleSheet(QString("background: %1; color: %2; padding: 4px 8px; border-radius: %3px; font-weight: 600;").arg(Theme::DangerBg, Theme::Danger).arg(Theme::RadiusSm));
     } else {
-        m_targetLabel->setText("Target: <b>Generic Embedded MCU</b>");
+        m_statusBadge->setText("⚠ Framework Mismatch");
+        m_statusBadge->setStyleSheet(QString("background: %1; color: %2; padding: 4px 8px; border-radius: %3px; font-weight: 600;").arg(Theme::InfoBg, Theme::Info).arg(Theme::RadiusSm));
     }
 
-    m_resolutionLabel->setText(QString("%1x%2 (%3 bpp, %4 buf)")
-        .arg(report.framebufferWidth).arg(report.framebufferHeight).arg(report.bitsPerPixel).arg(report.bufferCount));
+    // 2. Flash Progress Bar
+    int flashPct = std::clamp(static_cast<int>(analysis.flash_percent), 0, 100);
+    m_flashBar->setValue(flashPct);
+    m_flashDetailsLabel->setText(QString("%1 / %2 KB (%3%)")
+                                     .arg(analysis.flash_used / 1024)
+                                     .arg(analysis.flash_total / 1024)
+                                     .arg(analysis.flash_percent, 0, 'f', 1));
+    QString flashColor = flashPct >= 95 ? Theme::Danger : (flashPct >= 80 ? Theme::Warning : Theme::Success);
+    m_flashBar->setStyleSheet(QString("QProgressBar { background-color: %1; border: 1px solid %2; border-radius: %3px; text-align: center; color: %4; font-weight: 600; font-size: 10px; height: 16px; }"
+                                      "QProgressBar::chunk { background-color: %5; border-radius: 3px; }")
+                                      .arg(Theme::BgBase, Theme::BorderSubtle).arg(Theme::RadiusSm).arg(Theme::TextPrimary, flashColor));
 
-    // Flash Bar
-    if (report.hasTargetLimits && report.targetFlashCapacityBytes > 0) {
-        m_flashDetailsLabel->setText(QString("%1 KB / %2 KB (%3%)")
-            .arg(report.flashTotalEstimatedBytes / 1024)
-            .arg(report.targetFlashCapacityBytes / 1024)
-            .arg(QString::number(report.flashUtilizationPercent, 'f', 1)));
-        formatProgressBar(m_flashBar, report.flashUtilizationPercent);
-    } else {
-        m_flashDetailsLabel->setText(QString("%1 KB (Target Flash Unknown)").arg(report.flashTotalEstimatedBytes / 1024));
-        m_flashBar->setValue(0);
-        m_flashBar->setFormat("Est: %v KB");
-        m_flashBar->setStyleSheet("QProgressBar { border: 1px solid #444; border-radius: 3px; text-align: center; background-color: #222; color: white; }");
-    }
+    // 3. RAM Progress Bar
+    int ramPct = std::clamp(static_cast<int>(analysis.ram_percent), 0, 100);
+    m_ramBar->setValue(ramPct);
+    m_ramDetailsLabel->setText(QString("%1 / %2 KB (%3%)")
+                                   .arg(analysis.ram_used / 1024)
+                                   .arg(analysis.ram_total / 1024)
+                                   .arg(analysis.ram_percent, 0, 'f', 1));
+    QString ramColor = ramPct >= 95 ? Theme::Danger : (ramPct >= 80 ? Theme::Warning : Theme::Info);
+    m_ramBar->setStyleSheet(QString("QProgressBar { background-color: %1; border: 1px solid %2; border-radius: %3px; text-align: center; color: %4; font-weight: 600; font-size: 10px; height: 16px; }"
+                                    "QProgressBar::chunk { background-color: %5; border-radius: 3px; }")
+                                    .arg(Theme::BgBase, Theme::BorderSubtle).arg(Theme::RadiusSm).arg(Theme::TextPrimary, ramColor));
 
-    // RAM Bar
-    if (report.hasTargetLimits && report.targetRamCapacityBytes > 0) {
-        m_ramDetailsLabel->setText(QString("%1 KB / %2 KB (%3%)")
-            .arg(report.ramTotalEstimatedBytes / 1024)
-            .arg(report.targetRamCapacityBytes / 1024)
-            .arg(QString::number(report.ramUtilizationPercent, 'f', 1)));
-        formatProgressBar(m_ramBar, report.ramUtilizationPercent);
-    } else {
-        m_ramDetailsLabel->setText(QString("%1 KB (Target RAM Unknown)").arg(report.ramTotalEstimatedBytes / 1024));
-        m_ramBar->setValue(0);
-        m_ramBar->setFormat("Est: %v KB");
-        m_ramBar->setStyleSheet("QProgressBar { border: 1px solid #444; border-radius: 3px; text-align: center; background-color: #222; color: white; }");
-    }
+    // 4. CPU Overhead Bar
+    int cpuPct = std::clamp(static_cast<int>(analysis.cpu_overhead_percent), 0, 100);
+    m_cpuBar->setValue(cpuPct);
+    m_cpuDetailsLabel->setText(QString("~%1% frame budget").arg(analysis.cpu_overhead_percent, 0, 'f', 1));
+    QString cpuColor = cpuPct >= 70 ? Theme::Danger : (cpuPct >= 40 ? Theme::Warning : Theme::Accent);
+    m_cpuBar->setStyleSheet(QString("QProgressBar { background-color: %1; border: 1px solid %2; border-radius: %3px; text-align: center; color: %4; font-weight: 600; font-size: 10px; height: 16px; }"
+                                    "QProgressBar::chunk { background-color: %5; border-radius: 3px; }")
+                                    .arg(Theme::BgBase, Theme::BorderSubtle).arg(Theme::RadiusSm).arg(Theme::TextPrimary, cpuColor));
 
-    // Framebuffer label
-    m_framebufferDetailsLabel->setText(QString("Display Framebuffer: %1 KB (DMA Row Stride: %2 B, Format: %3 bpp, %4 buffer%5)")
-        .arg(report.framebufferBytes / 1024)
-        .arg(report.rowStrideBytes)
-        .arg(report.bitsPerPixel)
-        .arg(report.bufferCount)
-        .arg(report.bufferCount > 1 ? "s" : ""));
+    // 5. Breakdown Text
+    QString breakdownHtml = QString(
+        "• <b>Framework Baseline:</b> %1 KB Flash, %2 KB RAM<br>"
+        "• <b>UI Components:</b> %3 KB Flash, %4 KB RAM<br>"
+        "• <b>Assets & Images:</b> %5 KB Flash, %6 KB RAM<br>"
+        "• <b>User Headroom:</b> <font color='%7'><b>%8 KB Flash, %9 KB RAM</b></font>"
+    ).arg(analysis.breakdown.framework_flash / 1024)
+     .arg(analysis.breakdown.framework_ram / 1024)
+     .arg(analysis.breakdown.components_flash / 1024)
+     .arg(analysis.breakdown.components_ram / 1024)
+     .arg(analysis.breakdown.assets_flash / 1024)
+     .arg(analysis.breakdown.assets_ram / 1024)
+     .arg(Theme::Success)
+     .arg(analysis.breakdown.user_space_flash / 1024)
+     .arg(analysis.breakdown.user_space_ram / 1024);
+    m_breakdownLabel->setText(breakdownHtml);
 
-    // Breakdown Tree
-    m_breakdownTree->clear();
-
-    auto addTreeRow = [this](const QString& name, size_t flash, size_t ram, const QString& details, QTreeWidgetItem* parent = nullptr) {
-        auto* item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(m_breakdownTree);
-        item->setText(0, name);
-        item->setText(1, flash > 0 ? QString("%1 KB").arg(QString::number(flash / 1024.0, 'f', 1)) : "-");
-        item->setText(2, ram > 0 ? QString("%1 KB").arg(QString::number(ram / 1024.0, 'f', 1)) : "-");
-        item->setText(3, details);
-        return item;
-    };
-
-    // Framework
-    addTreeRow("GUI Framework Engine", report.flashFrameworkBaseBytes, report.ramFrameworkWorkBufferBytes, "Core GUI library runtime & drawing buffers");
-
-    // Framebuffer
-    addTreeRow("Display Framebuffer", 0, report.ramFramebufferBytes, QString("%1x%2 @ %3 bpp (DMA aligned)").arg(report.framebufferWidth).arg(report.framebufferHeight).arg(report.bitsPerPixel));
-
-    // UI Components
-    auto* compItem = addTreeRow(QString("UI Components (%1)").arg(report.totalComponents), report.flashComponentCodeBytes, report.ramComponentStateBytes, QString("Across %1 screen(s)").arg(report.totalScreens));
-    compItem->setExpanded(true);
-
-    // Assets
-    if (report.flashAssetsBytes > 0) {
-        addTreeRow("Compiled Image Assets", report.flashAssetsBytes, 0, "Bitmap assets compiled to C arrays in Flash");
-    }
-
-    // Fonts
-    addTreeRow("Embedded Font Tables", report.flashFontsBytes, 0, "Pre-rendered font glyph tables");
-
-    // DataSources & Bindings
-    if (report.totalDataSources > 0 || report.totalDataBindings > 0) {
-        addTreeRow(QString("Data Binding Subsystem (%1 sources, %2 bindings)").arg(report.totalDataSources).arg(report.totalDataBindings),
-            report.flashBindingsBytes, report.ramDataSourcesBytes, "Hardware pin/bus binding structs & buffers");
-    }
-
-    // Diagnostics / Warnings
+    // 6. Warnings List
     m_warningsList->clear();
-    for (const ResourceWarning& w : report.warnings) {
-        auto* item = new QListWidgetItem(m_warningsList);
-        QString prefix = (w.severity == ResourceWarningSeverity::Critical) ? "[CRITICAL]" :
-                         (w.severity == ResourceWarningSeverity::Warning) ? "[WARNING]" : "[INFO]";
-        item->setText(QString("%1 [%2] %3").arg(prefix, w.category, w.message));
-        if (w.severity == ResourceWarningSeverity::Critical) {
-            item->setForeground(QColor("#ff6b6b"));
-        } else if (w.severity == ResourceWarningSeverity::Warning) {
-            item->setForeground(QColor("#feca57"));
-        } else {
-            item->setForeground(QColor("#48dbfb"));
+    if (analysis.warnings.isEmpty()) {
+        QListWidgetItem* item = new QListWidgetItem("✓ No warnings. Resource budget is healthy.", m_warningsList);
+        item->setForeground(Theme::cSuccess());
+    } else {
+        for (const QString& w : analysis.warnings) {
+            QListWidgetItem* item = new QListWidgetItem(w, m_warningsList);
+            if (w.startsWith("CRITICAL")) {
+                item->setForeground(Theme::cDanger());
+            } else {
+                item->setForeground(Theme::cWarning());
+            }
         }
     }
 }

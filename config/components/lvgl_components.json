@@ -1,0 +1,147 @@
+{
+  "version": "1.0",
+  "source": "https://lvgl.espboards.dev/components",
+  "compatibility": {
+    "all_boards": ["stm32", "esp32", "esp32-s3", "rp2040", "imxrt1060"],
+    "keyboard_notes": "Requires minimum 32KB RAM (ESP32, RP2040, STM32F4+)",
+    "chart_notes": "Optimized memory buffers for embedded display"
+  },
+  "components": [
+    {
+      "id": "lv_container",
+      "name": "Container",
+      "lvgl_type": "lv_obj",
+      "category": "Layout",
+      "description": "Flexible layout container with flex and grid layout support",
+      "default_width": 200,
+      "default_height": 140,
+      "properties": [
+        {"name": "layout", "type": "enum", "options": ["FLEX_ROW", "FLEX_COLUMN", "GRID", "NONE"], "default": "NONE"},
+        {"name": "pad_all", "type": "int", "default": 10},
+        {"name": "border_width", "type": "int", "default": 1},
+        {"name": "radius", "type": "int", "default": 8}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_obj_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);"
+    },
+    {
+      "id": "lv_button",
+      "name": "Button",
+      "lvgl_type": "lv_btn",
+      "category": "Basic",
+      "description": "Interactive push button with event callbacks",
+      "default_width": 100,
+      "default_height": 40,
+      "properties": [
+        {"name": "text", "type": "string", "default": "Click Me"},
+        {"name": "event_callback", "type": "string", "default": "on_button_clicked"},
+        {"name": "checkable", "type": "bool", "default": false}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_btn_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    lv_obj_add_event_cb(%name%, %event_callback%, LV_EVENT_CLICKED, NULL);\n    lv_obj_t* %name%_label = lv_label_create(%name%);\n    lv_label_set_text(%name%_label, \"%text%\");\n    lv_obj_center(%name%_label);"
+    },
+    {
+      "id": "lv_label",
+      "name": "Label",
+      "lvgl_type": "lv_label",
+      "category": "Basic",
+      "description": "Rich text display widget with automatic wrapping and scrolling",
+      "default_width": 120,
+      "default_height": 30,
+      "properties": [
+        {"name": "text", "type": "string", "default": "Text Label"},
+        {"name": "long_mode", "type": "enum", "options": ["WRAP", "SCROLL", "DOTS", "CLIP"], "default": "WRAP"}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_label_create(%parent%);\n    lv_label_set_text(%name%, \"%text%\");\n    lv_obj_set_pos(%name%, %x%, %y%);"
+    },
+    {
+      "id": "lv_slider",
+      "name": "Slider",
+      "lvgl_type": "lv_slider",
+      "category": "Input",
+      "description": "Draggable slider for analog and numeric range adjustments",
+      "default_width": 150,
+      "default_height": 20,
+      "properties": [
+        {"name": "min", "type": "int", "default": 0},
+        {"name": "max", "type": "int", "default": 100},
+        {"name": "value", "type": "int", "default": 50},
+        {"name": "event_callback", "type": "string", "default": "on_slider_changed"}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_slider_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    lv_slider_set_range(%name%, %min%, %max%);\n    lv_slider_set_value(%name%, %value%, LV_ANIM_OFF);\n    lv_obj_add_event_cb(%name%, %event_callback%, LV_EVENT_VALUE_CHANGED, NULL);"
+    },
+    {
+      "id": "lv_switch",
+      "name": "Switch",
+      "lvgl_type": "lv_switch",
+      "category": "Input",
+      "description": "Bistable toggle switch for boolean control",
+      "default_width": 50,
+      "default_height": 25,
+      "properties": [
+        {"name": "state", "type": "bool", "default": false},
+        {"name": "event_callback", "type": "string", "default": "on_switch_toggled"}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_switch_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    if (%state%) lv_obj_add_state(%name%, LV_STATE_CHECKED);\n    lv_obj_add_event_cb(%name%, %event_callback%, LV_EVENT_VALUE_CHANGED, NULL);"
+    },
+    {
+      "id": "lv_gauge",
+      "name": "Gauge",
+      "lvgl_type": "lv_meter",
+      "category": "Display",
+      "description": "Rotary analog meter/gauge with scale marks and needle indicator",
+      "default_width": 160,
+      "default_height": 160,
+      "properties": [
+        {"name": "min", "type": "int", "default": 0},
+        {"name": "max", "type": "int", "default": 100},
+        {"name": "value", "type": "int", "default": 45},
+        {"name": "label", "type": "string", "default": "Speed"}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_meter_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    lv_meter_scale_t* %name%_scale = lv_meter_add_scale(%name%);\n    lv_meter_set_scale_ticks(%name%, %name%_scale, 41, 2, 10, lv_palette_main(LV_PALETTE_GREY));\n    lv_meter_set_scale_range(%name%, %name%_scale, %min%, %max%, 270, 135);\n    lv_meter_indicator_t* %name%_indic = lv_meter_add_needle_line(%name%, %name%_scale, 4, lv_palette_main(LV_PALETTE_RED));\n    lv_meter_set_indicator_value(%name%, %name%_indic, %value%);"
+    },
+    {
+      "id": "lv_chart",
+      "name": "Chart",
+      "lvgl_type": "lv_chart",
+      "category": "Display",
+      "description": "High performance data visualization series (line/bar/scatter)",
+      "default_width": 200,
+      "default_height": 120,
+      "properties": [
+        {"name": "type", "type": "enum", "options": ["LINE", "BAR"], "default": "LINE"},
+        {"name": "point_count", "type": "int", "default": 10},
+        {"name": "min_y", "type": "int", "default": 0},
+        {"name": "max_y", "type": "int", "default": 100}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_chart_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    lv_chart_set_type(%name%, LV_CHART_TYPE_%type%);\n    lv_chart_set_point_count(%name%, %point_count%);\n    lv_chart_set_range(%name%, LV_CHART_AXIS_PRIMARY_Y, %min_y%, %max_y%);\n    lv_chart_series_t* %name%_ser = lv_chart_add_series(%name%, lv_palette_main(LV_PALETTE_BLUE), LV_CHART_AXIS_PRIMARY_Y);"
+    },
+    {
+      "id": "lv_spinbox",
+      "name": "Spinbox",
+      "lvgl_type": "lv_spinbox",
+      "category": "Input",
+      "description": "Precise numeric input with increment and decrement steps",
+      "default_width": 100,
+      "default_height": 36,
+      "properties": [
+        {"name": "min", "type": "int", "default": 0},
+        {"name": "max", "type": "int", "default": 9999},
+        {"name": "step", "type": "int", "default": 1},
+        {"name": "value", "type": "int", "default": 100}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_spinbox_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    lv_spinbox_set_range(%name%, %min%, %max%);\n    lv_spinbox_set_digit_format(%name%, 4, 0);\n    lv_spinbox_set_step(%name%, %step%);\n    lv_spinbox_set_value(%name%, %value%);"
+    },
+    {
+      "id": "lv_keyboard",
+      "name": "Keyboard",
+      "lvgl_type": "lv_keyboard",
+      "category": "Input",
+      "description": "On-screen virtual keyboard for touchscreens",
+      "default_width": 240,
+      "default_height": 120,
+      "properties": [
+        {"name": "mode", "type": "enum", "options": ["TEXT_LOWER", "TEXT_UPPER", "SPECIAL", "NUMERIC"], "default": "TEXT_LOWER"}
+      ],
+      "c_create": "lv_obj_t* %name% = lv_keyboard_create(%parent%);\n    lv_obj_set_size(%name%, %width%, %height%);\n    lv_obj_set_pos(%name%, %x%, %y%);\n    lv_keyboard_set_mode(%name%, LV_KEYBOARD_MODE_%mode%);"
+    }
+  ]
+}

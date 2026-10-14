@@ -1,0 +1,46 @@
+{
+  "id": "nxp_imxrt1060_evk",
+  "name": "NXP i.MX RT1060 EVK",
+  "manufacturer": "NXP Semiconductors",
+  "family": "i.MX RT1060",
+  "mcu": "MIMXRT1062DVL6A",
+  "architecture": "ARM Cortex-M7",
+  "frequency_mhz": 600,
+  "flash_kb": 8192,
+  "ram_kb": 1024,
+  "gpio_count": 64,
+  "analog_pins": [
+    "GPIO_AD_B0_12",
+    "GPIO_AD_B0_13",
+    "GPIO_AD_B0_14"
+  ],
+  "pwm_pins": [
+    "GPIO_AD_B0_02",
+    "GPIO_AD_B0_03"
+  ],
+  "digital_pins": [
+    "GPIO_AD_B0_02",
+    "GPIO_AD_B0_03",
+    "GPIO_AD_B0_12",
+    "GPIO_AD_B0_13",
+    "GPIO_B1_00"
+  ],
+  "usb_adapter": {
+    "type": "DAPLink / OpenSDA CMSIS-DAP",
+    "vid": "0d28",
+    "pid": "0204",
+    "driver": "cmsis-dap"
+  },
+  "openocd": {
+    "interface": "interface/cmsis-dap.cfg",
+    "target": "target/imxrt1060.cfg",
+    "config_file": "board/nxp_imxrt1060_evk.cfg",
+    "transport": "swd"
+  },
+  "toolchain": {
+    "compiler": "arm-none-eabi-gcc",
+    "hal_header": "fsl_gpio.h",
+    "flags": "-mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard"
+  },
+  "datasheet_url": "https://www.nxp.com/docs/en/data-sheet/IMXRT1060CEC.pdf"
+}

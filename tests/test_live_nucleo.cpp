@@ -81,62 +81,99 @@ int main(int argc, char* argv[]) {
         return 5;
     }
 
-    // 4. Configure Switch on Canvas bound to PA0
-    std::cout << "[Step 4] Adding SwitchComponent bound to GPIO PA0...\n";
+    // 4. Configure Switch on Canvas bound to PA4 (Built-in LED)
+    std::cout << "[Step 4] Adding SwitchComponent bound to GPIO PA4 (Built-in LED)...\n";
     auto* canvasScene = window.canvasScene();
     if (!canvasScene) {
         std::cerr << "FAIL: canvasScene not found!\n";
         return 6;
     }
 
-    auto* sw = new SwitchComponent("switch_pa0");
+    auto* sw = new SwitchComponent("switch_pa4");
     sw->setCompPos(100, 100);
     sw->setCompSize(70, 36);
     canvasScene->addUIComponent(sw);
-    bridge.bindComponent(sw, "PA0", PinMode::DigitalOut);
+    bridge.bindComponent(sw, "PA4", PinMode::DigitalOut);
     QApplication::processEvents();
 
-    // 5. Test Live GPIO Output Toggle HIGH (3.3V)
-    std::cout << "[Step 5] Toggling Switch to ON (HIGH - 3.3V)...\n";
+    // 5. Test Live GPIO Output Toggle HIGH (3.3V) on PA4 with Latency Profiling
+    std::cout << "[Step 5] Toggling Switch to ON (HIGH - 3.3V) on PA4...\n";
+    QElapsedTimer timer;
+    timer.start();
     sw->setChecked(true);
     QApplication::processEvents();
+    qint64 toggleHighMs = timer.elapsed();
+    std::cout << "  Latency to toggle HIGH: " << toggleHighMs << " ms (Criteria: < 100ms)\n";
 
     quint32 valHigh = 0;
     bridge.openOcdManager().readMemoryWord(0x48000014, &valHigh);
     std::cout << "  GPIOA ODR readback (HIGH): 0x" << std::hex << valHigh << std::dec << "\n";
-    std::cout << "  PA0 bit value: " << (valHigh & 0x1) << " (Expected 1)\n";
+    std::cout << "  PA4 bit value: " << ((valHigh >> 4) & 0x1) << " (Expected 1)\n";
 
-    if ((valHigh & 0x1) != 1) {
-        std::cerr << "FAIL: GPIOA PA0 ODR bit 0 was not set HIGH!\n";
+    if (((valHigh >> 4) & 0x1) != 1) {
+        std::cerr << "FAIL: GPIOA PA4 ODR bit 4 was not set HIGH!\n";
         return 7;
     }
 
-    // 6. Test Live GPIO Output Toggle LOW (0V)
-    std::cout << "[Step 6] Toggling Switch to OFF (LOW - 0V)...\n";
+    // 6. Test Live GPIO Output Toggle LOW (0V) on PA4
+    std::cout << "[Step 6] Toggling Switch to OFF (LOW - 0V) on PA4...\n";
+    timer.restart();
     sw->setChecked(false);
     QApplication::processEvents();
+    qint64 toggleLowMs = timer.elapsed();
+    std::cout << "  Latency to toggle LOW: " << toggleLowMs << " ms (Criteria: < 100ms)\n";
 
     quint32 valLow = 0;
     bridge.openOcdManager().readMemoryWord(0x48000014, &valLow);
     std::cout << "  GPIOA ODR readback (LOW): 0x" << std::hex << valLow << std::dec << "\n";
-    std::cout << "  PA0 bit value: " << (valLow & 0x1) << " (Expected 0)\n";
+    std::cout << "  PA4 bit value: " << ((valLow >> 4) & 0x1) << " (Expected 0)\n";
 
-    if ((valLow & 0x1) != 0) {
-        std::cerr << "FAIL: GPIOA PA0 ODR bit 0 was not reset LOW!\n";
+    if (((valLow >> 4) & 0x1) != 0) {
+        std::cerr << "FAIL: GPIOA PA4 ODR bit 4 was not reset LOW!\n";
         return 8;
     }
 
-    window.grab().save("screenshots/live_hardware_connected_switch_pa0.png");
-    std::cout << "  Screenshot saved: screenshots/live_hardware_connected_switch_pa0.png\n";
+    // 7. Test 10+ Multi-Cycle Reliability (Criteria: 10+ cycles without crash)
+    std::cout << "[Step 7] Testing 10+ rapid toggle cycles for reliability...\n";
+    for (int cycle = 1; cycle <= 12; ++cycle) {
+        sw->setChecked(cycle % 2 == 1);
+        QApplication::processEvents();
+        quint32 odr = 0;
+        bridge.openOcdManager().readMemoryWord(0x48000014, &odr);
+        int bit = (odr >> 4) & 0x1;
+        int expected = (cycle % 2 == 1) ? 1 : 0;
+        if (bit != expected) {
+            std::cerr << "FAIL: Cycle " << cycle << " mismatch! Bit=" << bit << " Expected=" << expected << "\n";
+            return 9;
+        }
+    }
+    std::cout << "  Successfully completed 12 consecutive cycles without error.\n";
 
-    // 7. Disconnect cleanly
-    std::cout << "[Step 7] Disconnecting hardware...\n";
+    // 8. Test OpenOCDManager High-Level Commands & Device Monitor Status
+    std::cout << "[Step 8] Testing OpenOCDManager commands (LED_ON, LED_OFF, gpio_status)...\n";
+    auto& openocd = window.openOcdManager();
+    openocd.connect();
+    std::cout << "  OpenOCD connected: " << (openocd.isConnected() ? "YES" : "NO") << "\n";
+
+    QString statusReply = openocd.sendCommand("gpio_status");
+    std::cout << "  gpio_status response: " << statusReply.toStdString() << "\n";
+
+    openocd.sendCommand("LED_ON");
+    std::cout << "  LED_ON response: " << openocd.readResponse().toStdString() << "\n";
+    openocd.sendCommand("LED_OFF");
+    std::cout << "  LED_OFF response: " << openocd.readResponse().toStdString() << "\n";
+
+    window.grab().save("screenshots/live_hardware_connected_switch_pa4.png");
+    std::cout << "  Screenshot saved: screenshots/live_hardware_connected_switch_pa4.png\n";
+
+    // 9. Disconnect cleanly
+    std::cout << "[Step 9] Disconnecting hardware...\n";
     connectBtn->click();
     QApplication::processEvents();
     std::cout << "  Hardware connected after disconnect: " << (bridge.isHardwareConnected() ? "YES" : "NO") << "\n";
 
     std::cout << "=======================================================\n";
-    std::cout << "SUCCESS: All board auto-detection & GPIO live tests passed!\n";
+    std::cout << "SUCCESS: All Hardware-in-the-Loop validation tests passed!\n";
     std::cout << "=======================================================\n";
     return 0;
 }

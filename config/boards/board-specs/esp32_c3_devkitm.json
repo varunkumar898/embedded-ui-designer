@@ -1,0 +1,56 @@
+{
+  "id": "esp32_c3_devkitm",
+  "name": "ESP32-C3-DevKitM-1",
+  "manufacturer": "Espressif Systems",
+  "family": "ESP32-C3",
+  "mcu": "ESP32-C3-MINI-1",
+  "architecture": "RISC-V 32-bit Single-Core",
+  "frequency_mhz": 160,
+  "flash_kb": 4096,
+  "ram_kb": 400,
+  "gpio_count": 22,
+  "analog_pins": [
+    "GPIO0",
+    "GPIO1",
+    "GPIO2",
+    "GPIO3",
+    "GPIO4",
+    "GPIO5"
+  ],
+  "pwm_pins": [
+    "GPIO6",
+    "GPIO7",
+    "GPIO8",
+    "GPIO10"
+  ],
+  "digital_pins": [
+    "GPIO0",
+    "GPIO1",
+    "GPIO2",
+    "GPIO3",
+    "GPIO4",
+    "GPIO5",
+    "GPIO6",
+    "GPIO7",
+    "GPIO8",
+    "GPIO9"
+  ],
+  "usb_adapter": {
+    "type": "Built-in USB Serial/JTAG",
+    "vid": "303a",
+    "pid": "1001",
+    "driver": "esp_usb_jtag"
+  },
+  "openocd": {
+    "interface": "interface/esp_usb_jtag.cfg",
+    "target": "target/esp32c3.cfg",
+    "config_file": "board/esp32c3-builtin.cfg",
+    "transport": "jtag"
+  },
+  "toolchain": {
+    "compiler": "riscv32-esp-elf-gcc",
+    "hal_header": "driver/gpio.h",
+    "flags": "-march=rv32imc -mabi=ilp32"
+  },
+  "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf"
+}

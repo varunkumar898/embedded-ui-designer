@@ -1,0 +1,57 @@
+{
+  "id": "nucleo_f401re",
+  "name": "STM32 NUCLEO-F401RE",
+  "manufacturer": "STMicroelectronics",
+  "family": "STM32F4",
+  "mcu": "STM32F401RET6",
+  "architecture": "ARM Cortex-M4",
+  "frequency_mhz": 84,
+  "flash_kb": 512,
+  "ram_kb": 96,
+  "gpio_count": 50,
+  "analog_pins": [
+    "PA0",
+    "PA1",
+    "PA4",
+    "PB0",
+    "PC0",
+    "PC1"
+  ],
+  "pwm_pins": [
+    "PA5",
+    "PA6",
+    "PB3",
+    "PB10"
+  ],
+  "digital_pins": [
+    "PA0",
+    "PA1",
+    "PA4",
+    "PA5",
+    "PA6",
+    "PB0",
+    "PB3",
+    "PB10",
+    "PC0",
+    "PC1",
+    "PC13"
+  ],
+  "usb_adapter": {
+    "type": "ST-Link/V2-1",
+    "vid": "0483",
+    "pid": "374b",
+    "driver": "stlink"
+  },
+  "openocd": {
+    "interface": "interface/stlink.cfg",
+    "target": "target/stm32f4x.cfg",
+    "config_file": "board/st_nucleo_f4.cfg",
+    "transport": "hla_swd"
+  },
+  "toolchain": {
+    "compiler": "arm-none-eabi-gcc",
+    "hal_header": "stm32f4xx_hal.h",
+    "flags": "-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
+  },
+  "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f401re.pdf"
+}

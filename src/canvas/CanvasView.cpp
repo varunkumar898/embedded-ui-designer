@@ -1,4 +1,5 @@
 #include "CanvasView.h"
+#include "theme/Theme.h"
 #include "Project.h"
 #include "ButtonComponent.h"
 #include "LabelComponent.h"
@@ -7,16 +8,22 @@
 #include "ImageComponent.h"
 #include "PathComponent.h"
 #include "CircleComponent.h"
+#include "SwitchComponent.h"
+#include "OpenOCDManager.h"
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
 #include "MoveComponentCommand.h"
 #include <QUndoStack>
 #include <QMenu>
+#include <QDockWidget>
 #include <QMimeData>
 #include <QScrollBar>
 #include <QRubberBand>
 #include <QLineF>
 #include <QPainter>
+#include <QMessageBox>
+#include <QDebug>
+#include <chrono>
 #include <algorithm>
 
 CanvasView::CanvasView(CanvasScene* scene, QWidget* parent)
@@ -35,9 +42,9 @@ CanvasView::CanvasView(CanvasScene* scene, QWidget* parent)
     // Reserve space for ruler strips on the top and left edges
     setViewportMargins(RULER_SIZE, RULER_SIZE, 0, 0);
     m_rubberBand = new QRubberBand(QRubberBand::Rectangle, viewport());
-    m_rubberBand->setStyleSheet(
-        "border: 1px dashed #1a96ff; background-color: rgba(26, 150, 255, 40);"
-    );
+    m_rubberBand->setStyleSheet(QString(
+        "border: 1px dashed %1; background-color: rgba(255, 255, 255, 38);"
+    ).arg(Theme::Accent));
 
     // Snap-highlight auto-clear timer
     m_snapHighlightTimer = new QTimer(this);
@@ -87,6 +94,46 @@ void CanvasView::applyZoom(qreal factor) {
 }
 
 void CanvasView::wheelEvent(QWheelEvent* event) {
+    // 1. Check if any selected UIComponent is in rotation mode (pressed on midpoint handle)
+    UIComponent* rotatingComp = nullptr;
+    if (m_canvasScene) {
+        for (QGraphicsItem* item : m_canvasScene->selectedItems()) {
+            if (auto* comp = dynamic_cast<UIComponent*>(item)) {
+                if (comp->isRotating()) {
+                    rotatingComp = comp;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 2. If mouse button is held and cursor is over a midpoint handle of a selected component
+    if (!rotatingComp && (event->buttons() & Qt::LeftButton) && m_canvasScene) {
+        QPointF scenePos = mapToScene(event->position().toPoint());
+        for (QGraphicsItem* item : m_canvasScene->selectedItems()) {
+            if (auto* comp = dynamic_cast<UIComponent*>(item)) {
+                QPointF itemPos = comp->mapFromScene(scenePos);
+                ResizeHandle h = comp->handleAt(itemPos);
+                if (UIComponent::isMidpointHandle(h)) {
+                    rotatingComp = comp;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (rotatingComp) {
+        qreal deltaY = event->angleDelta().y();
+        if (deltaY == 0 && event->pixelDelta().y() != 0) {
+            deltaY = event->pixelDelta().y() * 4.0;
+        }
+        if (deltaY != 0) {
+            rotatingComp->rotateByWheelDelta(deltaY);
+        }
+        event->accept();
+        return;
+    }
+
     if (event->modifiers() & Qt::ControlModifier) {
         if (event->angleDelta().y() > 0) {
             zoomIn();
@@ -207,6 +254,12 @@ void CanvasView::mousePressEvent(QMouseEvent* event) {
                            (event->modifiers() & Qt::ControlModifier);
 
         if (hitComp) {
+            if (m_liveTestMode) {
+                onComponentClicked(hitComp);
+                event->accept();
+                return;
+            }
+
             // Shift/Ctrl-click: toggle this component in/out of selection
             if (shiftOrCtrl) {
                 hitComp->setSelected(!hitComp->isSelected());
@@ -355,6 +408,19 @@ void CanvasView::mouseMoveEvent(QMouseEvent* event) {
 void CanvasView::mouseDoubleClickEvent(QMouseEvent* event) {
     if (m_activeDrawingTool == "Custom" && event->button() == Qt::LeftButton) {
         finishCustomPath();
+        event->accept();
+        return;
+    }
+    QGraphicsItem* item = itemAt(event->pos());
+    if (auto* comp = dynamic_cast<UIComponent*>(item)) {
+        scene()->clearSelection();
+        comp->setSelected(true);
+        if (auto* w = window()) {
+            if (auto* dock = w->findChild<QDockWidget*>("propertiesDock")) {
+                dock->show();
+                dock->raise();
+            }
+        }
         event->accept();
         return;
     }
@@ -660,10 +726,21 @@ void CanvasView::contextMenuEvent(QContextMenuEvent* event) {
         QAction* actToFront = menu.addAction("Bring to Front");
         QAction* actToBack = menu.addAction("Send to Back");
         menu.addSeparator();
+        QAction* actProperties = menu.addAction("Properties");
+        menu.addSeparator();
         QAction* actDelete = menu.addAction("Delete");
 
         QAction* selected = menu.exec(event->globalPos());
-        if (selected == actDelete) {
+        if (selected == actProperties) {
+            scene()->clearSelection();
+            comp->setSelected(true);
+            if (auto* w = window()) {
+                if (auto* dock = w->findChild<QDockWidget*>("propertiesDock")) {
+                    dock->show();
+                    dock->raise();
+                }
+            }
+        } else if (selected == actDelete) {
             if (m_undoStack) {
                 m_undoStack->push(new DeleteComponentCommand(m_canvasScene, {comp}));
             } else {
@@ -754,10 +831,10 @@ void CanvasView::paintEvent(QPaintEvent* event) {
 void CanvasView::drawRulers(QPainter* painter) {
     const int vw = viewport()->width();
     const int vh = viewport()->height();
-    const QColor bgColor(28, 31, 38);
-    const QColor tickColor(80, 90, 108);
-    const QColor textColor(100, 112, 130);
-    const QColor guideColor(0, 200, 180, 160);
+    const QColor bgColor = Theme::cBgRaised();
+    const QColor tickColor = Theme::cBorderStrong();
+    const QColor textColor = Theme::cTextMuted();
+    const QColor guideColor = Theme::cAccent();
 
     QFont font = painter->font();
     font.setPixelSize(9);
@@ -820,9 +897,8 @@ void CanvasView::drawRulers(QPainter* painter) {
     }
 
     // \u2500\u2500 Corner square \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    painter->fillRect(0, 0, RULER_SIZE, RULER_SIZE, QColor(22, 25, 31));
-    // ✕ button in corner to clear all guides
-    painter->setPen(QColor(70, 80, 98));
+    painter->fillRect(0, 0, RULER_SIZE, RULER_SIZE, Theme::cBgSurface());
+    painter->setPen(Theme::cTextMuted());
     painter->drawText(QRect(0, 0, RULER_SIZE, RULER_SIZE), Qt::AlignCenter, "\u00d7");
 }
 
@@ -849,3 +925,90 @@ bool CanvasView::hitTestGuide(const QPoint& viewPos, bool* isHorizontal, qreal* 
     }
     return false;
 }
+
+void CanvasView::selectComponent(UIComponent* component) {
+    if (!component) return;
+    if (scene()) {
+        scene()->clearSelection();
+    }
+    component->setSelected(true);
+}
+
+void CanvasView::onComponentClicked(UIComponent* component) {
+    // NEW: Check if Live Test Mode is ON
+    if (!m_liveTestMode) {
+        // Normal design mode: select component for editing
+        selectComponent(component);
+        return;
+    }
+
+    // NEW: Live Test mode - if it's a Switch, toggle GPIO
+    if (component && (component->type() == UIComponentType::Switch || dynamic_cast<SwitchComponent*>(component) || component->componentType() == "Switch")) {
+        handleSwitchToggle(component);
+    }
+}
+
+void CanvasView::setLiveTestMode(bool enabled) {
+    m_liveTestMode = enabled;
+    qDebug() << "CanvasView Live Test Mode:" << (enabled ? "ON" : "OFF");
+}
+
+void CanvasView::setOpenOCDManager(OpenOCDManager* openocd) {
+    m_openocd = openocd;
+    qDebug() << "CanvasView OpenOCDManager set";
+}
+
+void CanvasView::handleSwitchToggle(UIComponent* switchComponent) {
+    if (!m_liveTestMode || !m_openocd) {
+        qWarning() << "Live Test Mode not active or OpenOCD not connected.";
+        return;
+    }
+    
+    // Get GPIO binding
+    QString gpioPin = switchComponent->property("gpio_pin").toString();
+    if (gpioPin.isEmpty()) {
+        gpioPin = switchComponent->getProperty("gpio_pin").toString();
+    }
+    if (gpioPin.isEmpty()) {
+        qWarning() << "Switch has no GPIO binding.";
+        return;
+    }
+    
+    // Get board HAL to parse pin string
+    BoardHAL* hal = getBoardHAL();
+    if (!hal) {
+        qWarning() << "Board HAL not initialized.";
+        return;
+    }
+    
+    // Parse pin string (e.g., "PA4" → port=0, pin=4; "GPIO18" → port=1, pin=2)
+    uint8_t port = 0, pin = 0;
+    if (!hal->parsePinString(gpioPin, port, pin)) {
+        qWarning() << "Invalid GPIO pin string:" << gpioPin;
+        return;
+    }
+    
+    // Measure latency
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    // Toggle GPIO
+    m_openocd->gpioToggle(port, pin);
+    
+    // Read back state
+    int newState = m_openocd->gpioRead(port, pin);
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    m_lastLatency = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    
+    // Update component visual
+    switchComponent->setProperty("value", newState ? true : false);
+    update();
+    
+    // Emit signal for Device Monitor
+    emit gpioStateChanged(hal->pinToString(port, pin), newState, m_lastLatency);
+    
+    qDebug() << "GPIO Toggle:" << hal->pinToString(port, pin) << "→" << newState 
+             << "Latency:" << m_lastLatency << "ms";
+}
+
+

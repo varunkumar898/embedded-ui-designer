@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Component Data Binding UI - Embedded UI Designer</title>
+  <style>
+    :root {
+      --bg-dark: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --success: #3fb950;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .main-workspace {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      flex: 1;
+      height: calc(100vh - 61px);
+    }
+    .panel {
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .component-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: grab;
+      transition: all 0.15s ease;
+    }
+    .component-card:hover { border-color: var(--accent); }
+    .component-card.selected { border-color: var(--accent); background: #1f6feb22; }
+    .comp-title { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; }
+    .comp-type { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+    .center-canvas {
+      background: #080b0f;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    .binding-stage {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .binding-row {
+      display: grid;
+      grid-template-columns: 180px 40px 180px 140px 40px;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .arrow { text-align: center; color: var(--accent); font-weight: bold; font-size: 16px; }
+    .btn {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+    .badge {
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 10.5px;
+      font-weight: bold;
+      background: #1f6feb33;
+      color: var(--accent);
+      border: 1px solid #1f6feb;
+    }
+    select, input {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-title">
+      <span>🔗 Page Component Data Binding Mapper</span>
+      <span class="badge">Page: dashboard_main</span>
+    </div>
+    <button class="btn btn-primary" id="btnSaveBindings">Save Active Bindings</button>
+  </header>
+
+  <div class="main-workspace">
+    <!-- Left: UI Components -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>UI Page Components (Drag/Select)</span>
+      </div>
+      <div class="panel-content" id="componentsList">
+        <div class="component-card selected" data-id="btn_fan_toggle">
+          <div class="comp-title">
+            <span>Fan Power Toggle</span>
+            <span class="comp-type">BUTTON</span>
+          </div>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">ID: btn_fan_toggle | Event: onClick</div>
+        </div>
+
+        <div class="component-card" data-id="slider_brightness">
+          <div class="comp-title">
+            <span>LED Brightness</span>
+            <span class="comp-type">SLIDER</span>
+          </div>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">ID: slider_brightness | Event: onChange</div>
+        </div>
+
+        <div class="component-card" data-id="input_device_id">
+          <div class="comp-title">
+            <span>Target Node Address</span>
+            <span class="comp-type">TEXT_INPUT</span>
+          </div>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">ID: input_device_id | Event: onInput</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Interactive Binding Pipeline -->
+    <div class="center-canvas">
+      <div class="binding-stage">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <h3 style="font-size: 15px; font-weight: 700;">Active Component-to-API Mappings</h3>
+            <p style="font-size: 12px; color: var(--text-muted);">Directly binds user interaction events to HTTP API request parameters</p>
+          </div>
+          <button class="btn btn-primary" id="btnAddBindingRow">+ Add Binding</button>
+        </div>
+
+        <div id="bindingsContainer">
+          <div class="binding-row">
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">UI Component</label>
+              <select class="sel-comp">
+                <option value="btn_fan_toggle">Fan Power Toggle</option>
+                <option value="slider_brightness">LED Brightness</option>
+                <option value="input_device_id">Target Node Address</option>
+              </select>
+            </div>
+            <div class="arrow">➔</div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Bound API Param</label>
+              <select class="sel-param">
+                <option value="power_state">power_state (bool)</option>
+                <option value="duty_cycle">duty_cycle (uint8)</option>
+                <option value="node_id">node_id (string)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Trigger Event</label>
+              <select class="sel-event">
+                <option value="onClick">onClick</option>
+                <option value="onChange">onChange</option>
+                <option value="onRelease">onRelease</option>
+              </select>
+            </div>
+            <div>
+              <button class="btn" style="color: #f85149;" onclick="this.closest('.binding-row').remove()">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="binding-stage">
+        <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px;">Generated Binding Code Preview</h3>
+        <pre style="background: #090d13; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #7ee787; overflow-x: auto;" id="bindingCodePreview">
+// Generated UI Event to REST Client Call
+void ui_event_btn_fan_toggle_onClick() {
+    bool state = lv_obj_has_state(ui_btn_fan_toggle, LV_STATE_CHECKED);
+    http_post("/api/v1/device/gpio/write", "{\"power_state\": %s}", state ? "true" : "false");
+}
+        </pre>
+      </div>
+    </div>
+
+    <!-- Right: Available Endpoints -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Target API Endpoints</span>
+      </div>
+      <div class="panel-content">
+        <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+          <div style="font-size: 12px; font-weight: bold; color: #58a6ff;">POST /api/v1/device/gpio/write</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Sets output logic state of hardware pin</div>
+          <div style="font-size: 11px; margin-top: 6px;">Params: <code>power_state (bool)</code>, <code>pin (uint8)</code></div>
+        </div>
+
+        <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+          <div style="font-size: 12px; font-weight: bold; color: #3fb950;">POST /api/v1/device/pwm/set</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Sets PWM duty cycle for motor/LED brightness</div>
+          <div style="font-size: 11px; margin-top: 6px;">Params: <code>duty_cycle (uint8)</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll(".component-card").forEach(card => {
+      card.onclick = () => {
+        document.querySelectorAll(".component-card").forEach(c => c.classList.remove("selected"));
+        card.classList.add("selected");
+      };
+    });
+
+    document.getElementById("btnAddBindingRow").onclick = () => {
+      const row = document.createElement("div");
+      row.className = "binding-row";
+      row.innerHTML = `
+        <div>
+          <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">UI Component</label>
+          <select class="sel-comp">
+            <option value="slider_brightness">LED Brightness</option>
+            <option value="btn_fan_toggle">Fan Power Toggle</option>
+            <option value="input_device_id">Target Node Address</option>
+          </select>
+        </div>
+        <div class="arrow">➔</div>
+        <div>
+          <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Bound API Param</label>
+          <select class="sel-param">
+            <option value="duty_cycle">duty_cycle (uint8)</option>
+            <option value="power_state">power_state (bool)</option>
+            <option value="node_id">node_id (string)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Trigger Event</label>
+          <select class="sel-event">
+            <option value="onChange">onChange</option>
+            <option value="onClick">onClick</option>
+            <option value="onRelease">onRelease</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn" style="color: #f85149;" onclick="this.closest('.binding-row').remove()">✕</button>
+        </div>
+      `;
+      document.getElementById("bindingsContainer").appendChild(row);
+    };
+
+    document.getElementById("btnSaveBindings").onclick = () => {
+      alert("✓ 2 Component Bindings successfully synchronized with ProjectModel!");
+    };
+  </script>
+</body>
+</html>

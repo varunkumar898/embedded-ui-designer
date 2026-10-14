@@ -1,0 +1,54 @@
+{
+  "id": "rpi_pico2_rp2350",
+  "name": "Raspberry Pi Pico 2 (RP2350)",
+  "manufacturer": "Raspberry Pi Ltd",
+  "family": "RP2350",
+  "mcu": "RP2350A",
+  "architecture": "Dual ARM Cortex-M33 / Dual Hazard3 RISC-V",
+  "frequency_mhz": 150,
+  "flash_kb": 4096,
+  "ram_kb": 520,
+  "gpio_count": 30,
+  "analog_pins": [
+    "GP26",
+    "GP27",
+    "GP28"
+  ],
+  "pwm_pins": [
+    "GP0",
+    "GP1",
+    "GP2",
+    "GP3",
+    "GP16",
+    "GP17"
+  ],
+  "digital_pins": [
+    "GP0",
+    "GP1",
+    "GP2",
+    "GP3",
+    "GP4",
+    "GP5",
+    "GP16",
+    "GP17",
+    "GP25"
+  ],
+  "usb_adapter": {
+    "type": "Raspberry Pi Debug Probe / CMSIS-DAP",
+    "vid": "2e8a",
+    "pid": "000f",
+    "driver": "cmsis-dap"
+  },
+  "openocd": {
+    "interface": "interface/cmsis-dap.cfg",
+    "target": "target/rp2350.cfg",
+    "config_file": "target/rp2350.cfg",
+    "transport": "swd"
+  },
+  "toolchain": {
+    "compiler": "arm-none-eabi-gcc",
+    "hal_header": "hardware/gpio.h",
+    "flags": "-mcpu=cortex-m33 -mthumb"
+  },
+  "datasheet_url": "https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf"
+}

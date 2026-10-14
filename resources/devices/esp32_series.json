@@ -1,0 +1,32 @@
+{
+  "family": "ESP32",
+  "devices": [
+    {
+      "name": "ESP32",
+      "ram_kb": 520,
+      "flash_kb": 4096,
+      "cpu_speed_mhz": 240,
+      "peripherals": ["UART0", "UART1", "SPI2", "SPI3", "I2C0", "WiFi", "BLE"],
+      "supported_frameworks": ["lvgl", "qt-for-mcus", "ugfx"],
+      "notes": "Dual-core Xtensa LX6 with 4MB Flash"
+    },
+    {
+      "name": "ESP32-S3",
+      "ram_kb": 512,
+      "flash_kb": 8192,
+      "cpu_speed_mhz": 240,
+      "peripherals": ["UART0", "UART1", "SPI2", "I2C0", "USB", "WiFi", "BLE"],
+      "supported_frameworks": ["lvgl", "qt-for-mcus", "ugfx"],
+      "notes": "Dual-core Xtensa LX7 with vector instructions"
+    },
+    {
+      "name": "ESP32-C3",
+      "ram_kb": 400,
+      "flash_kb": 4096,
+      "cpu_speed_mhz": 160,
+      "peripherals": ["UART0", "UART1", "SPI2", "I2C0", "WiFi", "BLE"],
+      "supported_frameworks": ["lvgl", "ugfx"],
+      "notes": "Single-core RISC-V with WiFi and BLE"
+    }
+  ]
+}

@@ -5,6 +5,12 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QHostAddress>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QUuid>
+#include <QCryptographicHash>
 #include <QDebug>
 
 DesignerLocalServer::DesignerLocalServer(DesignerController* controller, QObject* parent)
@@ -12,6 +18,7 @@ DesignerLocalServer::DesignerLocalServer(DesignerController* controller, QObject
     , m_controller(controller)
     , m_tcpServer(new QTcpServer(this))
 {
+    ensureGeneratedAuthToken();
     connect(m_tcpServer, &QTcpServer::newConnection, this, &DesignerLocalServer::onNewConnection);
 }
 
@@ -19,14 +26,79 @@ DesignerLocalServer::~DesignerLocalServer() {
     stop();
 }
 
+QString DesignerLocalServer::tokenFilePath() const {
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (configDir.isEmpty()) {
+        configDir = QDir::homePath() + "/.config/embedded-ui-designer";
+    }
+    return QDir(configDir).filePath("mcp_token");
+}
+
+void DesignerLocalServer::ensureGeneratedAuthToken() {
+    if (!m_authToken.isEmpty()) {
+        return;
+    }
+
+    QString path = tokenFilePath();
+    QFile fileIn(path);
+    if (fileIn.open(QIODevice::ReadOnly)) {
+        QString existing = QString::fromUtf8(fileIn.readAll()).trimmed();
+        fileIn.close();
+        if (!existing.isEmpty()) {
+            m_authToken = existing;
+            return;
+        }
+    }
+
+    // Generate strong 32-byte session token
+    QByteArray rawUuid = QUuid::createUuid().toByteArray() + QUuid::createUuid().toByteArray();
+    m_authToken = QCryptographicHash::hash(rawUuid, QCryptographicHash::Sha256).toHex();
+
+    QDir dir = QFileInfo(path).dir();
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+
+    QFile fileOut(path);
+    if (fileOut.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        fileOut.write(m_authToken.toUtf8());
+        fileOut.close();
+        fileOut.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    }
+}
+
+void DesignerLocalServer::setAuthToken(const QString& token) {
+    m_authToken = token;
+}
+
+QString DesignerLocalServer::authToken() const {
+    return m_authToken;
+}
+
+void DesignerLocalServer::setRequireAuth(bool require) {
+    m_requireAuth = require;
+}
+
+bool DesignerLocalServer::requiresAuth() const {
+    return m_requireAuth;
+}
+
+bool DesignerLocalServer::isClientAuthenticated(QTcpSocket* socket) const {
+    return !m_requireAuth || m_authenticatedClients.contains(socket);
+}
+
 bool DesignerLocalServer::start(quint16 port) {
     if (m_tcpServer->isListening()) {
         m_tcpServer->close();
     }
 
+    ensureGeneratedAuthToken();
+
+    // STRICT SECURITY: Localhost only. Never listen on Any or AnyIPv4.
     bool ok = m_tcpServer->listen(QHostAddress::LocalHost, port);
     if (ok) {
-        qDebug() << "[DesignerLocalServer] Listening for MCP AI commands on 127.0.0.1:" << port;
+        qDebug() << "[DesignerLocalServer] Listening for MCP AI commands on 127.0.0.1:" << port
+                 << "(Token auth enabled)";
     } else {
         qWarning() << "[DesignerLocalServer] Failed to listen on port" << port << ":" << m_tcpServer->errorString();
     }
@@ -42,6 +114,7 @@ void DesignerLocalServer::stop() {
         }
     }
     m_clients.clear();
+    m_authenticatedClients.clear();
     m_buffers.clear();
 
     if (m_tcpServer && m_tcpServer->isListening()) {
@@ -69,7 +142,6 @@ void DesignerLocalServer::onNewConnection() {
         connect(socket, &QTcpSocket::disconnected, this, &DesignerLocalServer::onClientDisconnected);
 
         emit clientConnected(socket->peerAddress().toString());
-        qDebug() << "[DesignerLocalServer] MCP client connected from" << socket->peerAddress().toString();
     }
 }
 
@@ -96,11 +168,89 @@ void DesignerLocalServer::onClientDisconnected() {
     if (!socket) return;
 
     m_clients.removeAll(socket);
+    m_authenticatedClients.remove(socket);
     m_buffers.remove(socket);
 
     emit clientDisconnected(socket->peerAddress().toString());
-    qDebug() << "[DesignerLocalServer] MCP client disconnected";
     socket->deleteLater();
+}
+
+QJsonObject DesignerLocalServer::processJsonRpcRequest(const QJsonObject& req, bool* inOutAuthenticated) {
+    QJsonObject resp;
+    resp["jsonrpc"] = "2.0";
+    QJsonValue reqId = req.value("id");
+    resp["id"] = reqId;
+
+    QString method = req.value("method").toString();
+    QJsonObject params;
+    if (req.value("params").isObject()) {
+        params = req.value("params").toObject();
+    }
+
+    bool isAuthed = inOutAuthenticated ? *inOutAuthenticated : false;
+
+    // Check for inline token or authenticate handshake method
+    QString suppliedToken;
+    if (params.contains("token")) {
+        suppliedToken = params.value("token").toString();
+    } else if (params.contains("auth_token")) {
+        suppliedToken = params.value("auth_token").toString();
+    } else if (req.contains("token")) {
+        suppliedToken = req.value("token").toString();
+    } else if (req.contains("auth_token")) {
+        suppliedToken = req.value("auth_token").toString();
+    }
+
+    if (!suppliedToken.isEmpty() && !m_authToken.isEmpty() && suppliedToken == m_authToken) {
+        isAuthed = true;
+    }
+
+    // Handle explicit handshake authentication method
+    if (method == "authenticate" || method == "auth") {
+        if (!suppliedToken.isEmpty() && suppliedToken == m_authToken) {
+            isAuthed = true;
+            if (inOutAuthenticated) *inOutAuthenticated = true;
+            QJsonObject res;
+            res["authenticated"] = true;
+            res["message"] = "Authentication successful";
+            resp["result"] = res;
+        } else {
+            QJsonObject errObj;
+            errObj["code"] = -32001;
+            errObj["message"] = "Authentication failed: invalid token";
+            resp["error"] = errObj;
+        }
+        return resp;
+    }
+
+    // Enforce authentication gate on all other MCP methods
+    if (m_requireAuth && !isAuthed) {
+        QJsonObject errObj;
+        errObj["code"] = -32001;
+        errObj["message"] = "Unauthorized: MCP client must authenticate with valid session token first";
+        resp["error"] = errObj;
+        return resp;
+    }
+
+    if (inOutAuthenticated) *inOutAuthenticated = isAuthed;
+    emit commandExecuted(method);
+
+    if (m_controller) {
+        QJsonObject result = m_controller->dispatch(method, params);
+        if (result.value("success").toBool(true) || !result.contains("error")) {
+            resp["result"] = result;
+        } else {
+            QJsonObject errObj;
+            errObj["code"] = -32603;
+            errObj["message"] = result.value("error").toString("Execution failed");
+            errObj["data"] = result;
+            resp["error"] = errObj;
+        }
+    } else {
+        resp["result"] = QJsonObject();
+    }
+
+    return resp;
 }
 
 void DesignerLocalServer::processLine(QTcpSocket* socket, const QByteArray& line) {
@@ -125,28 +275,17 @@ void DesignerLocalServer::processLine(QTcpSocket* socket, const QByteArray& line
         return;
     }
 
+    bool isAuthed = m_authenticatedClients.contains(socket);
     QJsonObject req = doc.object();
-    QJsonValue reqId = req.value("id");
-    resp["id"] = reqId;
+    resp = processJsonRpcRequest(req, &isAuthed);
 
-    QString method = req.value("method").toString();
-    QJsonObject params;
-    if (req.value("params").isObject()) {
-        params = req.value("params").toObject();
+    if (isAuthed) {
+        m_authenticatedClients.insert(socket);
     }
 
-    emit commandExecuted(method);
-
-    QJsonObject result = m_controller->dispatch(method, params);
-
-    if (result.value("success").toBool(true) || !result.contains("error")) {
-        resp["result"] = result;
-    } else {
-        QJsonObject errObj;
-        errObj["code"] = -32603;
-        errObj["message"] = result.value("error").toString("Execution failed");
-        errObj["data"] = result;
-        resp["error"] = errObj;
+    QString method = req.value("method").toString();
+    if (method == "authenticate" || method == "auth") {
+        emit authenticationAttempted(socket->peerAddress().toString(), isAuthed);
     }
 
     QByteArray respBytes = QJsonDocument(resp).toJson(QJsonDocument::Compact) + "\n";

@@ -1,6 +1,7 @@
 #include "AISettingsDialog.h"
 #include "ai/AIProviderRegistry.h"
 #include "ai/AIProvider.h"
+#include "theme/Theme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -92,10 +93,10 @@ QWidget* AISettingsDialog::createProviderTab(const QString& providerId) {
     widgets.statusLabel = new QLabel(page);
     if (!p || !p->isConfigured()) {
         widgets.statusLabel->setText("Status: Not configured");
-        widgets.statusLabel->setStyleSheet("font-weight: bold; color: #888888;");
+        widgets.statusLabel->setStyleSheet(QString("font-weight: bold; color: %1;").arg(Theme::TextMuted));
     } else {
         widgets.statusLabel->setText("Status: Configured (Untested)");
-        widgets.statusLabel->setStyleSheet("font-weight: bold; color: #dcdcaa;");
+        widgets.statusLabel->setStyleSheet(QString("font-weight: bold; color: %1;").arg(Theme::Warning));
     }
     layout->addRow(widgets.statusLabel);
 
@@ -177,29 +178,29 @@ void AISettingsDialog::onTestConnection(const QString& providerId) {
     p->configure(key, model, baseUrl);
 
     widgets.testButton->setEnabled(false);
-    updateProviderStatus(providerId, "Testing connection...", "#dcdcaa");
+    updateProviderStatus(providerId, "Testing connection...", Theme::Warning);
 
     p->testConnection([this, providerId](const AI::ConnectionTestResult& result) {
         if (!m_providerWidgets.contains(providerId)) return;
         auto& w = m_providerWidgets[providerId];
         w.testButton->setEnabled(true);
 
-        QString color = "#888888";
+        QString color = Theme::TextMuted;
         switch (result.status) {
             case AI::ConnectionStatus::Connected:
-                color = "#4ec9b0"; // Green
+                color = Theme::Success;
                 break;
             case AI::ConnectionStatus::AuthenticationFailed:
             case AI::ConnectionStatus::InvalidModel:
-                color = "#f44747"; // Red
+                color = Theme::Danger;
                 break;
             case AI::ConnectionStatus::RateLimited:
             case AI::ConnectionStatus::NetworkError:
             case AI::ConnectionStatus::ProviderUnavailable:
-                color = "#ce9178"; // Orange/Yellow
+                color = Theme::Warning;
                 break;
             case AI::ConnectionStatus::NotConfigured:
-                color = "#888888"; // Gray
+                color = Theme::TextMuted;
                 break;
         }
 
@@ -248,7 +249,7 @@ void AISettingsDialog::onClearCredentialsClicked() {
         registry.clearAllCredentials();
         for (auto it = m_providerWidgets.begin(); it != m_providerWidgets.end(); ++it) {
             if (it.value().apiKeyEdit) it.value().apiKeyEdit->clear();
-            updateProviderStatus(it.key(), "Not configured", "#888888");
+            updateProviderStatus(it.key(), "Not configured", Theme::TextMuted);
         }
     }
 }

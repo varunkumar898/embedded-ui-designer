@@ -4,6 +4,10 @@
 #include "ProgressBarComponent.h"
 #include "LabelComponent.h"
 #include "SliderComponent.h"
+#include "SwitchComponent.h"
+#include "CheckboxComponent.h"
+#include "BoardConfigParser.h"
+#include "theme/Theme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,61 +17,41 @@
 #include <QMessageBox>
 #include <QDateTime>
 #include <QFileDialog>
-#include "BoardConfigParser.h"
+#include <QApplication>
 
 PinBindingDialog::PinBindingDialog(CanvasScene* scene, QWidget* parent)
     : QDialog(parent)
     , m_scene(scene)
     , m_bridge(HardwareBridge::instance())
 {
-    setWindowTitle("Hardware Pin Configuration & Live Binding (OpenOCD Path A)");
-    resize(920, 720);
+    setWindowTitle("Hardware Pin Configuration & Universal Connection Manager");
+    resize(1080, 720);
+    setStyleSheet(QString("QDialog { background-color: %1; color: %2; }").arg(Theme::BgBase, Theme::TextPrimary));
 
     setupUi();
+    populatePortFilterCombo();
     refreshTable();
-    updatePotentiometerSection();
+    updateStatusBadge();
+    updateConflictBanner();
 
     connect(&m_bridge, &HardwareBridge::adcValueChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
     connect(&m_bridge, &HardwareBridge::pwmDutyChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
     connect(&m_bridge, &HardwareBridge::digitalStateChanged, this, &PinBindingDialog::onHardwareBridgeUpdate);
+    connect(&m_bridge, &HardwareBridge::connectionStateChanged, this, [this](ConnectionState, const QString&) {
+        updateStatusBadge();
+        refreshTable();
+    });
     connect(&m_bridge, &HardwareBridge::connectionStatusChanged, this, [this](bool, const QString&) {
         updateStatusBadge();
+        refreshTable();
     });
     connect(&m_bridge, &HardwareBridge::probeDiscovered, this, [this](const QString&) {
         updateStatusBadge();
     });
     connect(&m_bridge, &HardwareBridge::probeRemoved, this, [this]() {
         updateStatusBadge();
+        refreshTable();
     });
-}
-
-void PinBindingDialog::updateStatusBadge() {
-    if (!m_statusBadge) return;
-    if (m_bridge.isHardwareConnected()) {
-        QString probe = m_bridge.connectedProbeName();
-        m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(probe.isEmpty() ? "STM32F030R8 via ST-Link" : probe));
-        m_statusBadge->setStyleSheet("color: #4ade80; font-weight: bold; padding: 4px 8px; background: #064e3b; border: 1px solid #059669; border-radius: 4px;");
-        if (m_connectButton) {
-            m_connectButton->setText("Disconnect");
-            m_connectButton->setEnabled(true);
-        }
-    } else if (m_bridge.isProbeDetected()) {
-        QString detectedName = m_bridge.detectedBoardName();
-        if (detectedName.isEmpty()) detectedName = "STM32F030R8 via ST-Link";
-        m_statusBadge->setText(QString("⚡ Board detected: %1").arg(detectedName));
-        m_statusBadge->setStyleSheet("color: #38bdf8; font-weight: bold; padding: 4px 8px; background: #082f49; border: 1px solid #0284c7; border-radius: 4px;");
-        if (m_connectButton) {
-            m_connectButton->setText("Connect");
-            m_connectButton->setEnabled(true);
-        }
-    } else {
-        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
-        m_statusBadge->setStyleSheet("color: #f59e0b; font-weight: bold; padding: 4px 8px; background: #451a03; border: 1px solid #d97706; border-radius: 4px;");
-        if (m_connectButton) {
-            m_connectButton->setText("Connect");
-            m_connectButton->setEnabled(true);
-        }
-    }
 }
 
 void PinBindingDialog::setupUi() {
@@ -76,13 +60,23 @@ void PinBindingDialog::setupUi() {
     mainLayout->setSpacing(12);
 
     // ────────────────────────────────────────────────────────────────────────
-    // Header Bar: Board Selector & Probe Status
+    // 1. Top Toolbar: Board Profile, Import, Connection Actions & Status
     // ────────────────────────────────────────────────────────────────────────
-    auto* headerLayout = new QHBoxLayout();
-    headerLayout->addWidget(new QLabel("Target Board Profile:", this));
+    auto* topToolbar = new QHBoxLayout();
+    topToolbar->setSpacing(10);
+
+    auto* boardLabel = new QLabel("Target Board:", this);
+    boardLabel->setStyleSheet(QString("font-weight: 600; color: %1; font-size: 12px;").arg(Theme::TextSecondary));
+    topToolbar->addWidget(boardLabel);
 
     m_boardCombo = new QComboBox(this);
     m_boardCombo->setObjectName("boardProfileCombo");
+    m_boardCombo->setStyleSheet(QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 500; min-width: 220px; }"
+        "QComboBox:hover { border-color: %5; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2; selection-background-color: %6; selection-color: %7; border: 1px solid %3; }"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
+          Theme::BorderStrong, Theme::AccentSoft, Theme::AccentText));
     for (const auto& b : m_bridge.availableBoards()) {
         m_boardCombo->addItem(QString("%1 (%2)").arg(b.name, b.mcuFamily), b.id);
     }
@@ -90,175 +84,322 @@ void PinBindingDialog::setupUi() {
     if (curIdx >= 0) m_boardCombo->setCurrentIndex(curIdx);
     connect(m_boardCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &PinBindingDialog::onBoardChanged);
-    headerLayout->addWidget(m_boardCombo);
+    topToolbar->addWidget(m_boardCombo);
 
-    QPushButton* importBtn = new QPushButton("Import Config (.ioc/sdkconfig)...", this);
-    importBtn->setObjectName("importBoardConfigBtn");
-    importBtn->setStyleSheet("QPushButton { background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px; padding: 4px 8px; font-weight: bold; } QPushButton:hover { background: #334155; }");
-    connect(importBtn, &QPushButton::clicked, this, &PinBindingDialog::onImportBoardConfigClicked);
-    headerLayout->addWidget(importBtn);
+    m_importBtn = new QPushButton("Import Config...", this);
+    m_importBtn->setObjectName("importBoardConfigBtn");
+    m_importBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:hover { background-color: %5; border-color: %6; }"
+    ).arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
+          Theme::BgOverlay, Theme::Accent));
+    connect(m_importBtn, &QPushButton::clicked, this, &PinBindingDialog::onImportBoardConfigClicked);
+    topToolbar->addWidget(m_importBtn);
 
-    headerLayout->addSpacing(16);
+    m_detectProbeBtn = new QPushButton("Detect Probe", this);
+    m_detectProbeBtn->setObjectName("detectProbeBtn");
+    m_detectProbeBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:hover { background-color: %5; color: %6; }"
+    ).arg(Theme::BgRaised, Theme::TextSecondary, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
+          Theme::BgOverlay, Theme::TextPrimary));
+    connect(m_detectProbeBtn, &QPushButton::clicked, this, &PinBindingDialog::onDetectProbeClicked);
+    topToolbar->addWidget(m_detectProbeBtn);
+
+    m_connectBtn = new QPushButton("Connect", this);
+    m_connectBtn->setObjectName("probeConnectBtn");
+    m_connectBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %1; border-radius: %3px; padding: 6px 14px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:hover { background-color: %4; }"
+        "QPushButton:disabled { background-color: %5; color: %6; border-color: %5; }"
+    ).arg(Theme::Accent, Theme::BgBase, QString::number(Theme::RadiusMd),
+          Theme::AccentHover, Theme::BgRaised, Theme::TextDisabled));
+    connect(m_connectBtn, &QPushButton::clicked, this, &PinBindingDialog::onConnectClicked);
+    topToolbar->addWidget(m_connectBtn);
+
+    m_disconnectBtn = new QPushButton("Disconnect", this);
+    m_disconnectBtn->setObjectName("probeDisconnectBtn");
+    m_disconnectBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:hover { background-color: %5; border-color: %2; }"
+    ).arg(Theme::BgRaised, Theme::Danger, Theme::DangerBg, QString::number(Theme::RadiusMd),
+          Theme::DangerBg));
+    connect(m_disconnectBtn, &QPushButton::clicked, this, &PinBindingDialog::onDisconnectClicked);
+    topToolbar->addWidget(m_disconnectBtn);
+
+    m_simToggleBtn = new QPushButton("Simulation Mode", this);
+    m_simToggleBtn->setObjectName("simulationModeBtn");
+    m_simToggleBtn->setCheckable(true);
+    m_simToggleBtn->setChecked(m_bridge.isSimulationMode());
+    m_simToggleBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:checked { background-color: %5; color: %2; border-color: %6; }"
+        "QPushButton:hover { background-color: %7; }"
+    ).arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
+          Theme::AccentSoft, Theme::Accent, Theme::BgOverlay));
+    connect(m_simToggleBtn, &QPushButton::toggled, this, &PinBindingDialog::onSimulationToggleClicked);
+    topToolbar->addWidget(m_simToggleBtn);
+
+    m_livePollBtn = new QPushButton(m_bridge.isLivePolling() ? "Pause Polling" : "Resume Polling", this);
+    m_livePollBtn->setObjectName("livePollBtn");
+    m_livePollBtn->setCheckable(true);
+    m_livePollBtn->setChecked(m_bridge.isLivePolling());
+    m_livePollBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:checked { background-color: %5; color: %6; border-color: %6; }"
+        "QPushButton:hover { background-color: %7; }"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
+          Theme::SuccessBg, Theme::Success, Theme::BgOverlay));
+    connect(m_livePollBtn, &QPushButton::clicked, this, [this](bool checked) {
+        if (checked) {
+            m_bridge.startLivePolling();
+            m_livePollBtn->setText("Pause Polling");
+        } else {
+            m_bridge.stopLivePolling();
+            m_livePollBtn->setText("Resume Polling");
+        }
+    });
+    topToolbar->addWidget(m_livePollBtn);
+
+    topToolbar->addStretch();
 
     m_statusBadge = new QLabel(this);
     m_statusBadge->setObjectName("probeStatusBadge");
-    headerLayout->addWidget(m_statusBadge);
+    topToolbar->addWidget(m_statusBadge);
 
-    m_connectButton = new QPushButton("Connect", this);
-    m_connectButton->setObjectName("probeConnectBtn");
-    m_connectButton->setStyleSheet("QPushButton { background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px; padding: 4px 10px; font-weight: bold; } QPushButton:hover { background: #334155; }");
-    connect(m_connectButton, &QPushButton::clicked, this, [this]() {
-        if (m_bridge.isHardwareConnected()) {
-            m_bridge.disconnectHardware();
-        } else {
-            m_bridge.connectHardware();
-        }
-        updateStatusBadge();
-    });
-    headerLayout->addWidget(m_connectButton);
-
-    updateStatusBadge();
-    headerLayout->addStretch();
-
-    m_livePollButton = new QPushButton(m_bridge.isLivePolling() ? "Pause Polling" : "Resume Polling", this);
-    m_livePollButton->setCheckable(true);
-    m_livePollButton->setChecked(m_bridge.isLivePolling());
-    connect(m_livePollButton, &QPushButton::clicked, this, [this](bool checked) {
-        if (checked) {
-            m_bridge.startLivePolling();
-            m_livePollButton->setText("Pause Polling");
-        } else {
-            m_bridge.stopLivePolling();
-            m_livePollButton->setText("Resume Polling");
-        }
-    });
-    headerLayout->addWidget(m_livePollButton);
-
-    mainLayout->addLayout(headerLayout);
+    mainLayout->addLayout(topToolbar);
 
     // ────────────────────────────────────────────────────────────────────────
-    // Pin Configuration & Binding Table
+    // 2. Task & Filter Workspace Header: Task Selector, Port Filter, Search
+    // ────────────────────────────────────────────────────────────────────────
+    auto* filterLayout = new QHBoxLayout();
+    filterLayout->setSpacing(12);
+
+    auto* taskBox = new QHBoxLayout();
+    taskBox->setSpacing(0);
+    m_taskButtonGroup = new QButtonGroup(this);
+
+    m_taskABtn = new QPushButton("Task A", this);
+    m_taskABtn->setObjectName("taskABtn");
+    m_taskABtn->setCheckable(true);
+    m_taskABtn->setChecked(true);
+    m_taskABtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-top-left-radius: %4px; border-bottom-left-radius: %4px; padding: 6px 14px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:checked { background-color: %5; color: %6; border-color: %5; }"
+    ).arg(Theme::BgRaised, Theme::TextSecondary, Theme::BorderSubtle, QString::number(Theme::RadiusMd), Theme::Accent, Theme::BgBase));
+    m_taskButtonGroup->addButton(m_taskABtn, 0);
+    taskBox->addWidget(m_taskABtn);
+
+    m_taskBBtn = new QPushButton("Task B", this);
+    m_taskBBtn->setObjectName("taskBBtn");
+    m_taskBBtn->setCheckable(true);
+    m_taskBBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-left: none; border-right: none; padding: 6px 14px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:checked { background-color: %4; color: %5; border-color: %4; }"
+    ).arg(Theme::BgRaised, Theme::TextSecondary, Theme::BorderSubtle, Theme::Accent, Theme::BgBase));
+    m_taskButtonGroup->addButton(m_taskBBtn, 1);
+    taskBox->addWidget(m_taskBBtn);
+
+    m_allTasksBtn = new QPushButton("All Tasks", this);
+    m_allTasksBtn->setObjectName("allTasksBtn");
+    m_allTasksBtn->setCheckable(true);
+    m_allTasksBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-top-right-radius: %4px; border-bottom-right-radius: %4px; padding: 6px 14px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:checked { background-color: %5; color: %6; border-color: %5; }"
+    ).arg(Theme::BgRaised, Theme::TextSecondary, Theme::BorderSubtle, QString::number(Theme::RadiusMd), Theme::Accent, Theme::BgBase));
+    m_taskButtonGroup->addButton(m_allTasksBtn, 2);
+    taskBox->addWidget(m_allTasksBtn);
+
+    connect(m_taskButtonGroup, &QButtonGroup::idClicked, this, &PinBindingDialog::onTaskFilterChanged);
+    filterLayout->addLayout(taskBox);
+
+    filterLayout->addSpacing(8);
+
+    auto* portLabel = new QLabel("Port Filter:", this);
+    portLabel->setStyleSheet(QString("font-weight: 600; color: %1; font-size: 12px;").arg(Theme::TextSecondary));
+    filterLayout->addWidget(portLabel);
+
+    m_portFilterCombo = new QComboBox(this);
+    m_portFilterCombo->setObjectName("portFilterCombo");
+    m_portFilterCombo->setStyleSheet(QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 500; min-width: 130px; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2; selection-background-color: %5; selection-color: %6; }"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusMd), Theme::AccentSoft, Theme::AccentText));
+    connect(m_portFilterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PinBindingDialog::onPortFilterChanged);
+    filterLayout->addWidget(m_portFilterCombo);
+
+    filterLayout->addSpacing(8);
+
+    m_searchEdit = new QLineEdit(this);
+    m_searchEdit->setObjectName("pinSearchEdit");
+    m_searchEdit->setPlaceholderText("Search pin, peripheral, or mode...");
+    m_searchEdit->setStyleSheet(QString(
+        "QLineEdit { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-size: 12px; min-width: 200px; }"
+        "QLineEdit:focus { border-color: %5; }"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusMd), Theme::Accent));
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &PinBindingDialog::onSearchTextChanged);
+    filterLayout->addWidget(m_searchEdit);
+
+    filterLayout->addStretch();
+    mainLayout->addLayout(filterLayout);
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 3. Conflict Banner
+    // ────────────────────────────────────────────────────────────────────────
+    m_conflictBanner = new QLabel(this);
+    m_conflictBanner->setObjectName("conflictBanner");
+    m_conflictBanner->setWordWrap(true);
+    m_conflictBanner->setVisible(false);
+    mainLayout->addWidget(m_conflictBanner);
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 4. Main Pin Configuration Table
     // ────────────────────────────────────────────────────────────────────────
     m_pinTable = new QTableWidget(this);
     m_pinTable->setObjectName("pinTable");
-    m_pinTable->setColumnCount(5);
+    m_pinTable->setColumnCount(7);
     m_pinTable->setHorizontalHeaderLabels({
-        "Pin", "Pin Mode (Task A)", "Peripheral Mapping", "Canvas Component (Task C)", "Live Value"
+        "Pin", "Task A Mode", "Task B Mode", "Peripheral / Function", "Canvas Component", "Live Value", "Status"
     });
     m_pinTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_pinTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_pinTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    m_pinTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_pinTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_pinTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     m_pinTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_pinTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_pinTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
     m_pinTable->verticalHeader()->setVisible(false);
     m_pinTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_pinTable->setAlternatingRowColors(true);
+    m_pinTable->setStyleSheet(QString(
+        "QTableWidget { background-color: %1; alternate-background-color: %2; gridline-color: %3; color: %4; border: 1px solid %5; border-radius: %6px; }"
+        "QHeaderView::section { background-color: %7; color: %8; padding: 8px; font-weight: bold; border: none; border-bottom: 1px solid %5; }"
+        "QTableWidget::item { padding: 4px; }"
+        "QTableWidget::item:selected { background-color: %9; color: %10; }"
+    ).arg(Theme::BgBase, Theme::BgSurface, Theme::BorderSubtle, Theme::TextPrimary, Theme::BorderStrong,
+          QString::number(Theme::RadiusMd), Theme::BgRaised, Theme::TextSecondary, Theme::AccentSoft, Theme::AccentText));
     mainLayout->addWidget(m_pinTable, 1);
 
     // ────────────────────────────────────────────────────────────────────────
-    // Bottom Controls: Split into ADC Potentiometer Simulator & SPI Panel
+    // 5. Bottom Action Bar
     // ────────────────────────────────────────────────────────────────────────
-    auto* bottomSplitLayout = new QHBoxLayout();
-    bottomSplitLayout->setSpacing(12);
+    auto* bottomLayout = new QHBoxLayout();
+    auto* hintLabel = new QLabel("Pin modes and peripheral routing are device-validated in real-time. Incompatible shared task assignments trigger immediate conflict warnings.", this);
+    hintLabel->setStyleSheet(QString("font-size: 11px; color: %1; font-style: italic;").arg(Theme::TextMuted));
+    bottomLayout->addWidget(hintLabel);
+    bottomLayout->addStretch();
 
-    // 1. ADC Binding / Potentiometer Simulator (Task C)
-    m_adcGroup = new QGroupBox("ADC Live Binding & Potentiometer Simulator (Raw Count)", this);
-    m_adcGroup->setObjectName("adcSimulatorGroup");
-    auto* adcLayout = new QVBoxLayout(m_adcGroup);
-
-    auto* adcPinRow = new QHBoxLayout();
-    adcPinRow->addWidget(new QLabel("ADC Pin:", m_adcGroup));
-    m_adcPinSelect = new QComboBox(m_adcGroup);
-    m_adcPinSelect->setObjectName("adcPinSelect");
-    connect(m_adcPinSelect, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PinBindingDialog::updatePotentiometerSection);
-    adcPinRow->addWidget(m_adcPinSelect);
-    adcPinRow->addStretch();
-    adcLayout->addLayout(adcPinRow);
-
-    m_potentiometerSlider = new QSlider(Qt::Horizontal, m_adcGroup);
-    m_potentiometerSlider->setObjectName("potentiometerSlider");
-    m_potentiometerSlider->setRange(0, 4095); // 12-bit
-    m_potentiometerSlider->setValue(2048);
-    connect(m_potentiometerSlider, &QSlider::valueChanged,
-            this, &PinBindingDialog::onPotentiometerSliderChanged);
-    adcLayout->addWidget(m_potentiometerSlider);
-
-    m_adcRawCountLabel = new QLabel("Raw ADC Count: 2048 / 4095 (12-bit raw count, uncalibrated)", m_adcGroup);
-    m_adcRawCountLabel->setObjectName("adcRawCountLabel");
-    m_adcRawCountLabel->setStyleSheet("font-family: monospace; font-size: 12px; color: #38bdf8;");
-    adcLayout->addWidget(m_adcRawCountLabel);
-
-    auto* adcNote = new QLabel("Note: Bound Progress Bar / Numeric Label displays raw ADC count (0 to 2^resolution-1), not calibrated engineering units.", m_adcGroup);
-    adcNote->setStyleSheet("font-size: 11px; color: #94a3b8; font-style: italic;");
-    adcNote->setWordWrap(true);
-    adcLayout->addWidget(adcNote);
-
-    bottomSplitLayout->addWidget(m_adcGroup, 1);
-
-    // 2. SPI Raw Transfer (byte in/out) Panel (Task A & C)
-    m_spiGroup = new QGroupBox("SPI Raw Transfer (byte in/out)", this);
-    m_spiGroup->setObjectName("spiRawPanel");
-    auto* spiLayout = new QVBoxLayout(m_spiGroup);
-
-    auto* spiHeaderRow = new QHBoxLayout();
-    spiHeaderRow->addWidget(new QLabel("SPI Bus:", m_spiGroup));
-    m_spiBusCombo = new QComboBox(m_spiGroup);
-    m_spiBusCombo->setObjectName("spiBusCombo");
-    for (const QString& bus : m_bridge.currentBoard().spiBusses) {
-        m_spiBusCombo->addItem(bus);
-    }
-    spiHeaderRow->addWidget(m_spiBusCombo, 1);
-    spiLayout->addLayout(spiHeaderRow);
-
-    auto* spiTransferRow = new QHBoxLayout();
-    spiTransferRow->addWidget(new QLabel("Byte Out:", m_spiGroup));
-    m_spiByteOutSpin = new QSpinBox(m_spiGroup);
-    m_spiByteOutSpin->setObjectName("spiByteOutSpin");
-    m_spiByteOutSpin->setDisplayIntegerBase(16);
-    m_spiByteOutSpin->setPrefix("0x");
-    m_spiByteOutSpin->setRange(0, 255);
-    m_spiByteOutSpin->setValue(0x55);
-    spiTransferRow->addWidget(m_spiByteOutSpin);
-
-    m_spiTransferButton = new QPushButton("Send / Receive (Manual Trigger)", m_spiGroup);
-    m_spiTransferButton->setObjectName("spiTransferButton");
-    m_spiTransferButton->setStyleSheet("background: #0284c7; color: white; font-weight: 600; padding: 5px 12px; border-radius: 4px;");
-    connect(m_spiTransferButton, &QPushButton::clicked, this, &PinBindingDialog::onSpiTransferClicked);
-    spiTransferRow->addWidget(m_spiTransferButton);
-
-    spiTransferRow->addSpacing(10);
-    spiTransferRow->addWidget(new QLabel("Byte In:", m_spiGroup));
-    m_spiByteInLabel = new QLabel("0x00 (0)", m_spiGroup);
-    m_spiByteInLabel->setObjectName("spiByteInLabel");
-    m_spiByteInLabel->setStyleSheet("font-family: monospace; font-weight: bold; color: #4ade80; background: #1e293b; padding: 4px 8px; border-radius: 4px;");
-    spiTransferRow->addWidget(m_spiByteInLabel);
-    spiTransferRow->addStretch();
-    spiLayout->addLayout(spiTransferRow);
-
-    m_spiLogEdit = new QTextEdit(m_spiGroup);
-    m_spiLogEdit->setObjectName("spiLogEdit");
-    m_spiLogEdit->setReadOnly(true);
-    m_spiLogEdit->setMaximumHeight(70);
-    m_spiLogEdit->setStyleSheet("font-family: monospace; font-size: 11px; background: #0f172a; color: #cbd5e1;");
-    m_spiLogEdit->append("SPI Raw Transfer ready (manual byte in/out, not sensor-aware).");
-    spiLayout->addWidget(m_spiLogEdit);
-
-    bottomSplitLayout->addWidget(m_spiGroup, 1);
-    mainLayout->addLayout(bottomSplitLayout);
-
-    // Close button
-    auto* bottomBtnLayout = new QHBoxLayout();
-    bottomBtnLayout->addStretch();
     auto* closeBtn = new QPushButton("Close", this);
+    closeBtn->setStyleSheet(QString("QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 16px; font-weight: 600; } QPushButton:hover { background-color: %5; border-color: %6; }")
+        .arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusMd), Theme::BgOverlay, Theme::Accent));
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
-    bottomBtnLayout->addWidget(closeBtn);
-    mainLayout->addLayout(bottomBtnLayout);
+    bottomLayout->addWidget(closeBtn);
+    mainLayout->addLayout(bottomLayout);
+}
+
+void PinBindingDialog::populatePortFilterCombo() {
+    m_portFilterCombo->blockSignals(true);
+    m_portFilterCombo->clear();
+    m_portFilterCombo->addItem("All Ports");
+
+    QStringList ports = m_bridge.portGroupsForCurrentBoard();
+    std::sort(ports.begin(), ports.end());
+    for (const QString& port : ports) {
+        m_portFilterCombo->addItem(port);
+    }
+    m_portFilterCombo->setCurrentIndex(0);
+    m_selectedPort = "All Ports";
+    m_portFilterCombo->blockSignals(false);
+}
+
+void PinBindingDialog::updateStatusBadge() {
+    if (!m_statusBadge) return;
+
+    ConnectionState state = m_bridge.connectionState();
+    m_connectBtn->setText(m_bridge.connectionButtonLabel());
+
+    if (state == ConnectionState::Connected) {
+        QString probe = m_bridge.connectedProbeName();
+        if (probe.isEmpty()) probe = m_bridge.currentBoard().name;
+        m_statusBadge->setText(QString("● OpenOCD: CONNECTED (%1)").arg(probe));
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Success, Theme::SuccessBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(false);
+        m_disconnectBtn->setEnabled(true);
+    } else if (state == ConnectionState::SimulationMode || m_bridge.isSimulationMode()) {
+        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Info, Theme::InfoBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(true);
+        m_disconnectBtn->setEnabled(false);
+    } else if (state == ConnectionState::Connecting) {
+        m_statusBadge->setText("⏳ Connecting to target...");
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Warning, Theme::WarningBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(false);
+        m_disconnectBtn->setEnabled(true);
+    } else if (state == ConnectionState::ConnectionFailed) {
+        m_statusBadge->setText(QString("⚠ Failed: %1").arg(m_bridge.lastConnectionError().isEmpty() ? "Connection failed" : m_bridge.lastConnectionError()));
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Danger, Theme::DangerBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(true);
+        m_disconnectBtn->setEnabled(false);
+    } else if (state == ConnectionState::DeviceRemoved) {
+        m_statusBadge->setText("⚠ Device Removed / Unplugged");
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Warning, Theme::WarningBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(true);
+        m_disconnectBtn->setEnabled(false);
+    } else if (m_bridge.isProbeDetected()) {
+        QString detectedName = m_bridge.detectedBoardName();
+        if (detectedName.isEmpty()) detectedName = "ST-Link Debug Probe";
+        m_statusBadge->setText(QString("⚡ Board detected: %1").arg(detectedName));
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Info, Theme::InfoBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(true);
+        m_disconnectBtn->setEnabled(false);
+    } else {
+        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+        m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Warning, Theme::WarningBg, QString::number(Theme::RadiusMd)));
+        m_connectBtn->setEnabled(true);
+        m_disconnectBtn->setEnabled(false);
+    }
+}
+
+void PinBindingDialog::updateConflictBanner() {
+    QList<PinConflict> conflicts = m_bridge.allConflicts();
+    if (conflicts.isEmpty()) {
+        m_conflictBanner->setVisible(false);
+        return;
+    }
+
+    QStringList msgList;
+    for (const auto& c : conflicts) {
+        msgList.append(QString("• <b>%1 (%2)</b>: %3").arg(c.pin, c.conflictingTask, c.reason));
+    }
+
+    m_conflictBanner->setText(QString("<b>⚠ Hardware Pin Assignment Conflicts (%1):</b><br/>%2")
+        .arg(conflicts.size()).arg(msgList.join("<br/>")));
+    m_conflictBanner->setStyleSheet(QString(
+        "background-color: %1; color: %2; border: 1px solid %2; border-radius: %3px; padding: 8px 12px; font-size: 12px;"
+    ).arg(Theme::DangerBg, Theme::Danger, QString::number(Theme::RadiusMd)));
+    m_conflictBanner->setVisible(true);
 }
 
 void PinBindingDialog::refreshTable() {
-    const auto pins = m_bridge.availablePins();
-    m_pinTable->setRowCount(pins.size());
+    const QStringList allPins = m_bridge.availablePinsForPort(m_selectedPort);
+    QStringList filteredPins;
+
+    for (const QString& pin : allPins) {
+        const PinProfile prof = m_bridge.pinProfile(pin);
+        if (!m_searchQuery.isEmpty()) {
+            bool matches = pin.contains(m_searchQuery, Qt::CaseInsensitive) ||
+                           prof.description.contains(m_searchQuery, Qt::CaseInsensitive) ||
+                           prof.supportedPeripherals.join(" ").contains(m_searchQuery, Qt::CaseInsensitive) ||
+                           prof.taskAPeripheral.contains(m_searchQuery, Qt::CaseInsensitive) ||
+                           prof.taskBPeripheral.contains(m_searchQuery, Qt::CaseInsensitive);
+            if (!matches) continue;
+        }
+        filteredPins.append(pin);
+    }
+
+    std::sort(filteredPins.begin(), filteredPins.end());
+    m_pinTable->setRowCount(filteredPins.size());
 
     // Gather candidate canvas components
     QList<UIComponent*> candidateComps;
@@ -266,181 +407,297 @@ void PinBindingDialog::refreshTable() {
         candidateComps = m_scene->uiComponents();
     }
 
-    m_adcPinSelect->blockSignals(true);
-    m_adcPinSelect->clear();
+    const QList<PinMode> generalModes = {
+        PinMode::None,
+        PinMode::DigitalIn,
+        PinMode::DigitalOut,
+        PinMode::InputPullUp,
+        PinMode::InputPullDown,
+        PinMode::OpenDrainOut,
+        PinMode::AnalogIn,
+        PinMode::PwmOutput,
+        PinMode::AlternateFunction,
+        PinMode::InterruptInput,
+        PinMode::SpiRawTransfer,
+        PinMode::I2cBus,
+        PinMode::UartTxRx,
+        PinMode::CanBus
+    };
 
-    for (int r = 0; r < pins.size(); ++r) {
-        const QString pinName = pins.at(r);
+    for (int r = 0; r < filteredPins.size(); ++r) {
+        const QString pinName = filteredPins.at(r);
         const PinProfile prof = m_bridge.pinProfile(pinName);
+        const PinConflict conflict = m_bridge.checkPinConflict(pinName);
 
         // Column 0: Pin Name
         auto* pinItem = new QTableWidgetItem(pinName);
         pinItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
         pinItem->setFont(QFont("Monospace", 10, QFont::Bold));
+
+        QString tip = QString("Pin: %1\nPort Group: %2\nSupported Modes: %3")
+            .arg(pinName, prof.portGroup.isEmpty() ? "Default" : prof.portGroup, QString::number(prof.supportedModes.size()));
+        if (prof.isReserved) tip += QString("\nRESERVED: %1").arg(prof.reservedReason);
+        if (!prof.supportedPeripherals.isEmpty()) tip += QString("\nPeripherals: %1").arg(prof.supportedPeripherals.join(", "));
+        pinItem->setToolTip(tip);
+
+        if (conflict.hasConflict) {
+            pinItem->setForeground(QBrush(Theme::cDanger()));
+        } else if (prof.isReserved) {
+            pinItem->setForeground(QBrush(Theme::cWarning()));
+        } else {
+            pinItem->setForeground(QBrush(Theme::cInfo()));
+        }
         m_pinTable->setItem(r, 0, pinItem);
 
-        // Column 1: Mode Combobox
-        auto* modeCombo = new QComboBox(m_pinTable);
-        const QList<PinMode> allModes = {
-            PinMode::None,
-            PinMode::DigitalIn,
-            PinMode::DigitalOut,
-            PinMode::PwmOutput,
-            PinMode::AnalogIn,
-            PinMode::SpiRawTransfer
-        };
+        // Helper lambda to configure mode combo
+        auto createModeCombo = [this, &generalModes, &prof, &pinName](PinMode currentMode, bool isEnabledContext) -> QComboBox* {
+            auto* combo = new QComboBox(m_pinTable);
+            combo->setStyleSheet(QString(
+                "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 2px 6px; font-size: 11px; }"
+                "QComboBox:disabled { background-color: %5; color: %6; border-color: %3; }"
+            ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusSm),
+                  Theme::BgBase, Theme::TextDisabled));
+            combo->setEnabled(isEnabledContext);
 
-        for (PinMode m : allModes) {
-            const bool available = m_bridge.isModeAvailable(pinName, m);
-            QString label = pinModeToString(m);
-            if (!available && m != PinMode::None) {
-                // Honest caveat: unavailable on boards without this data, not silently broken
-                label += " [Unavailable]";
-            }
-            modeCombo->addItem(label, static_cast<int>(m));
-            if (!available && m != PinMode::None) {
-                // Disable item in combobox model
-                auto* model = qobject_cast<QStandardItemModel*>(modeCombo->model());
-                if (model) {
-                    auto* item = model->item(modeCombo->count() - 1);
-                    if (item) item->setEnabled(false);
+            for (PinMode m : generalModes) {
+                const bool available = prof.supportedModes.contains(m) || (m == PinMode::None);
+                QString label = pinModeToString(m);
+                if (!available) {
+                    label += " [Unavailable]";
+                }
+                combo->addItem(label, static_cast<int>(m));
+                if (!available) {
+                    auto* model = qobject_cast<QStandardItemModel*>(combo->model());
+                    if (model) {
+                        auto* item = model->item(combo->count() - 1);
+                        if (item) item->setEnabled(false);
+                    }
                 }
             }
+
+            const int modeIdx = combo->findData(static_cast<int>(currentMode));
+            if (modeIdx >= 0) combo->setCurrentIndex(modeIdx);
+            return combo;
+        };
+
+        // Column 1: Task A Mode
+        bool enableTaskA = (m_selectedTask == "Task A" || m_selectedTask == "All Tasks");
+        auto* modeACombo = createModeCombo(prof.taskAMode, enableTaskA);
+        connect(modeACombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, [this, r](int index) { onTaskAModeChanged(r, index); });
+        m_pinTable->setCellWidget(r, 1, modeACombo);
+
+        // Column 2: Task B Mode
+        bool enableTaskB = (m_selectedTask == "Task B" || m_selectedTask == "All Tasks");
+        auto* modeBCombo = createModeCombo(prof.taskBMode, enableTaskB);
+        connect(modeBCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, [this, r](int index) { onTaskBModeChanged(r, index); });
+        m_pinTable->setCellWidget(r, 2, modeBCombo);
+
+        // Column 3: Peripheral / Function
+        auto* periphCombo = new QComboBox(m_pinTable);
+        periphCombo->setStyleSheet(QString(
+            "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 2px 6px; font-size: 11px; }"
+        ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusSm)));
+        periphCombo->addItem("(None / GPIO)", "GPIO");
+        for (const QString& periph : prof.supportedPeripherals) {
+            periphCombo->addItem(periph, periph);
         }
 
-        // Set active mode
-        const int modeIdx = modeCombo->findData(static_cast<int>(prof.activeMode));
-        if (modeIdx >= 0) modeCombo->setCurrentIndex(modeIdx);
-        connect(modeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, [this, r](int index) { onPinModeChanged(r, index); });
-        m_pinTable->setCellWidget(r, 1, modeCombo);
+        QString activePeriph = (m_selectedTask == "Task B") ? prof.taskBPeripheral : prof.taskAPeripheral;
+        if (activePeriph.isEmpty()) activePeriph = "GPIO";
+        int pIdx = periphCombo->findData(activePeriph);
+        if (pIdx >= 0) periphCombo->setCurrentIndex(pIdx);
+        connect(periphCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, [this, r](int index) { onPeripheralChanged(r, index); });
+        m_pinTable->setCellWidget(r, 3, periphCombo);
 
-        // Column 2: Peripheral Mapping
-        QString mapDesc;
-        if (prof.supportedModes.size() == 1 && prof.supportedModes.first() == PinMode::None) {
-            mapDesc = "Unused / System / Unknown (Gated)";
-        } else {
-            QStringList parts;
-            if (prof.supportedModes.contains(PinMode::DigitalIn) || prof.supportedModes.contains(PinMode::DigitalOut)) {
-                parts.append("GPIO");
-            }
-            if (prof.adc.available) {
-                parts.append(QString("%1_CH%2 (%3-bit)").arg(prof.adc.peripheral).arg(prof.adc.channel).arg(prof.adc.resolutionBits));
-                m_adcPinSelect->addItem(QString("%1 (%2_CH%3)").arg(pinName, prof.adc.peripheral).arg(prof.adc.channel), pinName);
-            }
-            if (prof.pwm.available) {
-                parts.append(QString("%1_CH%2 (AF%3)").arg(prof.pwm.timer).arg(prof.pwm.channel).arg(prof.pwm.alternateFunction));
-            }
-            if (prof.spi.available) {
-                parts.append(QString("%1 (AF%2)").arg(prof.spi.peripheral).arg(prof.spi.alternateFunction));
-            }
-            mapDesc = parts.isEmpty() ? "Unassigned" : parts.join(" | ");
-        }
-        auto* mapItem = new QTableWidgetItem(mapDesc);
-        mapItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-        m_pinTable->setItem(r, 2, mapItem);
-
-        // Column 3: Canvas Component Binding
+        // Column 4: Canvas Component Binding
         auto* compCombo = new QComboBox(m_pinTable);
+        compCombo->setStyleSheet(QString(
+            "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 2px 6px; font-size: 11px; }"
+        ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusSm)));
         compCombo->addItem("(None)", "");
-        UIComponent* boundComp = m_bridge.componentBoundToPin(pinName);
+        QString boundCompId = (m_selectedTask == "Task B") ? prof.taskBComponentId : prof.taskAComponentId;
 
         for (UIComponent* comp : candidateComps) {
             if (!comp) continue;
             const QString compText = QString("%1 (%2)").arg(comp->componentId(), comp->componentType());
             compCombo->addItem(compText, comp->componentId());
-            if (boundComp && boundComp->componentId() == comp->componentId()) {
+            if (!boundCompId.isEmpty() && comp->componentId() == boundCompId) {
                 compCombo->setCurrentIndex(compCombo->count() - 1);
             }
         }
         connect(compCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this, [this, r](int index) { onComponentBindingChanged(r, index); });
-        m_pinTable->setCellWidget(r, 3, compCombo);
+        m_pinTable->setCellWidget(r, 4, compCombo);
 
-        // Column 4: Live Value
-        QString valStr = "-";
-        if (prof.activeMode == PinMode::AnalogIn) {
+        // Column 5: Live Value
+        updateRowLiveValue(r, pinName, prof);
+
+        // Column 6: Status / Conflict Badge
+        QString statusText = "✓ Ready";
+        QColor statusColor = Theme::cSuccess();
+
+        if (conflict.hasConflict) {
+            statusText = "✗ Conflict";
+            statusColor = Theme::cDanger();
+        } else if (prof.isReserved) {
+            statusText = "⚠ Reserved";
+            statusColor = Theme::cWarning();
+        } else if (prof.taskAMode != PinMode::None || prof.taskBMode != PinMode::None) {
+            statusText = "● Active";
+            statusColor = Theme::cInfo();
+        }
+
+        auto* statusItem = new QTableWidgetItem(statusText);
+        statusItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        statusItem->setTextAlignment(Qt::AlignCenter);
+        statusItem->setForeground(QBrush(statusColor));
+        statusItem->setFont(QFont("sans-serif", 9, QFont::Bold));
+        if (conflict.hasConflict) statusItem->setToolTip(conflict.reason);
+        m_pinTable->setItem(r, 6, statusItem);
+    }
+}
+
+void PinBindingDialog::updateRowLiveValue(int row, const QString& pinName, const PinProfile& prof) {
+    QString valStr = "-";
+    PinMode activeMode = (m_selectedTask == "Task B") ? prof.taskBMode : prof.taskAMode;
+    if (activeMode == PinMode::None) activeMode = prof.activeMode;
+
+    bool isConnectedOrSim = m_bridge.isHardwareConnected() || m_bridge.isSimulationMode();
+
+    if (isConnectedOrSim && activeMode != PinMode::None) {
+        if (activeMode == PinMode::AnalogIn) {
             quint32 raw = 0;
             m_bridge.pollAdc(pinName, &raw);
-            valStr = QString("Raw: %1 / %2").arg(raw).arg((1u << prof.adc.resolutionBits) - 1);
-        } else if (prof.activeMode == PinMode::PwmOutput) {
-            valStr = "Duty: 50%";
-        } else if (prof.activeMode == PinMode::SpiRawTransfer) {
-            valStr = "Ready (Manual)";
-        } else if (prof.activeMode == PinMode::DigitalOut || prof.activeMode == PinMode::DigitalIn) {
+            int bits = prof.adc.resolutionBits > 0 ? prof.adc.resolutionBits : 12;
+            valStr = QString("Raw: %1 / %2").arg(raw).arg((1u << bits) - 1);
+        } else if (activeMode == PinMode::PwmOutput) {
+            valStr = "PWM: 50.0%";
+        } else if (activeMode == PinMode::SpiRawTransfer) {
+            valStr = "SPI: Ready";
+        } else if (activeMode == PinMode::DigitalOut || activeMode == PinMode::DigitalIn) {
             bool high = false;
             m_bridge.readDigitalIn(pinName, &high);
             valStr = high ? "HIGH (1)" : "LOW (0)";
+        } else {
+            valStr = "Active";
         }
-        auto* valItem = new QTableWidgetItem(valStr);
-        valItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-        valItem->setTextAlignment(Qt::AlignCenter);
-        m_pinTable->setItem(r, 4, valItem);
+    } else if (!isConnectedOrSim) {
+        valStr = "Disconnected";
     }
 
-    m_adcPinSelect->blockSignals(false);
+    auto* valItem = new QTableWidgetItem(valStr);
+    valItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    valItem->setTextAlignment(Qt::AlignCenter);
+    valItem->setFont(QFont("Monospace", 9));
+    valItem->setForeground(QBrush(isConnectedOrSim ? Theme::cTextPrimary() : Theme::cTextMuted()));
+    m_pinTable->setItem(row, 5, valItem);
 }
 
 void PinBindingDialog::onBoardChanged(int index) {
     const QString boardId = m_boardCombo->itemData(index).toString();
     m_bridge.setBoard(boardId);
-
-    // Refresh SPI bus combo
-    m_spiBusCombo->clear();
-    for (const QString& bus : m_bridge.currentBoard().spiBusses) {
-        m_spiBusCombo->addItem(bus);
-    }
-
+    populatePortFilterCombo();
     refreshTable();
-    updatePotentiometerSection();
+    updateStatusBadge();
+    updateConflictBanner();
 }
 
-void PinBindingDialog::onPinModeChanged(int row, int index) {
+void PinBindingDialog::onTaskFilterChanged(int id) {
+    if (id == 0) m_selectedTask = "Task A";
+    else if (id == 1) m_selectedTask = "Task B";
+    else m_selectedTask = "All Tasks";
+
+    m_bridge.setActiveTask(m_selectedTask);
+    refreshTable();
+}
+
+void PinBindingDialog::onPortFilterChanged(int index) {
+    m_selectedPort = m_portFilterCombo->itemText(index);
+    refreshTable();
+}
+
+void PinBindingDialog::onSearchTextChanged(const QString& text) {
+    m_searchQuery = text.trimmed();
+    refreshTable();
+}
+
+void PinBindingDialog::onTaskAModeChanged(int row, int index) {
     if (row < 0 || row >= m_pinTable->rowCount()) return;
     const QString pinName = m_pinTable->item(row, 0)->text();
     auto* combo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 1));
     if (!combo) return;
 
     const PinMode mode = static_cast<PinMode>(combo->itemData(index).toInt());
-    if (!m_bridge.setPinMode(pinName, mode)) {
-        // Revert to current mode
-        const PinMode cur = m_bridge.activePinMode(pinName);
-        const int curIdx = combo->findData(static_cast<int>(cur));
+    if (!m_bridge.setTaskPinMode(pinName, "Task A", mode)) {
+        const PinMode cur = m_bridge.taskPinMode(pinName, "Task A");
         combo->blockSignals(true);
-        combo->setCurrentIndex(curIdx);
+        combo->setCurrentIndex(combo->findData(static_cast<int>(cur)));
         combo->blockSignals(false);
         QMessageBox::warning(this, "Mode Unavailable",
-            QString("Mode '%1' is not available on pin %2 for the selected board profile.")
-                .arg(pinModeToString(mode), pinName));
+            QString("Mode '%1' is not available on pin %2 for the selected board.").arg(pinModeToString(mode), pinName));
     }
 
-    // Refresh row live value
-    onHardwareBridgeUpdate();
+    updateConflictBanner();
+    refreshTable();
+}
+
+void PinBindingDialog::onTaskBModeChanged(int row, int index) {
+    if (row < 0 || row >= m_pinTable->rowCount()) return;
+    const QString pinName = m_pinTable->item(row, 0)->text();
+    auto* combo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 2));
+    if (!combo) return;
+
+    const PinMode mode = static_cast<PinMode>(combo->itemData(index).toInt());
+    if (!m_bridge.setTaskPinMode(pinName, "Task B", mode)) {
+        const PinMode cur = m_bridge.taskPinMode(pinName, "Task B");
+        combo->blockSignals(true);
+        combo->setCurrentIndex(combo->findData(static_cast<int>(cur)));
+        combo->blockSignals(false);
+        QMessageBox::warning(this, "Mode Unavailable",
+            QString("Mode '%1' is not available on pin %2 for the selected board.").arg(pinModeToString(mode), pinName));
+    }
+
+    updateConflictBanner();
+    refreshTable();
+}
+
+void PinBindingDialog::onPeripheralChanged(int row, int index) {
+    if (row < 0 || row >= m_pinTable->rowCount()) return;
+    const QString pinName = m_pinTable->item(row, 0)->text();
+    auto* combo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 3));
+    if (!combo) return;
+
+    const QString periph = combo->itemData(index).toString();
+    QString task = (m_selectedTask == "Task B") ? "Task B" : "Task A";
+    m_bridge.setTaskPeripheral(pinName, task, periph);
+
+    updateConflictBanner();
 }
 
 void PinBindingDialog::onComponentBindingChanged(int row, int index) {
     if (row < 0 || row >= m_pinTable->rowCount()) return;
     const QString pinName = m_pinTable->item(row, 0)->text();
-    auto* compCombo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 3));
+    auto* compCombo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 4));
     if (!compCombo) return;
 
     const QString compId = compCombo->itemData(index).toString();
+    QString task = (m_selectedTask == "Task B") ? "Task B" : "Task A";
+
     if (compId.isEmpty()) {
+        m_bridge.setTaskComponentBinding(pinName, task, "");
         m_bridge.unbindPin(pinName);
     } else if (m_scene) {
         for (UIComponent* comp : m_scene->uiComponents()) {
             if (comp && comp->componentId() == compId) {
-                PinMode mode = m_bridge.activePinMode(pinName);
+                PinMode mode = m_bridge.taskPinMode(pinName, task);
                 if (mode == PinMode::None) {
-                    // Default to AnalogIn if ADC is available, else PWM, else Digital
                     if (m_bridge.isModeAvailable(pinName, PinMode::AnalogIn)) mode = PinMode::AnalogIn;
                     else if (m_bridge.isModeAvailable(pinName, PinMode::PwmOutput)) mode = PinMode::PwmOutput;
                     else mode = PinMode::DigitalOut;
-                    m_bridge.setPinMode(pinName, mode);
-                    auto* modeCombo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 1));
-                    if (modeCombo) {
-                        modeCombo->setCurrentIndex(modeCombo->findData(static_cast<int>(mode)));
-                    }
+                    m_bridge.setTaskPinMode(pinName, task, mode);
                 }
                 m_bridge.bindComponent(comp, pinName, mode);
                 break;
@@ -448,81 +705,50 @@ void PinBindingDialog::onComponentBindingChanged(int row, int index) {
         }
     }
 
-    onHardwareBridgeUpdate();
+    refreshTable();
 }
 
-void PinBindingDialog::updatePotentiometerSection() {
-    const QString pinName = m_adcPinSelect->currentData().toString();
-    if (pinName.isEmpty()) {
-        m_potentiometerSlider->setEnabled(false);
-        m_adcRawCountLabel->setText("No ADC pin selected");
-        return;
+void PinBindingDialog::onConnectClicked() {
+    bool ok = m_bridge.connectHardware();
+    if (!ok) {
+        QMessageBox::critical(this, "Hardware Connection Failed",
+            QString("Failed to connect to target:\n%1").arg(m_bridge.lastConnectionError()));
     }
-
-    m_potentiometerSlider->setEnabled(true);
-    const PinProfile prof = m_bridge.pinProfile(pinName);
-    const int maxVal = (1 << prof.adc.resolutionBits) - 1;
-    m_potentiometerSlider->setMaximum(maxVal);
-
-    quint32 currentVal = m_bridge.simulatedAdcCount(pinName);
-    if (currentVal == 0) currentVal = maxVal / 2;
-    m_potentiometerSlider->setValue(currentVal);
-
-    m_adcRawCountLabel->setText(QString("Raw ADC Count: %1 / %2 (%3-bit raw count, uncalibrated)")
-        .arg(currentVal).arg(maxVal).arg(prof.adc.resolutionBits));
+    updateStatusBadge();
+    refreshTable();
 }
 
-void PinBindingDialog::onPotentiometerSliderChanged(int value) {
-    const QString pinName = m_adcPinSelect->currentData().toString();
-    if (pinName.isEmpty()) return;
-
-    const PinProfile prof = m_bridge.pinProfile(pinName);
-    const int maxVal = (1 << prof.adc.resolutionBits) - 1;
-
-    m_bridge.setSimulatedAdcCount(pinName, static_cast<quint32>(value));
-    m_adcRawCountLabel->setText(QString("Raw ADC Count: %1 / %2 (%3-bit raw count, uncalibrated)")
-        .arg(value).arg(maxVal).arg(prof.adc.resolutionBits));
-
-    onHardwareBridgeUpdate();
+void PinBindingDialog::onDisconnectClicked() {
+    m_bridge.disconnectHardware();
+    updateStatusBadge();
+    refreshTable();
 }
 
-void PinBindingDialog::onSpiTransferClicked() {
-    const QString bus = m_spiBusCombo->currentText();
-    const quint8 byteOut = static_cast<quint8>(m_spiByteOutSpin->value());
-    quint8 byteIn = 0;
-    QString logMsg;
-
-    bool ok = m_bridge.spiRawTransfer(bus, byteOut, &byteIn, &logMsg);
-    if (ok) {
-        m_spiByteInLabel->setText(QString("0x%1 (%2)")
-            .arg(QString::number(byteIn, 16).toUpper().rightJustified(2, '0'))
-            .arg(byteIn));
-        m_spiLogEdit->append(QString("[%1] %2")
-            .arg(QDateTime::currentDateTime().toString("hh:mm:ss.zzz"), logMsg));
+void PinBindingDialog::onDetectProbeClicked() {
+    bool found = m_bridge.detectProbe();
+    updateStatusBadge();
+    if (found) {
+        QMessageBox::information(this, "Probe Detected",
+            QString("Debug Probe detected: %1").arg(m_bridge.detectedBoardName()));
+    } else {
+        QMessageBox::warning(this, "No Probe Detected",
+            "No compatible USB debug probe / hardware interface was found.");
     }
+}
+
+void PinBindingDialog::onSimulationToggleClicked(bool checked) {
+    m_bridge.setSimulationMode(checked);
+    updateStatusBadge();
+    refreshTable();
 }
 
 void PinBindingDialog::onHardwareBridgeUpdate() {
     for (int r = 0; r < m_pinTable->rowCount(); ++r) {
-        const QString pinName = m_pinTable->item(r, 0)->text();
+        auto* pinItem = m_pinTable->item(r, 0);
+        if (!pinItem) continue;
+        const QString pinName = pinItem->text();
         const PinProfile prof = m_bridge.pinProfile(pinName);
-        auto* valItem = m_pinTable->item(r, 4);
-        if (!valItem) continue;
-
-        if (prof.activeMode == PinMode::AnalogIn) {
-            quint32 raw = m_bridge.simulatedAdcCount(pinName);
-            valItem->setText(QString("Raw: %1 / %2").arg(raw).arg((1u << prof.adc.resolutionBits) - 1));
-        } else if (prof.activeMode == PinMode::PwmOutput) {
-            valItem->setText("Duty: Active");
-        } else if (prof.activeMode == PinMode::SpiRawTransfer) {
-            valItem->setText("Ready (Manual)");
-        } else if (prof.activeMode == PinMode::DigitalOut || prof.activeMode == PinMode::DigitalIn) {
-            bool high = false;
-            m_bridge.readDigitalIn(pinName, &high);
-            valItem->setText(high ? "HIGH (1)" : "LOW (0)");
-        } else {
-            valItem->setText("-");
-        }
+        updateRowLiveValue(r, pinName, prof);
     }
 }
 
@@ -541,7 +767,6 @@ void PinBindingDialog::onImportBoardConfigClicked() {
     m_bridge.addBoard(bp);
     m_bridge.setBoard(bp.id);
 
-    // Refresh m_boardCombo
     m_boardCombo->blockSignals(true);
     m_boardCombo->clear();
     for (const auto& b : m_bridge.availableBoards()) {
@@ -551,5 +776,7 @@ void PinBindingDialog::onImportBoardConfigClicked() {
     if (curIdx >= 0) m_boardCombo->setCurrentIndex(curIdx);
     m_boardCombo->blockSignals(false);
 
+    populatePortFilterCombo();
     refreshTable();
+    updateConflictBanner();
 }

@@ -3,6 +3,8 @@
 #include "CodeGenerator.h"
 #include "CanvasScene.h"
 #include "Project.h"
+#include "GeneratorIR.h"
+#include "GeneratorContext.h"
 
 class LvglGenerator : public CodeGenerator {
 public:
@@ -11,6 +13,7 @@ public:
     virtual ~LvglGenerator() override;
 
     bool generate(const QString& outputDirectory) override;
+    CodeGen::IRProject irProject() const;
 
     QString generateCMakeLists();
     QString generateLvConf();

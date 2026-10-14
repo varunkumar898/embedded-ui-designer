@@ -66,7 +66,11 @@ void ProgressBarComponent::paintComponent(QPainter* painter) {
     painter->setClipPath(trackPath);
     painter->setPen(Qt::NoPen);
     QColor effectiveBar = effectiveValueColor();
-    painter->setBrush(QBrush(effectiveBar));
+    if (hasGradientFill()) {
+        painter->setBrush(gradientFill().toQBrush(trackRect));
+    } else {
+        painter->setBrush(QBrush(effectiveBar));
+    }
 
     double norm = normalizedValue();
     if (m_orientation == Qt::Horizontal) {

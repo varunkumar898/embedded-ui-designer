@@ -27,6 +27,7 @@
 #include "Project.h"
 #include "ColorStyle.h"
 #include "HardwareBridge.h"
+#include "theme/Theme.h"
 #include <QUndoStack>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -42,7 +43,7 @@ static QIcon createAlignmentIcon(Qt::AlignmentFlag align) {
     QPainter p(&pixmap);
     p.setRenderHint(QPainter::Antialiasing);
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(220, 225, 235));
+    p.setBrush(QColor(Theme::TextPrimary));
 
     int y1 = 4, y2 = 10, y3 = 16;
     int h = 2; // line thickness
@@ -88,14 +89,14 @@ void PropertiesPanel::setupUi() {
 
     QLabel* emptyTitle = new QLabel("No Component Selected", m_emptyWidget);
     emptyTitle->setAlignment(Qt::AlignCenter);
-    emptyTitle->setStyleSheet("color: #d2d9e4; font-size: 13.5px; font-weight: bold; padding-bottom: 2px;");
+    emptyTitle->setStyleSheet(QString("color: %1; font-size: 13px; font-weight: 600; padding-bottom: 2px;").arg(Theme::TextPrimary));
     emptyLayout->addWidget(emptyTitle);
 
     emptyLayout->addSpacing(4);
 
     QLabel* emptyLabel = new QLabel("Click an element on the canvas to inspect and\nedit its properties.", m_emptyWidget);
     emptyLabel->setAlignment(Qt::AlignCenter);
-    emptyLabel->setStyleSheet("color: #5c6676; font-size: 11.5px; line-height: 1.4;");
+    emptyLabel->setStyleSheet(QString("color: %1; font-size: 11px; line-height: 1.4;").arg(Theme::TextMuted));
     emptyLayout->addWidget(emptyLabel);
 
     emptyLayout->addStretch(1);
@@ -116,17 +117,17 @@ void PropertiesPanel::setupUi() {
 
     QLabel* multiIcon = new QLabel("⊞", multiHeaderCard);
     multiIcon->setAlignment(Qt::AlignCenter);
-    multiIcon->setStyleSheet("color: #1a96ff; font-size: 32px;");
+    multiIcon->setStyleSheet(QString("color: %1; font-size: 32px;").arg(Theme::Accent));
     multiHeaderLayout->addWidget(multiIcon);
 
     m_multiLabel = new QLabel("2 components selected", multiHeaderCard);
     m_multiLabel->setAlignment(Qt::AlignCenter);
-    m_multiLabel->setStyleSheet("color: #e2e8f0; font-size: 14px; font-weight: bold;");
+    m_multiLabel->setStyleSheet(QString("color: %1; font-size: 14px; font-weight: 600;").arg(Theme::TextPrimary));
     multiHeaderLayout->addWidget(m_multiLabel);
 
     QLabel* multiSubtitle = new QLabel("Batch Alignment & Distribution", multiHeaderCard);
     multiSubtitle->setAlignment(Qt::AlignCenter);
-    multiSubtitle->setStyleSheet("color: #6a7382; font-size: 11px;");
+    multiSubtitle->setStyleSheet(QString("color: %1; font-size: 11px;").arg(Theme::TextMuted));
     multiHeaderLayout->addWidget(multiSubtitle);
     multiLayout->addWidget(multiHeaderCard);
 
@@ -149,25 +150,22 @@ void PropertiesPanel::setupUi() {
     QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
     headerLayout->setContentsMargins(0, 0, 0, 0);
     m_typeBadge = new QLabel("COMPONENT", m_contentWidget);
-    m_typeBadge->setStyleSheet(
-        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a96ff, stop:0.1 #0b82ec, stop:0.85 #0060b8, stop:1 #004485); "
-        "color: white; padding: 5px 10px; border-top: 1px solid #82c6ff; border-bottom: 2px solid #002852; "
-        "border-radius: 4px; font-weight: bold; font-size: 11px;"
-    );
+    m_typeBadge->setStyleSheet(QString(
+        "background: %1; color: %2; padding: 4px 8px; border: 1px solid %3; "
+        "border-radius: %4; font-weight: 600; font-size: 11px;"
+    ).arg(Theme::Accent, Theme::BgBase, Theme::AccentHover, Theme::RadiusSmStr));
     m_idEdit = new QLineEdit(m_contentWidget);
-    m_idEdit->setStyleSheet(
-        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #16181f, stop:1 #1e222a); "
-        "color: #FFFFFF; border-top: 1px solid #0f1115; border-left: 1px solid #14161d; "
-        "border-right: 1px solid #2e3544; border-bottom: 1px solid #3c4558; border-radius: 4px; "
-        "padding: 4px 8px; font-weight: bold;"
-    );
+    m_idEdit->setStyleSheet(QString(
+        "background: %1; color: %2; border: 1px solid %3; border-radius: %4; "
+        "padding: 4px 8px; font-weight: 600;"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr));
     headerLayout->addWidget(m_typeBadge);
     headerLayout->addWidget(m_idEdit, 1);
 
     m_chkVisible = new QCheckBox("Visible", m_contentWidget);
     m_chkVisible->setChecked(true);
     m_chkVisible->setToolTip("Toggle component visibility on the canvas");
-    m_chkVisible->setStyleSheet("QCheckBox { color: #8fa0b8; font-size: 11px; margin-left: 6px; } QCheckBox::indicator { width: 14px; height: 14px; }");
+    m_chkVisible->setStyleSheet(QString("QCheckBox { color: %1; font-size: 11px; margin-left: 6px; } QCheckBox::indicator { width: 14px; height: 14px; }").arg(Theme::TextSecondary));
     headerLayout->addWidget(m_chkVisible);
 
     connect(m_chkVisible, &QCheckBox::toggled, this, [this](bool v) {
@@ -186,24 +184,21 @@ void PropertiesPanel::setupUi() {
 
     // Geometry Group
     m_geometryGroup = new QGroupBox("Transform & Geometry", m_contentWidget);
-    m_geometryGroup->setStyleSheet(
-        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
-        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
-        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+    m_geometryGroup->setStyleSheet(QString(
+        "QGroupBox { color: %1; font-size: 11px; font-weight: 600; border: 1px solid %2; "
+        "border-radius: %3; margin-top: 12px; padding-top: 16px; background-color: %4; } "
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-    );
+    ).arg(Theme::TextSecondary, Theme::BorderSubtle, Theme::RadiusMdStr, Theme::BgRaised));
     QGridLayout* geomLayout = new QGridLayout(m_geometryGroup);
     geomLayout->setSpacing(8);
 
     auto makeSpin = [this](int minVal, int maxVal) {
         QSpinBox* spin = new QSpinBox(m_contentWidget);
         spin->setRange(minVal, maxVal);
-        spin->setStyleSheet(
-            "QSpinBox { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #15171e, stop:1 #1d2129); "
-            "color: #FFFFFF; border-top: 1px solid #0d0f13; border-left: 1px solid #12141a; "
-            "border-right: 1px solid #2c3240; border-bottom: 1px solid #384152; border-radius: 4px; "
-            "padding: 3px 6px; font-weight: bold; }"
-        );
+        spin->setStyleSheet(QString(
+            "QSpinBox { background: %1; color: %2; border: 1px solid %3; border-radius: %4; "
+            "padding: 3px 6px; font-weight: 600; }"
+        ).arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr));
         return spin;
     };
 
@@ -211,6 +206,8 @@ void PropertiesPanel::setupUi() {
     m_spinY = makeSpin(-2000, 2000);
     m_spinW = makeSpin(10, 2000);
     m_spinH = makeSpin(10, 2000);
+    m_spinRotation = makeSpin(-360, 360);
+    m_spinRotation->setSuffix("°");
 
     geomLayout->addWidget(new QLabel("X:", m_geometryGroup), 0, 0);
     geomLayout->addWidget(m_spinX, 0, 1);
@@ -220,6 +217,8 @@ void PropertiesPanel::setupUi() {
     geomLayout->addWidget(m_spinW, 1, 1);
     geomLayout->addWidget(new QLabel("H:", m_geometryGroup), 1, 2);
     geomLayout->addWidget(m_spinH, 1, 3);
+    geomLayout->addWidget(new QLabel("R:", m_geometryGroup), 2, 0);
+    geomLayout->addWidget(m_spinRotation, 2, 1, 1, 3);
 
     mainLayout->addWidget(m_geometryGroup);
 
@@ -237,7 +236,7 @@ void PropertiesPanel::setupUi() {
         button->setToolTip(alignTips[index]);
         button->setFixedSize(24, 24);
         button->setCursor(Qt::PointingHandCursor);
-        button->setStyleSheet("QToolButton { background: #252830; color: #dce3ee; border: 1px solid #3B404E; border-radius: 4px; padding: 0; font-size: 14px; } QToolButton:hover { background: #313642; }");
+        button->setStyleSheet(QString("QToolButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: 0; font-size: 14px; } QToolButton:hover { background: %5; }").arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::BgOverlay));
         connect(button, &QToolButton::clicked, this, [this, index]() {
             switch (index) {
                 case 0: emit alignLeftRequested(); break;
@@ -252,7 +251,7 @@ void PropertiesPanel::setupUi() {
     }
     QFrame* divider = new QFrame(m_alignmentRow);
     divider->setFrameShape(QFrame::VLine);
-    divider->setStyleSheet("color: #3B404E;");
+    divider->setStyleSheet(QString("color: %1;").arg(Theme::BorderSubtle));
     alignmentLayout->addWidget(divider);
     const QStringList distributeGlyphs = {"⇔", "⇕"};
     const QStringList distributeTips = {"Distribute horizontally (3+ components)", "Distribute vertically (3+ components)"};
@@ -262,7 +261,7 @@ void PropertiesPanel::setupUi() {
         button->setToolTip(distributeTips[index]);
         button->setFixedSize(24, 24);
         button->setCursor(Qt::PointingHandCursor);
-        button->setStyleSheet("QToolButton { background: #252830; color: #dce3ee; border: 1px solid #3B404E; border-radius: 4px; padding: 0; font-size: 14px; } QToolButton:hover { background: #313642; } QToolButton:disabled { color: #596170; }");
+        button->setStyleSheet(QString("QToolButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: 0; font-size: 14px; } QToolButton:hover { background: %5; } QToolButton:disabled { color: %6; }").arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::BgOverlay, Theme::TextDisabled));
         button->setEnabled(false);
         m_distributeButtons.append(button);
         connect(button, &QToolButton::clicked, this, [this, index]() {
@@ -295,11 +294,11 @@ void PropertiesPanel::setupUi() {
         btn->setToolTip(boolBtns[idx].tip);
         btn->setFixedSize(28, 24);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet(
-            "QToolButton { background: #1e2938; color: #7ecfff; border: 1px solid #3B404E; "
-            "border-radius: 4px; padding: 0; font-size: 15px; font-weight: bold; } "
-            "QToolButton:hover { background: #253448; border-color: #5a8fcc; }"
-        );
+        btn->setStyleSheet(QString(
+            "QToolButton { background: %1; color: %2; border: 1px solid %3; "
+            "border-radius: %4; padding: 0; font-size: 15px; font-weight: 600; } "
+            "QToolButton:hover { background: %5; border-color: %6; }"
+        ).arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::BgOverlay, Theme::Accent));
         connect(btn, &QToolButton::clicked, this, [this, idx]() {
             switch (idx) {
                 case 0: emit booleanUnionRequested();     break;
@@ -317,24 +316,26 @@ void PropertiesPanel::setupUi() {
     connect(m_spinY, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
     connect(m_spinW, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
     connect(m_spinH, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
+    connect(m_spinRotation, QOverload<int>::of(&QSpinBox::valueChanged), this, &PropertiesPanel::onGeometryChanged);
 
     connect(m_spinX, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Position X"); });
     connect(m_spinY, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Position Y"); });
     connect(m_spinW, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Width"); });
     connect(m_spinH, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Height"); });
+    connect(m_spinRotation, &QSpinBox::editingFinished, this, [this]() { commitPropertyChange("Change Rotation"); });
 
     // ── Component State Selector Row (Phase 1C) ─────────────────────────
     QHBoxLayout* stateRow = new QHBoxLayout();
     QLabel* lblState = new QLabel("State:", m_contentWidget);
-    lblState->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: bold; min-width: 52px;");
+    lblState->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; min-width: 52px;").arg(Theme::TextSecondary));
     m_comboState = new QComboBox(m_contentWidget);
     m_comboState->setObjectName("componentStateCombo");
-    m_comboState->setStyleSheet(
-        "QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; font-weight: bold; "
-        "border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; } "
+    m_comboState->setStyleSheet(QString(
+        "QComboBox { background: %1; color: %2; font-size: 11px; font-weight: 600; "
+        "border: 1px solid %3; border-radius: %4; padding: 4px 8px; } "
         "QComboBox::drop-down { border: none; } "
-        "QComboBox QAbstractItemView { background: #1C1F26; color: #FFFFFF; selection-background-color: #2196F3; }"
-    );
+        "QComboBox QAbstractItemView { background: %1; color: %2; selection-background-color: %5; }"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::AccentSoft));
     m_comboState->addItems({"Normal", "Warning", "Error", "Disabled"});
     stateRow->addWidget(lblState);
     stateRow->addWidget(m_comboState, 1);
@@ -350,12 +351,11 @@ void PropertiesPanel::setupUi() {
 
     // Specific Properties Group
     m_specificGroup = new QGroupBox("Component Properties", m_contentWidget);
-    m_specificGroup->setStyleSheet(
-        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
-        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
-        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+    m_specificGroup->setStyleSheet(QString(
+        "QGroupBox { color: %1; font-size: 11px; font-weight: 600; border: 1px solid %2; "
+        "border-radius: %3; margin-top: 12px; padding-top: 16px; background-color: %4; } "
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-    );
+    ).arg(Theme::TextSecondary, Theme::BorderSubtle, Theme::RadiusMdStr, Theme::BgRaised));
     m_specificLayout = new QVBoxLayout(m_specificGroup);
     m_specificLayout->setSpacing(8);
     mainLayout->addWidget(m_specificGroup);
@@ -363,28 +363,28 @@ void PropertiesPanel::setupUi() {
     // ── Data Binding Group (Phase 1B / Phase 2) ───────────────────────────
     m_dataBindingGroup = new QGroupBox("Data Binding", m_contentWidget);
     m_dataBindingGroup->setObjectName("dataBindingGroup");
-    m_dataBindingGroup->setStyleSheet(
-        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
-        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
-        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+    m_dataBindingGroup->setStyleSheet(QString(
+        "QGroupBox { color: %1; font-size: 11px; font-weight: 600; border: 1px solid %2; "
+        "border-radius: %3; margin-top: 12px; padding-top: 16px; background-color: %4; } "
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-    );
+    ).arg(Theme::TextSecondary, Theme::BorderSubtle, Theme::RadiusMdStr, Theme::BgRaised));
     QFormLayout* bindingForm = new QFormLayout(m_dataBindingGroup);
     bindingForm->setSpacing(6);
 
+    const QString bindingComboStyle = QString("QComboBox { background: %1; color: %2; font-size: 11px; border: 1px solid %3; border-radius: %4; padding: 3px 6px; }").arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr);
     m_bindingSourceCombo = new QComboBox(m_dataBindingGroup);
     m_bindingSourceCombo->setObjectName("bindingSourceCombo");
-    m_bindingSourceCombo->setStyleSheet("QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }");
+    m_bindingSourceCombo->setStyleSheet(bindingComboStyle);
     bindingForm->addRow("Source:", m_bindingSourceCombo);
 
     m_bindingPropCombo = new QComboBox(m_dataBindingGroup);
     m_bindingPropCombo->setObjectName("bindingPropCombo");
-    m_bindingPropCombo->setStyleSheet("QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }");
+    m_bindingPropCombo->setStyleSheet(bindingComboStyle);
     bindingForm->addRow("Property:", m_bindingPropCombo);
 
     m_bindingDirectionCombo = new QComboBox(m_dataBindingGroup);
     m_bindingDirectionCombo->setObjectName("bindingDirectionCombo");
-    m_bindingDirectionCombo->setStyleSheet("QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }");
+    m_bindingDirectionCombo->setStyleSheet(bindingComboStyle);
     m_bindingDirectionCombo->addItems({"Read", "Write", "TwoWay"});
     bindingForm->addRow("Direction:", m_bindingDirectionCombo);
 
@@ -395,30 +395,29 @@ void PropertiesPanel::setupUi() {
     connect(m_bindingDirectionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PropertiesPanel::onBindingChanged);
 
 
-    // ── Hardware Protocol Binding Group ──────────────────────────────────
-    m_protocolGroup = new QGroupBox("Hardware Protocol Binding", m_contentWidget);
+    // ── Hardware Protocol / Pin Binding Group ───────────────────────────
+    m_protocolGroup = new QGroupBox("Hardware Binding", m_contentWidget);
     m_protocolGroup->setObjectName("hardwareProtocolGroup");
-    m_protocolGroup->setStyleSheet(
-        "QGroupBox { color: #8fa0b8; font-size: 11px; font-weight: bold; border: 1px solid #282e3b; "
-        "border-top: 1px solid #14161d; border-bottom: 1px solid #3d4658; border-radius: 6px; "
-        "margin-top: 12px; padding-top: 16px; background-color: rgba(22, 25, 32, 0.4); } "
+    m_protocolGroup->setStyleSheet(QString(
+        "QGroupBox { color: %1; font-size: 11px; font-weight: 600; border: 1px solid %2; "
+        "border-radius: %3; margin-top: 12px; padding-top: 16px; background-color: %4; } "
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-    );
+    ).arg(Theme::TextSecondary, Theme::BorderSubtle, Theme::RadiusMdStr, Theme::BgRaised));
     QVBoxLayout* protoLayout = new QVBoxLayout(m_protocolGroup);
     protoLayout->setSpacing(8);
 
     // Protocol selector row
     QHBoxLayout* protoRow = new QHBoxLayout();
     QLabel* lblProto = new QLabel("Protocol:", m_protocolGroup);
-    lblProto->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: bold; min-width: 52px;");
+    lblProto->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; min-width: 52px;").arg(Theme::TextSecondary));
     m_protocolCombo = new QComboBox(m_protocolGroup);
     m_protocolCombo->setObjectName("protocolCombo");
-    m_protocolCombo->setStyleSheet(
-        "QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; font-weight: bold; "
-        "border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; } "
+    m_protocolCombo->setStyleSheet(QString(
+        "QComboBox { background: %1; color: %2; font-size: 11px; font-weight: 600; "
+        "border: 1px solid %3; border-radius: %4; padding: 4px 8px; } "
         "QComboBox::drop-down { border: none; } "
-        "QComboBox QAbstractItemView { background: #1C1F26; color: #FFFFFF; selection-background-color: #2196F3; }"
-    );
+        "QComboBox QAbstractItemView { background: %1; color: %2; selection-background-color: %5; }"
+    ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::AccentSoft));
     m_protocolCombo->addItems({"None", "GPIO", "PWM", "ADC", "I2C", "SPI"});
     protoRow->addWidget(lblProto);
     protoRow->addWidget(m_protocolCombo, 1);
@@ -427,17 +426,17 @@ void PropertiesPanel::setupUi() {
     auto makePinCombo = [](QWidget* parent, const QString& objName) {
         QComboBox* cb = new QComboBox(parent);
         cb->setObjectName(objName);
-        cb->setStyleSheet(
-            "QComboBox { background: #16181F; color: #FFFFFF; font-size: 11px; font-weight: bold; "
-            "border: 1px solid #2F3543; border-radius: 4px; padding: 3px 6px; } "
+        cb->setStyleSheet(QString(
+            "QComboBox { background: %1; color: %2; font-size: 11px; font-weight: 600; "
+            "border: 1px solid %3; border-radius: %4; padding: 3px 6px; } "
             "QComboBox::drop-down { border: none; } "
-            "QComboBox QAbstractItemView { background: #16181F; color: #FFFFFF; selection-background-color: #0b82ec; }"
-        );
+            "QComboBox QAbstractItemView { background: %1; color: %2; selection-background-color: %5; }"
+        ).arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::AccentSoft));
         return cb;
     };
     auto makeFieldLabel = [](const QString& text, QWidget* parent) {
         QLabel* lbl = new QLabel(text, parent);
-        lbl->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: bold; min-width: 52px;");
+        lbl->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: 600; min-width: 52px;").arg(Theme::TextSecondary));
         return lbl;
     };
 
@@ -446,19 +445,65 @@ void PropertiesPanel::setupUi() {
     QVBoxLayout* noneLayout = new QVBoxLayout(m_protocolNoneWidget);
     noneLayout->setContentsMargins(0, 4, 0, 4);
     QLabel* lblNone = new QLabel("No hardware protocol bound. Select GPIO, PWM, ADC, I2C, or SPI to map hardware pins.", m_protocolNoneWidget);
-    lblNone->setStyleSheet("color: #64748b; font-size: 10px; font-style: italic;");
+    lblNone->setStyleSheet(QString("color: %1; font-size: 10px; font-style: italic;").arg(Theme::TextMuted));
     lblNone->setWordWrap(true);
     noneLayout->addWidget(lblNone);
     protoLayout->addWidget(m_protocolNoneWidget);
 
-    // 2. GPIO
+    // 2. GPIO (Hardware Binding Panel)
     m_gpioWidget = new QWidget(m_protocolGroup);
     m_gpioWidget->setVisible(false);
-    QHBoxLayout* gpioLayout = new QHBoxLayout(m_gpioWidget);
-    gpioLayout->setContentsMargins(0, 2, 0, 2);
-    gpioLayout->addWidget(makeFieldLabel("Pin:", m_gpioWidget));
+    QVBoxLayout* gpioMainLayout = new QVBoxLayout(m_gpioWidget);
+    gpioMainLayout->setContentsMargins(0, 2, 0, 2);
+    gpioMainLayout->setSpacing(4);
+
+    QHBoxLayout* gpioPinRow = new QHBoxLayout();
+    gpioPinRow->addWidget(makeFieldLabel("Pin:", m_gpioWidget));
     m_comboGpioPin = makePinCombo(m_gpioWidget, "gpioPinCombo");
-    gpioLayout->addWidget(m_comboGpioPin, 1);
+    gpioPinRow->addWidget(m_comboGpioPin, 1);
+    gpioMainLayout->addLayout(gpioPinRow);
+
+    QHBoxLayout* gpioModeRow = new QHBoxLayout();
+    gpioModeRow->addWidget(makeFieldLabel("Mode:", m_gpioWidget));
+    m_comboGpioMode = makePinCombo(m_gpioWidget, "gpioModeCombo");
+    m_comboGpioMode->addItems({"Output", "Input", "InputPullUp", "InputPullDown"});
+    gpioModeRow->addWidget(m_comboGpioMode, 1);
+    gpioMainLayout->addLayout(gpioModeRow);
+
+    QHBoxLayout* gpioActionRow = new QHBoxLayout();
+    gpioActionRow->addWidget(makeFieldLabel("Action:", m_gpioWidget));
+    m_comboGpioAction = makePinCombo(m_gpioWidget, "gpioActionCombo");
+    m_comboGpioAction->addItems({"Toggle LED", "Read Digital In"});
+    gpioActionRow->addWidget(m_comboGpioAction, 1);
+    gpioMainLayout->addLayout(gpioActionRow);
+
+    QHBoxLayout* gpioBtnRow = new QHBoxLayout();
+    m_btnApplyHardwareBinding = new QPushButton("Apply", m_gpioWidget);
+    m_btnApplyHardwareBinding->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; font-weight: 600; border-radius: %3; padding: 4px 14px; border: none; } "
+        "QPushButton:hover { background-color: %4; } "
+        "QPushButton:pressed { background-color: %5; }"
+    ).arg(Theme::Accent, Theme::BgBase, Theme::RadiusSmStr, Theme::AccentHover, Theme::AccentPressed));
+    m_lblHwBindingFeedback = new QLabel("", m_gpioWidget);
+    m_lblHwBindingFeedback->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: 600;").arg(Theme::Success));
+    gpioBtnRow->addWidget(m_btnApplyHardwareBinding);
+    gpioBtnRow->addWidget(m_lblHwBindingFeedback, 1);
+    gpioMainLayout->addLayout(gpioBtnRow);
+
+    connect(m_btnApplyHardwareBinding, &QPushButton::clicked, this, [this]() {
+        if (!m_targetComponent) return;
+        QString pin = m_comboGpioPin ? m_comboGpioPin->currentText() : "PA4";
+        QString modeStr = m_comboGpioMode ? m_comboGpioMode->currentText() : "Output";
+        PinMode mode = (modeStr == "Output") ? PinMode::DigitalOut : PinMode::DigitalIn;
+        HardwareBridge::instance().bindComponent(m_targetComponent, pin, mode);
+        m_targetComponent->setProtocol("GPIO");
+        m_targetComponent->setProtocolPin("pin", pin);
+        if (m_lblHwBindingFeedback) {
+            m_lblHwBindingFeedback->setText(QString("✓ Bound to %1 (%2)").arg(pin, modeStr));
+        }
+        commitPropertyChange("Apply Hardware Binding");
+    });
+
     protoLayout->addWidget(m_gpioWidget);
 
     // 3. PWM
@@ -489,7 +534,7 @@ void PropertiesPanel::setupUi() {
     spiVLayout->setSpacing(6);
 
     QLabel* spiNotice = new QLabel("SPI Raw Transfer (byte in/out)", m_spiWidget);
-    spiNotice->setStyleSheet("color: #38bdf8; background-color: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; padding: 4px 6px; font-size: 10px; font-weight: bold;");
+    spiNotice->setStyleSheet(QString("color: %1; background-color: %2; border: 1px solid %3; border-radius: %4; padding: 4px 6px; font-size: 10px; font-weight: 600;").arg(Theme::Info, Theme::AccentSoft, Theme::BorderSubtle, Theme::RadiusSmStr));
     spiVLayout->addWidget(spiNotice);
 
     QGridLayout* spiGrid = new QGridLayout();
@@ -524,11 +569,11 @@ void PropertiesPanel::setupUi() {
         "Probes addresses 0x08-0x77. Detected devices are best-effort over debug probe.",
         m_i2cWidget);
     i2cNotice->setWordWrap(true);
-    i2cNotice->setStyleSheet(
-        "color: #38bdf8; background-color: rgba(56, 189, 248, 0.12); "
-        "border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; "
-        "padding: 5px 8px; font-size: 10px; font-weight: bold; line-height: 1.3;"
-    );
+    i2cNotice->setStyleSheet(QString(
+        "color: %1; background-color: %2; "
+        "border: 1px solid %3; border-radius: %4; "
+        "padding: 5px 8px; font-size: 10px; font-weight: 600; line-height: 1.3;"
+    ).arg(Theme::Info, Theme::AccentSoft, Theme::BorderSubtle, Theme::RadiusSmStr));
     i2cVLayout->addWidget(i2cNotice);
 
     QGridLayout* i2cGrid = new QGridLayout();
@@ -546,35 +591,35 @@ void PropertiesPanel::setupUi() {
     m_editI2cAddress->setObjectName("i2cAddressEdit");
     m_editI2cAddress->setPlaceholderText("0x48");
     m_editI2cAddress->setText("0x48");
-    m_editI2cAddress->setStyleSheet(
-        "QLineEdit { background: #16181F; color: #FFFFFF; font-size: 11px; font-weight: bold; "
-        "border: 1px solid #2F3543; border-radius: 4px; padding: 3px 6px; }"
-    );
+    m_editI2cAddress->setStyleSheet(QString(
+        "QLineEdit { background: %1; color: %2; font-size: 11px; font-weight: 600; "
+        "border: 1px solid %3; border-radius: %4; padding: 3px 6px; }"
+    ).arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr));
     i2cGrid->addWidget(m_editI2cAddress, 2, 1);
     i2cVLayout->addLayout(i2cGrid);
 
     // I2C Bus Scan Button & Best-effort status (Task C)
     m_btnScanI2c = new QPushButton("Scan I2C Bus (0x08-0x77)", m_i2cWidget);
     m_btnScanI2c->setObjectName("btnScanI2c");
-    m_btnScanI2c->setStyleSheet(
-        "QPushButton { background: #0284c7; color: white; font-weight: bold; font-size: 11px; "
-        "border-radius: 4px; padding: 5px; } QPushButton:hover { background: #0369a1; }"
-    );
+    m_btnScanI2c->setStyleSheet(QString(
+        "QPushButton { background: %1; color: %2; font-weight: 600; font-size: 11px; "
+        "border-radius: %3; padding: 5px; border: none; } QPushButton:hover { background: %4; } QPushButton:pressed { background: %5; }"
+    ).arg(Theme::Accent, Theme::BgBase, Theme::RadiusSmStr, Theme::AccentHover, Theme::AccentPressed));
     connect(m_btnScanI2c, &QPushButton::clicked, this, &PropertiesPanel::onScanI2cBusClicked);
     i2cVLayout->addWidget(m_btnScanI2c);
 
     m_lblI2cScanStatus = new QLabel("Click 'Scan I2C Bus' to detect devices on SCL/SDA", m_i2cWidget);
     m_lblI2cScanStatus->setObjectName("lblI2cScanStatus");
     m_lblI2cScanStatus->setWordWrap(true);
-    m_lblI2cScanStatus->setStyleSheet("color: #94a3b8; font-size: 10px; font-style: italic; padding: 2px 4px;");
+    m_lblI2cScanStatus->setStyleSheet(QString("color: %1; font-size: 10px; font-style: italic; padding: 2px 4px;").arg(Theme::TextMuted));
     i2cVLayout->addWidget(m_lblI2cScanStatus);
 
     // Multi-sensor naming and assignment
     QGroupBox* multiSensorGroup = new QGroupBox("Multi-Sensor Address Binding", m_i2cWidget);
-    multiSensorGroup->setStyleSheet(
-        "QGroupBox { font-size: 11px; font-weight: bold; color: #cbd5e1; border: 1px solid #334155; "
-        "border-radius: 4px; margin-top: 6px; padding-top: 8px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }"
-    );
+    multiSensorGroup->setStyleSheet(QString(
+        "QGroupBox { font-size: 11px; font-weight: 600; color: %1; border: 1px solid %2; "
+        "border-radius: %3; margin-top: 6px; padding-top: 8px; } QGroupBox::title { subcontrol-origin: margin; left: 8px; }"
+    ).arg(Theme::TextSecondary, Theme::BorderSubtle, Theme::RadiusSmStr));
     QVBoxLayout* sensorLayout = new QVBoxLayout(multiSensorGroup);
     sensorLayout->setSpacing(4);
 
@@ -582,7 +627,7 @@ void PropertiesPanel::setupUi() {
     assignRow1->addWidget(makeFieldLabel("Detected:", multiSensorGroup));
     m_comboDetectedI2cDevices = new QComboBox(multiSensorGroup);
     m_comboDetectedI2cDevices->setObjectName("comboDetectedI2cDevices");
-    m_comboDetectedI2cDevices->setStyleSheet("QComboBox { background: #1e293b; color: #38bdf8; font-family: monospace; font-size: 11px; }");
+    m_comboDetectedI2cDevices->setStyleSheet(QString("QComboBox { background: %1; color: %2; font-family: monospace; font-size: 11px; border: 1px solid %3; border-radius: %4; padding: 3px 6px; }").arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle, Theme::RadiusSmStr));
     m_comboDetectedI2cDevices->addItem("0x48 (Detected)", "0x48");
     m_comboDetectedI2cDevices->addItem("0x76 (Detected)", "0x76");
     assignRow1->addWidget(m_comboDetectedI2cDevices, 1);
@@ -593,19 +638,19 @@ void PropertiesPanel::setupUi() {
     m_editI2cSensorName = new QLineEdit(multiSensorGroup);
     m_editI2cSensorName->setObjectName("editI2cSensorName");
     m_editI2cSensorName->setPlaceholderText("e.g. BME280 / TMP102");
-    m_editI2cSensorName->setStyleSheet("QLineEdit { background: #16181F; color: #FFFFFF; font-size: 11px; border: 1px solid #2F3543; border-radius: 4px; padding: 3px 6px; }");
+    m_editI2cSensorName->setStyleSheet(QString("QLineEdit { background: %1; color: %2; font-size: 11px; border: 1px solid %3; border-radius: %4; padding: 3px 6px; }").arg(Theme::BgBase, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr));
     assignRow2->addWidget(m_editI2cSensorName, 1);
 
     m_btnAssignSensorName = new QPushButton("Assign & Bind", multiSensorGroup);
     m_btnAssignSensorName->setObjectName("btnAssignSensorName");
-    m_btnAssignSensorName->setStyleSheet("QPushButton { background: #334155; color: #38bdf8; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 4px 8px; } QPushButton:hover { background: #475569; }");
+    m_btnAssignSensorName->setStyleSheet(QString("QPushButton { background: %1; color: %2; font-weight: 600; font-size: 10px; border-radius: %3; padding: 4px 8px; border: 1px solid %4; } QPushButton:hover { background: %5; }").arg(Theme::BgRaised, Theme::AccentText, Theme::RadiusSmStr, Theme::BorderSubtle, Theme::BgOverlay));
     connect(m_btnAssignSensorName, &QPushButton::clicked, this, &PropertiesPanel::onAssignSensorNameClicked);
     assignRow2->addWidget(m_btnAssignSensorName);
     sensorLayout->addLayout(assignRow2);
 
     QLabel* multiNote = new QLabel("Note: Multiple named sensors share the physical SCL/SDA bus, distinguished by address.", multiSensorGroup);
     multiNote->setWordWrap(true);
-    multiNote->setStyleSheet("color: #64748b; font-size: 9px; font-style: italic;");
+    multiNote->setStyleSheet(QString("color: %1; font-size: 9px; font-style: italic;").arg(Theme::TextMuted));
     sensorLayout->addWidget(multiNote);
 
     i2cVLayout->addWidget(multiSensorGroup);
@@ -740,6 +785,7 @@ void PropertiesPanel::refreshValues() {
     m_spinY->setValue(static_cast<int>(m_targetComponent->compY()));
     m_spinW->setValue(static_cast<int>(m_targetComponent->compWidth()));
     m_spinH->setValue(static_cast<int>(m_targetComponent->compHeight()));
+    m_spinRotation->setValue(static_cast<int>(std::round(m_targetComponent->rotationAngle())));
 
     if (m_chkVisible) m_chkVisible->setChecked(m_targetComponent->isComponentVisible());
 
@@ -756,7 +802,7 @@ void PropertiesPanel::refreshValues() {
     if (auto btn = dynamic_cast<ButtonComponent*>(m_targetComponent)) {
         if (m_textEdit) m_textEdit->setText(btn->text());
         if (m_colorBtn1) updateColorButton(m_colorBtn1, btn->textColor());
-        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->effectiveBackgroundColor(btn->backgroundColor()));
+        if (m_colorBtn2) updateColorButton(m_colorBtn2, btn->effectiveBackgroundColor(btn->backgroundColor()), btn->hasGradientFill() ? btn->gradientFill() : ComponentGradient());
         if (m_colorBtn3) updateColorButton(m_colorBtn3, btn->effectiveBorderColor(btn->borderColor()));
 
         if (m_spinStrokeW) m_spinStrokeW->setValue(btn->borderWidth());
@@ -787,7 +833,7 @@ void PropertiesPanel::refreshValues() {
             }
         }
     } else if (auto rect = dynamic_cast<RectangleComponent*>(m_targetComponent)) {
-        if (m_colorBtn1) updateColorButton(m_colorBtn1, rect->fillColor());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, rect->fillColor(), rect->hasGradientFill() ? rect->gradientFill() : ComponentGradient());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, rect->strokeColor());
         if (m_spinStrokeW) m_spinStrokeW->setValue(rect->strokeWidth());
         if (m_spinRadius) {
@@ -803,7 +849,7 @@ void PropertiesPanel::refreshValues() {
             m_spinProgressValue->setValue(prog->actualValue());
         }
         if (m_comboProgressOrientation) m_comboProgressOrientation->setCurrentText(prog->orientation());
-        if (m_colorBtn1) updateColorButton(m_colorBtn1, prog->barColor());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, prog->barColor(), prog->hasGradientFill() ? prog->gradientFill() : ComponentGradient());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, prog->trackColor());
         if (m_colorBtn3) updateColorButton(m_colorBtn3, prog->borderColor());
         if (m_spinStrokeW) m_spinStrokeW->setValue(prog->borderWidth());
@@ -860,7 +906,7 @@ void PropertiesPanel::refreshValues() {
         if (m_chkReadOnly) m_chkReadOnly->setChecked(txt->isReadOnly());
         if (m_handlerEdit) m_handlerEdit->setText(txt->onTextChangedHandler());
     } else if (auto circ = dynamic_cast<CircleComponent*>(m_targetComponent)) {
-        if (m_colorBtn1) updateColorButton(m_colorBtn1, circ->fillColor());
+        if (m_colorBtn1) updateColorButton(m_colorBtn1, circ->fillColor(), circ->hasGradientFill() ? circ->gradientFill() : ComponentGradient());
         if (m_colorBtn2) updateColorButton(m_colorBtn2, circ->strokeColor());
         if (m_spinStrokeW) m_spinStrokeW->setValue(circ->strokeWidth());
         if (m_chkFilled) m_chkFilled->setChecked(circ->isFilled());
@@ -940,12 +986,33 @@ void PropertiesPanel::refreshValues() {
     m_updatingFromComponent = false;
 }
 
-void PropertiesPanel::updateColorButton(QPushButton* btn, const QColor& color) {
+void PropertiesPanel::updateColorButton(QPushButton* btn, const QColor& color, const ComponentGradient& grad) {
     if (!btn) return;
-    btn->setText(color.name().toUpper());
-    btn->setStyleSheet(QString(
-        "QPushButton { background-color: %1; color: %2; font-weight: bold; border: 1px solid #3B404E; border-radius: 4px; padding: 4px 8px; }"
-    ).arg(color.name(), (color.lightness() > 140 ? "#000000" : "#FFFFFF")));
+    if (grad.isValid()) {
+        QString gradCss;
+        if (grad.type == ComponentGradient::Type::Linear) {
+            QStringList stopDefs;
+            for (const auto& s : grad.stops) {
+                stopDefs << QString("stop:%1 %2").arg(s.position, 0, 'f', 2).arg(s.color.name(QColor::HexArgb));
+            }
+            gradCss = QString("qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, %1)").arg(stopDefs.join(", "));
+        } else {
+            QStringList stopDefs;
+            for (const auto& s : grad.stops) {
+                stopDefs << QString("stop:%1 %2").arg(s.position, 0, 'f', 2).arg(s.color.name(QColor::HexArgb));
+            }
+            gradCss = QString("qradialgradient(cx:0.5, cy:0.5, radius:0.5, %1)").arg(stopDefs.join(", "));
+        }
+        btn->setText("Gradient");
+        btn->setStyleSheet(QString(
+            "QPushButton { background: %1; color: %2; font-weight: 600; border: 1px solid %3; border-radius: %4; padding: 4px 8px; }"
+        ).arg(gradCss, Theme::TextPrimary, Theme::Accent, Theme::RadiusSmStr));
+    } else {
+        btn->setText(color.name().toUpper());
+        btn->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; font-weight: 600; border: 1px solid %3; border-radius: %4; padding: 4px 8px; }"
+        ).arg(color.name(), (color.lightness() > 140 ? Theme::BgBase : Theme::TextPrimary), Theme::BorderSubtle, Theme::RadiusSmStr));
+    }
 }
 
 void PropertiesPanel::rebuildSpecificEditors() {
@@ -1037,14 +1104,19 @@ void PropertiesPanel::rebuildSpecificEditors() {
         h->setSpacing(4);
 
         QPushButton* hexBtn = new QPushButton(rowWidget);
-        updateColorButton(hexBtn, initialColor);
+        bool supportsGradient = (propKey == "fillColor" || propKey == "backgroundColor" || propKey == "barColor");
+        ComponentGradient initialGrad;
+        if (supportsGradient && m_targetComponent && m_targetComponent->hasGradientFill()) {
+            initialGrad = m_targetComponent->gradientFill();
+        }
+        updateColorButton(hexBtn, initialColor, initialGrad);
 
         QComboBox* styleCombo = new QComboBox(rowWidget);
-        styleCombo->setStyleSheet(
-            "QComboBox { background: #1C1F26; color: #FFFFFF; font-size: 11px; font-weight: bold; border: 1px solid #3B404E; border-radius: 4px; padding: 3px 6px; }"
-            "QComboBox::drop-down { border: none; }"
-            "QComboBox QAbstractItemView { background: #1C1F26; color: #FFFFFF; selection-background-color: #2196F3; }"
-        );
+        styleCombo->setStyleSheet(QString(
+            "QComboBox { background: %1; color: %2; font-size: 11px; font-weight: 600; border: 1px solid %3; border-radius: %4; padding: 3px 6px; } "
+            "QComboBox::drop-down { border: none; } "
+            "QComboBox QAbstractItemView { background: %1; color: %2; selection-background-color: %5; }"
+        ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::AccentSoft));
 
         auto populateCombo = [this, styleCombo]() {
             styleCombo->clear();
@@ -1065,8 +1137,8 @@ void PropertiesPanel::rebuildSpecificEditors() {
         toggleBtn->setFixedSize(30, 26);
         toggleBtn->setToolTip(hasRef ? "Named Style active. Click to switch to direct Hex." : "Direct Hex active. Click to pick a named style.");
         toggleBtn->setStyleSheet(hasRef ?
-            "QPushButton { background: #1976D2; color: #FFFFFF; font-size: 11px; border-radius: 4px; border: 1px solid #2196F3; padding: 0px; }" :
-            "QPushButton { background: #252830; color: #A0ABC0; font-size: 11px; border-radius: 4px; border: 1px solid #3B404E; padding: 0px; }"
+            QString("QPushButton { background: %1; color: %2; font-size: 11px; border-radius: %3; border: 1px solid %4; padding: 0px; }").arg(Theme::Accent, Theme::BgBase, Theme::RadiusSmStr, Theme::AccentHover) :
+            QString("QPushButton { background: %1; color: %2; font-size: 11px; border-radius: %3; border: 1px solid %4; padding: 0px; }").arg(Theme::BgRaised, Theme::TextMuted, Theme::RadiusSmStr, Theme::BorderSubtle)
         );
 
         if (hasRef) {
@@ -1088,7 +1160,7 @@ void PropertiesPanel::rebuildSpecificEditors() {
                 styleCombo->show();
                 toggleBtn->setText("🏷");
                 toggleBtn->setToolTip("Named Style active. Click to switch to direct Hex.");
-                toggleBtn->setStyleSheet("QPushButton { background: #1976D2; color: #FFFFFF; font-size: 11px; border-radius: 4px; border: 1px solid #2196F3; padding: 0px; }");
+                toggleBtn->setStyleSheet(QString("QPushButton { background: %1; color: %2; font-size: 11px; border-radius: %3; border: 1px solid %4; padding: 0px; }").arg(Theme::Accent, Theme::BgBase, Theme::RadiusSmStr, Theme::AccentHover));
                 if (styleCombo->count() > 0) {
                     QString styleName = styleCombo->currentData().toString();
                     m_targetComponent->setColorStyleRef(propKey, styleName);
@@ -1104,20 +1176,42 @@ void PropertiesPanel::rebuildSpecificEditors() {
                 hexBtn->show();
                 toggleBtn->setText("🎨");
                 toggleBtn->setToolTip("Direct Hex active. Click to pick a named style.");
-                toggleBtn->setStyleSheet("QPushButton { background: #252830; color: #A0ABC0; font-size: 11px; border-radius: 4px; border: 1px solid #3B404E; padding: 0px; }");
+                toggleBtn->setStyleSheet(QString("QPushButton { background: %1; color: %2; font-size: 11px; border-radius: %3; border: 1px solid %4; padding: 0px; }").arg(Theme::BgRaised, Theme::TextMuted, Theme::RadiusSmStr, Theme::BorderSubtle));
                 m_targetComponent->clearColorStyleRef(propKey);
                 commitPropertyChange(desc);
             }
         });
 
-        connect(hexBtn, &QPushButton::clicked, this, [this, hexBtn, propKey, setter, desc]() {
+        connect(hexBtn, &QPushButton::clicked, this, [this, hexBtn, propKey, setter, desc, supportsGradient]() {
             if (!m_targetComponent) return;
-            QColor current(hexBtn->text());
-            QColor picked = ColorPickerDialog::getColor(current, this, "Choose Color");
-            if (picked.isValid()) {
+            ColorPickerDialog dlg(this);
+            dlg.setWindowTitle("Choose Color");
+            if (supportsGradient && m_targetComponent->hasGradientFill()) {
+                dlg.setGradient(m_targetComponent->gradientFill());
+                dlg.setGradientMode(true);
+            } else {
+                QColor current(hexBtn->text().startsWith('#') ? hexBtn->text() : Theme::Accent);
+                if (!current.isValid()) current = QColor(Theme::Accent);
+                dlg.setSelectedColor(current);
+                dlg.setGradientMode(false);
+            }
+
+            if (dlg.exec() == QDialog::Accepted) {
                 m_targetComponent->clearColorStyleRef(propKey);
-                updateColorButton(hexBtn, picked);
-                setter(picked);
+                if (dlg.isGradientMode() && supportsGradient) {
+                    ComponentGradient g = dlg.selectedGradient();
+                    m_targetComponent->setGradientFill(g);
+                    QColor repColor = g.stops.isEmpty() ? QColor(Theme::Accent) : g.stops.first().color;
+                    updateColorButton(hexBtn, repColor, g);
+                    setter(repColor);
+                } else {
+                    if (supportsGradient) {
+                        m_targetComponent->clearGradientFill();
+                    }
+                    QColor picked = dlg.selectedColor();
+                    updateColorButton(hexBtn, picked);
+                    setter(picked);
+                }
                 commitPropertyChange(desc);
             }
         });
@@ -1299,11 +1393,11 @@ void PropertiesPanel::rebuildSpecificEditors() {
             b->setFixedSize(38, 28);
             b->setIconSize(QSize(20, 20));
             b->setCursor(Qt::PointingHandCursor);
-            b->setStyleSheet(
-                "QPushButton { background-color: #252830; border: 1px solid #3B404E; border-radius: 4px; padding: 2px; }"
-                "QPushButton:hover { background-color: #313642; border-color: #4D5466; }"
-                "QPushButton:checked { background-color: #2196F3; border-color: #1976D2; }"
-            );
+            b->setStyleSheet(QString(
+                "QPushButton { background-color: %1; border: 1px solid %2; border-radius: %3; padding: 2px; } "
+                "QPushButton:hover { background-color: %4; border-color: %5; } "
+                "QPushButton:checked { background-color: %6; border-color: %7; }"
+            ).arg(Theme::BgRaised, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::BgOverlay, Theme::BorderStrong, Theme::Accent, Theme::AccentHover));
         };
 
         m_btnAlignLeft = new QPushButton(m_specificContainer);
@@ -1361,12 +1455,12 @@ void PropertiesPanel::rebuildSpecificEditors() {
 
         // Font family dropdown
         QComboBox* fontCombo = new QComboBox(m_specificContainer);
-        fontCombo->setStyleSheet(
-            "QComboBox { background:#1c1f26; color:#e4ecf7; border:1px solid #2b2f38; "
-            "border-radius:5px; padding:3px 8px; font-size:12px; } "
-            "QComboBox QAbstractItemView { background:#1a1d24; color:#e0e5ee; "
-            "selection-background-color:#1a73e8; selection-color:#fff; border:1px solid #2c313e; }"
-        );
+        fontCombo->setStyleSheet(QString(
+            "QComboBox { background: %1; color: %2; border: 1px solid %3; "
+            "border-radius: %4; padding: 3px 8px; font-size: 12px; } "
+            "QComboBox QAbstractItemView { background: %5; color: %2; "
+            "selection-background-color: %6; selection-color: %2; border: 1px solid %3; }"
+        ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::BgBase, Theme::AccentSoft));
         for (const QString& f : LabelComponent::availableFonts())
             fontCombo->addItem(f);
         fontCombo->setCurrentText(lbl->fontFamily());
@@ -1916,17 +2010,17 @@ void PropertiesPanel::rebuildSpecificEditors() {
     } else if (auto ci = dynamic_cast<CustomComponentInstance*>(m_targetComponent)) {
         // ── Definition info (read-only) ────────────────────────────────────
         QLabel* defLabel = new QLabel(ci->definitionId(), m_specificContainer);
-        defLabel->setStyleSheet("color:#8a9bb0;font-size:11px;");
+        defLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(Theme::TextMuted));
         form->addRow("Definition:", defLabel);
 
         // ── Variant dropdown ────────────────────────────────────────────────
         m_variantCombo = new QComboBox(m_specificContainer);
-        m_variantCombo->setStyleSheet(
-            "QComboBox { background:#1c1f26; color:#e4ecf7; border:1px solid #2b2f38; "
-            "border-radius:5px; padding:4px 10px; font-size:12px; } "
-            "QComboBox QAbstractItemView { background:#1a1d24; color:#e0e5ee; "
-            "selection-background-color:#1a73e8; selection-color:#fff; border:1px solid #2c313e; }"
-        );
+        m_variantCombo->setStyleSheet(QString(
+            "QComboBox { background: %1; color: %2; border: 1px solid %3; "
+            "border-radius: %4; padding: 4px 10px; font-size: 12px; } "
+            "QComboBox QAbstractItemView { background: %5; color: %2; "
+            "selection-background-color: %6; selection-color: %2; border: 1px solid %3; }"
+        ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, Theme::RadiusSmStr, Theme::BgBase, Theme::AccentSoft));
         // Populate from project-level definitions if available; fall back to defaults
         const QStringList defaultNames = {"Primary", "Secondary", "Danger"};
         m_variantCombo->addItems(defaultNames);
@@ -1942,11 +2036,11 @@ void PropertiesPanel::rebuildSpecificEditors() {
             v.useStroke   = true;
             v.useAccent   = true;
             if (variantName == "Primary") {
-                v.fillColor = QColor("#1a73e8"); v.strokeColor = QColor("#0d47a1"); v.accentColor = Qt::white;
+                v.fillColor = QColor(Theme::Accent); v.strokeColor = QColor(Theme::AccentPressed); v.accentColor = Qt::white;
             } else if (variantName == "Secondary") {
-                v.fillColor = QColor("#34a853"); v.strokeColor = QColor("#1b6e2e"); v.accentColor = Qt::white;
+                v.fillColor = QColor(Theme::Success); v.strokeColor = QColor(Theme::Success).darker(150); v.accentColor = Qt::white;
             } else if (variantName == "Danger") {
-                v.fillColor = QColor("#ea4335"); v.strokeColor = QColor("#b31412"); v.accentColor = Qt::white;
+                v.fillColor = QColor(Theme::Danger); v.strokeColor = QColor(Theme::Danger).darker(150); v.accentColor = Qt::white;
             }
             ci->applyVariant(v);
             commitPropertyChange("Change Variant");
@@ -2547,6 +2641,7 @@ void PropertiesPanel::onGeometryChanged() {
     if (m_updatingFromComponent || !m_targetComponent) return;
     m_targetComponent->setCompPos(m_spinX->value(), m_spinY->value());
     m_targetComponent->setCompSize(m_spinW->value(), m_spinH->value());
+    m_targetComponent->setRotationAngle(m_spinRotation->value());
 }
 
 void PropertiesPanel::onIdChanged(const QString& newId) {
@@ -2715,11 +2810,11 @@ void PropertiesPanel::onScanI2cBusClicked() {
 
         m_lblI2cScanStatus->setText(QString("Detected (best-effort): %1")
             .arg(hexList.isEmpty() ? "None" : hexList.join(", ")));
-        m_lblI2cScanStatus->setStyleSheet(
-            "color: #4ade80; background-color: rgba(74, 222, 128, 0.12); "
-            "border: 1px solid rgba(74, 222, 128, 0.35); border-radius: 4px; "
-            "padding: 4px 8px; font-size: 10px; font-weight: bold;"
-        );
+        m_lblI2cScanStatus->setStyleSheet(QString(
+            "color: %1; background-color: %2; "
+            "border: 1px solid %3; border-radius: %4; "
+            "padding: 4px 8px; font-size: 10px; font-weight: 600;"
+        ).arg(Theme::Success, Theme::AccentSoft, Theme::BorderSubtle, Theme::RadiusSmStr));
     } else {
         m_lblI2cScanStatus->setText("Scan failed: Probe or bus error.");
     }

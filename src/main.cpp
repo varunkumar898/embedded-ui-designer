@@ -11,6 +11,7 @@
 #include "UgfxGenerator.h"
 #include "QtMcuGenerator.h"
 #include "LvglGenerator.h"
+#include "styles/StyleManager.h"
 
 int main(int argc, char *argv[])
 {
@@ -35,6 +36,7 @@ int main(int argc, char *argv[])
     app.setOrganizationDomain("embeddeddev.org");
     app.setApplicationVersion("1.0.0");
     app.setWindowIcon(QIcon(":/packaging/embedded-ui-designer.png"));
+    StyleManager::applyTheme(StyleManager::currentTheme());
 
     QCommandLineParser parser;
     parser.setApplicationDescription("Embedded UI Designer - Visual UI Designer and Code Generator for Microcontrollers");

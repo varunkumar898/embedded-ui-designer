@@ -128,7 +128,11 @@ void ButtonComponent::paintComponent(QPainter* painter) {
     }
 
     // 1. Button body
-    painter->setBrush(QBrush(bg));
+    if (hasGradientFill()) {
+        painter->setBrush(gradientFill().toQBrush(rect));
+    } else {
+        painter->setBrush(QBrush(bg));
+    }
     painter->setPen(Qt::NoPen);
     painter->drawRoundedRect(rect, m_cornerRadius, m_cornerRadius);
 

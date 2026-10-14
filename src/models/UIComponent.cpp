@@ -2,11 +2,13 @@
 #include "CanvasScene.h"
 #include "MoveComponentCommand.h"
 #include "ResizeComponentCommand.h"
+#include "RotateComponentCommand.h"
 #include "PropertyChangeCommand.h"
 #include <QUndoStack>
 #include <QPen>
 #include <QBrush>
 #include <QGraphicsScene>
+#include <QFontMetrics>
 #include <cmath>
 #include <algorithm>
 
@@ -17,6 +19,7 @@ UIComponent::UIComponent(const QString& id, const QString& compType, QGraphicsIt
 {
     setFlags(ItemIsMovable | ItemIsSelectable | ItemSendsGeometryChanges);
     setAcceptHoverEvents(true);
+    setTransformOriginPoint(QPointF(m_width / 2.0, m_height / 2.0));
 }
 
 void UIComponent::setComponentId(const QString& id) {
@@ -44,10 +47,11 @@ void UIComponent::setCompPos(qreal x, qreal y) {
 void UIComponent::setCompSize(qreal w, qreal h) {
     w = std::max(10.0, w);
     h = std::max(10.0, h);
-    if (m_width != w || m_height != h) {
+    if (m_width != w || m_height != h || transformOriginPoint() != QPointF(w / 2.0, h / 2.0)) {
         prepareGeometryChange();
         m_width = w;
         m_height = h;
+        setTransformOriginPoint(QPointF(m_width / 2.0, m_height / 2.0));
         if (hasCornerRadius()) {
             int maxR = static_cast<int>(std::floor(std::min(m_width, m_height) / 2.0));
             if (cornerRadius() > maxR) {
@@ -59,8 +63,30 @@ void UIComponent::setCompSize(qreal w, qreal h) {
     }
 }
 
+void UIComponent::setRotationAngle(qreal angle) {
+    qreal norm = std::fmod(angle, 360.0);
+    if (norm < 0.0) norm += 360.0;
+    if (std::abs(norm - 360.0) < 0.001) norm = 0.0;
+    if (std::abs(rotation() - norm) > 0.0001) {
+        prepareGeometryChange();
+        setTransformOriginPoint(QPointF(m_width / 2.0, m_height / 2.0));
+        setRotation(norm);
+        update();
+        emit propertyChanged(this);
+        emit geometryChangedSignal(this);
+    }
+}
+
+void UIComponent::rotateByWheelDelta(qreal deltaY) {
+    // 120-unit standard mouse wheel step = 15.0 degrees.
+    // Positive delta (scroll up) = clockwise (+ degrees).
+    // Negative delta (scroll down) = counterclockwise (- degrees).
+    qreal angleDelta = (deltaY / 120.0) * 15.0;
+    setRotationAngle(rotation() + angleDelta);
+}
+
 QRectF UIComponent::boundingRect() const {
-    qreal margin = HANDLE_SIZE / 2.0 + 2.0;
+    qreal margin = HANDLE_SIZE / 2.0 + (m_isRotating ? 26.0 : 4.0);
     return QRectF(-margin, -margin, m_width + margin * 2, m_height + margin * 2);
 }
 
@@ -69,6 +95,11 @@ void UIComponent::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
     Q_UNUSED(widget);
 
     painter->save();
+    if (m_flipH || m_flipV) {
+        painter->translate(m_width / 2.0, m_height / 2.0);
+        painter->scale(m_flipH ? -1.0 : 1.0, m_flipV ? -1.0 : 1.0);
+        painter->translate(-m_width / 2.0, -m_height / 2.0);
+    }
     paintComponent(painter);
     painter->restore();
 
@@ -78,7 +109,30 @@ void UIComponent::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
 }
 
 void UIComponent::paintSelectionHandles(QPainter* painter) {
-    painter->save();
+    if (m_isLocked) {
+        // Locked component: draw lock outline and lock badge
+        QPen lockedPen(QColor(234, 88, 12), 1.5, Qt::DashLine); // Amber/orange lock color
+        painter->setPen(lockedPen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(QRectF(0, 0, m_width, m_height));
+
+        // Draw lock icon badge in top right corner
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QRectF badgeRect(m_width - 20, -10, 20, 20);
+        painter->setPen(QPen(QColor(234, 88, 12), 1.2));
+        painter->setBrush(QBrush(QColor(30, 32, 38)));
+        painter->drawRoundedRect(badgeRect, 4, 4);
+
+        // Draw small lock symbol
+        painter->setPen(QPen(QColor(255, 255, 255), 1.2));
+        painter->setBrush(QBrush(QColor(234, 88, 12)));
+        painter->drawRoundedRect(QRectF(m_width - 16, -2, 12, 9), 2, 2);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawArc(QRectF(m_width - 14, -7, 8, 8), 0, 180 * 16);
+
+        painter->restore();
+        return;
+    }
 
     // Outline bounding box
     QPen outlinePen(QColor(0, 120, 255), 1.5, Qt::DashLine);
@@ -87,10 +141,21 @@ void UIComponent::paintSelectionHandles(QPainter* painter) {
     painter->drawRect(QRectF(0, 0, m_width, m_height));
 
     // Draw handles
-    painter->setPen(QPen(QColor(0, 120, 255), 1.0));
-    painter->setBrush(QBrush(Qt::white));
-
     auto drawH = [&](ResizeHandle h) {
+        if (isMidpointHandle(h)) {
+            // Midpoint handle: highlight active rotation handle or show styled midpoint handle
+            if (m_isRotating && m_activeRotateHandle == h) {
+                painter->setPen(QPen(QColor(255, 255, 255), 1.5));
+                painter->setBrush(QBrush(QColor(0, 150, 255)));
+            } else {
+                painter->setPen(QPen(QColor(0, 120, 255), 1.2));
+                painter->setBrush(QBrush(QColor(225, 240, 255)));
+            }
+        } else {
+            // Corner handle (resize)
+            painter->setPen(QPen(QColor(0, 120, 255), 1.0));
+            painter->setBrush(QBrush(Qt::white));
+        }
         painter->drawRect(handleRect(h));
     };
 
@@ -102,6 +167,24 @@ void UIComponent::paintSelectionHandles(QPainter* painter) {
     drawH(ResizeHandle::Bottom);
     drawH(ResizeHandle::Left);
     drawH(ResizeHandle::Right);
+
+    // If actively rotating, display current rotation angle badge above selection
+    if (m_isRotating) {
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QString angleStr = QString("%1°").arg(std::round(rotation()));
+        QFont font("Inter", 8, QFont::Bold);
+        painter->setFont(font);
+        QFontMetrics fm(font);
+        int textW = fm.horizontalAdvance(angleStr);
+        int badgeW = textW + 14;
+        int badgeH = 18;
+        QRectF badgeRect(m_width / 2.0 - badgeW / 2.0, -badgeH - 8, badgeW, badgeH);
+        painter->setPen(QPen(QColor(0, 150, 255), 1.0));
+        painter->setBrush(QBrush(QColor(15, 23, 42, 230)));
+        painter->drawRoundedRect(badgeRect, 4, 4);
+        painter->setPen(QColor(255, 255, 255));
+        painter->drawText(badgeRect, Qt::AlignCenter, angleStr);
+    }
 
     // Draw Corner Radius handles if component supports corner radius
     if (hasCornerRadius()) {
@@ -224,11 +307,9 @@ void UIComponent::updateCursorForHandle(ResizeHandle handle) {
             break;
         case ResizeHandle::Top:
         case ResizeHandle::Bottom:
-            setCursor(Qt::SizeVerCursor);
-            break;
         case ResizeHandle::Left:
         case ResizeHandle::Right:
-            setCursor(Qt::SizeHorCursor);
+            setCursor(Qt::PointingHandCursor);
             break;
         default:
             setCursor(Qt::ArrowCursor);
@@ -250,6 +331,15 @@ void UIComponent::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
     QGraphicsObject::hoverMoveEvent(event);
 }
 
+void UIComponent::wheelEvent(QGraphicsSceneWheelEvent* event) {
+    if (m_isRotating || (isSelected() && isMidpointHandle(handleAt(event->pos())))) {
+        rotateByWheelDelta(event->delta());
+        event->accept();
+        return;
+    }
+    QGraphicsObject::wheelEvent(event);
+}
+
 void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     m_initialGeom = QRectF(pos().x(), pos().y(), m_width, m_height);
     if (event->button() == Qt::LeftButton && isSelected()) {
@@ -263,8 +353,21 @@ void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
                 return;
             }
         }
-        m_activeHandle = handleAt(event->pos());
-        if (m_activeHandle != ResizeHandle::None) {
+        ResizeHandle h = handleAt(event->pos());
+        if (isMidpointHandle(h)) {
+            // Midpoint handle pressed: initiate smooth rotation mode via mouse wheel
+            m_isRotating = true;
+            m_activeRotateHandle = h;
+            m_initialRotation = rotation();
+            m_resizing = false;
+            m_draggingRadius = false;
+            setCursor(Qt::CrossCursor);
+            update();
+            event->accept();
+            return;
+        } else if (isCornerHandle(h)) {
+            // Corner handle pressed: initiate resize
+            m_activeHandle = h;
             m_resizing = true;
             m_dragStartPos = event->scenePos();
             event->accept();
@@ -272,6 +375,8 @@ void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         }
     }
     m_resizing = false;
+    m_isRotating = false;
+    m_activeRotateHandle = ResizeHandle::None;
     m_draggingRadius = false;
     if (scene()) {
         for (QGraphicsItem* it : scene()->selectedItems()) {
@@ -286,6 +391,12 @@ void UIComponent::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
+    if (m_isRotating) {
+        // While rotating via wheel, prevent any drag movement or resizing
+        event->accept();
+        return;
+    }
+
     if (m_draggingRadius) {
         qreal maxR = std::floor(std::min(m_width, m_height) / 2.0);
         qreal h0 = std::min(8.0, std::max(4.0, maxR * 0.4));
@@ -434,6 +545,23 @@ void UIComponent::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void UIComponent::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
+    if (m_isRotating) {
+        m_isRotating = false;
+        m_activeRotateHandle = ResizeHandle::None;
+        setCursor(Qt::ArrowCursor);
+        update();
+        if (std::abs(rotation() - m_initialRotation) > 0.001) {
+            if (auto cs = dynamic_cast<CanvasScene*>(scene())) {
+                if (cs->undoStack()) {
+                    cs->undoStack()->push(new RotateComponentCommand(this, m_initialRotation, rotation()));
+                }
+            }
+        }
+        event->accept();
+        emit geometryChangedSignal(this);
+        return;
+    }
+
     if (m_draggingRadius) {
         m_draggingRadius = false;
         m_activeRadiusHandle = CornerRadiusHandle::None;
@@ -503,6 +631,7 @@ QJsonObject UIComponent::toJson() const {
     obj["y"] = static_cast<int>(std::round(pos().y()));
     obj["width"] = static_cast<int>(std::round(m_width));
     obj["height"] = static_cast<int>(std::round(m_height));
+    obj["rotation"] = static_cast<int>(std::round(rotation()));
     obj["visible"] = isVisible();
     obj["interactions"] = m_interactions;
     obj["protocol"] = m_protocol.isEmpty() ? QString("None") : m_protocol;
@@ -532,6 +661,17 @@ QJsonObject UIComponent::toJson() const {
         }
         obj["bindings"] = bindingsArr;
     }
+
+    // Gradient Fill
+    if (hasGradientFill()) {
+        obj["gradient"] = m_gradientFill.toJson();
+    }
+
+    // Lock, Flip, Opacity
+    obj["locked"] = m_isLocked;
+    obj["flipH"] = m_flipH;
+    obj["flipV"] = m_flipV;
+    obj["opacity"] = opacity();
 
     return obj;
 }
@@ -577,6 +717,26 @@ void UIComponent::fromJson(const QJsonObject& json) {
     qreal w = json.value("width").toDouble(m_width);
     qreal h = json.value("height").toDouble(m_height);
     setCompSize(w, h);
+    if (json.contains("rotation")) {
+        setRotationAngle(json.value("rotation").toDouble(0.0));
+    }
+    if (json.contains("gradient") && json.value("gradient").isObject()) {
+        m_gradientFill = ComponentGradient::fromJson(json.value("gradient").toObject());
+    } else {
+        m_gradientFill.setEnabled(false);
+    }
+    if (json.contains("locked")) {
+        setLocked(json.value("locked").toBool(false));
+    }
+    if (json.contains("flipH")) {
+        m_flipH = json.value("flipH").toBool(false);
+    }
+    if (json.contains("flipV")) {
+        m_flipV = json.value("flipV").toBool(false);
+    }
+    if (json.contains("opacity")) {
+        setOpacity(json.value("opacity").toDouble(1.0));
+    }
 }
 
 

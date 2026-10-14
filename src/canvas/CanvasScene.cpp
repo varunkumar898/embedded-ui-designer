@@ -1,4 +1,5 @@
 #include "CanvasScene.h"
+#include "theme/Theme.h"
 #include <QPainter>
 #include <cmath>
 #include <algorithm>
@@ -228,12 +229,12 @@ void CanvasScene::onComponentGeometryChanged(UIComponent* comp) {
 }
 
 void CanvasScene::drawBackground(QPainter* painter, const QRectF& rect) {
-    // 1. Dark canvas background
-    painter->fillRect(rect, QColor(19, 21, 25));
+    // 1. Dark canvas background (slightly lighter than bg-base)
+    painter->fillRect(rect, Theme::cCanvasBg());
 
     // Subtle fine dot matrix grid across canvas
     painter->save();
-    QPen dotPen(QColor(36, 40, 50), 1.4);
+    QPen dotPen(Theme::cBorderSubtle(), 1.4);
     painter->setPen(dotPen);
     const qreal step = 28.0;
     qreal startX = std::floor(rect.left() / step) * step;
@@ -261,7 +262,7 @@ void CanvasScene::drawBackground(QPainter* painter, const QRectF& rect) {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setBrush(m_screenBackgroundColor);
-    painter->setPen(QPen(QColor(215, 222, 232), 1.0));
+    painter->setPen(QPen(Theme::cBorderSubtle(), 1.0));
     painter->drawRoundedRect(sRect, 8, 8);
     painter->restore();
 
@@ -272,7 +273,7 @@ void CanvasScene::drawBackground(QPainter* painter, const QRectF& rect) {
         clip.addRoundedRect(sRect, 8, 8);
         painter->setClipPath(clip);
 
-        QPen gridPen(QColor(228, 233, 240), 1, Qt::DotLine);
+        QPen gridPen(Theme::cBorderSubtle(), 1, Qt::DotLine);
         painter->setPen(gridPen);
 
         for (qreal x = 0; x <= sRect.width(); x += m_gridSize) {
@@ -342,19 +343,19 @@ void CanvasScene::drawForeground(QPainter* painter, const QRectF& rect) {
     painter->setBrush(QColor(0, 0, 0, 70));
     painter->drawRoundedRect(badgeRect.translated(0, 2), 8, 8);
 
-    painter->setBrush(QColor(26, 29, 36));
-    painter->setPen(QPen(QColor(42, 47, 58), 1.0));
+    painter->setBrush(Theme::cBgRaised());
+    painter->setPen(QPen(Theme::cBorderSubtle(), 1.0));
     painter->drawRoundedRect(badgeRect, 8, 8);
 
-    painter->setPen(QColor(220, 228, 238));
+    painter->setPen(Theme::cTextPrimary());
     painter->drawText(badgeRect.adjusted(0, -1, 0, -1), Qt::AlignCenter, label);
     painter->restore();
 
     if (m_pathPreviewVisible) {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(QPen(QColor(26, 150, 255), 2.0, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin));
-        painter->setBrush(QColor(26, 150, 255, 70));
+        painter->setPen(QPen(Theme::cAccent(), 2.0, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->setBrush(QColor(255, 255, 255, 45));
 
         for (int index = 1; index < m_pathPreviewPoints.size(); ++index) {
             painter->drawLine(m_pathPreviewPoints.at(index - 1), m_pathPreviewPoints.at(index));

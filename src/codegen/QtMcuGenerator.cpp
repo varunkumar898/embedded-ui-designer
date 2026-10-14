@@ -245,7 +245,23 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(rect->pos().y()))
                     .arg(static_cast<int>(rect->compWidth()))
                     .arg(static_cast<int>(rect->compHeight()));
-                qml += QString("        color: \"%1\"\n").arg(rect->fillColor().name());
+                if (rect->hasGradientFill() && !rect->gradientFill().stops.isEmpty()) {
+                    const ComponentGradient& g = rect->gradientFill();
+                    qml += "        gradient: Gradient {\n";
+                    if (g.type == ComponentGradient::Type::Linear) {
+                        int angle = ((static_cast<int>(g.angle) % 360) + 360) % 360;
+                        if ((angle >= 315 || angle < 45) || (angle >= 135 && angle < 225)) {
+                            qml += "            orientation: Gradient.Horizontal\n";
+                        }
+                    }
+                    for (const auto& s : g.stops) {
+                        qml += QString("            GradientStop { position: %1; color: \"%2\" }\n")
+                            .arg(s.position, 0, 'f', 2).arg(s.color.name());
+                    }
+                    qml += "        }\n";
+                } else {
+                    qml += QString("        color: \"%1\"\n").arg(rect->fillColor().name());
+                }
                 if (rect->cornerRadius() > 0) {
                     qml += QString("        radius: %1\n").arg(rect->cornerRadius());
                 }
@@ -279,10 +295,20 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(btn->compWidth()))
                     .arg(static_cast<int>(btn->compHeight()));
                 qml += QString("        property string text: \"%1\"\n").arg(qmlString(btn->text()));
-                qml += QString("        color: %1_mouse.pressed ? \"%2\" : \"%3\"\n")
-                    .arg(btn->componentId())
-                    .arg(btn->backgroundColor().darker(120).name())
-                    .arg(btn->backgroundColor().name());
+                if (btn->hasGradientFill() && !btn->gradientFill().stops.isEmpty()) {
+                    const ComponentGradient& g = btn->gradientFill();
+                    qml += "        gradient: Gradient {\n";
+                    for (const auto& s : g.stops) {
+                        qml += QString("            GradientStop { position: %1; color: \"%2\" }\n")
+                            .arg(s.position, 0, 'f', 2).arg(s.color.name());
+                    }
+                    qml += "        }\n";
+                } else {
+                    qml += QString("        color: %1_mouse.pressed ? \"%2\" : \"%3\"\n")
+                        .arg(btn->componentId())
+                        .arg(btn->backgroundColor().darker(120).name())
+                        .arg(btn->backgroundColor().name());
+                }
                 if (btn->cornerRadius() > 0) {
                     qml += QString("        radius: %1\n").arg(btn->cornerRadius());
                 }
@@ -325,7 +351,18 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "        Rectangle {\n";
                 qml += "            height: parent.height\n";
                 qml += "            width: parent.width * parent.value\n";
-                qml += QString("            color: \"%1\"\n").arg(prog->barColor().name());
+                if (prog->hasGradientFill() && !prog->gradientFill().stops.isEmpty()) {
+                    const ComponentGradient& g = prog->gradientFill();
+                    qml += "            gradient: Gradient {\n";
+                    qml += "                orientation: Gradient.Horizontal\n";
+                    for (const auto& s : g.stops) {
+                        qml += QString("                GradientStop { position: %1; color: \"%2\" }\n")
+                            .arg(s.position, 0, 'f', 2).arg(s.color.name());
+                    }
+                    qml += "            }\n";
+                } else {
+                    qml += QString("            color: \"%1\"\n").arg(prog->barColor().name());
+                }
                 if (prog->cornerRadius() > 0) {
                     qml += QString("            radius: %1\n").arg(prog->cornerRadius());
                 }

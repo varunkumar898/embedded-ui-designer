@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Schema Editor - Embedded UI Designer</title>
+  <style>
+    :root {
+      --bg-dark: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-get { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
+    .badge-post { background: #23863633; color: #3fb950; border: 1px solid #238636; }
+    .badge-put { background: #d2992233; color: #d29922; border: 1px solid #9e6a03; }
+    .badge-delete { background: #da363333; color: #f85149; border: 1px solid #da3633; }
+    .btn {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 61px);
+    }
+    .sidebar {
+      width: 320px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .endpoint-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .endpoint-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .endpoint-item:hover { background: var(--bg-input); }
+    .endpoint-item.active { background: #1f6feb22; border-color: var(--accent); }
+    .endpoint-path { font-size: 13px; font-weight: 500; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .editor-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 24px;
+      gap: 20px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--text-main);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 140px 1fr 1fr;
+      gap: 12px;
+    }
+    label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    input, select, textarea {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px #1f6feb33;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
+    .preview-pane {
+      width: 440px;
+      background: var(--bg-card);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    .preview-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-dark);
+    }
+    .preview-tab {
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+    }
+    .preview-tab.active { color: var(--accent); border-color: var(--accent); }
+    .code-view {
+      flex: 1;
+      padding: 16px;
+      font-family: monospace;
+      font-size: 12px;
+      overflow: auto;
+      white-space: pre;
+      background: #090d13;
+      color: #7ee787;
+    }
+    .status-banner {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-ok { background: #23863622; border: 1px solid #238636; color: #3fb950; }
+    .status-err { background: #da363322; border: 1px solid #da3633; color: #f85149; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-title">
+      <span>⚡ API Schema Editor</span>
+      <span class="badge badge-get" id="globalVersion">v1.0.0</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn" id="btnExportJson">Export Schema JSON</button>
+      <button class="btn btn-primary" id="btnValidateAll">Validate Contract</button>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span style="font-size: 13px; font-weight: 600;">Endpoints (<span id="endpointCount">0</span>)</span>
+        <button class="btn btn-primary" style="padding: 4px 10px;" id="btnAddEndpoint">+ Add</button>
+      </div>
+      <div class="endpoint-list" id="endpointList"></div>
+    </div>
+
+    <div class="editor-pane">
+      <div id="validationBanner" class="status-banner status-ok">
+        <span>✓ API Contract Valid: All routes mapped without conflict</span>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Endpoint Configuration</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>HTTP Method</label>
+            <select id="fieldMethod">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+              <option value="PATCH">PATCH</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Path Pattern</label>
+            <input type="text" id="fieldPath" placeholder="/api/v1/resource">
+          </div>
+          <div class="form-group">
+            <label>Operation ID</label>
+            <input type="text" id="fieldOperationId" placeholder="readResource">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="fieldDescription" placeholder="Reads state or dispatches command">
+        </div>
+        <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+          <div class="form-group">
+            <label>Request Body Type (TypeRegistry)</label>
+            <select id="fieldBodyType">
+              <option value="">None (Empty)</option>
+              <option value="int32">32-bit Integer</option>
+              <option value="string">String</option>
+              <option value="bool">Boolean</option>
+              <option value="GpioConfigDto">GpioConfigDto</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Hardware Operation Binding</label>
+            <select id="fieldBoundOp">
+              <option value="">None (Pure Compute)</option>
+              <option value="gpio_read_pa0">GPIO Read (PA0)</option>
+              <option value="gpio_write_pa5">GPIO Write (PA5 / LED)</option>
+              <option value="adc_read_ch1">ADC Read (CH1)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Parameters</span>
+          <button class="btn" style="padding: 4px 8px; font-size: 11px;" id="btnAddParam">+ Add Parameter</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Location</th>
+              <th>Required</th>
+              <th>Default</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="paramsTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>HTTP Responses</span>
+          <button class="btn" style="padding: 4px 8px; font-size: 11px;" id="btnAddResponse">+ Add Response</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Response Type</th>
+              <th>Description</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="responsesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="preview-pane">
+      <div class="preview-tabs">
+        <div class="preview-tab active" data-lang="c">C (CivetWeb)</div>
+        <div class="preview-tab" data-lang="cpp">C++ Server</div>
+        <div class="preview-tab" data-lang="rust">Rust (Axum)</div>
+        <div class="preview-tab" data-lang="json">OpenAPI JSON</div>
+      </div>
+      <div class="code-view" id="codeView">// Generated endpoint code will appear here</div>
+    </div>
+  </div>
+
+  <script>
+    // State Store
+    const endpoints = [
+      {
+        endpointId: "ep_gpio_read",
+        path: "/api/v1/device/gpio/read",
+        method: "GET",
+        operationId: "readGPIO",
+        description: "Reads logic level of specified GPIO pin",
+        requestBodyTypeId: "",
+        boundDeviceOperationId: "gpio_read_pa0",
+        parameters: [
+          { paramName: "pin", typeId: "uint8", paramLocation: "query", required: true, defaultValue: "0" }
+        ],
+        responses: [
+          { statusCode: 200, responseTypeId: "uint8", description: "Pin logic level (0 or 1)" },
+          { statusCode: 400, responseTypeId: "ErrorModel", description: "Invalid pin index" }
+        ]
+      },
+      {
+        endpointId: "ep_gpio_write",
+        path: "/api/v1/device/gpio/write",
+        method: "POST",
+        operationId: "writeGPIO",
+        description: "Sets GPIO pin output state",
+        requestBodyTypeId: "GpioConfigDto",
+        boundDeviceOperationId: "gpio_write_pa5",
+        parameters: [],
+        responses: [
+          { statusCode: 200, responseTypeId: "bool", description: "State updated successfully" }
+        ]
+      }
+    ];
+
+    let activeIndex = 0;
+    let activeLang = "c";
+
+    function renderList() {
+      const listEl = document.getElementById("endpointList");
+      listEl.innerHTML = "";
+      endpoints.forEach((ep, idx) => {
+        const item = document.createElement("div");
+        item.className = "endpoint-item" + (idx === activeIndex ? " active" : "");
+        const badgeClass = "badge badge-" + ep.method.toLowerCase();
+        item.innerHTML = `
+          <span class="${badgeClass}">${ep.method}</span>
+          <span class="endpoint-path">${ep.path}</span>
+        `;
+        item.onclick = () => { activeIndex = idx; syncForm(); renderList(); };
+        listEl.appendChild(item);
+      });
+      document.getElementById("endpointCount").innerText = endpoints.length;
+    }
+
+    function syncForm() {
+      const ep = endpoints[activeIndex];
+      if (!ep) return;
+      document.getElementById("fieldMethod").value = ep.method;
+      document.getElementById("fieldPath").value = ep.path;
+      document.getElementById("fieldOperationId").value = ep.operationId;
+      document.getElementById("fieldDescription").value = ep.description;
+      document.getElementById("fieldBodyType").value = ep.requestBodyTypeId;
+      document.getElementById("fieldBoundOp").value = ep.boundDeviceOperationId;
+
+      renderParams(ep);
+      renderResponses(ep);
+      updateCodePreview();
+    }
+
+    function renderParams(ep) {
+      const tbody = document.getElementById("paramsTableBody");
+      tbody.innerHTML = "";
+      ep.parameters.forEach((p, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><input type="text" value="${p.paramName}" style="width: 100px;" onchange="updateParam(${idx}, 'paramName', this.value)"></td>
+          <td>
+            <select onchange="updateParam(${idx}, 'typeId', this.value)">
+              <option value="uint8" ${p.typeId === 'uint8' ? 'selected' : ''}>uint8</option>
+              <option value="int32" ${p.typeId === 'int32' ? 'selected' : ''}>int32</option>
+              <option value="string" ${p.typeId === 'string' ? 'selected' : ''}>string</option>
+              <option value="bool" ${p.typeId === 'bool' ? 'selected' : ''}>bool</option>
+            </select>
+          </td>
+          <td>
+            <select onchange="updateParam(${idx}, 'paramLocation', this.value)">
+              <option value="query" ${p.paramLocation === 'query' ? 'selected' : ''}>query</option>
+              <option value="path" ${p.paramLocation === 'path' ? 'selected' : ''}>path</option>
+              <option value="header" ${p.paramLocation === 'header' ? 'selected' : ''}>header</option>
+            </select>
+          </td>
+          <td><input type="checkbox" ${p.required ? 'checked' : ''} onchange="updateParam(${idx}, 'required', this.checked)"></td>
+          <td><input type="text" value="${p.defaultValue}" style="width: 60px;" onchange="updateParam(${idx}, 'defaultValue', this.value)"></td>
+          <td><button class="btn" style="padding: 2px 6px; color: var(--danger);" onclick="deleteParam(${idx})">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderResponses(ep) {
+      const tbody = document.getElementById("responsesTableBody");
+      tbody.innerHTML = "";
+      ep.responses.forEach((r, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${r.statusCode}</strong></td>
+          <td><code>${r.responseTypeId || 'void'}</code></td>
+          <td>${r.description}</td>
+          <td><button class="btn" style="padding: 2px 6px; color: var(--danger);" onclick="deleteResponse(${idx})">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.updateParam = (idx, key, val) => {
+      endpoints[activeIndex].parameters[idx][key] = val;
+      updateCodePreview();
+    };
+
+    window.deleteParam = (idx) => {
+      endpoints[activeIndex].parameters.splice(idx, 1);
+      renderParams(endpoints[activeIndex]);
+      updateCodePreview();
+    };
+
+    window.deleteResponse = (idx) => {
+      endpoints[activeIndex].responses.splice(idx, 1);
+      renderResponses(endpoints[activeIndex]);
+      updateCodePreview();
+    };
+
+    document.getElementById("btnAddParam").onclick = () => {
+      endpoints[activeIndex].parameters.push({
+        paramName: "new_param",
+        typeId: "int32",
+        paramLocation: "query",
+        required: true,
+        defaultValue: "0"
+      });
+      renderParams(endpoints[activeIndex]);
+      updateCodePreview();
+    };
+
+    document.getElementById("btnAddResponse").onclick = () => {
+      endpoints[activeIndex].responses.push({
+        statusCode: 200,
+        responseTypeId: "bool",
+        description: "Operation successful"
+      });
+      renderResponses(endpoints[activeIndex]);
+      updateCodePreview();
+    };
+
+    document.getElementById("btnAddEndpoint").onclick = () => {
+      const count = endpoints.length + 1;
+      endpoints.push({
+        endpointId: "ep_" + count,
+        path: "/api/v1/endpoint/" + count,
+        method: "GET",
+        operationId: "handleEndpoint" + count,
+        description: "Auto-generated endpoint",
+        requestBodyTypeId: "",
+        boundDeviceOperationId: "",
+        parameters: [],
+        responses: [{ statusCode: 200, responseTypeId: "bool", description: "OK" }]
+      });
+      activeIndex = endpoints.length - 1;
+      renderList();
+      syncForm();
+    };
+
+    // Form inputs binding
+    ["fieldMethod", "fieldPath", "fieldOperationId", "fieldDescription", "fieldBodyType", "fieldBoundOp"].forEach(id => {
+      document.getElementById(id).oninput = () => {
+        const ep = endpoints[activeIndex];
+        ep.method = document.getElementById("fieldMethod").value;
+        ep.path = document.getElementById("fieldPath").value;
+        ep.operationId = document.getElementById("fieldOperationId").value;
+        ep.description = document.getElementById("fieldDescription").value;
+        ep.requestBodyTypeId = document.getElementById("fieldBodyType").value;
+        ep.boundDeviceOperationId = document.getElementById("fieldBoundOp").value;
+        renderList();
+        updateCodePreview();
+      };
+    });
+
+    function updateCodePreview() {
+      const ep = endpoints[activeIndex];
+      const codeView = document.getElementById("codeView");
+      if (activeLang === "c") {
+        codeView.textContent = `// CivetWeb REST handler for ${ep.path}\nint handle_${ep.operationId}(struct mg_connection *conn, void *cbdata) {\n    mg_printf(conn, "HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n");\n    // Bound Hardware: ${ep.boundDeviceOperationId || "None"}\n    mg_printf(conn, "{\\"status\\": \\"ok\\", \\"op\\": \\"${ep.operationId}\\"}");\n    return 200;\n}`;
+      } else if (activeLang === "cpp") {
+        codeView.textContent = `// C++ Server Controller\nvoid ${ep.operationId}Controller::handle(HttpRequest& req, HttpResponse& res) {\n    // Path: ${ep.path} [${ep.method}]\n    res.status(200).json({{"operation", "${ep.operationId}"}});\n}`;
+      } else if (activeLang === "rust") {
+        codeView.textContent = `// Axum Async Route Handler\npub async fn ${ep.operationId}_handler() -> impl IntoResponse {\n    // Method: ${ep.method} ${ep.path}\n    Json(json!({"status": "ok", "op": "${ep.operationId}"}))\n}`;
+      } else {
+        codeView.textContent = JSON.stringify(ep, null, 2);
+      }
+    }
+
+    document.querySelectorAll(".preview-tab").forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll(".preview-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        activeLang = tab.getAttribute("data-lang");
+        updateCodePreview();
+      };
+    });
+
+    document.getElementById("btnValidateAll").onclick = () => {
+      const banner = document.getElementById("validationBanner");
+      const emptyPaths = endpoints.filter(e => !e.path || e.path.trim() === "");
+      if (emptyPaths.length > 0) {
+        banner.className = "status-banner status-err";
+        banner.innerHTML = "⚠ Validation Error: Found " + emptyPaths.length + " endpoint(s) with empty paths!";
+      } else {
+        banner.className = "status-banner status-ok";
+        banner.innerHTML = "✓ API Contract Valid: " + endpoints.length + " endpoints validated successfully.";
+      }
+    };
+
+    document.getElementById("btnExportJson").onclick = () => {
+      const blob = new Blob([JSON.stringify({ basePath: "/api/v1", endpoints: endpoints }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "api_schema.json";
+      a.click();
+    };
+
+    renderList();
+    syncForm();
+  </script>
+</body>
+</html>
