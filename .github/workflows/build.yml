@@ -26,14 +26,16 @@ jobs:
             cmake_arch: ARM64
           - os: macOS
             arch: x86_64
-            runner: macos-13
+            runner: macos-latest
             cmake_platform: macOS
             cmake_arch: x86_64
+            osx_arch: x86_64
           - os: macOS
             arch: ARM64
             runner: macos-latest
             cmake_platform: macOS
             cmake_arch: ARM64
+            osx_arch: arm64
           - os: Windows
             arch: x86_64
             runner: windows-latest
@@ -72,11 +74,16 @@ jobs:
         run: |
           mkdir -p build
           cd build
+          EXTRA_FLAGS=""
+          if [ -n "${{ matrix.osx_arch }}" ]; then
+            EXTRA_FLAGS="-DCMAKE_OSX_ARCHITECTURES=${{ matrix.osx_arch }}"
+          fi
           cmake -DPLATFORM=${{ matrix.cmake_platform }} \
                 -DARCH=${{ matrix.cmake_arch }} \
                 -DENABLE_TESTS=ON \
                 -DENABLE_SECURITY_HARDENING=ON \
-                -DENABLE_OBSERVABILITY=ON ..
+                -DENABLE_OBSERVABILITY=ON \
+                $EXTRA_FLAGS ..
 
       - name: Build All Targets
         shell: bash
@@ -93,6 +100,14 @@ jobs:
             build/test_codegen_multi_language*
             build/test_security_performance*
             build/test_compliance_observability*
+            build/bin/test_project_model*
+            build/bin/test_codegen_multi_language*
+            build/bin/test_security_performance*
+            build/bin/test_compliance_observability*
+            build/bin/Release/test_project_model*
+            build/bin/Release/test_codegen_multi_language*
+            build/bin/Release/test_security_performance*
+            build/bin/Release/test_compliance_observability*
             build/Release/test_project_model*
             build/Release/test_codegen_multi_language*
             build/Release/test_security_performance*
