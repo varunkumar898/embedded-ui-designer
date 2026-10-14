@@ -120,6 +120,15 @@ static std::string readFileWithFallback(const std::string& path) {
     if (!file.is_open()) {
         file.open("../" + path);
     }
+    if (!file.is_open()) {
+        file.open("../../" + path);
+    }
+    if (!file.is_open()) {
+        const char* srcdir = std::getenv("SRC_DIR");
+        if (srcdir) {
+            file.open(std::string(srcdir) + "/" + path);
+        }
+    }
     assert(file.is_open());
     return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 }

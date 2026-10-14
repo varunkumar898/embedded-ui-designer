@@ -1363,6 +1363,17 @@ target_include_directories(test_mcu_driver_packs PRIVATE
 set_target_properties(test_mcu_driver_packs PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME McuDriverPackAcceptanceTests COMMAND test_mcu_driver_packs)
 
+set_tests_properties(
+    EmbedWebSimulatorHarness
+    ProjectModelAcceptanceTests
+    MultiLanguageCodegenAcceptanceTests
+    FrontendIntegrationAcceptanceTests
+    SecurityPerformanceAcceptanceTests
+    DocumentationComplianceAcceptanceTests
+    McuDriverPackAcceptanceTests
+    PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
 # Workspace Widgets (Embedded Terminal, Serial Monitor, Code Workspace View) Tests
 if(HAVE_QT6)
 if(COMMAND qt_add_executable)

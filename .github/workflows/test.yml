@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir -p build && cd build
           cmake -DENABLE_TESTS=ON ..
-          cmake --build . --target test_project_model test_codegen_multi_language test_security_performance test_compliance_observability --config Release
+          cmake --build . --target test_project_model test_codegen_multi_language test_security_performance test_compliance_observability embedweb_simulator test_mcu_driver_packs --config Release
 
       - name: "Phase 1 (Weeks 3-4): Project Model & Schema Tests (20 Tests)"
         shell: bash

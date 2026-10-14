@@ -7,6 +7,11 @@
 #include <memory>
 #include <array>
 
+#ifdef _WIN32
+#define popen _popen
+#define pclose _pclose
+#endif
+
 using namespace EmbeddedUI;
 
 // Helper to run a command and check return code
