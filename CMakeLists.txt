@@ -703,6 +703,7 @@ else()
 endif()
 
 include(CPack)
+endif() # HAVE_QT6
 
 # ============================================================================
 # Automated Testing Suite
@@ -710,6 +711,8 @@ include(CPack)
 option(BUILD_TESTING "Build the testing tree." ON)
 if(BUILD_TESTING)
     enable_testing()
+
+if(HAVE_QT6)
 
 if(COMMAND qt_add_executable)
     qt_add_executable(test_all_cases

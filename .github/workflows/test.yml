@@ -56,7 +56,7 @@ jobs:
           cmake -DENABLE_TESTS=ON ..
           cmake --build . --target test_project_model test_codegen_multi_language test_security_performance test_compliance_observability --config Release
 
-      - name: Phase 1 (Weeks 3-4): Project Model & Schema Tests (20 Tests)
+      - name: "Phase 1 (Weeks 3-4): Project Model & Schema Tests (20 Tests)"
         shell: bash
         run: |
           if [ -f "./build/Release/test_project_model.exe" ]; then
@@ -67,7 +67,7 @@ jobs:
             ./build/test_project_model
           fi
 
-      - name: Phase 2 (Weeks 5-6): Multi-Language Code Generators (24 Tests)
+      - name: "Phase 2 (Weeks 5-6): Multi-Language Code Generators (24 Tests)"
         shell: bash
         run: |
           if [ -f "./build/Release/test_codegen_multi_language.exe" ]; then
@@ -78,11 +78,11 @@ jobs:
             ./build/test_codegen_multi_language
           fi
 
-      - name: Phase 3 (Weeks 7-8): Frontend Integration & Full-Stack Tests (18 Tests)
+      - name: "Phase 3 (Weeks 7-8): Frontend Integration & Full-Stack Tests (18 Tests)"
         shell: bash
         run: node src/frontend/tests/integration_runner.js
 
-      - name: Phase 4 (Weeks 9-10): Security Hardening & Performance Optimization (24 Tests)
+      - name: "Phase 4 (Weeks 9-10): Security Hardening & Performance Optimization (24 Tests)"
         shell: bash
         run: |
           if [ -f "./build/Release/test_security_performance.exe" ]; then
@@ -93,7 +93,7 @@ jobs:
             ./build/test_security_performance
           fi
 
-      - name: Phase 5 (Weeks 11-12): Documentation, CI/CD & Observability (16 Tests)
+      - name: "Phase 5 (Weeks 11-12): Documentation, CI/CD & Observability (16 Tests)"
         shell: bash
         run: |
           if [ -f "./build/Release/test_compliance_observability.exe" ]; then
