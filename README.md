@@ -1,4 +1,4 @@
-# Embedded UI Designer Platform: A 12-Week Production-Ready Framework
+# Embedded UI Designer Platform Production-Ready Framework
 
 [![Build Status](https://github.com/varunkumar898/embedded-ui-designer/actions/workflows/build.yml/badge.svg)](https://github.com/varunkumar898/embedded-ui-designer/actions/workflows/build.yml)
 [![Acceptance Tests](https://github.com/varunkumar898/embedded-ui-designer/actions/workflows/test.yml/badge.svg)](https://github.com/varunkumar898/embedded-ui-designer/actions/workflows/test.yml)
