@@ -93,3 +93,7 @@ jobs:
             build/test_codegen_multi_language*
             build/test_security_performance*
             build/test_compliance_observability*
+            build/Release/test_project_model*
+            build/Release/test_codegen_multi_language*
+            build/Release/test_security_performance*
+            build/Release/test_compliance_observability*

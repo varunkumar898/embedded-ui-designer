@@ -58,11 +58,25 @@ jobs:
 
       - name: Phase 1 (Weeks 3-4): Project Model & Schema Tests (20 Tests)
         shell: bash
-        run: ./build/test_project_model
+        run: |
+          if [ -f "./build/Release/test_project_model.exe" ]; then
+            ./build/Release/test_project_model.exe
+          elif [ -f "./build/test_project_model.exe" ]; then
+            ./build/test_project_model.exe
+          else
+            ./build/test_project_model
+          fi
 
       - name: Phase 2 (Weeks 5-6): Multi-Language Code Generators (24 Tests)
         shell: bash
-        run: ./build/test_codegen_multi_language
+        run: |
+          if [ -f "./build/Release/test_codegen_multi_language.exe" ]; then
+            ./build/Release/test_codegen_multi_language.exe
+          elif [ -f "./build/test_codegen_multi_language.exe" ]; then
+            ./build/test_codegen_multi_language.exe
+          else
+            ./build/test_codegen_multi_language
+          fi
 
       - name: Phase 3 (Weeks 7-8): Frontend Integration & Full-Stack Tests (18 Tests)
         shell: bash
@@ -70,14 +84,28 @@ jobs:
 
       - name: Phase 4 (Weeks 9-10): Security Hardening & Performance Optimization (24 Tests)
         shell: bash
-        run: ./build/test_security_performance
+        run: |
+          if [ -f "./build/Release/test_security_performance.exe" ]; then
+            ./build/Release/test_security_performance.exe
+          elif [ -f "./build/test_security_performance.exe" ]; then
+            ./build/test_security_performance.exe
+          else
+            ./build/test_security_performance
+          fi
 
       - name: Phase 5 (Weeks 11-12): Documentation, CI/CD & Observability (16 Tests)
         shell: bash
-        run: ./build/test_compliance_observability
+        run: |
+          if [ -f "./build/Release/test_compliance_observability.exe" ]; then
+            ./build/Release/test_compliance_observability.exe
+          elif [ -f "./build/test_compliance_observability.exe" ]; then
+            ./build/test_compliance_observability.exe
+          else
+            ./build/test_compliance_observability
+          fi
 
       - name: Run Full CTest Verification Suite
         shell: bash
         run: |
           cd build
-          ctest --verbose --output-on-failure
+          ctest -C Release --verbose --output-on-failure

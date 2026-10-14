@@ -52,15 +52,42 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
 )
-link_libraries(jsoncpp)
+# JsonCpp library detection with FetchContent fallback
+find_package(jsoncpp QUIET)
+if(NOT jsoncpp_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(JSONCPP QUIET jsoncpp)
+    endif()
+endif()
 
-# Enable Qt-specific CMake automatic tools
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
+if(TARGET jsoncpp)
+    set(JSONCPP_TARGET jsoncpp)
+elseif(TARGET jsoncpp_lib)
+    set(JSONCPP_TARGET jsoncpp_lib)
+elseif(jsoncpp_FOUND)
+    set(JSONCPP_TARGET jsoncpp)
+elseif(JSONCPP_FOUND)
+    include_directories(${JSONCPP_INCLUDE_DIRS})
+    link_directories(${JSONCPP_LIBRARY_DIRS})
+    set(JSONCPP_TARGET ${JSONCPP_LIBRARIES})
+else()
+    include(FetchContent)
+    FetchContent_Declare(
+        jsoncpp
+        GIT_REPOSITORY https://github.com/open-source-parsers/jsoncpp.git
+        GIT_TAG        1.9.5
+    )
+    set(JSONCPP_WITH_TESTS OFF CACHE BOOL "" FORCE)
+    set(JSONCPP_WITH_POST_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(jsoncpp)
+    set(JSONCPP_TARGET jsoncpp_lib)
+endif()
 
-# Find Required Qt6 packages
-find_package(Qt6 6.5 REQUIRED COMPONENTS
+link_libraries(${JSONCPP_TARGET})
+
+# Optional Qt6 detection for Desktop GUI and Qt unit tests
+find_package(Qt6 6.5 QUIET COMPONENTS
     Core
     Gui
     Widgets
@@ -68,40 +95,47 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Network
     Xml
 )
-find_package(Qt6 6.5 OPTIONAL_COMPONENTS
-    SerialPort
-)
 
+if(Qt6_FOUND)
+    message(STATUS "Qt6 6.5 found - Desktop GUI application and widget tests enabled")
+    set(HAVE_QT6 TRUE)
+    find_package(Qt6 6.5 OPTIONAL_COMPONENTS SerialPort)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOUIC ON)
 
-# ── Clipper2 (Boolean path operations) ────────────────────────────────────
-# Fetched at configure time; provides Clipper2Lib::Clipper2 target.
-include(FetchContent)
-FetchContent_Declare(
-    Clipper2
-    GIT_REPOSITORY https://github.com/AngusJohnson/Clipper2.git
-    GIT_TAG        Clipper2_1.3.0
-    SOURCE_SUBDIR  CPP
-)
-set(CLIPPER2_UTILS OFF CACHE BOOL "" FORCE)
-set(CLIPPER2_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(CLIPPER2_TESTS OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(Clipper2)
-# Suppress compiler warnings on third-party Clipper2 targets
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    foreach(_clipper_tgt IN ITEMS Clipper2 Clipper2Z)
-        if(TARGET ${_clipper_tgt})
-            target_compile_options(${_clipper_tgt} PRIVATE
-                -Wno-error -Wno-pedantic -Wno-template-id-cdtor)
-        endif()
-    endforeach()
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    foreach(_clipper_tgt IN ITEMS Clipper2 Clipper2Z)
-        if(TARGET ${_clipper_tgt})
-            target_compile_options(${_clipper_tgt} PRIVATE
-                -Wno-error -Wno-pedantic)
-        endif()
-    endforeach()
+    # ── Clipper2 (Boolean path operations) ────────────────────────────────────
+    include(FetchContent)
+    FetchContent_Declare(
+        Clipper2
+        GIT_REPOSITORY https://github.com/AngusJohnson/Clipper2.git
+        GIT_TAG        Clipper2_1.3.0
+        SOURCE_SUBDIR  CPP
+    )
+    set(CLIPPER2_UTILS OFF CACHE BOOL "" FORCE)
+    set(CLIPPER2_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(CLIPPER2_TESTS OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(Clipper2)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        foreach(_clipper_tgt IN ITEMS Clipper2 Clipper2Z)
+            if(TARGET ${_clipper_tgt})
+                target_compile_options(${_clipper_tgt} PRIVATE
+                    -Wno-error -Wno-pedantic -Wno-template-id-cdtor)
+            endif()
+        endforeach()
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        foreach(_clipper_tgt IN ITEMS Clipper2 Clipper2Z)
+            if(TARGET ${_clipper_tgt})
+                target_compile_options(${_clipper_tgt} PRIVATE
+                    -Wno-error -Wno-pedantic)
+            endif()
+        endforeach()
+    endif()
+else()
+    message(STATUS "Qt6 6.5 NOT found - Desktop GUI disabled. Building headless acceptance test suite.")
+    set(HAVE_QT6 FALSE)
 endif()
+
 
 # Common Source files (excluding main.cpp)
 set(COMMON_SOURCES
@@ -545,6 +579,7 @@ set(SOURCES
     ${COMMON_SOURCES}
 )
 
+if(HAVE_QT6)
 # Qt Resource manifests (.qrc)
 set(RESOURCES
     resources/app.qrc
@@ -1163,6 +1198,7 @@ target_link_libraries(test_embedweb_runtime PRIVATE
 )
 set_target_properties(test_embedweb_runtime PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME EmbedWebRuntime COMMAND test_embedweb_runtime)
+endif() # HAVE_QT6
 
 # Standalone EmbedWeb Desktop Simulator Harness (Stage 4.4)
 find_package(PkgConfig QUIET)
@@ -1218,7 +1254,7 @@ target_include_directories(test_project_model PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
 )
 target_link_libraries(test_project_model PRIVATE
-    jsoncpp
+    ${JSONCPP_TARGET}
 )
 set_target_properties(test_project_model PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME ProjectModelAcceptanceTests COMMAND test_project_model)
@@ -1241,7 +1277,7 @@ target_include_directories(test_codegen_multi_language PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
 )
 target_link_libraries(test_codegen_multi_language PRIVATE
-    jsoncpp
+    ${JSONCPP_TARGET}
 )
 set_target_properties(test_codegen_multi_language PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME MultiLanguageCodegenAcceptanceTests COMMAND test_codegen_multi_language)
@@ -1325,6 +1361,7 @@ set_target_properties(test_mcu_driver_packs PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME McuDriverPackAcceptanceTests COMMAND test_mcu_driver_packs)
 
 # Workspace Widgets (Embedded Terminal, Serial Monitor, Code Workspace View) Tests
+if(HAVE_QT6)
 if(COMMAND qt_add_executable)
     qt_add_executable(test_workspace_widgets
         tests/test_workspace_widgets.cpp
@@ -1377,7 +1414,7 @@ target_link_libraries(test_workspace_widgets PRIVATE
     Qt6::Network
     Qt6::Xml
     Clipper2
-    jsoncpp
+    ${JSONCPP_TARGET}
 )
 
 if(Qt6SerialPort_FOUND)
@@ -1387,5 +1424,7 @@ endif()
 
 set_target_properties(test_workspace_widgets PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME WorkspaceWidgetsAcceptanceTests COMMAND test_workspace_widgets)
+endif() # HAVE_QT6
+
 
 endif() # BUILD_TESTING
