@@ -31,6 +31,11 @@ public:
 
 public slots:
     void refresh();
+    // Live Test Mode: the panel must stay visible; only a banner is toggled.
+    void setLiveTestMode(bool enabled);
+
+    bool isLiveTestMode() const { return m_liveTestMode; }
+    QString liveTestBannerText() const;
 
 private slots:
     void onProjectModified();
@@ -39,14 +44,17 @@ private slots:
 private:
     void setupUi();
     void updateUI(const ResourceAnalysis& analysis);
+    void updateLiveTestBanner();
 
     ResourceEstimator m_estimator;
     Project* m_project = nullptr;
     DeviceProfile m_device;
     ResourceAnalysis m_last_analysis;
     bool m_updatingCombo = false;
+    bool m_liveTestMode = false;
 
     // UI elements
+    QLabel* m_liveTestBannerLabel = nullptr;
     QComboBox* m_deviceCombo = nullptr;
     QLabel* m_deviceInfoLabel = nullptr;
     QLabel* m_statusBadge = nullptr;

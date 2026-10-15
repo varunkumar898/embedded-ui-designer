@@ -38,6 +38,17 @@ void ResourceAnalyzerPanel::setupUi() {
     QVBoxLayout* rootLayout = new QVBoxLayout(this);
     rootLayout->setContentsMargins(6, 6, 6, 6);
 
+    // 0. Live Test banner (visible only while Live Test is ON; panel never hides)
+    m_liveTestBannerLabel = new QLabel(this);
+    m_liveTestBannerLabel->setObjectName("liveTestBannerLabel");
+    m_liveTestBannerLabel->setWordWrap(true);
+    m_liveTestBannerLabel->setVisible(false);
+    m_liveTestBannerLabel->setStyleSheet(QString(
+        "QLabel { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px;"
+        " padding: 6px 8px; font-size: 11px; font-weight: 600; }"
+    ).arg(Theme::InfoBg, Theme::TextPrimary, Theme::Info).arg(Theme::RadiusSm));
+    rootLayout->addWidget(m_liveTestBannerLabel);
+
     QScrollArea* sa = new QScrollArea(this);
     sa->setWidgetResizable(true);
     sa->setFrameShape(QFrame::NoFrame);
@@ -198,6 +209,29 @@ void ResourceAnalyzerPanel::onProjectModified() {
     refresh();
 }
 
+void ResourceAnalyzerPanel::setLiveTestMode(bool enabled) {
+    m_liveTestMode = enabled;
+    updateLiveTestBanner();
+    if (enabled) {
+        // Figures must stay live and accurate while the design runs on the PC.
+        refresh();
+    }
+}
+
+QString ResourceAnalyzerPanel::liveTestBannerText() const {
+    QString device = m_device.name;
+    if (device.isEmpty()) device = m_last_analysis.device_name;
+    if (device.isEmpty()) device = QStringLiteral("your selected target");
+    return QString("Live Test: the design runs on your PC. Figures show what the "
+                   "exported firmware would need on %1.").arg(device);
+}
+
+void ResourceAnalyzerPanel::updateLiveTestBanner() {
+    if (!m_liveTestBannerLabel) return;
+    m_liveTestBannerLabel->setText(liveTestBannerText());
+    m_liveTestBannerLabel->setVisible(m_liveTestMode);
+}
+
 void ResourceAnalyzerPanel::refresh() {
     if (m_device.name.isEmpty()) {
         m_device = m_estimator.capabilityDatabase().getDeviceProfile("STM32H745");
@@ -316,4 +350,7 @@ void ResourceAnalyzerPanel::updateUI(const ResourceAnalysis& analysis) {
             }
         }
     }
+
+    // 7. Keep the Live Test banner in sync with the device shown above
+    updateLiveTestBanner();
 }

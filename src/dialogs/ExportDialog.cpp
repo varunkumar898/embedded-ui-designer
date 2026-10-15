@@ -97,6 +97,7 @@ void ExportDialog::setupUi() {
 
     // ── Resource Analysis GroupBox ───────────────────────────────────────────
     m_resourceGroupBox = new QGroupBox("Resource Analysis (Estimated)", this);
+    m_resourceGroupBox->setObjectName("resourceGroupBox");
     auto* resLayout = new QVBoxLayout(m_resourceGroupBox);
     resLayout->setSpacing(6);
 

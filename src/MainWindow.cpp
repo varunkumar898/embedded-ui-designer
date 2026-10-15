@@ -877,6 +877,7 @@ void MainWindow::setupMenusAndToolbars() {
     m_liveTestButton->setCheckable(true);        // Makes it a toggle button
     m_liveTestButton->setChecked(false);         // Start OFF
     m_liveTestButton->setToolTip("Enable Live Test Mode (Ctrl+L)");
+    m_liveTestButton->setObjectName("liveTestButton");
 
     // Add button to toolbar
     m_toolbar->addSeparator();                   // Visual separator
@@ -2156,26 +2157,32 @@ void MainWindow::toggleLiveTestMode(bool enabled) {
         ).arg(Theme::LiveTestActive));
         statusBar()->showMessage("✓ Live Test: ON (Click switches to control GPIO)");
         
-        // NEW: Hide Resource Analyzer Panel
-        if (m_resourceAnalyzerPanel) {
-            m_resourceAnalyzerPanel->hide();
+        // Resource Analyzer stays visible in Live Test (superseded spec: it was hidden).
+        if (m_resourceDock) {
+            m_resourceDock->show();
+            m_resourceDock->raise();
+        }
+        if (m_resourcePanel) {
+            m_resourcePanel->setLiveTestMode(true);
         }
         
         qDebug() << "Live Test Mode: ON";
-        qDebug() << "Resource Analyzer: HIDDEN";
+        qDebug() << "Resource Analyzer: VISIBLE (Live Test banner shown)";
         
     } else {
         // LIVE TEST OFF
         m_liveTestButton->setStyleSheet("");
         statusBar()->showMessage("Design Mode (Resource Analyzer enabled)");
         
-        // NEW: Show Resource Analyzer Panel
-        if (m_resourceAnalyzerPanel) {
-            m_resourceAnalyzerPanel->show();
+        if (m_resourceDock) {
+            m_resourceDock->show();
+        }
+        if (m_resourcePanel) {
+            m_resourcePanel->setLiveTestMode(false);
         }
         
         qDebug() << "Live Test Mode: OFF";
-        qDebug() << "Resource Analyzer: VISIBLE";
+        qDebug() << "Resource Analyzer: VISIBLE (Live Test banner hidden)";
     }
 
     emit liveTestModeChanged(enabled);
