@@ -47,10 +47,15 @@ class DesignerController;
 class DesignerLocalServer;
 class ResourceAnalyzerPanel;
 class BuildOutputPanel;
+class ProblemsPanel;
 class QProgressBar;
 class OpenOCDWorker;
 class QThread;
 class DeviceMonitorPanel;
+
+namespace Diagnostics {
+class DiagnosticsService;
+}
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -71,6 +76,8 @@ public:
     EffectsPanel* effectsPanel() const { return m_effectsPanel; }
     UploadsPanel* uploadsPanel() const { return m_uploadsPanel; }
     ResourceAnalyzerPanel* resourceAnalyzerPanel() const { return m_resourcePanel; }
+    ProblemsPanel* problemsPanel() const { return m_problemsPanel; }
+    Diagnostics::DiagnosticsService* diagnosticsService() const { return m_diagnosticsService; }
 
     DesignerController* designerController() const { return m_controller; }
     DesignerLocalServer* localServer() const { return m_localServer; }
@@ -208,9 +215,14 @@ private:
     DeviceMonitorPanel* m_deviceMonitorPanel = nullptr;
     DeviceMonitorPanel* m_deviceMonitor = nullptr;
     QDockWidget* m_deviceMonitorDock = nullptr;
+    ProblemsPanel* m_problemsPanel = nullptr;
+    QDockWidget* m_problemsDock = nullptr;
+    Diagnostics::DiagnosticsService* m_diagnosticsService = nullptr;
+    QLabel* m_problemsBadgeLabel = nullptr;
 
     QAction* m_actBuildOutput = nullptr;
     QAction* m_actDeviceMonitor = nullptr;
+    QAction* m_actProblems = nullptr;
     QAction* m_actResourceAnalyzer = nullptr;
 
     // Workspace Central Stack & Switcher
@@ -276,6 +288,9 @@ private:
     void setupUi();
     void setupMenusAndToolbars();
     void setupDocks();
+    void setupDiagnostics();
+    void updateProblemsBadge();
+    void navigateToDiagnostic(const QString& screenId, const QString& componentId);
     void setupMCUSelection();
     void applyTheme();
     void setTheme(const QString& theme);

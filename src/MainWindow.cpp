@@ -40,6 +40,9 @@
 #include "dialogs/ExportDialog.h"
 #include "panels/BuildOutputPanel.h"
 #include "panels/DeviceMonitorPanel.h"
+#include "panels/ProblemsPanel.h"
+#include "diagnostics/DiagnosticsService.h"
+#include "diagnostics/DiagnosticsSources.h"
 #include "analyzer/ResourceEstimator.h"
 #include "project/QmlImporter.h"
 #include "importers/HtmlCssImporter.h"
@@ -95,6 +98,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_view->setUndoStack(m_undoStack);
     m_project = new Project(m_scene, this);
     m_deviceManager = new DeviceManager(this);
+
+    m_diagnosticsService = new Diagnostics::DiagnosticsService(this);
+    Diagnostics::DiagnosticsSources::registerBuiltinSources(*m_diagnosticsService);
+    m_diagnosticsService->setProject(m_project);
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
         m_project->setDirty(!clean);
@@ -341,6 +348,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_scene, &CanvasScene::componentRemoved, this, [this](UIComponent*) {
         if (m_resourcePanel) m_resourcePanel->refresh();
     });
+
+    setupDiagnostics();
 
 
     // ── Live MCP Controller & Local IPC Server ──────────────────────────────
@@ -593,6 +602,18 @@ void MainWindow::setupMenusAndToolbars() {
     m_actDeviceMonitor->setChecked(false);
     if (m_deviceMonitorDock && m_actDeviceMonitor) {
         connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, m_actDeviceMonitor, &QAction::setChecked);
+    }
+
+    m_actProblems = viewMenu->addAction("Problems", this, [this]() {
+        if (m_problemsDock) {
+            m_problemsDock->setVisible(!m_problemsDock->isVisible());
+            if (m_problemsDock->isVisible()) m_problemsDock->raise();
+        }
+    });
+    m_actProblems->setCheckable(true);
+    m_actProblems->setChecked(false);
+    if (m_problemsDock && m_actProblems) {
+        connect(m_problemsDock, &QDockWidget::visibilityChanged, m_actProblems, &QAction::setChecked);
     }
 
     m_actResourceAnalyzer = viewMenu->addAction("Resource Analyzer", this, [this]() {
@@ -1273,6 +1294,22 @@ void MainWindow::setupDocks() {
     tabifyDockWidget(m_buildDock, m_deviceMonitorDock);
     m_deviceMonitorDock->hide();
 
+    // Bottom Dock: Problems (project diagnostics)
+    m_problemsDock = new QDockWidget("Problems", this);
+    configureDock(m_problemsDock, "problemsDock", 200, 750, 100, 600);
+    m_problemsDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
+    m_problemsDock->setTitleBarWidget(createDockTitleBar("Problems", m_problemsDock));
+    m_problemsPanel = new ProblemsPanel(m_diagnosticsService, m_problemsDock);
+    m_problemsDock->setWidget(m_problemsPanel);
+    addDockWidget(Qt::BottomDockWidgetArea, m_problemsDock);
+    tabifyDockWidget(m_deviceMonitorDock, m_problemsDock);
+    m_problemsDock->hide();
+
+    if (m_actProblems && m_problemsDock) {
+        connect(m_problemsDock, &QDockWidget::visibilityChanged, m_actProblems, &QAction::setChecked);
+        m_actProblems->setChecked(m_problemsDock->isVisible());
+    }
+
     if (m_actResourceAnalyzer && m_resourceDock) {
         connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
         m_actResourceAnalyzer->setChecked(m_resourceDock->isVisible());
@@ -1320,6 +1357,99 @@ void MainWindow::setupDocks() {
 
     m_defaultLayoutState = saveState();
     restoreWindowLayout();
+}
+
+void MainWindow::setupDiagnostics() {
+    if (!m_diagnosticsService || !m_project) return;
+
+    // Debounced refresh on any project state change so the Problems panel
+    // reflects the live design, not just the last export.
+    const auto scheduleRefresh = [this]() {
+        if (m_diagnosticsService) m_diagnosticsService->scheduleRefresh();
+    };
+    connect(m_project, &Project::projectModified, this, scheduleRefresh);
+    connect(m_project, &Project::projectLoaded, this, scheduleRefresh);
+    connect(m_project, &Project::screenListChanged, this, scheduleRefresh);
+    connect(m_project, &Project::dataSourcesChanged, this, scheduleRefresh);
+    connect(m_project, &Project::dataBindingsChanged, this, scheduleRefresh);
+    connect(m_project, &Project::hardwareConfigChanged, this, scheduleRefresh);
+    connect(m_scene, &CanvasScene::componentAdded, this, scheduleRefresh);
+    connect(m_scene, &CanvasScene::componentRemoved, this, scheduleRefresh);
+    connect(m_scene, &CanvasScene::componentChanged, this, scheduleRefresh);
+
+    if (m_problemsPanel) {
+        connect(m_problemsPanel, &ProblemsPanel::navigateRequested,
+                this, &MainWindow::navigateToDiagnostic);
+    }
+
+    // Status-bar count badge, e.g. "2 errors, 5 warnings".
+    if (statusBar()) {
+        m_problemsBadgeLabel = new QLabel(this);
+        m_problemsBadgeLabel->setObjectName("problemsBadgeLabel");
+        m_problemsBadgeLabel->setToolTip("Problems detected in the current project");
+        statusBar()->addPermanentWidget(m_problemsBadgeLabel);
+    }
+
+    connect(m_diagnosticsService, &Diagnostics::DiagnosticsService::diagnosticsChanged,
+            this, [this](const QVector<Diagnostics::Diagnostic>&) { updateProblemsBadge(); });
+
+    updateProblemsBadge();
+    m_diagnosticsService->scheduleRefresh(0);
+}
+
+void MainWindow::updateProblemsBadge() {
+    if (!m_problemsBadgeLabel || !m_diagnosticsService) return;
+
+    const int errors = m_diagnosticsService->errorCount();
+    const int warnings = m_diagnosticsService->warningCount();
+    const int info = m_diagnosticsService->infoCount();
+
+    QString text = QString("%1 error%2, %3 warning%4")
+                       .arg(errors)
+                       .arg(errors == 1 ? "" : "s")
+                       .arg(warnings)
+                       .arg(warnings == 1 ? "" : "s");
+    if (info > 0) {
+        text += QString(", %1 info").arg(info);
+    }
+
+    QString color = Theme::TextMuted;
+    if (errors > 0) color = Theme::Danger;
+    else if (warnings > 0) color = Theme::Warning;
+    else if (info > 0) color = Theme::Info;
+
+    m_problemsBadgeLabel->setText(text);
+    m_problemsBadgeLabel->setStyleSheet(QString("color: %1; padding-right: 12px;").arg(color));
+}
+
+void MainWindow::navigateToDiagnostic(const QString& screenId, const QString& componentId) {
+    if (!m_project) return;
+
+    Screen* target = screenId.isEmpty() ? nullptr : m_project->findScreen(screenId);
+    UIComponent* component = nullptr;
+
+    if (!componentId.isEmpty()) {
+        if (target) component = target->findComponentById(componentId);
+        if (!component) {
+            for (Screen* screen : m_project->screens()) {
+                if (!screen) continue;
+                component = screen->findComponentById(componentId);
+                if (component) {
+                    target = screen;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Switch to the owning screen first so the component is attached to the scene.
+    if (target && target != m_project->activeScreen()) {
+        m_project->setActiveScreen(target);
+    }
+
+    if (component && m_canvasView) {
+        m_canvasView->revealComponent(component);
+    }
 }
 
 void MainWindow::applyTheme() {
