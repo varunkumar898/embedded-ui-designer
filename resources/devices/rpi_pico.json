@@ -1,24 +1,82 @@
 {
-  "family": "RP2040",
+  "family": "Raspberry Pi",
   "devices": [
     {
       "name": "Raspberry Pi Pico",
-      "ram_kb": 264,
-      "flash_kb": 2048,
+      "family": "RP2040",
+      "vendor": "Raspberry Pi",
+      "cores": ["Cortex-M0+ (dual-core, 133 MHz)"],
       "cpu_speed_mhz": 133,
+      "ram_kb": 264,
+      "ram": {
+        "total_kb": 264,
+        "regions": [
+          { "name": "SRAM banks 0-3 (4x64 KB)", "kb": 256, "usable_for_framebuffer": null },
+          { "name": "SRAM banks 4-5 (2x4 KB)", "kb": 8, "usable_for_framebuffer": null }
+        ]
+      },
+      "flash_kb": 2048,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 2048 },
       "peripherals": ["UART0", "UART1", "SPI0", "SPI1", "I2C0", "I2C1", "PIO"],
-      "supported_frameworks": ["lvgl", "ugfx"],
-      "notes": "Dual-core Cortex-M0+ with programmable I/O"
+      "supported_frameworks": ["lvgl", "ugfx", "embedweb"],
+      "architecture": "Cortex-M0+",
+      "required_toolchain": "arm-none-eabi-gcc",
+      "embedweb_adapter_status": "verified",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 264,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 16,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 264,
+      "tcm_kb": 0,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 2048,
+      "module_variant": "Raspberry Pi Pico (RP2040)",
+      "has_lcd_controller": false,
+      "notes": "NO on-chip flash: the RP2040 has no internal program flash; the Pico board provides 2 MB QSPI XIP flash (typical only). 264 KB SRAM in 6 banks (4x64 KB + 2x4 KB). No LCD controller (PIO can emit DVI/SPI in software).",
+      "sources": [
+        "RP2040 Datasheet, Raspberry Pi (https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf)",
+        "Raspberry Pi Pico Datasheet, Raspberry Pi (2 MB on-board QSPI flash)"
+      ],
+      "verified": true
     },
     {
       "name": "Raspberry Pi Pico 2",
       "family": "RP2350",
-      "ram_kb": 520,
-      "flash_kb": 4096,
+      "vendor": "Raspberry Pi",
+      "cores": ["Cortex-M33 (dual-core, 150 MHz)", "Hazard3 RISC-V (dual-core, 150 MHz)"],
       "cpu_speed_mhz": 150,
+      "ram_kb": 520,
+      "ram": {
+        "total_kb": 520,
+        "regions": [
+          { "name": "SRAM (10 banks)", "kb": 520, "usable_for_framebuffer": null }
+        ]
+      },
+      "flash_kb": 4096,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 4096 },
       "peripherals": ["UART0", "UART1", "SPI0", "SPI1", "I2C0", "I2C1", "PIO"],
-      "supported_frameworks": ["lvgl", "ugfx", "qt-for-mcus"],
-      "notes": "Dual Hazard3 RISC-V / Cortex-M33 @ 150MHz"
+      "supported_frameworks": ["lvgl", "ugfx", "qt-for-mcus", "embedweb"],
+      "architecture": "Cortex-M33",
+      "required_toolchain": "arm-none-eabi-gcc",
+      "embedweb_adapter_status": "verified",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 520,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 16,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 520,
+      "tcm_kb": 0,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 4096,
+      "module_variant": "Raspberry Pi Pico 2 (RP2350)",
+      "has_lcd_controller": false,
+      "notes": "NO on-chip flash: the RP2350 boots from external QSPI; the Pico 2 board provides 4 MB (typical only). 520 KB SRAM (10 banks). Boots either dual Cortex-M33 or dual Hazard3 RISC-V cores. HSTX peripheral can output DVI (no LCD controller).",
+      "sources": [
+        "RP2350 Datasheet, Raspberry Pi (https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)",
+        "Raspberry Pi Pico 2 Datasheet, Raspberry Pi (4 MB on-board QSPI flash)"
+      ],
+      "verified": true
     }
   ]
 }

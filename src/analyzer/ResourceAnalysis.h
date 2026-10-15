@@ -54,4 +54,10 @@ struct ResourceAnalysis {
     QString target_framework;      // "qt-for-mcus", "ugfx", "lvgl"
     DeviceProfile device;
     bool has_device = true;
+
+    // Task 4: true when the target has no on-chip flash and no board flash size is
+    // known (external module flash). Flash capacity must then not be enforced:
+    // validateFitsOnDevice() reports a single Info notice instead of applying the
+    // 80% / 95% Warning / Critical thresholds to a typical module size.
+    bool flash_external_unbounded = false;
 };

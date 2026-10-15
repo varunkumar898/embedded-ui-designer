@@ -3,21 +3,43 @@
   "devices": [
     {
       "name": "NXP i.MX RT1060",
+      "family": "i.MX RT",
+      "vendor": "NXP Semiconductors",
+      "cores": ["Cortex-M7 (600 MHz)"],
+      "cpu_speed_mhz": 600,
       "ram_kb": 1024,
+      "ram": {
+        "total_kb": 1024,
+        "regions": [
+          { "name": "OCRAM (flexRAM: ITCM/DTCM-configurable)", "kb": 512, "usable_for_framebuffer": null },
+          { "name": "OCRAM (general purpose, D0)", "kb": 512, "usable_for_framebuffer": null }
+        ]
+      },
       "flash_kb": 8192,
-      "cpu_speed_mhz": 600,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 8192 },
       "peripherals": ["UART1", "UART2", "SPI1", "SPI2", "I2C1", "CAN1"],
-      "supported_frameworks": ["qt-for-mcus", "lvgl", "ugfx"],
-      "notes": "Cortex-M7 Crossover MCU @ 600MHz"
-    },
-    {
-      "name": "NXP i.MX RT1050",
-      "ram_kb": 512,
-      "flash_kb": 4096,
-      "cpu_speed_mhz": 600,
-      "peripherals": ["UART1", "UART2", "SPI1", "I2C1"],
-      "supported_frameworks": ["qt-for-mcus", "lvgl", "ugfx"],
-      "notes": "Cortex-M7 Crossover MCU @ 600MHz"
+      "supported_frameworks": ["qt-for-mcus", "lvgl", "ugfx", "embedweb"],
+      "architecture": "Cortex-M7",
+      "required_toolchain": "arm-none-eabi-gcc",
+      "embedweb_adapter_status": "verified",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 1024,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 0,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 512,
+      "tcm_kb": 512,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 8192,
+      "module_variant": "MIMXRT1060-EVK",
+      "has_lcd_controller": true,
+      "notes": "NO on-chip flash: the boot image is stored in external QSPI NOR accessed via FlexSPI (MIMXRT1060-EVK = 64 Mb / 8 MB QSPI; typical only, not enforced without a board profile). 1 MB on-chip RAM: 512 KB OCRAM shared with ITCM/DTCM via flexRAM + 512 KB dedicated OCRAM; 128 KB ROM. 600 MHz Cortex-M7. eLCDIF 24-bit parallel LCD controller.",
+      "sources": [
+        "IMXRT1060CEC Rev 2 - i.MX RT1060 Crossover Processors Data Sheet, NXP",
+        "IMXRT1060RM Rev 3 - i.MX RT1060 Reference Manual, NXP",
+        "NXP MIMXRT1060-EVK product page (64 Mb QSPI flash) (https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1060-evaluation-kit:MIMXRT1060-EVK)"
+      ],
+      "verified": true
     }
   ]
 }

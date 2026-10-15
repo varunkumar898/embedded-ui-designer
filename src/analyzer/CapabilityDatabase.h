@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include <QVector>
 #include <cstdint>
 
 struct DeviceProfile {
@@ -32,6 +33,22 @@ struct DeviceProfile {
     uint32_t onchip_flash_kb = 0;       // Physical on-chip Flash ROM
     uint32_t external_flash_kb = 0;     // Board/Module external Flash ROM (QSPI/OSPI)
     QString module_variant;             // Exact module variant (e.g. "ESP32-S3-WROOM-1-N8R8")
+
+    // Task 4: Data-driven, vendor-verified MCU capability data.
+    // Populated by the shipped resources/devices/*.json overlay; the compiled-in
+    // values above remain the fallback for fields absent from the JSON files.
+    struct RamRegion {
+        QString name;
+        uint32_t kb = 0;
+        int usable_for_framebuffer = -1; // -1 unknown, 0 no, 1 yes
+    };
+    QString vendor;                     // e.g. "STMicroelectronics"
+    QStringList cores;                  // e.g. {"Cortex-M7 (480 MHz)", "Cortex-M4 (240 MHz)"}
+    QVector<RamRegion> ram_regions;     // Decomposition of ram_kb (regions sum to ram_kb)
+    bool flash_is_external = false;     // true = no on-chip flash; firmware lives in module/board flash
+    int has_lcd_controller = -1;        // -1 unknown, 0 no, 1 yes
+    QStringList sources;                // Vendor doc URLs / document IDs backing the values
+    bool verified = false;              // Values confirmed against the listed vendor sources
 };
 
 class CapabilityDatabase : public QObject {
@@ -62,6 +79,7 @@ public:
 
 private:
     void initBuiltinDefaults();
+    void loadShippedDeviceDatabase();   // Task 4: overlay resources/devices/*.json
 
     QMap<QString, DeviceProfile> m_devices;
 };

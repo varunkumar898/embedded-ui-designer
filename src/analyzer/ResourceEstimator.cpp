@@ -1,12 +1,27 @@
 #include "ResourceEstimator.h"
 #include "Project.h"
 #include "Screen.h"
+#include "hardware/BoardRegistry.h"
 #include "UIComponent.h"
 #include "ImageComponent.h"
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QDir>
 #include <algorithm>
+
+namespace {
+// Task 4: resolve the flash size (in KB) provided by the project's board profile.
+// Returns 0 when no board is selected or the board flash size is unknown.
+qint64 resolveBoardFlashKb(const Project* project) {
+    if (!project) return 0;
+    const Hardware::HardwareConfig hw = project->hardwareConfig();
+    if (hw.boardId.isEmpty()) return 0;
+    if (hw.flashBytes > 0) return static_cast<qint64>(hw.flashBytes / 1024);
+    const BoardDef board = BoardRegistry::instance().board(hw.boardId);
+    if (board.flashBytes > 0) return board.flashBytes / 1024;
+    return 0;
+}
+} // namespace
 
 ResourceEstimator::ResourceEstimator(QObject* parent)
     : QObject(parent)
@@ -56,7 +71,10 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
         }
         compSig = QString("%1:%2:%3").arg(project->screens().size()).arg(compCount).arg(compHash);
     }
-    QString cacheKey = QString("%1|%2|%3").arg(device.name, fw, compSig);
+    // Task 4: the board selection can change the external-flash budget, so it is
+    // part of the cache key.
+    const QString boardKey = project ? project->hardwareConfig().boardId : QString();
+    QString cacheKey = QString("%1|%2|%3|%4").arg(device.name, fw, compSig, boardKey);
     if (m_cache.hasProjectAnalysis(cacheKey)) {
         return m_cache.getProjectAnalysis(cacheKey);
     }
@@ -69,6 +87,19 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
     result.ram_total = device.ram_kb * 1024;
     result.flash_total = device.flash_kb * 1024;
     result.target_framework = fw;
+
+    // Task 4: parts without on-chip flash (ESP32, RP2040, i.MX RT...) keep their
+    // firmware in external module/board flash. Budget against the configured board
+    // size when available; otherwise mark the flash budget as unbounded so a
+    // typical module size is reported as Info instead of a hard limit.
+    if (device.flash_is_external) {
+        const qint64 boardFlashKb = resolveBoardFlashKb(project);
+        if (boardFlashKb > 0) {
+            result.flash_total = static_cast<uint32_t>(boardFlashKb) * 1024u;
+        } else {
+            result.flash_external_unbounded = true;
+        }
+    }
 
     // Handle missing device profile gracefully without blocking export
     if (!result.has_device) {
@@ -263,8 +294,20 @@ void ResourceEstimator::validateFitsOnDevice(const ResourceAnalysis& analysis,
     }
 
     // 2. Capacity checks
-    // Critical if >= 95.0%
-    if (analysis.flash_percent >= 95.0f) {
+    // Task 4: external-flash parts without a known board size must not be judged
+    // against a typical module size - report a single Info notice instead.
+    if (analysis.flash_external_unbounded) {
+        QString msg = QString("Flash size depends on your board: %1 has no on-chip flash "
+                              "(typical module: %2 KB). External flash capacity is not enforced.")
+                          .arg(analysis.device_name)
+                          .arg(analysis.device.external_flash_kb > 0
+                                   ? analysis.device.external_flash_kb
+                                   : analysis.flash_total / 1024);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Info, msg});
+        }
+    } else if (analysis.flash_percent >= 95.0f) {
         status_out = ResourceAnalysis::CRITICAL;
         QString msg = QString("CRITICAL: Flash memory exceeded! Design uses %1 KB (%2% of %3 KB).")
                           .arg(analysis.flash_used / 1024)

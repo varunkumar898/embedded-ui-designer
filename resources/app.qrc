@@ -1,6 +1,12 @@
 <RCC>
     <qresource prefix="/">
         <file>config/devices.json</file>
+        <file>devices/_schema.json</file>
+        <file>devices/stm32h7_series.json</file>
+        <file>devices/stm32f0_series.json</file>
+        <file>devices/esp32_series.json</file>
+        <file>devices/nxp_imxrt_series.json</file>
+        <file>devices/rpi_pico.json</file>
         <file alias="config/boards/boards.json">../config/boards/boards.json</file>
         <file alias="examples/simple.euiproj">../examples/simple.euiproj</file>
         <file alias="examples/sample_dashboard.euiproj">../examples/sample_dashboard.euiproj</file>
