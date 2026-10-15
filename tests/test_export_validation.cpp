@@ -8,10 +8,13 @@
 #include <QListWidget>
 #include <QLabel>
 #include <QElapsedTimer>
+#include <QCoreApplication>
+#include <QFileInfo>
 
 #include "analyzer/ResourceAnalysis.h"
 #include "analyzer/ResourceEstimator.h"
 #include "analyzer/CapabilityDatabase.h"
+#include "analyzer/EstimationFormulas.h"
 #include "hardware/DeviceDatabase.h"
 #include "hardware/BoardRegistry.h"
 #include "hardware/HardwareModel.h"
@@ -42,6 +45,7 @@ private slots:
     void testAnalysisPerformanceCachingUnder100ms();
     void testOptimizeHeaviestComponents();
     void testRegressionGeneratorOutputUnchanged();
+    void testEstimationBaselinesDefaultsAuthoritative();
 };
 
 void TestExportValidation::initTestCase() {
@@ -393,6 +397,54 @@ void TestExportValidation::testRegressionGeneratorOutputUnchanged() {
     QString exportedQmlContent = QString::fromUtf8(exportedQml.readAll());
     exportedQml.close();
     QCOMPARE(exportedQmlContent, directQmlSource);
+}
+
+// A.3 housekeeping: estimation_baselines.json is a repo snapshot, not a runtime
+// input. The compiled-in defaults are authoritative; the optional loader must
+// reproduce exactly the same numbers and is intentionally never called at startup.
+void TestExportValidation::testEstimationBaselinesDefaultsAuthoritative() {
+    EstimationFormulas::initDefaultBaselines();
+
+    auto frameworkFlash = [](const QString& framework) {
+        return EstimationFormulas::FRAMEWORK_BASELINES.value(framework).flash_minimum;
+    };
+
+    // Compiled-in defaults, byte-for-byte.
+    QCOMPARE(frameworkFlash("lvgl"), uint32_t(80 * 1024));
+    QCOMPARE(frameworkFlash("ugfx"), uint32_t(120 * 1024));
+    QCOMPARE(frameworkFlash("qt-for-mcus"), uint32_t(400 * 1024));
+    QCOMPARE(frameworkFlash("embedweb"), uint32_t(16 * 1024));
+
+    const auto buttonBefore = EstimationFormulas::COMPONENT_FOOTPRINTS.value("Button");
+    QCOMPARE(buttonBefore.flash, uint32_t(200));
+    QCOMPARE(buttonBefore.ram, uint32_t(80));
+    QCOMPARE(buttonBefore.cpu_percent, 1.5f);
+
+    // Locate the JSON snapshot in the repository (build dir is inside the repo).
+    QDir dir(QCoreApplication::applicationDirPath());
+    QString jsonPath;
+    for (int i = 0; i < 6; ++i) {
+        const QString candidate = dir.filePath("resources/estimation_baselines.json");
+        if (QFileInfo::exists(candidate)) {
+            jsonPath = candidate;
+            break;
+        }
+        if (!dir.cdUp()) break;
+    }
+    QVERIFY2(!jsonPath.isEmpty(), "resources/estimation_baselines.json not found");
+
+    // Loading the snapshot must not change any number.
+    const uint32_t lvglFlashBefore = frameworkFlash("lvgl");
+    const uint32_t qtFlashBefore = frameworkFlash("qt-for-mcus");
+    QVERIFY(EstimationFormulas::loadBaselinesFromJson(jsonPath));
+    QCOMPARE(frameworkFlash("lvgl"), lvglFlashBefore);
+    QCOMPARE(frameworkFlash("qt-for-mcus"), qtFlashBefore);
+    QCOMPARE(frameworkFlash("embedweb"), uint32_t(16 * 1024)); // JSON has no embedweb entry
+
+    const auto buttonAfter = EstimationFormulas::COMPONENT_FOOTPRINTS.value("Button");
+    QCOMPARE(buttonAfter.flash, buttonBefore.flash);
+    QCOMPARE(buttonAfter.ram, buttonBefore.ram);
+    QCOMPARE(buttonAfter.cpu_percent, buttonBefore.cpu_percent);
 }
 
 QTEST_MAIN(TestExportValidation)

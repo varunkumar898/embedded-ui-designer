@@ -27,6 +27,16 @@ namespace EstimationFormulas {
     extern QMap<QString, FrameworkBaseline> FRAMEWORK_BASELINES;
 
     void initDefaultBaselines();
+
+    /**
+     * Loads baselines from an external JSON file (e.g. resources/estimation_baselines.json).
+     *
+     * Intentionally NOT called during application startup: the compiled-in defaults
+     * in initDefaultBaselines() are authoritative, and the JSON file is a snapshot
+     * that must match them. An unused loader cannot silently change estimates for
+     * deployments that happen to ship a different file. The snapshot is verified by
+     * TestExportValidation::testEstimationBaselinesDefaultsAuthoritative().
+     */
     bool loadBaselinesFromJson(const QString& jsonPath);
 
     ComponentFootprint estimateComponent(const UIComponent* comp);

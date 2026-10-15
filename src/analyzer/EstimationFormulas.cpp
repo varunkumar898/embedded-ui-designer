@@ -80,6 +80,9 @@ void initDefaultBaselines() {
     s_initialized = true;
 }
 
+// Optional loader for the resources/estimation_baselines.json snapshot.
+// Deliberately has no startup caller: initDefaultBaselines() is the single
+// source of truth (the JSON mirrors it, verified by the test suite).
 bool loadBaselinesFromJson(const QString& jsonPath) {
     initDefaultBaselines();
 
