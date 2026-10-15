@@ -1,6 +1,7 @@
 #include "OpenOCDManager.h"
 #include "HardwareBridge.h"
 #include "BoardFactory.h"
+#include "BoardRegistry.h"
 
 #include <QTcpSocket>
 #include <QEventLoop>
@@ -12,8 +13,10 @@ static int simulatedStates[8][16] = {}; // 8 ports, 16 pins each
 OpenOCDManager::OpenOCDManager(QObject* parent)
     : QObject(parent)
 {
-    // Default fallback HAL
-    setBoard("STM32F030R8");
+    // Default fallback HAL from saved preset if available
+    BoardPreset active = BoardRegistry::instance().activePreset();
+    QString boardToSet = !active.boardId.isEmpty() ? active.boardId : "STM32F030R8";
+    setBoard(boardToSet);
 }
 
 OpenOCDManager::~OpenOCDManager() {
@@ -84,8 +87,10 @@ bool OpenOCDManager::connect(const QString& host, int port) {
 
     // Auto-detect and initialize board
     if (!autoDetectAndInitializeBoard()) {
-        qWarning() << "Board auto-detection failed. Falling back to STM32F030R8.";
-        setBoard("STM32F030R8");
+        BoardPreset active = BoardRegistry::instance().activePreset();
+        QString fallbackBoard = !active.boardId.isEmpty() ? active.boardId : "STM32F030R8";
+        qWarning() << "Board auto-detection failed. Falling back to" << fallbackBoard;
+        setBoard(fallbackBoard);
     }
 
     return true;
@@ -173,14 +178,29 @@ bool OpenOCDManager::autoDetectAndInitializeBoard() {
 
 bool OpenOCDManager::setBoard(const QString& boardName) {
     if (!BoardFactory::isSupported(boardName)) {
-        qWarning() << "Board not supported:" << boardName;
-        return false;
+        if (!BoardRegistry::instance().board(boardName).id.isEmpty()) {
+            BoardDef bd = BoardRegistry::instance().board(boardName);
+            if (bd.family.startsWith("ESP32", Qt::CaseInsensitive)) {
+                m_boardHAL = BoardFactory::createHAL("ESP32");
+            } else {
+                m_boardHAL = BoardFactory::createHAL("STM32F030R8");
+            }
+        } else {
+            qWarning() << "Board not supported:" << boardName;
+            return false;
+        }
+    } else {
+        m_boardHAL = BoardFactory::createHAL(boardName);
     }
     
-    m_boardHAL = BoardFactory::createHAL(boardName);
     m_detectedBoard = boardName;
     
-    qDebug() << "Board manually set to:" << m_detectedBoard;
+    BoardPreset active = BoardRegistry::instance().activePreset();
+    if (!active.name.isEmpty()) {
+        qDebug() << "Board preset set to:" << active.name;
+    } else {
+        qDebug() << "Board manually set to:" << m_detectedBoard;
+    }
     return true;
 }
 

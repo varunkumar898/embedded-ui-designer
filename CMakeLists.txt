@@ -385,6 +385,8 @@ set(COMMON_SOURCES
     # Hardware Bridge & Flashing Subsystem
     src/hardware/HardwareBridge.cpp
     src/hardware/HardwareBridge.h
+    src/hardware/BoardRegistry.cpp
+    src/hardware/BoardRegistry.h
     src/hardware/BoardConfigParser.cpp
     src/hardware/BoardConfigParser.h
     src/hardware/DeviceManager.cpp

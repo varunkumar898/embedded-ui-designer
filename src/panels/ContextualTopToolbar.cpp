@@ -12,6 +12,7 @@
 #include "SliderComponent.h"
 #include "SwitchComponent.h"
 #include "HardwareBridge.h"
+#include "hardware/BoardRegistry.h"
 #include "GroupComponent.h"
 #include "ColorPickerDialog.h"
 #include "PropertyChangeCommand.h"
@@ -526,7 +527,20 @@ QWidget* ContextualTopToolbar::createSwitchPage() {
 
     l->addWidget(new QLabel("Pin:", w));
     m_switchPinCombo = new QComboBox(w);
-    m_switchPinCombo->addItems({"PA4", "PA5", "PB0", "PB1", "PA0", "PA1"});
+    auto updateToolbarPins = [this]() {
+        if (!m_switchPinCombo) return;
+        QString current = m_switchPinCombo->currentText();
+        m_switchPinCombo->clear();
+        QStringList pins = BoardRegistry::instance().activeBoard().pinNames();
+        if (pins.isEmpty()) pins = {"PA4", "PA5", "PB0", "PB1", "PA0", "PA1"};
+        m_switchPinCombo->addItems(pins);
+        int idx = m_switchPinCombo->findText(current);
+        if (idx >= 0) m_switchPinCombo->setCurrentIndex(idx);
+    };
+    updateToolbarPins();
+    connect(&BoardRegistry::instance(), &BoardRegistry::activeBoardChanged, m_switchPinCombo, [updateToolbarPins]() {
+        updateToolbarPins();
+    });
     l->addWidget(m_switchPinCombo);
 
     m_switchToggleBtn = new QPushButton("Toggle LED", w);

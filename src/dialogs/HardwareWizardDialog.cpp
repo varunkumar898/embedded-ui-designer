@@ -1,4 +1,5 @@
 #include "HardwareWizardDialog.h"
+#include "hardware/BoardRegistry.h"
 #include "theme/Theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -143,18 +144,28 @@ void HardwareWizardDialog::setupUi() {
     m_btnBack = new QPushButton("< Back", this);
     m_btnBack->setEnabled(false);
     m_btnNext = new QPushButton("Next >", this);
+    m_btnChooseLater = new QPushButton("Choose later", this);
+    m_btnChooseLater->setObjectName("btnChooseLater");
+    m_btnChooseLater->setCursor(Qt::PointingHandCursor);
+    m_btnChooseLater->setStyleSheet(QString("QPushButton { background-color: transparent; border: 1px solid %1; color: %2; border-radius: %3px; padding: 5px 12px; } QPushButton:hover { background-color: %4; }")
+        .arg(Theme::BorderSubtle, Theme::TextSecondary, QString::number(Theme::RadiusSm), Theme::BgRaised));
     m_btnCancel = new QPushButton("Cancel", this);
     m_btnFinish = new QPushButton("Finish", this);
     m_btnFinish->setEnabled(false);
 
     connect(m_btnBack, &QPushButton::clicked, this, &HardwareWizardDialog::onPrevStep);
     connect(m_btnNext, &QPushButton::clicked, this, &HardwareWizardDialog::onNextStep);
+    connect(m_btnChooseLater, &QPushButton::clicked, this, [this]() {
+        m_choseLater = true;
+        reject();
+    });
     connect(m_btnCancel, &QPushButton::clicked, this, &QDialog::reject);
     connect(m_btnFinish, &QPushButton::clicked, this, &HardwareWizardDialog::onFinish);
 
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnNext);
     navLayout->addStretch(1);
+    navLayout->addWidget(m_btnChooseLater);
     navLayout->addWidget(m_btnCancel);
     navLayout->addWidget(m_btnFinish);
     rootLayout->addLayout(navLayout);
@@ -492,7 +503,10 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
     filterLayout->addWidget(lblFamily);
     m_boardFamilyCombo = new QComboBox(filterPanel);
     m_boardFamilyCombo->addItem("All");
-    for (const QString& f : m_db.allFamilies()) m_boardFamilyCombo->addItem(f);
+    m_boardFamilyCombo->addItems({"STM32", "ESP32", "RP2040", "Raspberry Pi", "Custom"});
+    for (const QString& f : m_db.allFamilies()) {
+        if (m_boardFamilyCombo->findText(f) == -1) m_boardFamilyCombo->addItem(f);
+    }
     filterLayout->addWidget(m_boardFamilyCombo);
 
     QLabel* lblArch = new QLabel("Architecture", filterPanel);
@@ -532,14 +546,15 @@ QWidget* HardwareWizardDialog::createBoardSelectorTab() {
 
     m_boardTable = new QTableWidget(rightArea);
     m_boardTable->setObjectName("boardHardwareTable");
-    m_boardTable->setColumnCount(6);
-    m_boardTable->setHorizontalHeaderLabels({"Board Name", "Manufacturer", "Target MCU", "Architecture", "Debug Probe", "Supply"});
+    m_boardTable->setColumnCount(7);
+    m_boardTable->setHorizontalHeaderLabels({"Board Name", "Family", "Display", "RAM", "Flash", "Target MCU", "Debug Probe"});
     m_boardTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_boardTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_boardTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     m_boardTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     m_boardTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     m_boardTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_boardTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
     m_boardTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_boardTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_boardTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -649,15 +664,39 @@ QWidget* HardwareWizardDialog::createCustomConfigTab() {
     m_customPinsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     pinsLayout->addWidget(m_customPinsTable);
 
-    // Add a couple default starter pins
-    QStringList starterPins = {"PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7", "VDD", "GND"};
+    // Starter pins derived from active board in BoardRegistry
+    BoardDef activeB = BoardRegistry::instance().activeBoard();
+    QStringList starterPins = activeB.pinNames();
+    if (starterPins.isEmpty()) {
+        starterPins = {"PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7", "VDD", "GND"};
+    }
     for (int i = 0; i < starterPins.size(); ++i) {
+        QString pin = starterPins[i];
         int r = m_customPinsTable->rowCount();
         m_customPinsTable->insertRow(r);
-        m_customPinsTable->setItem(r, 0, new QTableWidgetItem(starterPins[i]));
+        m_customPinsTable->setItem(r, 0, new QTableWidgetItem(pin));
         m_customPinsTable->setItem(r, 1, new QTableWidgetItem(QString::number(i + 1)));
-        m_customPinsTable->setItem(r, 2, new QTableWidgetItem(starterPins[i] == "PA5" ? "SPI1_SCK, GPIO_Output" : "GPIO_Input, GPIO_Output"));
-        m_customPinsTable->setItem(r, 3, new QTableWidgetItem(starterPins[i] == "VDD" ? "Power" : (starterPins[i] == "GND" ? "Ground" : "IO")));
+        QString alt = "GPIO_Input, GPIO_Output";
+        if (activeB.pinMap.contains(pin)) {
+            const auto& pdef = activeB.pinMap[pin];
+            if (!pdef.alternates.isEmpty()) {
+                alt = pdef.alternates.join(", ");
+            }
+        }
+        m_customPinsTable->setItem(r, 2, new QTableWidgetItem(alt));
+        QString role = "IO";
+        if (activeB.pinMap.contains(pin)) {
+            const auto& pdef = activeB.pinMap[pin];
+            if (pdef.function == "POWER") role = "Power";
+            else if (pdef.function == "GND") role = "Ground";
+            else if (pdef.reserved) role = "Reserved";
+            else if (pdef.strapping) role = "Strapping";
+        } else if (pin == "VDD" || pin == "3V3" || pin == "5V") {
+            role = "Power";
+        } else if (pin == "GND") {
+            role = "Ground";
+        }
+        m_customPinsTable->setItem(r, 3, new QTableWidgetItem(role));
     }
 
     mainLayout->addWidget(pinsGroup, 1);
@@ -1003,6 +1042,17 @@ QWidget* HardwareWizardDialog::createReviewPage() {
     m_validationStatusLabel->setStyleSheet(QString("padding: 8px; border-radius: %1px; font-weight: bold; background-color: %2; color: %3;").arg(QString::number(Theme::RadiusSm), Theme::SuccessBg, Theme::Success));
     layout->addWidget(m_validationStatusLabel);
 
+    QHBoxLayout* presetLayout = new QHBoxLayout();
+    QLabel* lblPreset = new QLabel("Save as Preset Name:", page);
+    lblPreset->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 12px;").arg(Theme::TextPrimary));
+    presetLayout->addWidget(lblPreset);
+    m_presetNameEdit = new QLineEdit("Default Board Preset", page);
+    m_presetNameEdit->setObjectName("presetNameEdit");
+    m_presetNameEdit->setStyleSheet(QString("QLineEdit { background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 6px 10px; color: %4; font-size: 12px; }")
+        .arg(Theme::BgRaised, Theme::BorderSubtle, QString::number(Theme::RadiusSm), Theme::TextPrimary));
+    presetLayout->addWidget(m_presetNameEdit, 1);
+    layout->addLayout(presetLayout);
+
     return page;
 }
 
@@ -1072,7 +1122,48 @@ void HardwareWizardDialog::onFinish() {
             return;
         }
     }
+
+    // Save as persistent preset and mark onboarding completed
+    QString pName = presetName();
+    QString bId = m_selectedBoard.id;
+    if (bId.isEmpty()) {
+        bId = m_selectedDevice.partNumber.isEmpty() ? "nucleo_f030r8" : m_selectedDevice.partNumber.toLower();
+    }
+    if (pName.isEmpty()) {
+        pName = m_selectedBoard.name.isEmpty() ? (bId + " Preset") : (m_selectedBoard.name + " Preset");
+    }
+
+    // Collect pin overrides and protocol assignments from the configured engine
+    QMap<QString, PinDef> pinOverrides;
+    for (auto it = m_engine.currentConfig().pins.begin(); it != m_engine.currentConfig().pins.end(); ++it) {
+        if (it.value().mode != "None" && it.value().mode != "Disabled") {
+            PinDef pd;
+            pd.function = it.value().mode;
+            pd.note = it.value().alternateFunction;
+            pinOverrides[it.key()] = pd;
+        }
+    }
+
+    QMap<QString, QStringList> protocolOverrides;
+    for (auto it = m_engine.currentConfig().peripherals.begin(); it != m_engine.currentConfig().peripherals.end(); ++it) {
+        if (it.value().enabled) {
+            QStringList pList;
+            for (auto sit = it.value().assignedPins.begin(); sit != it.value().assignedPins.end(); ++sit) {
+                if (!sit.value().isEmpty()) pList.append(QString("%1=%2").arg(sit.key(), sit.value()));
+            }
+            protocolOverrides[it.key()] = pList;
+        }
+    }
+
+    BoardRegistry::instance().savePreset(pName, bId, pinOverrides, protocolOverrides);
+    BoardRegistry::instance().setActiveBoard(bId);
+    BoardRegistry::instance().setOnboardingCompleted(true);
+
     accept();
+}
+
+QString HardwareWizardDialog::presetName() const {
+    return m_presetNameEdit ? m_presetNameEdit->text().trimmed() : QString();
 }
 
 // ── Populate & Sync Handlers ──
@@ -1223,11 +1314,14 @@ void HardwareWizardDialog::populateBoardTable() {
     QString archFilter = (m_boardArchCombo && m_boardArchCombo->currentIndex() > 0) ? m_boardArchCombo->currentText() : (m_archFilterCombo ? m_archFilterCombo->currentText() : "All");
 
     for (const auto& b : m_db.allBoards()) {
+        BoardDef regDef = BoardRegistry::instance().board(b.id);
+        QString fam = !regDef.family.isEmpty() ? regDef.family : (!b.boardFamily.isEmpty() ? b.boardFamily : "Custom");
+
         if (!search.isEmpty()) {
             bool matches = b.name.contains(search, Qt::CaseInsensitive) ||
                            b.id.contains(search, Qt::CaseInsensitive) ||
                            b.manufacturer.contains(search, Qt::CaseInsensitive) ||
-                           b.boardFamily.contains(search, Qt::CaseInsensitive) ||
+                           fam.contains(search, Qt::CaseInsensitive) ||
                            b.mcuPartNumber.contains(search, Qt::CaseInsensitive) ||
                            b.architecture.contains(search, Qt::CaseInsensitive);
             if (!matches) continue;
@@ -1237,7 +1331,17 @@ void HardwareWizardDialog::populateBoardTable() {
         if (typeFilter == "BOARD" && isSbc) continue;
         if (typeFilter == "SBC" && !isSbc) continue;
         if (vendorFilter != "All" && vendorFilter != "All Vendors" && b.manufacturer.compare(vendorFilter, Qt::CaseInsensitive) != 0) continue;
-        if (familyFilter != "All" && familyFilter != "All Families" && b.boardFamily.compare(familyFilter, Qt::CaseInsensitive) != 0) continue;
+
+        if (familyFilter != "All" && familyFilter != "All Families") {
+            bool matches = false;
+            if (familyFilter == "Raspberry Pi" && (fam.compare("RaspberryPi", Qt::CaseInsensitive) == 0 || fam.compare("Raspberry Pi", Qt::CaseInsensitive) == 0)) {
+                matches = true;
+            } else if (fam.compare(familyFilter, Qt::CaseInsensitive) == 0) {
+                matches = true;
+            }
+            if (!matches) continue;
+        }
+
         if (archFilter != "All" && archFilter != "All Architectures" && b.architecture.compare(archFilter, Qt::CaseInsensitive) != 0) continue;
 
         int r = m_boardTable->rowCount();
@@ -1245,14 +1349,33 @@ void HardwareWizardDialog::populateBoardTable() {
         QTableWidgetItem* nameItem = new QTableWidgetItem(b.name.isEmpty() ? b.id : b.name);
         nameItem->setData(Qt::UserRole, b.id);
         m_boardTable->setItem(r, 0, nameItem);
-        m_boardTable->setItem(r, 1, new QTableWidgetItem(b.manufacturer));
-        QTableWidgetItem* tItem = new QTableWidgetItem(isSbc ? "SBC" : "BOARD");
-        tItem->setTextAlignment(Qt::AlignCenter);
-        tItem->setForeground(Theme::cSuccess());
-        m_boardTable->setItem(r, 2, tItem);
-        m_boardTable->setItem(r, 3, new QTableWidgetItem(b.mcuPartNumber));
-        m_boardTable->setItem(r, 4, new QTableWidgetItem(b.architecture));
-        m_boardTable->setItem(r, 5, new QTableWidgetItem(b.debugInterface));
+        m_boardTable->setItem(r, 1, new QTableWidgetItem(fam));
+
+        // Display spec
+        QString dispText = "None";
+        if (regDef.display.width > 0 && regDef.display.height > 0) {
+            dispText = QString("%1x%2 (%3-bit %4)").arg(regDef.display.width).arg(regDef.display.height).arg(regDef.display.colorDepth).arg(regDef.display.interface);
+        }
+        m_boardTable->setItem(r, 2, new QTableWidgetItem(dispText));
+
+        // RAM spec
+        qint64 ram = regDef.ramBytes > 0 ? regDef.ramBytes : static_cast<qint64>(m_db.findDevice(b.mcuPartNumber).ramBytes);
+        QString ramText = "Unknown";
+        if (ram > 0) {
+            ramText = ram >= 1024 * 1024 ? QString("%1 MB").arg(ram / (1024 * 1024)) : QString("%1 KB").arg(ram / 1024);
+        }
+        m_boardTable->setItem(r, 3, new QTableWidgetItem(ramText));
+
+        // Flash spec
+        qint64 flash = regDef.flashBytes > 0 ? regDef.flashBytes : static_cast<qint64>(m_db.findDevice(b.mcuPartNumber).flashBytes);
+        QString flashText = "Unknown";
+        if (flash > 0) {
+            flashText = flash >= 1024 * 1024 ? QString("%1 MB").arg(flash / (1024 * 1024)) : QString("%1 KB").arg(flash / 1024);
+        }
+        m_boardTable->setItem(r, 4, new QTableWidgetItem(flashText));
+
+        m_boardTable->setItem(r, 5, new QTableWidgetItem(b.mcuPartNumber));
+        m_boardTable->setItem(r, 6, new QTableWidgetItem(b.debugInterface));
     }
 }
 
@@ -1326,19 +1449,35 @@ void HardwareWizardDialog::onBoardSelected() {
     if (boardId.isEmpty()) boardId = m_boardTable->item(r, 0)->text();
     m_selectedBoard = m_db.findBoard(boardId);
     m_selectedDevice = m_db.findDevice(m_selectedBoard.mcuPartNumber);
+    if (m_selectedDevice.partNumber.isEmpty()) {
+        BoardDef bd = BoardRegistry::instance().board(boardId);
+        if (!bd.mcu.isEmpty()) {
+            m_selectedDevice = m_db.findDevice(bd.mcu);
+        }
+    }
     m_selectedTargetType = "board";
 
     syncEngineFromTarget();
     updateSelectedTargetBanner();
+    if (m_presetNameEdit) {
+        QString bName = m_selectedBoard.name.isEmpty() ? boardId : m_selectedBoard.name;
+        m_presetNameEdit->setText(bName + " Preset");
+    }
     m_btnNext->setEnabled(true);
 }
 
 void HardwareWizardDialog::updateSelectedTargetBanner() {
     if (m_selectedTargetType == "board" && (!m_selectedBoard.id.isEmpty() || !m_selectedBoard.name.isEmpty())) {
         QString boardName = m_selectedBoard.name.isEmpty() ? m_selectedBoard.id : m_selectedBoard.name;
-        QString proc = m_selectedBoard.mcuPartNumber.isEmpty() ? "Unknown" : m_selectedBoard.mcuPartNumber;
-        m_targetBanner->setText(QString("Board: %1  |  Processor: %2  |  Manufacturer: %3  |  Architecture: %4")
-            .arg(boardName, proc, m_selectedBoard.manufacturer, m_selectedBoard.architecture));
+        BoardDef bd = BoardRegistry::instance().board(m_selectedBoard.id);
+        QString fam = !bd.family.isEmpty() ? bd.family : m_selectedBoard.boardFamily;
+        QString disp = (bd.display.width > 0 && bd.display.height > 0) ?
+            QString("%1x%2 (%3-bit %4)").arg(bd.display.width).arg(bd.display.height).arg(bd.display.colorDepth).arg(bd.display.interface) : "None";
+        QString ram = bd.ramBytes > 0 ? (bd.ramBytes >= 1024*1024 ? QString("%1 MB").arg(bd.ramBytes/(1024*1024)) : QString("%1 KB").arg(bd.ramBytes/1024)) : "Unknown";
+        QString flash = bd.flashBytes > 0 ? (bd.flashBytes >= 1024*1024 ? QString("%1 MB").arg(bd.flashBytes/(1024*1024)) : QString("%1 KB").arg(bd.flashBytes/1024)) : "Unknown";
+
+        m_targetBanner->setText(QString("Board: %1  |  Family: %2  |  Display: %3  |  RAM: %4  |  Flash: %5")
+            .arg(boardName, fam, disp, ram, flash));
     } else if (!m_selectedDevice.partNumber.isEmpty()) {
         m_targetBanner->setText(QString("MCU: %1  |  Vendor: %2  |  Architecture: %3 (%4)  |  Board: [None / Custom Board]")
             .arg(m_selectedDevice.partNumber, m_selectedDevice.vendor, m_selectedDevice.architecture, m_selectedDevice.core));
@@ -1669,6 +1808,15 @@ void HardwareWizardDialog::updateReviewSummary() {
     if (pinCount == 0) summary += "No individual GPIO pins configured.\n";
 
     m_reviewSummaryEdit->setPlainText(summary);
+
+    if (m_presetNameEdit) {
+        QString defaultPreset = m_selectedBoard.name.isEmpty() ?
+            (m_selectedDevice.partNumber.isEmpty() ? "Default Preset" : (m_selectedDevice.partNumber + " Preset")) :
+            (m_selectedBoard.name + " Preset");
+        if (m_presetNameEdit->text().isEmpty() || m_presetNameEdit->text() == "Default Board Preset") {
+            m_presetNameEdit->setText(defaultPreset);
+        }
+    }
 
     QStringList errors, warnings;
     bool valid = m_engine.validateConfiguration(&errors, &warnings);

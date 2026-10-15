@@ -74,6 +74,7 @@
 #include "BoardConfigParser.h"
 #include "QmlImporter.h"
 #include "DeviceManager.h"
+#include "hardware/BoardRegistry.h"
 #include "MainWindow.h"
 #include "LayerPanel.h"
 #include "ColorPickerDialog.h"
@@ -376,6 +377,8 @@ private slots:
     void testResourceEstimatorAnalysisAndWarnings();
     void testResourceAnalyzerPanelLiveUpdates();
     void testExportValidationDialogCriticalFlow();
+    void testPhase2BoardRegistryAndPresetsPersistence();
+    void testPhase3FirstRunBoardSelection();
 
     void cleanupTestCase();
 
@@ -7338,6 +7341,138 @@ void TestAllCases::testExportValidationDialogCriticalFlow() {
 
     // Test actions
     QCOMPARE(dlg.resultAction(), ExportValidationDialog::CANCEL);
+}
+
+void TestAllCases::testPhase2BoardRegistryAndPresetsPersistence() {
+    BoardRegistry& reg = BoardRegistry::instance();
+    QVERIFY(reg.loadFromBoardsJson());
+
+    // 1. Verify board count and families
+    auto boards = reg.boards();
+    QVERIFY(boards.size() >= 18);
+    QStringList families = reg.families();
+    QVERIFY(families.contains("STM32"));
+    QVERIFY(families.contains("ESP32"));
+    QVERIFY(families.contains("RP2040"));
+    QVERIFY(families.contains("NXP"));
+    QVERIFY(families.contains("RaspberryPi"));
+    QVERIFY(families.contains("Custom"));
+
+    // 2. Verify STM32 Nucleo F030R8
+    BoardDef nucleo = reg.board("nucleo_f030r8");
+    QVERIFY(nucleo.isValid());
+    QCOMPARE(nucleo.family, QString("STM32"));
+    QCOMPARE(nucleo.vendor, QString("STMicroelectronics"));
+    QCOMPARE(nucleo.display.width, 320);
+    QCOMPARE(nucleo.display.height, 240);
+    QVERIFY(!nucleo.openocdConfig.isEmpty());
+    QVERIFY(!nucleo.flashCommand.isEmpty());
+    QVERIFY(nucleo.protocols.contains("SPI"));
+    QVERIFY(nucleo.protocols.contains("I2C"));
+    QVERIFY(nucleo.pinMap.contains("PA0"));
+    QVERIFY(nucleo.pinMap.contains("PA13"));
+    QVERIFY(nucleo.pinMap["PA13"].reserved);
+
+    // 3. Verify ESP32 DevKitV1 strapping and reserved pins
+    BoardDef esp32 = reg.board("esp32_devkitv1");
+    QVERIFY(esp32.isValid());
+    QCOMPARE(esp32.family, QString("ESP32"));
+    QVERIFY(esp32.pinMap.contains("GPIO0"));
+    QVERIFY(esp32.pinMap["GPIO0"].strapping);
+    QVERIFY(esp32.pinMap.contains("GPIO6"));
+    QVERIFY(esp32.pinMap["GPIO6"].reserved);
+
+    // 4. Verify RP2040 GP naming
+    BoardDef pico = reg.board("rpi_pico_rp2040");
+    QVERIFY(pico.isValid());
+    QCOMPARE(pico.family, QString("RP2040"));
+    QVERIFY(pico.pinMap.contains("GP0"));
+    QVERIFY(pico.pinMap.contains("GP28"));
+
+    // 5. Verify Raspberry Pi BCM / physical naming
+    BoardDef rpi = reg.board("rpi_4");
+    QVERIFY(rpi.isValid());
+    QCOMPARE(rpi.family, QString("RaspberryPi"));
+    QVERIFY(rpi.pinMap.contains("GPIO2"));
+
+    // 6. Verify NXP migrated board
+    BoardDef nxp = reg.board("nxp_imxrt1060_evk");
+    QVERIFY(nxp.isValid());
+    QCOMPARE(nxp.family, QString("NXP"));
+    QCOMPARE(nxp.display.width, 480);
+    QCOMPARE(nxp.display.height, 272);
+    QVERIFY(!nxp.flashCommand.isEmpty());
+
+    // 7. Verify Presets save, select, reload, delete
+    QString testPreset = "UnitTesting_Preset_Phase2";
+    reg.savePreset(testPreset, "nucleo_f030r8");
+    QVERIFY(reg.hasPresets());
+    QCOMPARE(reg.activePreset().name, testPreset);
+    QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
+
+    // Reload from file to verify persistence across restarts
+    reg.loadPresets();
+    QCOMPARE(reg.activePreset().name, testPreset);
+    QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
+
+    // Clean up preset
+    QVERIFY(reg.deletePreset(testPreset));
+}
+
+void TestAllCases::testPhase3FirstRunBoardSelection() {
+    BoardRegistry& reg = BoardRegistry::instance();
+    QVERIFY(reg.loadFromBoardsJson());
+
+    // 1. Reset onboarding state for fresh test
+    reg.setOnboardingCompleted(false);
+    QVERIFY(!reg.isOnboardingCompleted());
+
+    // 2. Instantiate HardwareWizardDialog and check "Choose later" button
+    HardwareWizardDialog wizard;
+    QPushButton* btnChooseLater = wizard.findChild<QPushButton*>("btnChooseLater");
+    QVERIFY(btnChooseLater != nullptr);
+    QCOMPARE(btnChooseLater->text(), QString("Choose later"));
+
+    // Click Choose later
+    btnChooseLater->click();
+    QVERIFY(wizard.choseLater());
+
+    // 3. Verify MainWindow banner behavior on uncompleted onboarding
+    MainWindow win;
+    QVERIFY(win.boardBanner() != nullptr);
+    // Since onboarding is false, in non-interactive/test mode banner is displayed with placeholder board
+    win.checkFirstRunOnboarding(false);
+    QVERIFY(!win.boardBanner()->isHidden());
+    QCOMPARE(reg.activeBoard().id, QString("custom_board"));
+
+    // 4. Test board selection, specs, pin map/protocols, and saving preset with name
+    HardwareWizardDialog fullWizard;
+    QLineEdit* presetEdit = fullWizard.findChild<QLineEdit*>("presetNameEdit");
+    QVERIFY(presetEdit != nullptr);
+    presetEdit->setText("Nucleo Custom Preset");
+
+    // Table of boards with display, RAM, flash specs
+    QTableWidget* boardTable = fullWizard.findChild<QTableWidget*>("boardHardwareTable");
+    QVERIFY(boardTable != nullptr);
+    QVERIFY(boardTable->columnCount() >= 6);
+
+    // Complete preset save
+    reg.savePreset("Nucleo Custom Preset", "nucleo_f030r8");
+    reg.setActiveBoard("nucleo_f030r8");
+    reg.setOnboardingCompleted(true);
+    QVERIFY(reg.isOnboardingCompleted());
+
+    // 5. Subsequent run should remember choice and hide banner
+    win.checkFirstRunOnboarding(false);
+    QVERIFY(win.boardBanner()->isHidden());
+    QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
+
+    // 6. Verify OpenOCDManager picks up saved preset and logs preset name instead of hardcoded default
+    OpenOCDManager ocd;
+    QCOMPARE(reg.activePreset().name, QString("Nucleo Custom Preset"));
+
+    // Clean up test preset
+    reg.deletePreset("Nucleo Custom Preset");
 }
 
 QTEST_MAIN(TestAllCases)

@@ -87,11 +87,14 @@ public:
     CodeWorkspaceView* codeWorkspaceView() const { return m_codeWorkspace; }
     BoardDetector& boardDetector() { return m_boardDetector; }
     void setWorkspaceMode(WorkspaceMode mode);
+    QWidget* boardBanner() const { return m_boardBanner; }
+    void checkFirstRunOnboarding(bool forceShow = false);
 
 public slots:
     void switchToDesignWorkspace();
     void switchToCodeWorkspace();
     void onOpenBoardSelectorDialog();
+    void onChangeBoard();
 
 private slots:
     // File Actions
@@ -202,6 +205,7 @@ private:
     WorkspaceMode m_workspaceMode = WorkspaceMode::Design;
     WorkspaceManager* m_workspaceManager = nullptr;
     DesignWorkspace* m_designWorkspace = nullptr;
+    QWidget* m_boardBanner = nullptr;
     BoardDetector m_boardDetector;
     QStackedWidget* m_centralStack = nullptr;
     QWidget* m_designContainer = nullptr;

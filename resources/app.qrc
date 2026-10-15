@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>config/devices.json</file>
+        <file alias="config/boards/boards.json">../config/boards/boards.json</file>
         <file alias="examples/simple.euiproj">../examples/simple.euiproj</file>
         <file alias="examples/sample_dashboard.euiproj">../examples/sample_dashboard.euiproj</file>
         <file alias="examples/thermostat.euiproj">../examples/thermostat.euiproj</file>

@@ -11,6 +11,7 @@
 #include "HardwareBridge.h"
 #include "HardwareManager.h"
 #include "SimulatorWindow.h"
+#include "hardware/BoardRegistry.h"
 #include "dialogs/AISettingsDialog.h"
 #include "panels/AIAssistantPanel.h"
 #include "dialogs/GitDialog.h"
@@ -105,6 +106,50 @@ MainWindow::MainWindow(QWidget *parent)
     m_designWorkspace->setTopToolbar(m_topToolbar);
     m_designWorkspace->syncWithProject(m_project);
     m_designContainer = m_designWorkspace;
+
+    // Phase 3: Setup banner in editor
+    m_boardBanner = new QWidget(m_designWorkspace);
+    m_boardBanner->setObjectName("boardBanner");
+    QHBoxLayout* bannerLayout = new QHBoxLayout(m_boardBanner);
+    bannerLayout->setContentsMargins(12, 6, 12, 6);
+    bannerLayout->setSpacing(10);
+    m_boardBanner->setStyleSheet(QString(
+        "QWidget#boardBanner { "
+        "  background-color: #2a2415; "
+        "  border-bottom: 1px solid #d97706; "
+        "} "
+    ));
+
+    QLabel* bannerIcon = new QLabel("⚠", m_boardBanner);
+    bannerIcon->setStyleSheet("color: #f59e0b; font-size: 14px; font-weight: bold;");
+    bannerLayout->addWidget(bannerIcon);
+
+    QLabel* bannerLabel = new QLabel("No target board configured. Operating with placeholder generic board.", m_boardBanner);
+    bannerLabel->setObjectName("boardBannerLabel");
+    bannerLabel->setStyleSheet("color: #fef3c7; font-size: 12px; font-weight: 500;");
+    bannerLayout->addWidget(bannerLabel, 1);
+
+    QPushButton* btnChooseBoard = new QPushButton("Choose Board...", m_boardBanner);
+    btnChooseBoard->setObjectName("btnBannerChooseBoard");
+    btnChooseBoard->setCursor(Qt::PointingHandCursor);
+    btnChooseBoard->setStyleSheet(QString(
+        "QPushButton { "
+        "  background-color: #d97706; "
+        "  color: #ffffff; "
+        "  border: none; "
+        "  border-radius: %1px; "
+        "  padding: 4px 12px; "
+        "  font-weight: 600; "
+        "  font-size: 11px; "
+        "} "
+        "QPushButton:hover { background-color: #b45309; } "
+    ).arg(Theme::RadiusSm));
+    connect(btnChooseBoard, &QPushButton::clicked, this, &MainWindow::onChangeBoard);
+    bannerLayout->addWidget(btnChooseBoard);
+
+    m_designWorkspace->setBoardBanner(m_boardBanner);
+    m_boardBanner->hide();
+
     m_centralStack->addWidget(m_designWorkspace);
 
     // Page 1: Firmware Code Workspace
@@ -262,6 +307,11 @@ MainWindow::MainWindow(QWidget *parent)
     m_localServer->start(8765);
 
     resize(1380, 880);
+
+    // First-run board onboarding check
+    QTimer::singleShot(0, this, [this]() {
+        checkFirstRunOnboarding();
+    });
 }
 
 MainWindow::~MainWindow() {
@@ -547,6 +597,50 @@ void MainWindow::setupMenusAndToolbars() {
     });
     deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
     deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
+    deviceMenu->addSeparator();
+    deviceMenu->addAction("Load Preset...", this, [this]() {
+        auto presets = BoardRegistry::instance().presets();
+        if (presets.isEmpty()) {
+            QMessageBox::information(this, "Load Preset", "No saved presets found.");
+            return;
+        }
+        QStringList names;
+        for (const auto& p : presets) names.append(p.name);
+        bool ok = false;
+        QString chosen = QInputDialog::getItem(this, "Load Preset", "Select preset to load:", names, 0, false, &ok);
+        if (ok && !chosen.isEmpty()) {
+            BoardRegistry::instance().selectPreset(chosen);
+            statusBar()->showMessage(QString("Preset '%1' loaded").arg(chosen), 3000);
+        }
+    });
+    deviceMenu->addAction("Save as Preset...", this, [this]() {
+        bool ok = false;
+        QString defaultName = BoardRegistry::instance().activePreset().name.isEmpty() ?
+            (BoardRegistry::instance().activeBoard().displayName + " Preset") :
+            BoardRegistry::instance().activePreset().name;
+        QString name = QInputDialog::getText(this, "Save Preset", "Preset Name:", QLineEdit::Normal, defaultName, &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            BoardRegistry::instance().savePreset(name.trimmed(), BoardRegistry::instance().activeBoard().id);
+            statusBar()->showMessage(QString("Preset '%1' saved").arg(name.trimmed()), 3000);
+        }
+    });
+    deviceMenu->addAction("Delete Preset...", this, [this]() {
+        auto presets = BoardRegistry::instance().presets();
+        if (presets.isEmpty()) {
+            QMessageBox::information(this, "Delete Preset", "No saved presets found.");
+            return;
+        }
+        QStringList names;
+        for (const auto& p : presets) names.append(p.name);
+        bool ok = false;
+        QString chosen = QInputDialog::getItem(this, "Delete Preset", "Select preset to delete:", names, 0, false, &ok);
+        if (ok && !chosen.isEmpty()) {
+            BoardRegistry::instance().deletePreset(chosen);
+            statusBar()->showMessage(QString("Preset '%1' deleted").arg(chosen), 3000);
+        }
+    });
+    deviceMenu->addSeparator();
+    deviceMenu->addAction("Change Board...", this, &MainWindow::onChangeBoard);
 
     QMenu* settingsMenu = menuBar()->addMenu("Settings");
     settingsMenu->addAction("AI Providers...", this, &MainWindow::onAISettingsDialog);
@@ -700,6 +794,8 @@ void MainWindow::setupMenusAndToolbars() {
     QAction* zoomInAction = toolbar->addAction("+", m_view, &CanvasView::zoomIn);
     zoomInAction->setToolTip("Zoom in");
     toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
+    toolbar->addSeparator();
+    toolbar->addAction("Change Board...", this, &MainWindow::onChangeBoard);
 
     // ============ NEW: LIVE TEST MODE BUTTON ============
 
@@ -971,8 +1067,10 @@ void MainWindow::setupDocks() {
     // Auto-detect and initialize board after OpenOCD connects
     if (m_openocd.isConnected()) {
         if (!m_openocd.autoDetectAndInitializeBoard()) {
-            qWarning() << "Board auto-detection failed. Falling back to STM32F030R8.";
-            m_openocd.setBoard("STM32F030R8");
+            BoardPreset active = BoardRegistry::instance().activePreset();
+            QString fallbackBoard = !active.boardId.isEmpty() ? active.boardId : "STM32F030R8";
+            qWarning() << "Board auto-detection failed. Falling back to" << fallbackBoard;
+            m_openocd.setBoard(fallbackBoard);
         }
     }
 
@@ -1760,7 +1858,16 @@ void MainWindow::createGpioControls() {
 
     // Pin selection
     QComboBox* pinCombo = new QComboBox();
-    pinCombo->addItems({"PA4", "PA5", "PB0", "PB1", "PA0", "PA1"});
+    auto updatePins = [pinCombo]() {
+        pinCombo->clear();
+        QStringList pins = BoardRegistry::instance().activeBoard().pinNames();
+        if (pins.isEmpty()) pins = {"PA4", "PA5", "PB0", "PB1", "PA0", "PA1"};
+        pinCombo->addItems(pins);
+    };
+    updatePins();
+    connect(&BoardRegistry::instance(), &BoardRegistry::activeBoardChanged, pinCombo, [updatePins]() {
+        updatePins();
+    });
     layout->addWidget(new QLabel("Pin:"));
     layout->addWidget(pinCombo);
 
@@ -2179,6 +2286,50 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         statusBar()->showMessage("Switched to Visual Design Canvas", 3000);
     }
 }
+
+void MainWindow::checkFirstRunOnboarding(bool forceShow) {
+    if (!forceShow && BoardRegistry::instance().isOnboardingCompleted()) {
+        if (m_boardBanner) {
+            m_boardBanner->hide();
+        }
+        return;
+    }
+
+    if (!forceShow) {
+        if (qApp && (qApp->applicationName().contains("test", Qt::CaseInsensitive) ||
+                     qApp->property("suppressFirstRunWizard").toBool() ||
+                     (qEnvironmentVariableIsSet("QT_QPA_PLATFORM") && qgetenv("QT_QPA_PLATFORM") == "offscreen"))) {
+            BoardRegistry::instance().setActiveBoard("custom_board");
+            if (m_boardBanner) {
+                m_boardBanner->show();
+            }
+            return;
+        }
+    }
+
+    HardwareWizardDialog wizard(this);
+    wizard.setWindowTitle("Choose Your Board");
+    int res = wizard.exec();
+
+    if (res == QDialog::Accepted) {
+        if (m_boardBanner) {
+            m_boardBanner->hide();
+        }
+        BoardDef b = BoardRegistry::instance().activeBoard();
+        statusBar()->showMessage(QString("Target board set to: %1").arg(b.displayName.isEmpty() ? b.id : b.displayName), 3000);
+    } else {
+        // Skipped with "Choose later" or cancelled
+        BoardRegistry::instance().setActiveBoard("custom_board");
+        if (m_boardBanner) {
+            m_boardBanner->show();
+        }
+    }
+}
+
+void MainWindow::onChangeBoard() {
+    checkFirstRunOnboarding(true);
+}
+
 
 
 

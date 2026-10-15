@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QThread>
 #include <QElapsedTimer>
+#include <QLibrary>
 
 #ifdef HAVE_QT_SERIALPORT
 #include <QSerialPortInfo>
@@ -111,15 +112,137 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
     }
 #endif
 
-    // 2. Portable: probe using OpenOCD adapter/interface query if executable exists
-    QString openocdExe = QStandardPaths::findExecutable("openocd");
-    if (!openocdExe.isEmpty()) {
-        QProcess ocdProc;
-        ocdProc.start(openocdExe, {"-c", "interface list", "-c", "shutdown"});
-        if (ocdProc.waitForFinished(1000)) {
-            QString out = QString::fromUtf8(ocdProc.readAllStandardError()) + " " + QString::fromUtf8(ocdProc.readAllStandardOutput());
-            if (out.contains("st-link") && out.contains("hla")) {
-                // OpenOCD has st-link support built in
+    // 2. Portable: libusb-1.0 USB device enumeration
+    {
+        typedef void* libusb_ctx;
+        typedef void* libusb_dev;
+#pragma pack(push, 1)
+        struct LibusbDevDesc {
+            uint8_t  bLength;
+            uint8_t  bDescriptorType;
+            uint16_t bcdUSB;
+            uint8_t  bDeviceClass;
+            uint8_t  bDeviceSubClass;
+            uint8_t  bDeviceProtocol;
+            uint8_t  bMaxPacketSize0;
+            uint16_t idVendor;
+            uint16_t idProduct;
+            uint16_t bcdDevice;
+            uint8_t  iManufacturer;
+            uint8_t  iProduct;
+            uint8_t  iSerialNumber;
+            uint8_t  bNumConfigurations;
+        };
+#pragma pack(pop)
+        typedef int (*fn_libusb_init)(libusb_ctx**);
+        typedef void (*fn_libusb_exit)(libusb_ctx*);
+        typedef ssize_t (*fn_libusb_get_device_list)(libusb_ctx*, libusb_dev***);
+        typedef void (*fn_libusb_free_device_list)(libusb_dev**, int);
+        typedef int (*fn_libusb_get_device_descriptor)(libusb_dev*, LibusbDevDesc*);
+
+        QLibrary libusbLib("usb-1.0");
+        if (!libusbLib.load()) {
+            libusbLib.setFileName("libusb-1.0");
+            libusbLib.load();
+        }
+        if (libusbLib.isLoaded()) {
+            auto p_init = (fn_libusb_init)libusbLib.resolve("libusb_init");
+            auto p_exit = (fn_libusb_exit)libusbLib.resolve("libusb_exit");
+            auto p_get_list = (fn_libusb_get_device_list)libusbLib.resolve("libusb_get_device_list");
+            auto p_free_list = (fn_libusb_free_device_list)libusbLib.resolve("libusb_free_device_list");
+            auto p_get_desc = (fn_libusb_get_device_descriptor)libusbLib.resolve("libusb_get_device_descriptor");
+
+            if (p_init && p_exit && p_get_list && p_free_list && p_get_desc) {
+                libusb_ctx* ctx = nullptr;
+                if (p_init(&ctx) == 0) {
+                    libusb_dev** devList = nullptr;
+                    ssize_t count = p_get_list(ctx, &devList);
+                    for (ssize_t i = 0; i < count; ++i) {
+                        LibusbDevDesc desc;
+                        if (p_get_desc(devList[i], &desc) == 0) {
+                            quint16 vid = desc.idVendor;
+                            quint16 pid = desc.idProduct;
+
+                            if (vid == 0x0483) {
+                                found.detected = true;
+                                found.vendorId = "0483";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "STM32F030R8 via ST-Link";
+                                found.suggestedInterface = "interface/stlink.cfg";
+                                break;
+                            } else if (vid == 0x2e8a) {
+                                found.detected = true;
+                                found.vendorId = "2e8a";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "Raspberry Pi Debug Probe";
+                                found.suggestedInterface = "interface/cmsis-dap.cfg";
+                                break;
+                            } else if (vid == 0x0d28) {
+                                found.detected = true;
+                                found.vendorId = "0d28";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "CMSIS-DAP Debugger";
+                                found.suggestedInterface = "interface/cmsis-dap.cfg";
+                                break;
+                            } else if (vid == 0x303a) {
+                                found.detected = true;
+                                found.vendorId = "303a";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "ESP32 USB-JTAG / Serial";
+                                found.suggestedInterface = "interface/esp_usb_jtag.cfg";
+                                break;
+                            } else if (vid == 0x1366) {
+                                found.detected = true;
+                                found.vendorId = "1366";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "SEGGER J-Link";
+                                found.suggestedInterface = "interface/jlink.cfg";
+                                break;
+                            } else if (vid == 0x0403) {
+                                found.detected = true;
+                                found.vendorId = "0403";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "FTDI Debug Probe";
+                                found.suggestedInterface = "interface/ftdi/ft2232h.cfg";
+                                break;
+                            } else if (vid == 0x10c4) {
+                                found.detected = true;
+                                found.vendorId = "10c4";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "ESP32 DEVKIT V1 via CP210x";
+                                found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+                                break;
+                            } else if (vid == 0x1a86) {
+                                found.detected = true;
+                                found.vendorId = "1a86";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "ESP32 DEVKIT V1 via CH340";
+                                found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+                                break;
+                            }
+                        }
+                    }
+                    if (devList) p_free_list(devList, 1);
+                    p_exit(ctx);
+                    if (found.detected) return found;
+                }
+            }
+        }
+    }
+
+    // 3. Portable: probe using OpenOCD interface query if executable exists
+    if (!found.detected) {
+        QString openocdExe = QStandardPaths::findExecutable("openocd");
+        if (!openocdExe.isEmpty()) {
+            QProcess ocdProc;
+            ocdProc.start(openocdExe, {"-c", "interface list", "-c", "shutdown"});
+            if (ocdProc.waitForFinished(1000)) {
+                QString out = QString::fromUtf8(ocdProc.readAllStandardError()) + " " + QString::fromUtf8(ocdProc.readAllStandardOutput());
+                if (out.contains("st-link") && out.contains("hla")) {
+                    // OpenOCD has st-link support built in
+                }
+            } else {
+                ocdProc.kill();
             }
         }
     }

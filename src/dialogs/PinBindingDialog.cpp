@@ -354,7 +354,7 @@ void PinBindingDialog::updateStatusBadge() {
         m_connectBtn->setEnabled(true);
         m_disconnectBtn->setEnabled(false);
     } else {
-        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+        m_statusBadge->setText("No probe connected (OpenOCD: NOT FOUND)");
         m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Warning, Theme::WarningBg, QString::number(Theme::RadiusMd)));
         m_connectBtn->setEnabled(true);
         m_disconnectBtn->setEnabled(false);

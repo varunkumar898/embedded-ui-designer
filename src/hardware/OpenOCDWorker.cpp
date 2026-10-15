@@ -1,5 +1,6 @@
 #include "OpenOCDWorker.h"
 #include "OpenOCDManager.h"
+#include "BoardRegistry.h"
 #include <QTimer>
 #include <QDebug>
 #include <QThread>
@@ -86,9 +87,10 @@ void OpenOCDWorker::doConnect() {
     emit progressUpdated("Detecting board...", 40);
     
     if (!m_openocd->autoDetectAndInitializeBoard()) {
-        // Fallback to STM32 if auto-detect fails
-        qWarning() << "Board auto-detection failed. Falling back to STM32F030R8.";
-        m_openocd->setBoard("STM32F030R8");
+        BoardPreset active = BoardRegistry::instance().activePreset();
+        QString fallbackBoard = !active.boardId.isEmpty() ? active.boardId : "STM32F030R8";
+        qWarning() << "Board auto-detection failed. Falling back to" << fallbackBoard;
+        m_openocd->setBoard(fallbackBoard);
     }
     
     emit progressUpdated("Board detected", 80);
