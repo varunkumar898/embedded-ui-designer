@@ -895,6 +895,10 @@ bool HardwareBridge::detectProbe() {
     return false;
 }
 
+void HardwareBridge::rescan() {
+    m_openOcd.rescan();
+}
+
 bool HardwareBridge::connectHardware() {
     if (m_connectionState == ConnectionState::Connected) {
         return true;

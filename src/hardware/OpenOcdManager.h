@@ -38,6 +38,7 @@ public:
     // Background USB probe polling
     void startProbePolling(int intervalMs = 1000);
     void stopProbePolling();
+    void rescan();
     DiscoveredProbe scanUsbProbes();
 
     // Target Connection and Lifecycle
@@ -73,6 +74,7 @@ private slots:
 private:
     bool launchOpenOcdProcess(const QString& interfaceCfg, const QString& targetCfg, int tclPort, int telnetPort);
     bool executeTclCommand(const QString& cmd, QString* outResponse = nullptr);
+    void scheduleNextPoll(bool probeFound);
 
     QTimer m_pollTimer;
     QProcess* m_process = nullptr;
@@ -87,6 +89,10 @@ private:
     QString m_activeTarget;
     int m_tclPort = 6666;
     int m_telnetPort = 4444;
+
+    int m_backoffIndex = 0;
+    bool m_lastLoggedDetected = false;
+    QString m_lastLoggedProbeName;
 
     QHash<quint32, quint32> m_simulatedMemory;
     QList<QPair<quint32, quint32>> m_writeHistory;

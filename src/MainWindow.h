@@ -194,6 +194,10 @@ private:
     DeviceMonitorPanel* m_deviceMonitor = nullptr;
     QDockWidget* m_deviceMonitorDock = nullptr;
 
+    QAction* m_actBuildOutput = nullptr;
+    QAction* m_actDeviceMonitor = nullptr;
+    QAction* m_actResourceAnalyzer = nullptr;
+
     // Workspace Central Stack & Switcher
     WorkspaceMode m_workspaceMode = WorkspaceMode::Design;
     WorkspaceManager* m_workspaceManager = nullptr;

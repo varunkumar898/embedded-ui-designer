@@ -198,6 +198,7 @@ public:
     bool isProbeDetected() const;
     QString detectedBoardName() const;
     bool detectProbe();
+    void rescan();
     bool connectHardware();
     bool disconnectHardware();
 

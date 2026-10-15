@@ -338,12 +338,24 @@ void MainWindow::setupUi() {
         }
     });
 
+    QPushButton* rescanBtn = new QPushButton("Rescan", statusWidget);
+    rescanBtn->setObjectName("hardwareRescanBtn");
+    rescanBtn->setCursor(Qt::PointingHandCursor);
+    rescanBtn->setToolTip("Rescan for connected USB debug probes");
+    rescanBtn->setStyleSheet(m_hardwareConnectBtn->styleSheet());
+    connect(rescanBtn, &QPushButton::clicked, this, [this]() {
+        HardwareBridge::instance().rescan();
+        updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
+                                  HardwareBridge::instance().connectedProbeName());
+    });
+
     statusLayout->addWidget(greenDot);
     statusLayout->addWidget(m_statusLabel);
     statusLayout->addSpacing(16);
     statusLayout->addWidget(m_hardwareStatusBadge);
     statusLayout->addSpacing(6);
     statusLayout->addWidget(m_hardwareConnectBtn);
+    statusLayout->addWidget(rescanBtn);
 
     updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
                               HardwareBridge::instance().connectedProbeName());
@@ -402,7 +414,7 @@ void MainWindow::updateHardwareStatusBadge(bool connected, const QString& probeN
             m_hardwareConnectBtn->setEnabled(true);
         }
     } else {
-        m_hardwareStatusBadge->setText("○ OpenOCD: Not Found (Simulated Mode)");
+        m_hardwareStatusBadge->setText("No probe connected (Not Found - Simulated Mode)");
         m_hardwareStatusBadge->setStyleSheet(QString(
             "color: %1; background-color: %2; border: 1px solid %1; "
             "border-radius: %3px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
@@ -468,32 +480,38 @@ void MainWindow::setupMenusAndToolbars() {
     viewMenu->addAction("Reset Zoom (100%)", m_view, &CanvasView::resetZoom);
     viewMenu->addSeparator();
 
-    QAction* actBuildOutput = viewMenu->addAction("Build Output", this, [this]() {
+    m_actBuildOutput = viewMenu->addAction("Build Output", this, [this]() {
         if (m_buildDock) {
             m_buildDock->setVisible(!m_buildDock->isVisible());
         }
     });
-    actBuildOutput->setCheckable(true);
-    actBuildOutput->setChecked(false);
-    connect(m_buildDock, &QDockWidget::visibilityChanged, actBuildOutput, &QAction::setChecked);
+    m_actBuildOutput->setCheckable(true);
+    m_actBuildOutput->setChecked(false);
+    if (m_buildDock && m_actBuildOutput) {
+        connect(m_buildDock, &QDockWidget::visibilityChanged, m_actBuildOutput, &QAction::setChecked);
+    }
 
-    QAction* actDeviceMonitor = viewMenu->addAction("Device Monitor", this, [this]() {
+    m_actDeviceMonitor = viewMenu->addAction("Device Monitor", this, [this]() {
         if (m_deviceMonitorDock) {
             m_deviceMonitorDock->setVisible(!m_deviceMonitorDock->isVisible());
         }
     });
-    actDeviceMonitor->setCheckable(true);
-    actDeviceMonitor->setChecked(false);
-    connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, actDeviceMonitor, &QAction::setChecked);
+    m_actDeviceMonitor->setCheckable(true);
+    m_actDeviceMonitor->setChecked(false);
+    if (m_deviceMonitorDock && m_actDeviceMonitor) {
+        connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, m_actDeviceMonitor, &QAction::setChecked);
+    }
 
-    QAction* actResourceAnalyzer = viewMenu->addAction("Resource Analyzer", this, [this]() {
+    m_actResourceAnalyzer = viewMenu->addAction("Resource Analyzer", this, [this]() {
         if (m_resourceDock) {
             m_resourceDock->setVisible(!m_resourceDock->isVisible());
         }
     });
-    actResourceAnalyzer->setCheckable(true);
-    actResourceAnalyzer->setChecked(false);
-    connect(m_resourceDock, &QDockWidget::visibilityChanged, actResourceAnalyzer, &QAction::setChecked);
+    m_actResourceAnalyzer->setCheckable(true);
+    m_actResourceAnalyzer->setChecked(false);
+    if (m_resourceDock && m_actResourceAnalyzer) {
+        connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
+    }
 
     viewMenu->addSeparator();
     viewMenu->addAction("Toggle AI Assistant Panel", this, [this]() {
@@ -916,6 +934,19 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::BottomDockWidgetArea, m_deviceMonitorDock);
     tabifyDockWidget(m_buildDock, m_deviceMonitorDock);
     m_deviceMonitorDock->hide();
+
+    if (m_actResourceAnalyzer && m_resourceDock) {
+        connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
+        m_actResourceAnalyzer->setChecked(m_resourceDock->isVisible());
+    }
+    if (m_actBuildOutput && m_buildDock) {
+        connect(m_buildDock, &QDockWidget::visibilityChanged, m_actBuildOutput, &QAction::setChecked);
+        m_actBuildOutput->setChecked(m_buildDock->isVisible());
+    }
+    if (m_actDeviceMonitor && m_deviceMonitorDock) {
+        connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, m_actDeviceMonitor, &QAction::setChecked);
+        m_actDeviceMonitor->setChecked(m_deviceMonitorDock->isVisible());
+    }
 
     resizeDocks({paletteDock, screensDock, m_uploadsDock}, {210, 210, 210}, Qt::Horizontal);
     resizeDocks({propDock, m_effectsDock, prototypeDock, layerDock, stylesDock, m_aiDockWidget, m_resourceDock}, {260, 260, 260, 260, 260, 260, 260}, Qt::Horizontal);
