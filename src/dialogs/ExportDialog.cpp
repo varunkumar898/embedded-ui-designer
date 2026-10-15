@@ -102,11 +102,13 @@ void ExportDialog::setupUi() {
     resLayout->setSpacing(6);
 
     m_deviceProfileLabel = new QLabel(this);
+    m_deviceProfileLabel->setObjectName("deviceProfileLabel");
     m_deviceProfileLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(Theme::TextPrimary));
     resLayout->addWidget(m_deviceProfileLabel);
 
     // Flash Progress
     m_flashLabel = new QLabel("Estimated Flash Memory: -- / -- KB (0%)", this);
+    m_flashLabel->setObjectName("flashLabel");
     m_flashLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(Theme::TextPrimary));
     resLayout->addWidget(m_flashLabel);
 
@@ -123,6 +125,7 @@ void ExportDialog::setupUi() {
 
     // RAM Progress
     m_ramLabel = new QLabel("Estimated RAM Memory: -- / -- KB (0%)", this);
+    m_ramLabel->setObjectName("ramLabel");
     m_ramLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(Theme::TextPrimary));
     resLayout->addWidget(m_ramLabel);
 
@@ -139,6 +142,7 @@ void ExportDialog::setupUi() {
 
     // Breakdown: Framework / Components / Assets / Framebuffer
     m_breakdownLabel = new QLabel(this);
+    m_breakdownLabel->setObjectName("breakdownLabel");
     m_breakdownLabel->setWordWrap(true);
     m_breakdownLabel->setStyleSheet(QString("color: %1; font-size: 11px; margin-top: 2px; margin-bottom: 2px;").arg(Theme::TextSecondary));
     resLayout->addWidget(m_breakdownLabel);

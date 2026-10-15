@@ -215,19 +215,23 @@ Project* makeCriticalProject(CanvasScene& scene, const QString& assetPath, int i
     return project;
 }
 
-QString expectedBarColor(int pct, bool okColorIsSuccess) {
+QString expectedBarColor(int pct) {
     if (pct >= 95) return Theme::Danger;
     if (pct >= 80) return Theme::Warning;
-    return okColorIsSuccess ? Theme::Success : Theme::Success;
+    return Theme::Success;
 }
 
 void verifyDialogState(ExportDialog& dlg, const ResourceAnalysis& analysis, bool expectCritical) {
     auto* flashBar = dlg.findChild<QProgressBar*>("flashBar");
     auto* ramBar = dlg.findChild<QProgressBar*>("ramBar");
+    auto* flashLabel = dlg.findChild<QLabel*>("flashLabel");
+    auto* ramLabel = dlg.findChild<QLabel*>("ramLabel");
     auto* banner = dlg.findChild<QLabel*>("statusBannerLabel");
     auto* exportBtn = dlg.findChild<QPushButton*>("exportButton");
     QVERIFY2(flashBar, "flashBar not found");
     QVERIFY2(ramBar, "ramBar not found");
+    QVERIFY2(flashLabel, "flashLabel not found");
+    QVERIFY2(ramLabel, "ramLabel not found");
     QVERIFY2(banner, "statusBannerLabel not found");
     QVERIFY2(exportBtn, "exportButton not found");
 
@@ -238,16 +242,19 @@ void verifyDialogState(ExportDialog& dlg, const ResourceAnalysis& analysis, bool
     QCOMPARE(flashBar->value(), flashPct);
     QCOMPARE(ramBar->value(), ramPct);
 
+    // Labels show the same percentages the bars display
     const QString flashText = QString("%1").arg(analysis.flash_percent, 0, 'f', 1);
     const QString ramText = QString("%1").arg(analysis.ram_percent, 0, 'f', 1);
-    auto* flashLabel = dlg.findChild<QLabel*>("flashLabel");
-    Q_UNUSED(flashText);
-    Q_UNUSED(ramText);
-    Q_UNUSED(flashLabel);
+    QVERIFY2(flashLabel->text().contains(flashText),
+             qPrintable(QString("flash label %1 lacks %2").arg(flashLabel->text(), flashText)));
+    QVERIFY2(ramLabel->text().contains(ramText),
+             qPrintable(QString("ram label %1 lacks %2").arg(ramLabel->text(), ramText)));
+    QVERIFY(flashLabel->text().contains(QString("%1").arg(analysis.flash_total / 1024)));
+    QVERIFY(ramLabel->text().contains(QString("%1").arg(analysis.ram_total / 1024)));
 
     // Colors change at the 80% and 95% thresholds
-    const QString flashColor = expectedBarColor(flashPct, true);
-    const QString ramColor = expectedBarColor(ramPct, true);
+    const QString flashColor = expectedBarColor(flashPct);
+    const QString ramColor = expectedBarColor(ramPct);
     QVERIFY2(flashBar->styleSheet().contains(flashColor),
              qPrintable(QString("flash bar stylesheet missing %1").arg(flashColor)));
     QVERIFY2(ramBar->styleSheet().contains(ramColor),
@@ -404,12 +411,12 @@ void TestLiveTestResources::testExportDialogWarningAsksForConfirmation() {
 
 void TestLiveTestResources::testExportDialogNoDeviceInfoNotice() {
     CanvasScene scene;
-    auto* project = new Project(&scene);
+    QScopedPointer<Project> project(new Project(&scene));
     project->setTargetFramework("lvgl");
     Hardware::HardwareConfig emptyHw;
     project->setHardwareConfig(emptyHw);
 
-    ExportDialog dlg(project, nullptr);
+    ExportDialog dlg(project.data(), nullptr);
     dlg.show();
     QApplication::processEvents();
 
@@ -456,7 +463,6 @@ void TestLiveTestResources::testExportDialogNoDeviceInfoNotice() {
 
     const QString shot = screenshotPath("verify_task2_export_dialog_no_device.png");
     QVERIFY(dlg.grab().save(shot));
-    delete project;
 }
 
 void TestLiveTestResources::testOptimizeDialogSortedByWeight() {
@@ -465,7 +471,7 @@ void TestLiveTestResources::testOptimizeDialogSortedByWeight() {
     const QString assetPath = makeAssetFile(tmp, 1024);
 
     CanvasScene scene;
-    auto* project = new Project(&scene);
+    QScopedPointer<Project> project(new Project(&scene));
     project->setTargetFramework("lvgl");
     setDevice(*project, "STM32F401");
     auto* screen = new Screen("OptimizeScreen");
@@ -480,7 +486,7 @@ void TestLiveTestResources::testOptimizeDialogSortedByWeight() {
     screen->addComponent(img);
     project->addScreen(screen);
 
-    ExportDialog dlg(project, nullptr);
+    ExportDialog dlg(project.data(), nullptr);
     dlg.show();
     QApplication::processEvents();
 
@@ -548,14 +554,18 @@ void TestLiveTestResources::testOptimizeDialogSortedByWeight() {
 
     // Order matches the estimator output
     ResourceEstimator estimator;
-    const auto heaviest = estimator.getHeaviestComponents(project);
+    const auto heaviest = estimator.getHeaviestComponents(project.data());
     QStringList expectedTypes;
     for (const auto& e : heaviest) expectedTypes << e.componentType;
     QCOMPARE(capturedTypes, expectedTypes);
-    // Heaviest type first (Image has the largest footprint in this design)
-    QCOMPARE(capturedTypes.first(), QString("Image"));
-
-    delete project;
+    // 3 Buttons (3 x 280 B) outweigh 2 Texts (280 B) and 1 Image (250 B);
+    // the table groups rows by component type
+    QCOMPARE(capturedTypes.first(), QString("Button"));
+    QVERIFY(capturedTypes.contains("Button"));
+    QVERIFY(capturedTypes.contains("Text"));
+    QVERIFY(capturedTypes.contains("Image"));
+    const QSet<QString> uniqueTypes(capturedTypes.begin(), capturedTypes.end());
+    QCOMPARE(capturedTypes.size(), uniqueTypes.size());
 }
 
 void TestLiveTestResources::testAnalyzerUiUsesThemeColorsOnly() {
@@ -657,7 +667,9 @@ void TestLiveTestResources::testLiveTestKeepsResourceAnalyzerVisible() {
 
     // Bars/warnings stay live and accurate while Live Test is ON
     ResourceEstimator estimator;
-    ResourceAnalysis expected = estimator.analyzeProject(win.currentProject(), panel->lastAnalysis().target_framework);
+    ResourceAnalysis expected = estimator.analyzeProject(win.currentProject(),
+                                                         panel->lastAnalysis().device,
+                                                         panel->lastAnalysis().target_framework);
     QCOMPARE(panel->lastAnalysis().flash_used, expected.flash_used);
     QCOMPARE(panel->lastAnalysis().ram_used, expected.ram_used);
     QCOMPARE(panel->lastAnalysis().status, expected.status);
