@@ -174,6 +174,8 @@ set(COMMON_SOURCES
     src/workspace/SerialMonitorWidget.h
     src/workspace/CodeWorkspaceView.cpp
     src/workspace/CodeWorkspaceView.h
+    src/workspace/DetachableTabWidget.cpp
+    src/workspace/DetachableTabWidget.h
 
     # Universal Board Detection & Specifications (espboards.dev)
     src/hardware/BoardDatabase.cpp
@@ -209,6 +211,10 @@ set(COMMON_SOURCES
     src/dialogs/NewProjectDialog.h
     src/dialogs/HardwareWizardDialog.cpp
     src/dialogs/HardwareWizardDialog.h
+    src/dialogs/DriverDiffPreviewDialog.cpp
+    src/dialogs/DriverDiffPreviewDialog.h
+    src/dialogs/InvalidBindingsDialog.cpp
+    src/dialogs/InvalidBindingsDialog.h
     src/dialogs/ExportDialog.cpp
     src/dialogs/ExportDialog.h
 

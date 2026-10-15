@@ -197,4 +197,7 @@ private:
     void showEmpty();
     void showSingle();
     void showMulti(int count);
+
+    QString m_previousProtocol = "None";
+    bool checkPinReservationWarning(const QString& pinName, QComboBox* combo);
 };

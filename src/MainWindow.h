@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QDockWidget>
+#include <QCloseEvent>
 #include <QLabel>
 #include <QComboBox>
 #include <QAction>
@@ -85,6 +86,7 @@ public:
     WorkspaceManager* workspaceManager() const { return m_workspaceManager; }
     DesignWorkspace* designWorkspace() const { return m_designWorkspace; }
     CodeWorkspaceView* codeWorkspaceView() const { return m_codeWorkspace; }
+    class DetachableTabWidget* centralTabWidget() const { return m_centralTabs; }
     BoardDetector& boardDetector() { return m_boardDetector; }
     void setWorkspaceMode(WorkspaceMode mode);
     QWidget* boardBanner() const { return m_boardBanner; }
@@ -95,6 +97,16 @@ public slots:
     void switchToCodeWorkspace();
     void onOpenBoardSelectorDialog();
     void onChangeBoard();
+    void saveWindowLayout();
+    void restoreWindowLayout();
+    void resetLayout();
+    void moveActiveWindowToScreen(class QScreen* screen);
+    void detachCanvasWindow();
+    void detachCodeWorkspaceWindow();
+    void redockAllDetachedWindows();
+    static void setDockCollapsed(QDockWidget* dock, bool collapsed, QPushButton* minBtn = nullptr);
+    static bool isDockCollapsed(QDockWidget* dock);
+    static QRect clampGeometryToScreens(const QRect& targetRect, const QRect& fallbackRect = QRect());
 
 private slots:
     // File Actions
@@ -208,12 +220,14 @@ private:
     QWidget* m_boardBanner = nullptr;
     BoardDetector m_boardDetector;
     QStackedWidget* m_centralStack = nullptr;
+    class DetachableTabWidget* m_centralTabs = nullptr;
     QWidget* m_designContainer = nullptr;
     CodeWorkspaceView* m_codeWorkspace = nullptr;
     QToolButton* m_designModeBtn = nullptr;
     QToolButton* m_codeModeBtn = nullptr;
     QButtonGroup* m_workspaceGroup = nullptr;
     QMap<QString, bool> m_dockVisibilityBeforeCodeMode;
+    bool m_inWorkspaceModeSwitch = false;
 
     ContextualTopToolbar* m_topToolbar = nullptr;
     QWidget* m_contextualToolbar = nullptr;
@@ -278,4 +292,10 @@ private slots:
     void onCancelOpenOCDConnection();
     void onMCUSelectionChanged(const QString& mcuName);
     void onBrowseMCUConfig();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QByteArray m_defaultLayoutState;
 };

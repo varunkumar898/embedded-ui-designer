@@ -1,5 +1,8 @@
 #include "CodegenEngine.h"
 #include "model/TypeSystem.h"
+#if defined(QT_CORE_LIB)
+#include "hardware/BoardRegistry.h"
+#endif
 #include <sstream>
 #include <algorithm>
 
@@ -152,26 +155,53 @@ std::string CCodegen::generateHandlerFunction(const ApiEndpoint& endpoint, const
         }
     }
 
-    // 2. HAL invocation
+    // 2. HAL invocation using active board pin map & protocols
     ss << "\n    // Hardware HAL invocation\n";
-    if (config.targetBoard == "STM32F030R8" || config.targetBoard.find("STM32") != std::string::npos) {
-        ss << "    #ifdef TARGET_STM32F030R8\n";
-        ss << "    uint8_t hal_val = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);\n";
+    std::string defaultGpioPin = "PA0";
+    std::string fam = "STM32";
+
+#if defined(QT_CORE_LIB)
+    BoardDef activeBoard = BoardRegistry::instance().activeBoard();
+    if (!config.targetBoard.empty()) {
+        BoardDef b = BoardRegistry::instance().board(QString::fromStdString(config.targetBoard));
+        if (b.isValid()) activeBoard = b;
+    }
+
+    for (auto it = activeBoard.pinMap.begin(); it != activeBoard.pinMap.end(); ++it) {
+        if (!it.value().reserved && it.value().function == "GPIO") {
+            defaultGpioPin = it.key().toStdString();
+            break;
+        }
+    }
+    fam = activeBoard.family.toStdString();
+#endif
+
+    if (fam == "STM32" || config.targetBoard.find("STM32") != std::string::npos) {
+        ss << "    #if defined(TARGET_STM32) || defined(TARGET_STM32F030R8)\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
         ss << "    uint32_t hal_tick = HAL_GetTick();\n";
         ss << "    #else\n";
         ss << "    uint8_t hal_val = 1;\n";
         ss << "    uint32_t hal_tick = 100;\n";
         ss << "    #endif\n";
-    } else if (config.targetBoard == "RP2040") {
+    } else if (fam == "RP2040" || config.targetBoard == "RP2040") {
         ss << "    #ifdef TARGET_RP2040\n";
-        ss << "    uint8_t hal_val = gpio_get(0);\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
+        ss << "    uint32_t hal_tick = 100;\n";
+        ss << "    #else\n";
+        ss << "    uint8_t hal_val = 1;\n";
+        ss << "    uint32_t hal_tick = 100;\n";
+        ss << "    #endif\n";
+    } else if (fam == "ESP32" || config.targetBoard.find("ESP32") != std::string::npos) {
+        ss << "    #ifdef TARGET_ESP32\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
         ss << "    uint32_t hal_tick = 100;\n";
         ss << "    #else\n";
         ss << "    uint8_t hal_val = 1;\n";
         ss << "    uint32_t hal_tick = 100;\n";
         ss << "    #endif\n";
     } else {
-        ss << "    uint8_t hal_val = 1;\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
         ss << "    uint32_t hal_tick = 100;\n";
     }
 

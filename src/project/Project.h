@@ -14,6 +14,7 @@
 #include "Screen.h"
 #include "DataSource.h"
 #include "DataBinding.h"
+#include "analyzer/CapabilityDatabase.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -121,6 +122,7 @@ public:
     // ── Universal Hardware Configuration ──────────────────────────────────
     Hardware::HardwareConfig hardwareConfig() const { return m_hardwareConfig; }
     void setHardwareConfig(const Hardware::HardwareConfig& config);
+    DeviceProfile getDeviceProfile() const;
 
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject& root);

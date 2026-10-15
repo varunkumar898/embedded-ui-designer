@@ -31,6 +31,7 @@ struct ResourceAnalysis {
         uint32_t assets_ram = 0;       // Decoded assets in RAM
         uint32_t user_space_flash = 0; // Available for user code
         uint32_t user_space_ram = 0;   // Available for user dynamic allocation
+        uint32_t framebuffer_ram = 0;  // Estimated framebuffer RAM
     } breakdown;
 
     // Warnings & Status
@@ -39,9 +40,18 @@ struct ResourceAnalysis {
     QVector<QString> warnings;
     QString summary;
 
+    // Typed warnings (Task 1)
+    enum class WarningSeverity { Info, Warning, Critical };
+    struct ResourceWarning {
+        WarningSeverity severity = WarningSeverity::Info;
+        QString message;
+    };
+    QVector<ResourceWarning> structuredWarnings;
+
     // Timestamps and Metadata
     QDateTime analyzed_at;
     QString device_name;
     QString target_framework;      // "qt-for-mcus", "ugfx", "lvgl"
     DeviceProfile device;
+    bool has_device = true;
 };

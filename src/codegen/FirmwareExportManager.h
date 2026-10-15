@@ -15,6 +15,7 @@ struct ExportOptions {
     bool generateCmake = true;
     bool overwriteUserCode = false; // Always defaults to FALSE to preserve user code!
     bool optimizeAssets = true;
+    bool forceExport = false;
 };
 
 struct ExportResult {

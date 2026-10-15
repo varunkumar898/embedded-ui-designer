@@ -542,7 +542,9 @@ QString LvglGenerator::generateUiSource() {
                 code += "    lv_event_code_t event_code = lv_event_get_code(e);\n";
                 code += "    if (event_code == LV_EVENT_CLICKED) {\n";
                 code += QString("        printf(\"[LVGL EVENT] Button clicked: %1 (handler: %2)\\n\");\n").arg(id, handler);
-                code += "        /* TODO: Trigger GPIO, state machine transition, or hardware routine */\n";
+                if (btn->protocol() == "GPIO" && !btn->protocolPin("pin").isEmpty()) {
+                    code += QString("        hal_write_digital_pin(\"%1\", true);\n").arg(btn->protocolPin("pin"));
+                }
                 appendLvglInteractions(code, btn, m_scene, {"On Click"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";
@@ -554,7 +556,9 @@ QString LvglGenerator::generateUiSource() {
                 code += "    if (event_code == LV_EVENT_VALUE_CHANGED) {\n";
                 code += "        bool is_checked = lv_obj_has_state(target, LV_STATE_CHECKED);\n";
                 code += QString("        printf(\"[LVGL EVENT] Switch %1 changed state: %2\\n\", is_checked ? \"ON\" : \"OFF\");\n").arg(id, "%s");
-                code += "        /* TODO: Switch relay, LED, or system flag */\n";
+                if (sw->protocol() == "GPIO" && !sw->protocolPin("pin").isEmpty()) {
+                    code += QString("        hal_write_digital_pin(\"%1\", is_checked);\n").arg(sw->protocolPin("pin"));
+                }
                 appendLvglInteractions(code, sw, m_scene, {"On Click", "On Change", "On Value Changed"}, "        ");
                 code += "    }\n";
                 code += "}\n\n";

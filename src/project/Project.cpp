@@ -24,6 +24,8 @@
 #include "TableComponent.h"
 #include "GroupComponent.h"
 #include "codegen/FirmwareExportManager.h"
+#include "hardware/DeviceDatabase.h"
+#include "hardware/BoardRegistry.h"
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
@@ -206,6 +208,55 @@ void Project::setHardwareConfig(const Hardware::HardwareConfig& config) {
     setDirty(true);
     emit hardwareConfigChanged();
     emit projectModified();
+}
+
+DeviceProfile Project::getDeviceProfile() const {
+    // 1. Identify device or board identifier
+    QString id = m_hardwareConfig.deviceId.trimmed();
+    if (id.isEmpty()) {
+        id = m_hardwareConfig.boardId.trimmed();
+    }
+    if (id.isEmpty()) {
+        // Fallback: return empty/invalid profile, NOT a made-up default MCU
+        return DeviceProfile{};
+    }
+
+    CapabilityDatabase db;
+    db.loadBuiltinDatabase();
+
+    // Check direct match in CapabilityDatabase
+    QString key = id.toLower();
+    for (const QString& dName : db.listAllDevices()) {
+        if (dName.trimmed().toLower() == key) {
+            return db.getDeviceProfile(dName);
+        }
+    }
+
+    // Check Hardware::DeviceDatabase
+    auto devDef = Hardware::DeviceDatabase::instance().findDevice(id);
+    if (!devDef.partNumber.isEmpty()) {
+        DeviceProfile prof;
+        prof.name = devDef.partNumber;
+        prof.family = devDef.family;
+        prof.flash_kb = static_cast<uint32_t>(devDef.flashBytes / 1024);
+        prof.ram_kb = static_cast<uint32_t>(devDef.ramBytes / 1024);
+        prof.cpu_speed_mhz = static_cast<uint32_t>(devDef.maxClockMhz);
+        prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+        return prof;
+    }
+
+    // Check active board in BoardRegistry
+    BoardDef board = BoardRegistry::instance().activeBoard();
+    if (!board.id.isEmpty() && (board.id.toLower() == key || board.mcu.toLower() == key)) {
+        for (const QString& dName : db.listAllDevices()) {
+            if (dName.trimmed().toLower() == board.mcu.toLower()) {
+                return db.getDeviceProfile(dName);
+            }
+        }
+    }
+
+    // Not found: return empty/invalid profile
+    return DeviceProfile{};
 }
 
 // ── Multi-Screen Operations ──────────────────────────────────────────────

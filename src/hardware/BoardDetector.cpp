@@ -268,12 +268,34 @@ DetectedBoardInfo BoardDetector::detectConnectedBoard() {
         return m_simulatedInfo;
     }
 
+#if defined(Q_OS_LINUX)
     DetectedBoardInfo info = scanUsbSysfs();
     if (info.detected) {
         return info;
     }
 
     return scanLsusb();
+#else
+    auto devices = detectUsbDevices();
+    for (const auto& dev : devices) {
+        if ((dev.vendorId == "0483" && (dev.productId == "374b" || dev.productId == "3748")) ||
+            dev.productName.contains("ST-LINK", Qt::CaseInsensitive)) {
+            DetectedBoardInfo info;
+            info.detected = true;
+            info.boardId = "nucleo_f030r8";
+            info.boardName = "STM32 NUCLEO-F030R8";
+            info.mcu = "STM32F030R8";
+            info.adapterType = "ST-Link/V2-1";
+            info.vid = dev.vendorId;
+            info.pid = dev.productId;
+            info.openocdConfig = "config/openocd/stm32f030r8.cfg";
+            info.suggestedInterface = "interface/stlink.cfg";
+            info.spec = BoardDatabase::instance().findBoardById(info.boardId);
+            return info;
+        }
+    }
+    return DetectedBoardInfo();
+#endif
 }
 
 DetectedBoardInfo BoardDetector::scanUsbSysfs() {
@@ -388,6 +410,7 @@ DetectedBoardInfo BoardDetector::scanUsbSysfs() {
 
 DetectedBoardInfo BoardDetector::scanLsusb() {
     DetectedBoardInfo info;
+#if defined(Q_OS_LINUX)
     QProcess proc;
     proc.start("lsusb");
     if (!proc.waitForFinished(800)) {
@@ -437,7 +460,7 @@ DetectedBoardInfo BoardDetector::scanLsusb() {
         info.spec = BoardDatabase::instance().findBoardById(info.boardId);
         return info;
     }
-
+#endif
     return info;
 }
 

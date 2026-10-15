@@ -6,6 +6,7 @@
 #include "codegen/BindingLayerGenerator.h"
 #include "codegen/TargetHalGenerator.h"
 #include "codegen/EmbedWebGenerator.h"
+#include "analyzer/ResourceEstimator.h"
 #include <QFile>
 #include <QTextStream>
 #include <QFileInfo>
@@ -26,6 +27,21 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         result.success = false;
         result.errorMessage = "Export output directory cannot be empty.";
         return result;
+    }
+
+    // Shared Pre-Export Resource Validation Hook
+    ResourceEstimator estimator;
+    DeviceProfile dev = project->getDeviceProfile();
+    if (!dev.name.isEmpty() && (dev.flash_kb > 0 || dev.ram_kb > 0)) {
+        ResourceAnalysis analysis = estimator.analyze(project, dev, options.targetFramework);
+        for (const auto& w : analysis.structuredWarnings) {
+            result.warnings.append(w.message);
+        }
+        if (analysis.status == ResourceAnalysis::CRITICAL && !options.forceExport) {
+            result.success = false;
+            result.errorMessage = "Design exceeds device limits. Optimize or select a larger MCU.";
+            return result;
+        }
     }
 
     QDir rootDir(options.outputDirectory);

@@ -7,6 +7,7 @@
 #include <QMap>
 
 class CodeEditor;
+class DetachableTabWidget;
 
 class TabbedCodeEditor : public QWidget {
     Q_OBJECT
@@ -14,6 +15,8 @@ class TabbedCodeEditor : public QWidget {
 public:
     explicit TabbedCodeEditor(QWidget *parent = nullptr);
     ~TabbedCodeEditor() override;
+
+    DetachableTabWidget* tabWidget() const { return m_tabWidget; }
 
     bool openFile(const QString& filePath);
     bool saveCurrentFile();
@@ -46,7 +49,7 @@ private:
     void updateStatus(CodeEditor* editor);
     void setTabDirty(int index, bool dirty);
 
-    QTabWidget *m_tabWidget = nullptr;
+    DetachableTabWidget *m_tabWidget = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_filePathLabel = nullptr;
     QPushButton *m_saveBtn = nullptr;

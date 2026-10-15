@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QString>
+#include <QMap>
 #include "Project.h"
+#include "hardware/BoardRegistry.h"
 
 namespace CodeGen {
 
@@ -13,6 +15,9 @@ class TargetHalGenerator {
 public:
     static QString generateHalHeader(const Project* project);
     static QString generateHalSource(const Project* project);
+    static QString generateDriverInitCode(const BoardDef& board,
+                                         const QString& protocol,
+                                         const QMap<QString, QString>& pinAssignments = {});
 };
 
 } // namespace CodeGen
