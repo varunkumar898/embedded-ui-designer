@@ -212,50 +212,79 @@ void Project::setHardwareConfig(const Hardware::HardwareConfig& config) {
 
 DeviceProfile Project::getDeviceProfile() const {
     // 1. Identify device or board identifier
-    QString id = m_hardwareConfig.deviceId.trimmed();
-    if (id.isEmpty()) {
-        id = m_hardwareConfig.boardId.trimmed();
-    }
-    if (id.isEmpty()) {
-        // Fallback: return empty/invalid profile, NOT a made-up default MCU
+    QString devId = m_hardwareConfig.deviceId.trimmed();
+    QString boardId = m_hardwareConfig.boardId.trimmed();
+    if (devId.isEmpty() && boardId.isEmpty()) {
         return DeviceProfile{};
     }
 
     CapabilityDatabase db;
     db.loadBuiltinDatabase();
 
-    // Check direct match in CapabilityDatabase
-    QString key = id.toLower();
-    for (const QString& dName : db.listAllDevices()) {
-        if (dName.trimmed().toLower() == key) {
-            return db.getDeviceProfile(dName);
+    // 1. Try resolving deviceId directly
+    if (!devId.isEmpty()) {
+        QString devKey = devId.toLower();
+        for (const QString& dName : db.listAllDevices()) {
+            if (dName.trimmed().toLower() == devKey) {
+                return db.getDeviceProfile(dName);
+            }
+        }
+        auto devDef = Hardware::DeviceDatabase::instance().findDevice(devId);
+        if (!devDef.partNumber.isEmpty()) {
+            DeviceProfile prof;
+            prof.name = devDef.partNumber;
+            prof.family = devDef.family;
+            prof.flash_kb = static_cast<uint32_t>(devDef.flashBytes / 1024);
+            prof.ram_kb = static_cast<uint32_t>(devDef.ramBytes / 1024);
+            prof.cpu_speed_mhz = static_cast<uint32_t>(devDef.maxClockMhz);
+            prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+            return prof;
         }
     }
 
-    // Check Hardware::DeviceDatabase
-    auto devDef = Hardware::DeviceDatabase::instance().findDevice(id);
-    if (!devDef.partNumber.isEmpty()) {
-        DeviceProfile prof;
-        prof.name = devDef.partNumber;
-        prof.family = devDef.family;
-        prof.flash_kb = static_cast<uint32_t>(devDef.flashBytes / 1024);
-        prof.ram_kb = static_cast<uint32_t>(devDef.ramBytes / 1024);
-        prof.cpu_speed_mhz = static_cast<uint32_t>(devDef.maxClockMhz);
-        prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
-        return prof;
-    }
-
-    // Check active board in BoardRegistry
-    BoardDef board = BoardRegistry::instance().activeBoard();
-    if (!board.id.isEmpty() && (board.id.toLower() == key || board.mcu.toLower() == key)) {
-        for (const QString& dName : db.listAllDevices()) {
-            if (dName.trimmed().toLower() == board.mcu.toLower()) {
-                return db.getDeviceProfile(dName);
+    // 2. Try resolving boardId
+    if (!boardId.isEmpty()) {
+        BoardDef board = BoardRegistry::instance().board(boardId);
+        if (board.isValid()) {
+            QString mcuName = board.mcu.trimmed();
+            for (const QString& dName : db.listAllDevices()) {
+                if (dName.trimmed().compare(mcuName, Qt::CaseInsensitive) == 0 ||
+                    (!dName.isEmpty() && mcuName.startsWith(dName, Qt::CaseInsensitive)) ||
+                    dName.trimmed().compare(board.id, Qt::CaseInsensitive) == 0) {
+                    return db.getDeviceProfile(dName);
+                }
+            }
+            for (const QString& dName : db.listAllDevices()) {
+                DeviceProfile p = db.getDeviceProfile(dName);
+                if (!p.module_variant.isEmpty() && p.module_variant.compare(board.id, Qt::CaseInsensitive) == 0) {
+                    return p;
+                }
+            }
+            auto bDev = Hardware::DeviceDatabase::instance().findDevice(mcuName);
+            if (!bDev.partNumber.isEmpty()) {
+                DeviceProfile prof;
+                prof.name = bDev.partNumber;
+                prof.family = bDev.family;
+                prof.flash_kb = static_cast<uint32_t>(bDev.flashBytes / 1024);
+                prof.ram_kb = static_cast<uint32_t>(bDev.ramBytes / 1024);
+                prof.cpu_speed_mhz = static_cast<uint32_t>(bDev.maxClockMhz);
+                prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+                return prof;
+            }
+            if (board.flashBytes > 0 || board.ramBytes > 0) {
+                DeviceProfile prof;
+                prof.name = !board.mcu.isEmpty() ? board.mcu : board.id;
+                prof.family = board.family;
+                prof.flash_kb = static_cast<uint32_t>(board.flashBytes / 1024);
+                prof.ram_kb = static_cast<uint32_t>(board.ramBytes / 1024);
+                prof.cpu_speed_mhz = static_cast<uint32_t>(board.clockMhz);
+                prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+                return prof;
             }
         }
     }
 
-    // Not found: return empty/invalid profile
+    // Fallback: return empty/invalid profile, NOT a made-up default MCU
     return DeviceProfile{};
 }
 

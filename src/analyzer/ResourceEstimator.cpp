@@ -252,7 +252,7 @@ void ResourceEstimator::validateFitsOnDevice(const ResourceAnalysis& analysis,
     }
 
     // 1. Framework compatibility check
-    if (!m_db.supportsFramework(analysis.device_name, analysis.target_framework)) {
+    if (!analysis.target_framework.isEmpty() && !m_db.supportsFramework(analysis.device_name, analysis.target_framework)) {
         status_out = ResourceAnalysis::MISMATCH;
         QString msg = QString("Target framework '%1' is not officially supported on %2.")
                           .arg(analysis.target_framework, analysis.device_name);

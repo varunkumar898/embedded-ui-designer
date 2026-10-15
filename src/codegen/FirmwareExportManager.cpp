@@ -39,7 +39,7 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         }
         if (analysis.status == ResourceAnalysis::CRITICAL && !options.forceExport) {
             result.success = false;
-            result.errorMessage = "Design exceeds device limits. Optimize or select a larger MCU.";
+            result.errorMessage = QString("Export blocked: %1").arg(analysis.summary.isEmpty() ? "Design exceeds device limits. Optimize or select a larger MCU." : analysis.summary);
             return result;
         }
     }
@@ -191,7 +191,7 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
             cFile.close();
             result.generatedFiles.append("generated/ui/gui.c");
         }
-    } else if (fw.contains("qtmcu") || fw.contains("qul")) {
+    } else if (fw.contains("qtmcu") || fw.contains("qul") || fw.contains("qt")) {
         QtMcuGenerator gen(const_cast<Project*>(project), nullptr);
 
         QFile qmlFile(uiDir.filePath("MainScreen.qml"));
@@ -347,7 +347,7 @@ QString FirmwareExportManager::generateMainEntryCode(const Project* project, con
         code += "#include \"gui.h\"\n\n";
     } else if (fw.contains("embedweb")) {
         code += "#include \"ui_tree.h\"\n#include \"ew_hal.h\"\n\n";
-    } else if (!fw.contains("qtmcu")) {
+    } else if (!fw.contains("qtmcu") && !fw.contains("qt")) {
         code += "#include \"ui.h\"\n\n";
     }
 
@@ -362,7 +362,7 @@ QString FirmwareExportManager::generateMainEntryCode(const Project* project, con
         code += "    // 2. Initialize EmbedWeb Native GUI\n";
         code += "    static ew_tree_t ui_tree;\n";
         code += "    ui_tree_init(&ui_tree);\n\n";
-    } else if (!fw.contains("qtmcu")) {
+    } else if (!fw.contains("qtmcu") && !fw.contains("qt")) {
         code += "    // 2. Initialize LVGL GUI\n";
         code += "    ui_init();\n\n";
     }

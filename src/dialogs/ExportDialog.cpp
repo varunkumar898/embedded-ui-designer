@@ -110,6 +110,7 @@ void ExportDialog::setupUi() {
     resLayout->addWidget(m_flashLabel);
 
     m_flashBar = new QProgressBar(this);
+    m_flashBar->setObjectName("flashBar");
     m_flashBar->setRange(0, 100);
     m_flashBar->setValue(0);
     m_flashBar->setTextVisible(true);
@@ -125,6 +126,7 @@ void ExportDialog::setupUi() {
     resLayout->addWidget(m_ramLabel);
 
     m_ramBar = new QProgressBar(this);
+    m_ramBar->setObjectName("ramBar");
     m_ramBar->setRange(0, 100);
     m_ramBar->setValue(0);
     m_ramBar->setTextVisible(true);
@@ -148,6 +150,7 @@ void ExportDialog::setupUi() {
     warnHeader->addStretch();
 
     m_optimizeBtn = new QPushButton("Optimize...", this);
+    m_optimizeBtn->setObjectName("optimizeButton");
     m_optimizeBtn->setStyleSheet(QString(
         "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 2px 10px; font-size: 11px; font-weight: 600; }"
         "QPushButton:hover { background-color: %5; }"
@@ -158,6 +161,7 @@ void ExportDialog::setupUi() {
 
     // Warning List
     m_warningListWidget = new QListWidget(this);
+    m_warningListWidget->setObjectName("warningListWidget");
     m_warningListWidget->setMaximumHeight(85);
     m_warningListWidget->setStyleSheet(QString(
         "QListWidget { background-color: %1; border: 1px solid %2; border-radius: %3px; padding: 2px; font-size: 11px; }"
@@ -167,6 +171,7 @@ void ExportDialog::setupUi() {
 
     // Status Banner / Warning
     m_resourceStatusLabel = new QLabel(this);
+    m_resourceStatusLabel->setObjectName("statusBannerLabel");
     m_resourceStatusLabel->setWordWrap(true);
     m_resourceStatusLabel->setStyleSheet(QString("font-size: 11px; font-weight: bold; padding: 2px 0;"));
     resLayout->addWidget(m_resourceStatusLabel);
@@ -188,6 +193,7 @@ void ExportDialog::setupUi() {
     auto* btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
     m_exportBtn = new QPushButton("Export Firmware", this);
+    m_exportBtn->setObjectName("exportButton");
     m_exportBtn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 6px 16px; border-radius: %3px;")
         .arg(Theme::Accent, Theme::BgBase, QString::number(Theme::RadiusSm)));
     connect(m_exportBtn, &QPushButton::clicked, this, &ExportDialog::onExportClicked);
