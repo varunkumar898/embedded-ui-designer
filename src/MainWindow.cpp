@@ -42,6 +42,7 @@
 #include "panels/BuildOutputPanel.h"
 #include "panels/DeviceMonitorPanel.h"
 #include "panels/ProblemsPanel.h"
+#include "ui/IconProvider.h"
 #include "diagnostics/DiagnosticsService.h"
 #include "diagnostics/DiagnosticsSources.h"
 #include "analyzer/ResourceEstimator.h"
@@ -783,6 +784,22 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->setMovable(false);
     m_toolbar = toolbar;
 
+    // Task 7 minimal UI: icon-only actions. Tooltips carry the action name and
+    // its keyboard shortcut; accessible names keep screen readers working.
+    toolbar->setIconSize(QSize(Icons::ActionIconSize, Icons::ActionIconSize));
+    toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+
+    auto decorate = [toolbar](QAction* action, const QString& iconName,
+                              const QString& tooltip, const QString& accessibleName) {
+        action->setIcon(Icons::icon(iconName));
+        action->setToolTip(tooltip);
+        if (auto* button = qobject_cast<QToolButton*>(toolbar->widgetForAction(action))) {
+            button->setAccessibleName(accessibleName);
+            button->setToolTip(tooltip);
+        }
+        return action;
+    };
+
     // Workspace Switching Controls (Design / Canvas vs </> Code)
     QWidget* switcherWidget = new QWidget(this);
     switcherWidget->setObjectName("workspaceSwitcher");
@@ -792,19 +809,25 @@ void MainWindow::setupMenusAndToolbars() {
 
     m_designModeBtn = new QToolButton(switcherWidget);
     m_designModeBtn->setText("Design / Canvas");
+    m_designModeBtn->setIcon(Icons::icon("pencil-ruler"));
+    m_designModeBtn->setIconSize(QSize(Icons::ActionIconSize, Icons::ActionIconSize));
     m_designModeBtn->setCheckable(true);
     m_designModeBtn->setChecked(true);
-    m_designModeBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_designModeBtn->setToolButtonStyle(Qt::ToolButtonIconOnly);
     m_designModeBtn->setCursor(Qt::PointingHandCursor);
     m_designModeBtn->setToolTip("Open Visual UI Designer Workspace (Ctrl+1)");
+    m_designModeBtn->setAccessibleName("Design / Canvas workspace");
 
     m_codeModeBtn = new QToolButton(switcherWidget);
     m_codeModeBtn->setText("</> Code");
+    m_codeModeBtn->setIcon(Icons::icon("code"));
+    m_codeModeBtn->setIconSize(QSize(Icons::ActionIconSize, Icons::ActionIconSize));
     m_codeModeBtn->setCheckable(true);
     m_codeModeBtn->setChecked(false);
-    m_codeModeBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_codeModeBtn->setToolButtonStyle(Qt::ToolButtonIconOnly);
     m_codeModeBtn->setCursor(Qt::PointingHandCursor);
     m_codeModeBtn->setToolTip("Open Firmware Code Editor Workspace (Ctrl+2)");
+    m_codeModeBtn->setAccessibleName("Firmware Code Editor workspace");
 
     m_workspaceGroup = new QButtonGroup(this);
     m_workspaceGroup->setExclusive(true);
@@ -820,7 +843,7 @@ void MainWindow::setupMenusAndToolbars() {
         "  color: %2; "
         "  border: 1px solid %3; "
         "  border-radius: %4px; "
-        "  padding: 5px 12px; "
+        "  padding: 3px 7px; "
         "  font-weight: 600; "
         "  font-size: 11.5px; "
         "} "
@@ -829,13 +852,14 @@ void MainWindow::setupMenusAndToolbars() {
         "  color: %6; "
         "} "
         "QToolButton:checked { "
-        "  background-color: #1f6feb; "
-        "  color: #ffffff; "
-        "  border: 1px solid #388bfd; "
+        "  background-color: %7; "
+        "  color: %8; "
+        "  border: 1px solid %9; "
         "  font-weight: bold; "
         "} "
     ).arg(Theme::BgRaised, Theme::TextSecondary, Theme::BorderSubtle, QString::number(Theme::RadiusSm),
-          Theme::BgOverlay, Theme::TextPrimary));
+          Theme::BgOverlay, Theme::TextPrimary,
+          Theme::AccentSoft, Theme::AccentText, Theme::BorderStrong));
 
     connect(m_designModeBtn, &QToolButton::clicked, this, &MainWindow::switchToDesignWorkspace);
     connect(m_codeModeBtn, &QToolButton::clicked, this, &MainWindow::switchToCodeWorkspace);
@@ -843,18 +867,24 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->addWidget(switcherWidget);
     toolbar->addSeparator();
 
-    toolbar->addAction("Undo", this, [this]() {
+    decorate(toolbar->addAction("Undo", this, [this]() {
         if (m_undoStack && m_undoStack->canUndo()) m_undoStack->undo();
-    });
-    toolbar->addAction("Redo", this, [this]() {
+    }), "undo-2",
+        QStringLiteral("Undo (%1)").arg(QKeySequence(QKeySequence::Undo).toString(QKeySequence::NativeText)),
+        "Undo");
+    decorate(toolbar->addAction("Redo", this, [this]() {
         if (m_undoStack && m_undoStack->canRedo()) m_undoStack->redo();
-    });
+    }), "redo-2",
+        QStringLiteral("Redo (%1)").arg(QKeySequence(QKeySequence::Redo).toString(QKeySequence::NativeText)),
+        "Redo");
     toolbar->addSeparator();
 
-    toolbar->addAction("▶ Run Simulator", this, &MainWindow::onRunSimulator);
+    decorate(toolbar->addAction("▶ Run Simulator", this, &MainWindow::onRunSimulator),
+             "play", "Run Desktop Simulator (Ctrl+R)", "Run Desktop Simulator");
     toolbar->addSeparator();
 
-    toolbar->addAction("Export...", this, &MainWindow::onExport);
+    decorate(toolbar->addAction("Export...", this, &MainWindow::onExport),
+             "download", "Export… (Ctrl+E)", "Export");
     toolbar->addSeparator();
 
     QLabel* resLabel = new QLabel("Target Display:", this);
@@ -863,6 +893,8 @@ void MainWindow::setupMenusAndToolbars() {
     toolbar->addWidget(resLabel);
 
     m_resolutionCombo = new QComboBox(this);
+    m_resolutionCombo->setToolTip("Target display resolution");
+    m_resolutionCombo->setAccessibleName("Target display resolution");
     m_resolutionCombo->addItem("320 × 240 (QVGA - STM32/ESP32)", QSize(320, 240));
     m_resolutionCombo->addItem("480 × 320 (HVGA - 3.5\" TFT)", QSize(480, 320));
     m_resolutionCombo->addItem("800 × 480 (WVGA - 7\" Industrial HMI)", QSize(800, 480));
@@ -904,22 +936,28 @@ void MainWindow::setupMenusAndToolbars() {
     connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onResolutionPresetChanged);
 
     toolbar->addSeparator();
-    QAction* zoomOutAction = toolbar->addAction("−", m_view, &CanvasView::zoomOut);
-    zoomOutAction->setToolTip("Zoom out");
-    QAction* zoomInAction = toolbar->addAction("+", m_view, &CanvasView::zoomIn);
-    zoomInAction->setToolTip("Zoom in");
-    toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
+    decorate(toolbar->addAction("−", m_view, &CanvasView::zoomOut),
+             "zoom-out", "Zoom out (Ctrl+-)", "Zoom out");
+    decorate(toolbar->addAction("+", m_view, &CanvasView::zoomIn),
+             "zoom-in", "Zoom in (Ctrl++)", "Zoom in");
+    decorate(toolbar->addAction("100%", m_view, &CanvasView::resetZoom),
+             "scan", "Reset zoom to 100%", "Reset zoom to 100%");
     toolbar->addSeparator();
-    toolbar->addAction("Change Board...", this, &MainWindow::onChangeBoard);
+    decorate(toolbar->addAction("Change Board...", this, &MainWindow::onChangeBoard),
+             "circuit-board", "Change Board…", "Change Board");
 
     // ============ NEW: LIVE TEST MODE BUTTON ============
 
     // Create the Live Test button
     m_liveTestButton = new QToolButton(this);
     m_liveTestButton->setText("● Live Test");
+    m_liveTestButton->setIcon(Icons::icon("activity", Theme::IconActive));
+    m_liveTestButton->setIconSize(QSize(Icons::ActionIconSize, Icons::ActionIconSize));
+    m_liveTestButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
     m_liveTestButton->setCheckable(true);        // Makes it a toggle button
     m_liveTestButton->setChecked(false);         // Start OFF
     m_liveTestButton->setToolTip("Enable Live Test Mode (Ctrl+L)");
+    m_liveTestButton->setAccessibleName("Live Test Mode");
     m_liveTestButton->setObjectName("liveTestButton");
 
     // Add button to toolbar

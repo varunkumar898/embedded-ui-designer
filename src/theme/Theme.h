@@ -41,6 +41,12 @@ inline constexpr const char* InfoBg        = "#1A2638"; // Dark blue tint
 // ── Live Test Active Color (Maintains compatibility) ─────────────────────────
 inline constexpr const char* LiveTestActive = "#4EC9B0"; // Teal — consistent with success
 
+// ── Icon States (Lucide SVGs are recolored from these tokens) ────────────────
+inline constexpr const char* IconNormal   = TextSecondary; // #B0B0B0 idle
+inline constexpr const char* IconHover    = TextPrimary;   // #E8E8E8 hover
+inline constexpr const char* IconActive   = AccentText;    // #FFFFFF active/checked
+inline constexpr const char* IconDisabled = TextDisabled;  // #606060 disabled (WCAG-exempt)
+
 // ── Canvas Colors ────────────────────────────────────────────────────────────
 inline constexpr const char* CanvasBg      = "#1F1F1F"; // Slightly lighter than bg-base
 
@@ -95,6 +101,11 @@ inline QColor cDangerBg()      { return QColor(DangerBg); }
 inline QColor cInfoBg()        { return QColor(InfoBg); }
 
 inline QColor cCanvasBg()      { return QColor(CanvasBg); }
+
+inline QColor cIconNormal()    { return QColor(IconNormal); }
+inline QColor cIconHover()     { return QColor(IconHover); }
+inline QColor cIconActive()    { return QColor(IconActive); }
+inline QColor cIconDisabled()  { return QColor(IconDisabled); }
 
 // ── Master Stylesheet Generator ──────────────────────────────────────────────
 QString stylesheet();

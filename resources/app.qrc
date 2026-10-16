@@ -15,5 +15,42 @@
         <file alias="examples/smartwatch.euiproj">../examples/smartwatch.euiproj</file>
         <file alias="packaging/embedded-ui-designer.png">../packaging/embedded-ui-designer.png</file>
         <file>combo_arrow.png</file>
+        <file>icons/LICENSE</file>
+        <file>icons/activity.svg</file>
+        <file>icons/blocks.svg</file>
+        <file>icons/chart-line.svg</file>
+        <file>icons/chevron-down.svg</file>
+        <file>icons/circle-alert.svg</file>
+        <file>icons/circuit-board.svg</file>
+        <file>icons/code.svg</file>
+        <file>icons/cpu.svg</file>
+        <file>icons/download.svg</file>
+        <file>icons/ellipsis.svg</file>
+        <file>icons/file-plus.svg</file>
+        <file>icons/folder-open.svg</file>
+        <file>icons/gauge.svg</file>
+        <file>icons/hammer.svg</file>
+        <file>icons/hard-drive.svg</file>
+        <file>icons/image-plus.svg</file>
+        <file>icons/memory-stick.svg</file>
+        <file>icons/minus.svg</file>
+        <file>icons/pencil-ruler.svg</file>
+        <file>icons/play.svg</file>
+        <file>icons/plug.svg</file>
+        <file>icons/redo-2.svg</file>
+        <file>icons/save.svg</file>
+        <file>icons/scan.svg</file>
+        <file>icons/search.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/sparkles.svg</file>
+        <file>icons/square.svg</file>
+        <file>icons/terminal.svg</file>
+        <file>icons/triangle-alert.svg</file>
+        <file>icons/type.svg</file>
+        <file>icons/undo-2.svg</file>
+        <file>icons/x.svg</file>
+        <file>icons/zap.svg</file>
+        <file>icons/zoom-in.svg</file>
+        <file>icons/zoom-out.svg</file>
     </qresource>
 </RCC>

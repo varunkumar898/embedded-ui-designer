@@ -120,6 +120,13 @@ QToolButton::menu-indicator {
     right: 4px;
 }
 
+/* Icon-only toolbar buttons (Task 7 minimal UI) */
+QToolBar > QToolButton {
+    padding: 4px;
+    min-width: 20px;
+    min-height: 20px;
+}
+
 /* ── Dock Widgets ────────────────────────────────────────── */
 QDockWidget {
     background-color: %2;

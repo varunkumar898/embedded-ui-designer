@@ -102,6 +102,7 @@ find_package(Qt6 6.5 QUIET COMPONENTS
     Test
     Network
     Xml
+    Svg
 )
 
 if(Qt6_FOUND)
@@ -604,6 +605,8 @@ set(COMMON_SOURCES
     src/styles/StyleManager.h
     src/theme/Theme.cpp
     src/theme/Theme.h
+    src/ui/IconProvider.cpp
+    src/ui/IconProvider.h
 )
 
 set(SOURCES
@@ -689,6 +692,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Network
     Qt6::Xml
     Clipper2
@@ -787,6 +791,7 @@ target_link_libraries(test_all_cases PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -847,6 +852,7 @@ target_link_libraries(test_functional_runner PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Network
     Qt6::Xml
     Clipper2
@@ -899,6 +905,7 @@ target_link_libraries(test_live_nucleo PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Network
     Qt6::Xml
     Clipper2
@@ -950,6 +957,7 @@ target_link_libraries(test_board_hal PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Network
     Qt6::Xml
     Clipper2
@@ -1003,6 +1011,7 @@ target_link_libraries(test_hardening PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1061,6 +1070,7 @@ target_link_libraries(test_ir_serialization PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1115,6 +1125,7 @@ target_link_libraries(test_ir_adapter PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1169,6 +1180,7 @@ target_link_libraries(test_html_css_importer PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1456,6 +1468,7 @@ target_link_libraries(test_workspace_widgets PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1520,6 +1533,7 @@ target_link_libraries(test_export_validation PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1584,6 +1598,7 @@ target_link_libraries(test_live_test_resources PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1648,6 +1663,7 @@ target_link_libraries(test_problems_diagnostics PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1712,6 +1728,7 @@ target_link_libraries(test_mcu_capabilities PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1776,6 +1793,7 @@ target_link_libraries(test_board_display_dock PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1840,6 +1858,7 @@ target_link_libraries(test_target_backend PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Svg
     Qt6::Test
     Qt6::Network
     Qt6::Xml
@@ -1854,6 +1873,71 @@ endif()
 
 set_target_properties(test_target_backend PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME TargetBackendAcceptanceTests COMMAND test_target_backend)
+
+# Task 7 - Minimal UI Redesign Acceptance Tests (icons, tokens, toolbar)
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_minimal_ui
+        tests/test_minimal_ui.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_minimal_ui
+        tests/test_minimal_ui.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_minimal_ui PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_minimal_ui PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Svg
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_minimal_ui PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_minimal_ui PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_minimal_ui PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME MinimalUiAcceptanceTests COMMAND test_minimal_ui)
 endif() # HAVE_QT6
 
 
