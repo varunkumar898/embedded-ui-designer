@@ -507,13 +507,61 @@ void MainWindow::setupUi() {
     statusLayout->addWidget(greenDot);
     statusLayout->addWidget(m_statusLabel);
     statusLayout->addSpacing(16);
+
+    m_statusRamButton = new QToolButton(statusWidget);
+    m_statusRamButton->setObjectName("statusRamButton");
+    m_statusRamButton->setCursor(Qt::PointingHandCursor);
+    m_statusRamButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_statusRamButton->setIcon(Icons::icon("memory-stick"));
+    m_statusRamButton->setIconSize(QSize(14, 14));
+    m_statusRamButton->setText("RAM 0%");
+    m_statusRamButton->setStyleSheet(QString("QToolButton { color: %1; padding: 2px 6px; font-size: 11px; } "
+                                           "QToolButton:hover { background: %2; border-radius: 4px; }")
+                                        .arg(Theme::TextSecondary, Theme::BgOverlay));
+    connect(m_statusRamButton, &QToolButton::clicked, this, [this]() {
+        if (QDockWidget* d = findChild<QDockWidget*>("resourceDock")) { d->show(); d->raise(); }
+    });
+
+    m_statusFlashButton = new QToolButton(statusWidget);
+    m_statusFlashButton->setObjectName("statusFlashButton");
+    m_statusFlashButton->setCursor(Qt::PointingHandCursor);
+    m_statusFlashButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_statusFlashButton->setIcon(Icons::icon("hard-drive"));
+    m_statusFlashButton->setIconSize(QSize(14, 14));
+    m_statusFlashButton->setText("Flash 0%");
+    m_statusFlashButton->setStyleSheet(m_statusRamButton->styleSheet());
+    connect(m_statusFlashButton, &QToolButton::clicked, this, [this]() {
+        if (QDockWidget* d = findChild<QDockWidget*>("resourceDock")) { d->show(); d->raise(); }
+    });
+
+    m_statusErrorsButton = new QToolButton(statusWidget);
+    m_statusErrorsButton->setObjectName("statusErrorsButton");
+    m_statusErrorsButton->setCursor(Qt::PointingHandCursor);
+    m_statusErrorsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_statusErrorsButton->setIcon(Icons::icon("circle-alert"));
+    m_statusErrorsButton->setIconSize(QSize(14, 14));
+    m_statusErrorsButton->setText("0E 0W");
+    m_statusErrorsButton->setStyleSheet(m_statusRamButton->styleSheet());
+    connect(m_statusErrorsButton, &QToolButton::clicked, this, [this]() {
+        if (QDockWidget* d = findChild<QDockWidget*>("problemsDock")) { d->show(); d->raise(); }
+    });
+
     statusLayout->addWidget(m_hardwareStatusBadge);
     statusLayout->addSpacing(6);
     statusLayout->addWidget(m_hardwareConnectBtn);
     statusLayout->addWidget(rescanBtn);
+    statusLayout->addSpacing(8);
+    statusLayout->addWidget(m_statusRamButton);
+    statusLayout->addWidget(m_statusFlashButton);
+    statusLayout->addWidget(m_statusErrorsButton);
 
     updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
                               HardwareBridge::instance().connectedProbeName());
+
+    m_statusBarPollTimer = new QTimer(this);
+    connect(m_statusBarPollTimer, &QTimer::timeout, this, &MainWindow::updateStatusBarMetrics);
+    m_statusBarPollTimer->start(2000);
+    updateStatusBarMetrics();
 
     connect(&HardwareBridge::instance(), &HardwareBridge::connectionStatusChanged,
             this, &MainWindow::updateHardwareStatusBadge);
@@ -1018,6 +1066,20 @@ void MainWindow::setupMenusAndToolbars() {
     connect(liveTestAction, &QAction::triggered, this, [this]() {
         m_liveTestButton->setChecked(!m_liveTestButton->isChecked());
     });
+
+    // ============ PHASE C: COMMAND PALETTE ============
+
+    QAction* paletteBarAction = new QAction(Icons::icon("search"), "Command Palette", this);
+    paletteBarAction->setShortcut(QKeySequence("Ctrl+Shift+P"));
+    paletteBarAction->setToolTip("Command Palette (Ctrl+Shift+P)");
+        addAction(paletteBarAction);
+    connect(paletteBarAction, &QAction::triggered, this, &MainWindow::openCommandPalette);
+    if (auto* button = qobject_cast<QToolButton*>(toolbar->widgetForAction(
+            decorate(toolbar->addAction(Icons::icon("search"), "Command Palette", this, &MainWindow::openCommandPalette),
+                     "search", "Command Palette (Ctrl+Shift+P)", "Command Palette")))) {
+        button->setAccessibleName("Command Palette");
+    }
+    viewMenu->addAction("Command Palette", this, &MainWindow::openCommandPalette, QKeySequence("Ctrl+Shift+P"));
 
     // ============ END: LIVE TEST MODE BUTTON ============
 }
@@ -3045,6 +3107,128 @@ void MainWindow::onActivityClicked(int index) {
     QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
     settings.setValue("ui/layoutVersion", 2);
     if (m_activeActivity >= 0) settings.setValue("ui/activeActivity", m_activeActivity);
+}
+
+
+void MainWindow::updateStatusBarMetrics() {
+    int ramPct = 0, flashPct = 0;
+    if (m_resourcePanel) {
+        auto* ramBar = m_resourcePanel->findChild<QProgressBar*>("ramBar");
+        auto* flashBar = m_resourcePanel->findChild<QProgressBar*>("flashBar");
+        if (ramBar) ramPct = ramBar->value();
+        if (flashBar) flashPct = flashBar->value();
+    }
+    if (m_statusRamButton) m_statusRamButton->setText(QString(" RAM %1%").arg(ramPct));
+    if (m_statusFlashButton) m_statusFlashButton->setText(QString(" Flash %1%").arg(flashPct));
+
+    if (m_statusErrorsButton && m_problemsPanel) {
+        int errors = m_problemsPanel->countForSeverity(Diagnostics::Diagnostic::Severity::Error);
+        int warnings = m_problemsPanel->countForSeverity(Diagnostics::Diagnostic::Severity::Warning);
+        m_statusErrorsButton->setText(QString(" %1E %2W").arg(errors).arg(warnings));
+    }
+}
+
+struct PaletteCommandEntry {
+    QString text, shortcut;
+    std::function<void()> trigger;
+};
+
+void MainWindow::rebuildPaletteCommands() {
+    m_paletteCommands.clear();
+
+    struct Entry { QString text; QString shortcut; std::function<void()> trigger; };
+
+    auto record = [this](QString text, QString shortcut, std::function<void()> cb) {
+        text = text.remove('&').trimmed();
+        if (text.isEmpty()) return;
+        PaletteCommand cmd{ text, shortcut, std::move(cb) };
+        m_paletteCommands.append(cmd);
+    };
+
+    std::function<void(QMenu*, const QString&)> collect = [&record, &collect](QMenu* menu, const QString& prefix) {
+        for (QAction* action : menu->actions()) {
+            if (action->isSeparator()) continue;
+            if (QMenu* sub = action->menu()) {
+                collect(sub, prefix + (prefix.isEmpty() ? "" : " / ") + action->text().remove('&').trimmed());
+                continue;
+            }
+            if (action->text().isEmpty()) continue;
+            QString label = action->text().remove('&').trimmed();
+            if (!prefix.isEmpty()) label = prefix + " / " + label;
+            record(label, action->shortcut().toString(), [action]() { action->trigger(); });
+        }
+    };
+    for (QAction* menuAction : menuBar()->actions()) {
+        if (auto* menu = menuAction->menu()) collect(menu, {});
+    }
+
+    for (QAction* action : m_toolbar->actions()) {
+        if (action->isSeparator() || action->text().isEmpty()) continue;
+        record(action->text(), action->shortcut().toString(), [action]() { action->trigger(); });
+    }
+
+    const char* activityLabels[8] = { "Design", "Components", "Board & Display", "Resources",
+                                      "Problems", "Build & Flash", "Assistant", "Settings" };
+    for (int i = 0; i < 8; ++i) {
+        record(QString(activityLabels[i]), QString(),
+               [this, i]() { onActivityClicked(i); });
+    }
+    if (m_commandPaletteList) filterPaletteCommands(m_commandPaletteEdit->text());
+}
+
+void MainWindow::filterPaletteCommands(const QString& pattern) {
+    if (!m_commandPaletteList) return;
+    m_commandPaletteList->clear();
+    const QString lower = pattern.toLower().trimmed();
+    for (int i = 0; i < m_paletteCommands.size(); ++i) {
+        const PaletteCommand& cmd = m_paletteCommands[i];
+        if (!lower.isEmpty() && !cmd.text.toLower().contains(lower)
+                && !cmd.shortcut.toLower().contains(lower)) {
+            continue;
+        }
+        QString display = cmd.shortcut.isEmpty() ? cmd.text : cmd.text + "    " + cmd.shortcut;
+        auto* item = new QListWidgetItem(display, m_commandPaletteList);
+        item->setData(Qt::UserRole, i);
+    }
+}
+
+void MainWindow::triggerPaletteCommand(QListWidgetItem* item) {
+    if (!item || !m_commandPaletteDialog) return;
+    int idx = item->data(Qt::UserRole).toInt();
+    if (idx < 0 || idx >= m_paletteCommands.size()) return;
+    m_commandPaletteDialog->accept();
+    m_paletteCommands[idx].trigger();
+}
+
+void MainWindow::openCommandPalette() {
+    if (!m_commandPaletteDialog) {
+        m_commandPaletteDialog = new QDialog(this);
+        m_commandPaletteDialog->setWindowTitle("Command Palette");
+        m_commandPaletteDialog->setObjectName("commandPaletteDialog");
+        m_commandPaletteDialog->setMinimumWidth(520);
+
+        auto* lay = new QVBoxLayout(m_commandPaletteDialog);
+        m_commandPaletteEdit = new QLineEdit(m_commandPaletteDialog);
+        m_commandPaletteEdit->setPlaceholderText("Type a command...");
+        m_commandPaletteList = new QListWidget(m_commandPaletteDialog);
+        m_commandPaletteList->setMinimumHeight(320);
+        lay->addWidget(m_commandPaletteEdit);
+        lay->addWidget(m_commandPaletteList);
+
+        connect(m_commandPaletteEdit, &QLineEdit::textChanged, this, &MainWindow::filterPaletteCommands);
+        connect(m_commandPaletteEdit, &QLineEdit::returnPressed, this, [this]() {
+            if (!m_commandPaletteList) return;
+            if (m_commandPaletteList->count() > 0 && !m_commandPaletteList->currentItem()) {
+                m_commandPaletteList->setCurrentRow(0);
+            }
+            triggerPaletteCommand(m_commandPaletteList->currentItem());
+        });
+        connect(m_commandPaletteList, &QListWidget::itemDoubleClicked, this, &MainWindow::triggerPaletteCommand);
+    }
+    rebuildPaletteCommands();
+    m_commandPaletteEdit->clear();
+    filterPaletteCommands(QString());
+    m_commandPaletteDialog->exec();
 }
 
 void MainWindow::saveWindowLayout() {

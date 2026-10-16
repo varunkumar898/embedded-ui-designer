@@ -4,6 +4,10 @@
 #include <QDockWidget>
 #include <QCloseEvent>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QTimer>
+#include <functional>
 #include <QComboBox>
 #include <QAction>
 #include <QList>
@@ -57,6 +61,12 @@ class DeviceMonitorPanel;
 namespace Diagnostics {
 class DiagnosticsService;
 }
+
+struct PaletteCommand {
+    QString text;
+    QString shortcut;
+    std::function<void()> trigger;
+};
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -267,6 +277,21 @@ private:
     bool m_liveTestMode = false;
     QToolButton* m_liveTestButton = nullptr;
     void toggleLiveTestMode(bool enabled);
+
+    // Phase C: status bar clickables + command palette
+    QDialog* m_commandPaletteDialog = nullptr;
+    QLineEdit* m_commandPaletteEdit = nullptr;
+    QListWidget* m_commandPaletteList = nullptr;
+    QTimer* m_statusBarPollTimer = nullptr;
+    QList<PaletteCommand> m_paletteCommands;
+    QToolButton* m_statusRamButton = nullptr;
+    QToolButton* m_statusFlashButton = nullptr;
+    QToolButton* m_statusErrorsButton = nullptr;
+    void openCommandPalette();
+    void rebuildPaletteCommands();
+    void filterPaletteCommands(const QString& pattern);
+    void triggerPaletteCommand(QListWidgetItem* item);
+    void updateStatusBarMetrics();
 
     // Phase B minimal UI
     QDockWidget* m_settingsDock = nullptr;
