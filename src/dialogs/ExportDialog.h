@@ -10,6 +10,7 @@
 #include <QListWidget>
 #include <QGroupBox>
 #include <QLabel>
+#include "codegen/BackendRegistry.h"
 #include "codegen/FirmwareExportManager.h"
 #include "analyzer/ResourceEstimator.h"
 
@@ -30,6 +31,8 @@ public:
     QProgressBar* ramBar() const { return m_ramBar; }
     QListWidget* warningListWidget() const { return m_warningListWidget; }
     QLabel* resourceStatusLabel() const { return m_resourceStatusLabel; }
+    // Task 6: the backend selector (same source of truth as the dock).
+    QComboBox* frameworkCombo() const { return m_frameworkCombo; }
 
 private slots:
     void onBrowseClicked();
@@ -41,6 +44,10 @@ private:
     void updateValidation();
     void runResourceAnalysis();
     void updateResourceAnalysisUi();
+
+    // Task 6: effective backend selected in the combo (never the planned one).
+    BackendDescriptor selectedBackend() const;
+    QString selectedBackendFramework() const;
 
     Project* m_project = nullptr;
     FirmwareExportManager m_exportManager;

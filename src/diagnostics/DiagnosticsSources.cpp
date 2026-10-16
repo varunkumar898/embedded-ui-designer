@@ -8,6 +8,7 @@
 #include "analyzer/ResourceEstimator.h"
 #include "analyzer/FramebufferFit.h"
 #include "models/BoardDisplayConfig.h"
+#include "codegen/BackendRegistry.h"
 #include "codegen/GeneratorContext.h"
 #include "models/DiagnosticsEngine.h"
 
@@ -206,6 +207,33 @@ QVector<Diagnostic> boardDisplaySource(const Project* project) {
     return out;
 }
 
+QVector<Diagnostic> backendSource(const Project* project) {
+    QVector<Diagnostic> out;
+    if (!project) return out;
+
+    const QList<BackendFinding> findings = BackendRegistry::validate(project);
+    for (const BackendFinding& finding : findings) {
+        Diagnostic diagnostic;
+        switch (finding.severity) {
+        case BackendFindingSeverity::Error:
+            diagnostic.severity = Diagnostic::Severity::Error;
+            break;
+        case BackendFindingSeverity::Warning:
+            diagnostic.severity = Diagnostic::Severity::Warning;
+            break;
+        case BackendFindingSeverity::Info:
+            diagnostic.severity = Diagnostic::Severity::Info;
+            break;
+        }
+        diagnostic.message = finding.message;
+        diagnostic.source = QStringLiteral("Backend");
+        diagnostic.screenId = finding.screenId;
+        diagnostic.componentId = finding.componentId;
+        out.append(diagnostic);
+    }
+    return out;
+}
+
 } // namespace
 
 void registerBuiltinSources(DiagnosticsService& service) {
@@ -214,6 +242,7 @@ void registerBuiltinSources(DiagnosticsService& service) {
     service.registerSource(QStringLiteral("Binding"), bindingSource);
     service.registerSource(QStringLiteral("Layout"), layoutSource);
     service.registerSource(QStringLiteral("BoardDisplay"), boardDisplaySource);
+    service.registerSource(QStringLiteral("Backend"), backendSource);
 }
 
 } // namespace DiagnosticsSources

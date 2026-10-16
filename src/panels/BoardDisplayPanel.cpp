@@ -8,6 +8,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QStandardItemModel>
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QFrame>
@@ -15,6 +16,7 @@
 
 #include "Project.h"
 #include "analyzer/CapabilityDatabase.h"
+#include "codegen/BackendRegistry.h"
 #include "hardware/BoardRegistry.h"
 #include "theme/Theme.h"
 
@@ -78,6 +80,16 @@ void BoardDisplayPanel::setupUi() {
     // ── 1. Target ────────────────────────────────────────────────────────────
     QGroupBox* targetGroup = new QGroupBox("Target", container);
     QVBoxLayout* tgl = new QVBoxLayout(targetGroup);
+
+    // Task 6: target backend selector. Entries come from the BackendRegistry;
+    // the planned native runtime is shown but cannot be selected.
+    tgl->addWidget(new QLabel("Target backend:", targetGroup));
+    m_backendCombo = new QComboBox(targetGroup);
+    m_backendCombo->setObjectName("bdBackendCombo");
+    rebuildBackendCombo();
+    connect(m_backendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &BoardDisplayPanel::onBackendChanged);
+    tgl->addWidget(m_backendCombo);
 
     tgl->addWidget(new QLabel("Microcontroller (MCU):", targetGroup));
     m_mcuCombo = new QComboBox(targetGroup);
@@ -261,6 +273,43 @@ bool BoardDisplayPanel::boardMatchesDevice(const QString& boardMcu, const QStrin
     return boardMcu.compare(deviceId, Qt::CaseInsensitive) == 0 ||
            boardMcu.startsWith(deviceId, Qt::CaseInsensitive) ||
            deviceId.startsWith(boardMcu, Qt::CaseInsensitive);
+}
+
+void BoardDisplayPanel::rebuildBackendCombo() {
+    if (!m_backendCombo) return;
+    QSignalBlocker blocker(m_backendCombo);
+    m_backendCombo->clear();
+
+    const QList<BackendDescriptor> backends = BackendRegistry::backends();
+    for (const BackendDescriptor& backend : backends) {
+        m_backendCombo->addItem(backend.displayName, backend.id);
+        const int index = m_backendCombo->count() - 1;
+        if (!backend.selectable) {
+            // Planned backends are visible but cannot be chosen.
+            if (auto* model = qobject_cast<QStandardItemModel*>(m_backendCombo->model())) {
+                if (QStandardItem* item = model->item(index)) {
+                    item->setEnabled(false);
+                }
+            }
+            m_backendCombo->setItemData(index,
+                backend.disabledTooltip.isEmpty() ? QStringLiteral("Not implemented yet.")
+                                                  : backend.disabledTooltip,
+                Qt::ToolTipRole);
+        } else {
+            m_backendCombo->setItemData(index,
+                QString("%1 — %2\n%3\nPixel formats: %4\nAnimations: %5")
+                    .arg(backend.displayName, backend.status, backend.description,
+                         backend.pixelFormats.join(", "),
+                         backend.supportsAnimations ? QStringLiteral("supported")
+                                                    : QStringLiteral("not supported")),
+                Qt::ToolTipRole);
+        }
+    }
+
+    const QString effectiveId = currentBackendId();
+    int index = m_backendCombo->findData(effectiveId);
+    if (index < 0) index = 0;
+    m_backendCombo->setCurrentIndex(index);
 }
 
 void BoardDisplayPanel::populateMcuCombo() {
@@ -534,6 +583,7 @@ void BoardDisplayPanel::refreshFromProject() {
     if (m_project) {
         m_config = m_project->boardDisplayConfig();
     }
+    rebuildBackendCombo();
     populateMcuCombo();
     rebuildBoardCombo();
     updateTargetSummary();
@@ -557,6 +607,29 @@ void BoardDisplayPanel::applyConfig(const BoardDisplayConfig& config) {
 }
 
 // ── Slots ────────────────────────────────────────────────────────────────────
+
+void BoardDisplayPanel::onBackendChanged(int index) {
+    Q_UNUSED(index);
+    if (m_updating || !m_project || !m_backendCombo) return;
+
+    const QString backendId = m_backendCombo->currentData().toString();
+    const BackendDescriptor descriptor = BackendRegistry::backend(backendId);
+    if (descriptor.id.isEmpty()) return;
+
+    if (!descriptor.selectable || descriptor.frameworkId.isEmpty()) {
+        // Planned backend: revert to the project's effective backend without
+        // touching the project.
+        rebuildBackendCombo();
+        return;
+    }
+    if (m_project->targetFramework() == descriptor.frameworkId) return;
+
+    m_updating = true;
+    m_project->setTargetFramework(descriptor.frameworkId);
+    m_updating = false;
+
+    emit settingsChanged();
+}
 
 void BoardDisplayPanel::onMcuChanged(int index) {
     Q_UNUSED(index);
@@ -706,6 +779,35 @@ void BoardDisplayPanel::onBufferLinesChanged(int lines) {
 }
 
 // ── Programmatic API ─────────────────────────────────────────────────────────
+
+QString BoardDisplayPanel::currentBackendId() const {
+    if (m_project) {
+        return BackendRegistry::backendForFramework(m_project->targetFramework()).id;
+    }
+    if (m_backendCombo && m_backendCombo->count() > 0) {
+        return m_backendCombo->currentData().toString();
+    }
+    return QString();
+}
+
+void BoardDisplayPanel::setTargetBackend(const QString& backendId) {
+    if (!m_project) return;
+    const BackendDescriptor descriptor = BackendRegistry::backend(backendId);
+    if (descriptor.id.isEmpty() || !descriptor.selectable || descriptor.frameworkId.isEmpty()) {
+        return; // unknown or planned backends are never selected
+    }
+
+    if (m_project->targetFramework() == descriptor.frameworkId) {
+        rebuildBackendCombo();
+        return;
+    }
+
+    m_updating = true;
+    m_project->setTargetFramework(descriptor.frameworkId);
+    m_updating = false;
+    rebuildBackendCombo();
+    emit settingsChanged();
+}
 
 void BoardDisplayPanel::setFramebufferMode(BoardDisplayConfig::FramebufferMode mode) {
     BoardDisplayConfig cfg = m_config;

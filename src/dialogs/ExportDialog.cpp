@@ -9,6 +9,8 @@
 #include <QMessageBox>
 #include <QGroupBox>
 #include <QLabel>
+#include <QStandardItemModel>
+#include <QSet>
 #include <QTableWidget>
 #include <QHeaderView>
 #include <algorithm>
@@ -55,20 +57,37 @@ void ExportDialog::setupUi() {
     pathLayout->addWidget(m_browseBtn);
     formLayout->addRow("Output Directory:", pathLayout);
 
-    // Framework
+    // Framework (Task 6: entries come from the BackendRegistry; the planned
+    // native runtime is visible but disabled. The project's framework is the
+    // single source of truth for the preselection.)
     m_frameworkCombo = new QComboBox(this);
-    m_frameworkCombo->addItem("LVGL v8 / v9 (C Embedded Library)", "lvgl");
-    m_frameworkCombo->addItem("µGFX (Lightweight C Library)", "ugfx");
-    m_frameworkCombo->addItem("Qt for MCUs (QUL QML Engine)", "qtmcu");
-    m_frameworkCombo->addItem("EmbedWeb (Native Bounded C Runtime - Prototype)", "embedweb");
-    if (m_project) {
-        QString fw = m_project->targetFramework().toLower();
-        if (fw.contains("ugfx")) m_frameworkCombo->setCurrentIndex(1);
-        else if (fw.contains("qtmcu")) m_frameworkCombo->setCurrentIndex(2);
-        else if (fw.contains("embedweb")) m_frameworkCombo->setCurrentIndex(3);
-        else m_frameworkCombo->setCurrentIndex(0);
+    m_frameworkCombo->setObjectName("exportFrameworkCombo");
+    for (const BackendDescriptor& backend : BackendRegistry::backends()) {
+        m_frameworkCombo->addItem(backend.displayName, backend.id);
+        const int index = m_frameworkCombo->count() - 1;
+        if (!backend.selectable) {
+            if (auto* model = qobject_cast<QStandardItemModel*>(m_frameworkCombo->model())) {
+                if (QStandardItem* item = model->item(index)) {
+                    item->setEnabled(false);
+                }
+            }
+            m_frameworkCombo->setItemData(index,
+                backend.disabledTooltip.isEmpty() ? QStringLiteral("Not implemented yet.")
+                                                  : backend.disabledTooltip,
+                Qt::ToolTipRole);
+        } else {
+            m_frameworkCombo->setItemData(index,
+                QString("%1 — %2\n%3").arg(backend.displayName, backend.status, backend.description),
+                Qt::ToolTipRole);
+        }
     }
-    formLayout->addRow("Target Framework:", m_frameworkCombo);
+    if (m_project) {
+        const BackendDescriptor effective =
+            BackendRegistry::backendForFramework(m_project->targetFramework());
+        const int index = m_frameworkCombo->findData(effective.id);
+        m_frameworkCombo->setCurrentIndex(index >= 0 ? index : 0);
+    }
+    formLayout->addRow("Target backend:", m_frameworkCombo);
 
     // Target Hardware
     m_targetCombo = new QComboBox(this);
@@ -220,8 +239,23 @@ void ExportDialog::setupUi() {
     });
 }
 
+BackendDescriptor ExportDialog::selectedBackend() const {
+    BackendDescriptor backend = BackendRegistry::backend(
+        m_frameworkCombo ? m_frameworkCombo->currentData().toString() : QString());
+    if (backend.id.isEmpty() || !backend.selectable) {
+        // Defensive: planned/unknown entries fall back to the project's
+        // effective backend so the dialog always matches the real dispatch.
+        backend = BackendRegistry::backendForFramework(m_project ? m_project->targetFramework() : QString());
+    }
+    return backend;
+}
+
+QString ExportDialog::selectedBackendFramework() const {
+    return selectedBackend().frameworkId;
+}
+
 void ExportDialog::runResourceAnalysis() {
-    QString fw = m_frameworkCombo ? m_frameworkCombo->currentData().toString() : QString();
+    QString fw = selectedBackendFramework();
     DeviceProfile dev;
     if (m_project) {
         dev = m_project->getDeviceProfile();
@@ -355,10 +389,10 @@ void ExportDialog::updateResourceAnalysisUi() {
 }
 
 void ExportDialog::updateValidation() {
-    QString fw = m_frameworkCombo->currentData().toString();
+    QString fw = selectedBackendFramework();
     QString target = m_targetCombo->currentData().toString();
     QString summary = "Ready to export firmware project.\n";
-    summary += QString("Target Framework: %1\n").arg(m_frameworkCombo->currentText());
+    summary += QString("Target backend: %1\n").arg(m_frameworkCombo->currentText());
     summary += QString("Hardware Target:  %1\n").arg(m_targetCombo->currentText());
     if (fw == "embedweb") {
         summary += "Runtime Architecture: Bounded POD runtime, zero dynamic allocations during rendering.\n";
@@ -457,21 +491,59 @@ void ExportDialog::onOptimizeClicked() {
 }
 
 void ExportDialog::onExportClicked() {
+    const BackendDescriptor backend = selectedBackend();
+
+    // 0. Backend compatibility gate (Task 6): Errors block, Warnings confirm.
+    QStringList backendErrors;
+    QStringList backendWarnings;
+    QSet<QString> seenWarnings;
+    for (const BackendFinding& finding : BackendRegistry::validate(m_project, backend.id)) {
+        if (finding.severity == BackendFindingSeverity::Error) {
+            if (!backendErrors.contains(finding.message)) backendErrors.append(finding.message);
+        } else if (finding.severity == BackendFindingSeverity::Warning) {
+            if (!seenWarnings.contains(finding.message)) {
+                seenWarnings.insert(finding.message);
+                backendWarnings.append(finding.message);
+            }
+        }
+    }
+    if (!backendErrors.isEmpty()) {
+        QMessageBox::critical(this, "Export Blocked",
+            QString("The %1 backend cannot generate this design:\n\n• %2\n\n"
+                    "Fix the reported components or choose a different target backend.")
+                .arg(backend.displayName, backendErrors.join("\n• ")));
+        return;
+    }
+
     // 1. Critical Check: >=95% blocks export
     if (m_analysis.has_device && m_analysis.status == ResourceAnalysis::CRITICAL) {
         QMessageBox::critical(this, "Export Blocked", "Design exceeds device limits. Optimize or select a larger MCU.");
         return;
     }
 
-    // 2. Warning Check: >=80% prompts confirmation
+    // 2. Warning Check: resource over-budget and/or backend incompatibilities.
+    //    All warnings are confirmed in a single dialog: the Task 1 resource
+    //    wording and title stay unchanged, backend notes are appended.
     bool force = false;
-    if (m_analysis.has_device && (m_analysis.status == ResourceAnalysis::WARNING || m_analysis.flash_percent >= 80.0f || m_analysis.ram_percent >= 80.0f)) {
-        auto res = QMessageBox::warning(this, "Estimated Resource Warning",
-            QString("Estimated resource utilization is high (%1% Flash, %2% RAM).\n\n"
-                    "Exporting may lead to runtime memory constraints or allocation failures on hardware.\n\n"
-                    "Do you want to proceed with firmware export anyway?")
-                .arg(m_analysis.flash_percent, 0, 'f', 1)
-                .arg(m_analysis.ram_percent, 0, 'f', 1),
+    const bool resourceWarning = m_analysis.has_device &&
+        (m_analysis.status == ResourceAnalysis::WARNING ||
+         m_analysis.flash_percent >= 80.0f || m_analysis.ram_percent >= 80.0f);
+    if (resourceWarning || !backendWarnings.isEmpty()) {
+        QStringList sections;
+        if (resourceWarning) {
+            sections << QString("Estimated resource utilization is high (%1% Flash, %2% RAM).\n\n"
+                                "Exporting may lead to runtime memory constraints or allocation failures on hardware.")
+                            .arg(m_analysis.flash_percent, 0, 'f', 1)
+                            .arg(m_analysis.ram_percent, 0, 'f', 1);
+        }
+        if (!backendWarnings.isEmpty()) {
+            sections << QString("The %1 backend cannot fully generate every component:\n\n• %2\n\n"
+                                "Exporting will produce output that differs from the design.")
+                            .arg(backend.displayName, backendWarnings.join("\n• "));
+        }
+        auto res = QMessageBox::warning(this,
+            resourceWarning ? "Estimated Resource Warning" : "Backend Compatibility Warning",
+            sections.join("\n\n") + "\n\nDo you want to proceed with firmware export anyway?",
             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
         if (res != QMessageBox::Yes) {
             return;
@@ -479,9 +551,14 @@ void ExportDialog::onExportClicked() {
         force = true;
     }
 
+    // Task 6: the selected backend is the project's source of truth.
+    if (m_project && !backend.frameworkId.isEmpty()) {
+        m_project->setTargetFramework(backend.frameworkId);
+    }
+
     ExportOptions opts;
     opts.outputDirectory = m_outputPathEdit->text().trimmed();
-    opts.targetFramework = m_frameworkCombo->currentData().toString();
+    opts.targetFramework = backend.frameworkId;
     opts.targetMcu = m_targetCombo->currentData().toString();
     opts.generateCmake = m_generateCmakeCheck->isChecked();
     opts.overwriteUserCode = m_overwriteUserCodeCheck->isChecked();

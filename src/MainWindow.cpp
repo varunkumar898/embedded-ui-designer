@@ -45,6 +45,7 @@
 #include "diagnostics/DiagnosticsService.h"
 #include "diagnostics/DiagnosticsSources.h"
 #include "analyzer/ResourceEstimator.h"
+#include "codegen/BackendRegistry.h"
 #include "project/QmlImporter.h"
 #include "importers/HtmlCssImporter.h"
 #include "ir/IRAdapter.h"
@@ -1827,32 +1828,70 @@ void MainWindow::onSaveProjectAs() {
 void MainWindow::onExport() {
     ExportDialog dlg(m_project, this);
     dlg.exec();
+    // Task 6: the export dialog can change the target backend (single source of
+    // truth in the Project); reflect that immediately in analyzer + Problems.
+    if (m_resourcePanel) m_resourcePanel->refresh();
+    if (m_diagnosticsService) m_diagnosticsService->scheduleRefresh(0);
 }
 
 bool MainWindow::validateExportResources(const QString& targetFramework) {
     if (!m_project) return true;
 
-    ResourceEstimator estimator;
-    DeviceProfile dev = m_project->getDeviceProfile();
-    if (dev.name.isEmpty() || (dev.flash_kb == 0 && dev.ram_kb == 0)) {
-        return true; // No device selected: do not block export
+    // Task 6: backend compatibility findings for the dedicated menu exports.
+    // Errors block outright; warnings join the resource confirmation below so
+    // the user confirms all export-affecting warnings exactly once.
+    const BackendDescriptor backend = BackendRegistry::backendForFramework(targetFramework);
+    QStringList backendErrors;
+    QStringList backendWarnings;
+    for (const BackendFinding& finding : BackendRegistry::validate(m_project, backend.id)) {
+        if (finding.severity == BackendFindingSeverity::Error) {
+            if (!backendErrors.contains(finding.message)) backendErrors.append(finding.message);
+        } else if (finding.severity == BackendFindingSeverity::Warning) {
+            if (!backendWarnings.contains(finding.message)) backendWarnings.append(finding.message);
+        }
     }
-
-    ResourceAnalysis analysis = estimator.analyze(m_project, dev, targetFramework);
-
-    if (analysis.status == ResourceAnalysis::CRITICAL) {
-        QMessageBox::critical(this, "Export Blocked", "Design exceeds device limits. Optimize or select a larger MCU.");
+    if (!backendErrors.isEmpty()) {
+        QMessageBox::critical(this, "Export Blocked",
+            QString("The %1 backend cannot generate this design:\n\n• %2\n\n"
+                    "Fix the reported components or choose a different target backend.")
+                .arg(backend.displayName, backendErrors.join("\n• ")));
         return false;
     }
 
-    if (analysis.status == ResourceAnalysis::WARNING || analysis.status == ResourceAnalysis::MISMATCH ||
-        analysis.flash_percent >= 80.0f || analysis.ram_percent >= 80.0f) {
-        auto res = QMessageBox::warning(this, "Estimated Resource Warning",
-            QString("Estimated resource utilization is high (%1% Flash, %2% RAM).\n\n"
-                    "Exporting may lead to runtime memory constraints or allocation failures on hardware.\n\n"
-                    "Do you want to proceed with firmware export anyway?")
-                .arg(analysis.flash_percent, 0, 'f', 1)
-                .arg(analysis.ram_percent, 0, 'f', 1),
+    ResourceEstimator estimator;
+    DeviceProfile dev = m_project->getDeviceProfile();
+    const bool hasDevice = !(dev.name.isEmpty() || (dev.flash_kb == 0 && dev.ram_kb == 0));
+
+    ResourceAnalysis analysis{};
+    bool resourceWarning = false;
+    if (hasDevice) {
+        analysis = estimator.analyze(m_project, dev, targetFramework);
+
+        if (analysis.status == ResourceAnalysis::CRITICAL) {
+            QMessageBox::critical(this, "Export Blocked", "Design exceeds device limits. Optimize or select a larger MCU.");
+            return false;
+        }
+        resourceWarning = (analysis.status == ResourceAnalysis::WARNING ||
+                           analysis.status == ResourceAnalysis::MISMATCH ||
+                           analysis.flash_percent >= 80.0f || analysis.ram_percent >= 80.0f);
+    }
+
+    if (resourceWarning || !backendWarnings.isEmpty()) {
+        QStringList sections;
+        if (resourceWarning) {
+            sections << QString("Estimated resource utilization is high (%1% Flash, %2% RAM).\n\n"
+                                "Exporting may lead to runtime memory constraints or allocation failures on hardware.")
+                            .arg(analysis.flash_percent, 0, 'f', 1)
+                            .arg(analysis.ram_percent, 0, 'f', 1);
+        }
+        if (!backendWarnings.isEmpty()) {
+            sections << QString("The %1 backend cannot fully generate every component:\n\n• %2\n\n"
+                                "Exporting will produce output that differs from the design.")
+                            .arg(backend.displayName, backendWarnings.join("\n• "));
+        }
+        auto res = QMessageBox::warning(this,
+            resourceWarning ? "Estimated Resource Warning" : "Backend Compatibility Warning",
+            sections.join("\n\n") + "\n\nDo you want to proceed with firmware export anyway?",
             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
         if (res != QMessageBox::Yes) {
             return false;

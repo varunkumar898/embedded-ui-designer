@@ -44,6 +44,10 @@ public:
     BoardDisplayConfig currentConfig() const { return m_config; }
     FramebufferFit::Result currentFit() const { return m_lastFit; }
 
+    // Task 6: effective target backend of the project (registry id, e.g.
+    // "lvgl" / "qt-for-mcus"), derived exactly like the export dispatch.
+    QString currentBackendId() const;
+
     // Text mirrors of the live preview widgets (stable API for acceptance tests).
     QString fitStatusText() const;
     QString fitHintText() const;
@@ -60,6 +64,8 @@ public:
     void setDisplaySize(int width, int height);
     void setPixelFormat(const QString& colorFormat, int colorDepth);
     void setTargetDevice(const QString& deviceName);
+    // Task 6: selects the target backend; the planned entry is ignored.
+    void setTargetBackend(const QString& backendId);
 
 signals:
     void settingsChanged();
@@ -69,6 +75,7 @@ public slots:
     void refreshFromProject();
 
 private slots:
+    void onBackendChanged(int index);
     void onMcuChanged(int index);
     void onBoardChanged(int index);
     void onResolutionChanged();
@@ -81,6 +88,7 @@ private slots:
 
 private:
     void setupUi();
+    void rebuildBackendCombo();
     void populateMcuCombo();
     void rebuildBoardCombo();
     void updateTargetSummary();
@@ -102,6 +110,7 @@ private:
     bool m_updating = false;
 
     // Target section
+    QComboBox* m_backendCombo = nullptr;
     QComboBox* m_mcuCombo = nullptr;
     QComboBox* m_boardCombo = nullptr;
     QLabel* m_targetSummary = nullptr;

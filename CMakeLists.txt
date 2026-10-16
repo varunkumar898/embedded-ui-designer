@@ -359,6 +359,8 @@ set(COMMON_SOURCES
     src/codegen/LvglGenerator.h
     src/codegen/EmbedWebGenerator.cpp
     src/codegen/EmbedWebGenerator.h
+    src/codegen/BackendRegistry.cpp
+    src/codegen/BackendRegistry.h
 
     # EmbedWeb Runtime
     src/runtime/ew_tree.c
@@ -1788,6 +1790,70 @@ endif()
 
 set_target_properties(test_board_display_dock PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME BoardDisplayDockAcceptanceTests COMMAND test_board_display_dock)
+
+# Task 6 Target Backend selector + widget support matrix acceptance tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_target_backend
+        tests/test_target_backend.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_target_backend
+        tests/test_target_backend.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_target_backend PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_target_backend PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_target_backend PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_target_backend PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_target_backend PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME TargetBackendAcceptanceTests COMMAND test_target_backend)
 endif() # HAVE_QT6
 
 

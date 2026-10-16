@@ -13,6 +13,8 @@ namespace DiagnosticsSources {
  *  - "Binding":   Existing data-binding validation (GeneratorContext::validate).
  *  - "Layout":    Components outside the screen bounds (DiagnosticsEngine rule).
  *  - "BoardDisplay": Task 5 framebuffer fit + LCD-controller contradictions.
+ *  - "Backend":   Task 6 component/backend compatibility for the selected
+ *                 target backend (unsupported, partial or unknown support).
  */
 void registerBuiltinSources(DiagnosticsService& service);
 
