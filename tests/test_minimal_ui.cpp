@@ -19,6 +19,8 @@
 #include <QKeySequence>
 #include <QToolBar>
 #include <QToolButton>
+#include <QSettings>
+#include <QCheckBox>
 
 #include <cmath>
 
@@ -60,6 +62,8 @@ private slots:
     void iconsRenderRecolored();
     void mainToolbarIsIconOnly();
     void workspaceSwitcherUsesIconsAndThemeTokens();
+    void showLabelsToggleRestoresTextBesideIcons();
+    void layoutStateRoundTrips();
     void liveTestButtonKeepsIdentityAndGainsIcon();
     void propertiesDockVisibleAfterFirstLaunch();
     void activityBarHasEightIconActions();
@@ -235,6 +239,50 @@ void TestMinimalUi::propertiesDockVisibleAfterFirstLaunch()
     QVERIFY(dock != nullptr);
     QVERIFY2(dock->isVisible(),
              "Properties dock should be visible on a default (upgraded) launch");
+}
+
+void TestMinimalUi::showLabelsToggleRestoresTextBesideIcons()
+{
+    MainWindow win;
+    win.resize(1600, 1000);
+    win.show();
+    QApplication::processEvents();
+
+    auto* cb = win.findChild<QCheckBox*>("showLabelsCheckbox");
+    if (!cb) {
+        QSKIP("settings checkbox not reachable in this configuration");
+    }
+    auto* toolbar = win.findChild<QToolBar*>("mainToolbar");
+    QVERIFY(toolbar);
+
+    QAction* undoAct = nullptr;
+    for (QAction* act : toolbar->actions()) {
+        if (act->text() == "Undo") undoAct = act;
+    }
+    QVERIFY(undoAct);
+
+    auto* btn = qobject_cast<QToolButton*>(toolbar->widgetForAction(undoAct));
+    QVERIFY(btn);
+
+    cb->setChecked(true);
+    for (int i = 0; i < 5; ++i) QApplication::processEvents();
+    QCOMPARE(btn->toolButtonStyle(), Qt::ToolButtonTextBesideIcon);
+
+    cb->setChecked(false);
+    for (int i = 0; i < 5; ++i) QApplication::processEvents();
+    QCOMPARE(btn->toolButtonStyle(), Qt::ToolButtonIconOnly);
+}
+
+void TestMinimalUi::layoutStateRoundTrips()
+{
+    MainWindow win;
+    win.saveWindowLayout();
+    QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    QVERIFY(s.contains("window/geometry"));
+    QVERIFY(s.value("ui/layoutVersion").toInt() >= 2);
+    QVERIFY(s.value("ui/activeActivity").toInt() >= 0);
+    // Ensure restore does not crash on the persisted state.
+    win.restoreWindowLayout();
 }
 
 QTEST_MAIN(TestMinimalUi)

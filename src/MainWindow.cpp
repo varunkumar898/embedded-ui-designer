@@ -266,6 +266,11 @@ MainWindow::MainWindow(QWidget *parent)
     setupMenusAndToolbars();
     setupDocks();
     applyTheme();
+    applyShowLabels(showLabels());
+    QFont initFont = DesignSystem::bodyFont();
+    int initScale = uiScalePercent();
+    initFont.setPointSize(qMax(8, (11 * initScale) / 100));
+    qApp->setFont(initFont);
 
     setWindowIcon(QIcon(":/packaging/embedded-ui-designer.png"));
     updateWindowTitle();
@@ -823,6 +828,16 @@ void MainWindow::setupMenusAndToolbars() {
 
     QMenu* settingsMenu = menuBar()->addMenu("Settings");
     settingsMenu->addAction("AI Providers...", this, &MainWindow::onAISettingsDialog);
+
+    QAction* showLabelsAction = settingsMenu->addAction("Show labels", this, [this]() {
+        bool next = !showLabels();
+        QSettings sett("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+        sett.setValue("ui/showLabels", next);
+        if (m_showLabelsCheckbox) m_showLabelsCheckbox->setChecked(next);
+        applyShowLabels(next);
+    });
+    showLabelsAction->setCheckable(true);
+    showLabelsAction->setChecked(showLabels());
 
     QMenu* themeMenu = settingsMenu->addMenu("Theme");
     QAction* darkAction = themeMenu->addAction("Dark Theme", this, [this]() {
@@ -1544,7 +1559,43 @@ void MainWindow::setupDocks() {
     configureDock(m_settingsDock, "settingsDock", 220, 500, 0, QWIDGETSIZE_MAX);
     m_settingsDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_settingsDock->setTitleBarWidget(createDockTitleBar("Settings", m_settingsDock));
-    m_settingsDock->setWidget(new QLabel("Settings (Show labels, UI scale, Theme, AI Providers) coming in Phase D", m_settingsDock));
+    QWidget* settingsWidget = new QWidget(m_settingsDock);
+    QVBoxLayout* settingsLayout = new QVBoxLayout(settingsWidget);
+    settingsLayout->setContentsMargins(12, 10, 12, 10);
+    settingsLayout->setSpacing(8);
+
+    QLabel* title = new QLabel("Settings", settingsWidget);
+    title->setStyleSheet(QString("color: %1; font-size: 13px; font-weight: 600;").arg(Theme::TextPrimary));
+    settingsLayout->addWidget(title);
+
+    m_showLabelsCheckbox = new QCheckBox("Show labels beside icons", settingsWidget);
+    m_showLabelsCheckbox->setObjectName("showLabelsCheckbox");
+    m_showLabelsCheckbox->setChecked(showLabels());
+    connect(m_showLabelsCheckbox, &QCheckBox::toggled, this, &MainWindow::onShowLabelsToggled);
+    settingsLayout->addWidget(m_showLabelsCheckbox);
+
+    QHBoxLayout* scaleRow = new QHBoxLayout();
+    QLabel* scaleLabel = new QLabel("UI scale", settingsWidget);
+    scaleRow->addWidget(scaleLabel);
+    m_uiScaleCombo = new QComboBox(settingsWidget);
+    m_uiScaleCombo->setObjectName("uiScaleCombo");
+    m_uiScaleCombo->setStyleSheet(QString("QComboBox { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 4px 8px; }").arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusSm)));
+    const int percentOptions[] = { 80, 100, 125, 150, 200 };
+    for (int p : percentOptions) m_uiScaleCombo->addItem(QString("%1%").arg(p), p);
+    int curIdx = m_uiScaleCombo->findData(uiScalePercent());
+    if (curIdx < 0) curIdx = 1;
+    m_uiScaleCombo->setCurrentIndex(curIdx);
+    connect(m_uiScaleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onUiScaleChanged);
+    scaleRow->addWidget(m_uiScaleCombo);
+    scaleRow->addStretch();
+    settingsLayout->addLayout(scaleRow);
+
+    QLabel* note = new QLabel("Affects typography. Requires theme re-application.", settingsWidget);
+    note->setStyleSheet(QString("color: %1; font-size: 10.5px;").arg(Theme::TextMuted));
+    settingsLayout->addWidget(note);
+    settingsLayout->addStretch();
+
+    m_settingsDock->setWidget(settingsWidget);
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDock);
     m_settingsDock->hide();
 
@@ -3229,6 +3280,47 @@ void MainWindow::openCommandPalette() {
     m_commandPaletteEdit->clear();
     filterPaletteCommands(QString());
     m_commandPaletteDialog->exec();
+}
+
+bool MainWindow::showLabels() const {
+    QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    return s.value("ui/showLabels", false).toBool();
+}
+
+int MainWindow::uiScalePercent() const {
+    QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    return s.value("ui/uiScale", 100).toInt();
+}
+
+void MainWindow::applyShowLabels(bool on) {
+    Qt::ToolButtonStyle style = on ? Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly;
+    if (m_toolbar) m_toolbar->setToolButtonStyle(style);
+    if (m_activityBar) {
+        for (QToolButton* b : m_activityButtons) if (b) b->setToolButtonStyle(style);
+    }
+    if (m_liveTestButton) m_liveTestButton->setToolButtonStyle(style);
+    for (QToolButton* b : findChildren<QToolButton*>()) {
+        if (b) b->setToolButtonStyle(style);
+    }
+}
+
+void MainWindow::onShowLabelsToggled(bool on) {
+    QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    s.setValue("ui/showLabels", on);
+    if (m_showLabelsCheckbox) m_showLabelsCheckbox->setChecked(on);
+    applyShowLabels(on);
+}
+
+void MainWindow::onUiScaleChanged(int /*index*/) {
+    if (!m_uiScaleCombo) return;
+    int pct = m_uiScaleCombo->currentData().toInt();
+    if (pct <= 0) pct = 100;
+    QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    s.setValue("ui/uiScale", pct);
+    // Apply scale via font points factor (typographic scaling).
+    QFont f = DesignSystem::bodyFont();
+    f.setPointSize(qMax(8, (11 * pct) / 100));
+    if (qApp) qApp->setFont(f);
 }
 
 void MainWindow::saveWindowLayout() {

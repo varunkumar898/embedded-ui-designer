@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <functional>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QAction>
 #include <QList>
 #include "CanvasScene.h"
@@ -287,11 +288,18 @@ private:
     QToolButton* m_statusRamButton = nullptr;
     QToolButton* m_statusFlashButton = nullptr;
     QToolButton* m_statusErrorsButton = nullptr;
+    QCheckBox* m_showLabelsCheckbox = nullptr;
+    QComboBox* m_uiScaleCombo = nullptr;
     void openCommandPalette();
     void rebuildPaletteCommands();
     void filterPaletteCommands(const QString& pattern);
     void triggerPaletteCommand(QListWidgetItem* item);
     void updateStatusBarMetrics();
+    bool showLabels() const;
+    int uiScalePercent() const;
+    void applyShowLabels(bool on);
+    void onShowLabelsToggled(bool on);
+    void onUiScaleChanged(int index);
 
     // Phase B minimal UI
     QDockWidget* m_settingsDock = nullptr;
