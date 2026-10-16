@@ -36,6 +36,7 @@
 #include "panels/EffectsPanel.h"
 #include "panels/UploadsPanel.h"
 #include "panels/ResourceAnalyzerPanel.h"
+#include "panels/BoardDisplayPanel.h"
 #include "dialogs/ExportValidationDialog.h"
 #include "dialogs/ExportDialog.h"
 #include "panels/BuildOutputPanel.h"
@@ -339,6 +340,14 @@ MainWindow::MainWindow(QWidget *parent)
             m_resourcePanel->setDevice(devId);
         }
     });
+    // Task 5: Board & Display edits refresh the analyzer immediately and ask the
+    // diagnostics service for a (debounced) recompute of the Problems list.
+    if (m_boardDisplayPanel) {
+        connect(m_boardDisplayPanel, &BoardDisplayPanel::settingsChanged, this, [this]() {
+            if (m_resourcePanel) m_resourcePanel->refresh();
+            if (m_diagnosticsService) m_diagnosticsService->scheduleRefresh(0);
+        });
+    }
     connect(m_scene, &CanvasScene::componentChanged, this, [this]() {
         if (m_resourcePanel) m_resourcePanel->refresh();
     });
@@ -625,6 +634,18 @@ void MainWindow::setupMenusAndToolbars() {
     m_actResourceAnalyzer->setChecked(false);
     if (m_resourceDock && m_actResourceAnalyzer) {
         connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
+    }
+
+    m_actBoardDisplay = viewMenu->addAction("Board && Display", this, [this]() {
+        if (m_boardDisplayDock) {
+            m_boardDisplayDock->setVisible(!m_boardDisplayDock->isVisible());
+            if (m_boardDisplayDock->isVisible()) m_boardDisplayDock->raise();
+        }
+    });
+    m_actBoardDisplay->setCheckable(true);
+    m_actBoardDisplay->setChecked(false);
+    if (m_boardDisplayDock && m_actBoardDisplay) {
+        connect(m_boardDisplayDock, &QDockWidget::visibilityChanged, m_actBoardDisplay, &QAction::setChecked);
     }
 
     viewMenu->addSeparator();
@@ -1272,6 +1293,17 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::RightDockWidgetArea, m_resourceDock);
     tabifyDockWidget(m_aiDockWidget, m_resourceDock);
 
+    // Right Dock: Board & Display (Task 5), tabified with the Resource Analyzer.
+    m_boardDisplayDock = new QDockWidget("Board & Display", this);
+    configureDock(m_boardDisplayDock, "boardDisplayDock", 240, 650, 0, QWIDGETSIZE_MAX);
+    m_boardDisplayDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    m_boardDisplayDock->setTitleBarWidget(createDockTitleBar("Board & Display", m_boardDisplayDock));
+    m_boardDisplayPanel = new BoardDisplayPanel(m_boardDisplayDock);
+    m_boardDisplayPanel->setProject(m_project);
+    m_boardDisplayDock->setWidget(m_boardDisplayPanel);
+    addDockWidget(Qt::RightDockWidgetArea, m_boardDisplayDock);
+    tabifyDockWidget(m_resourceDock, m_boardDisplayDock);
+
     // Bottom Dock: Build & Compiler Output
     m_buildDock = new QDockWidget("Build Output", this);
     configureDock(m_buildDock, "buildDock", 200, QWIDGETSIZE_MAX, 100, 600);
@@ -1314,6 +1346,10 @@ void MainWindow::setupDocks() {
         connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
         m_actResourceAnalyzer->setChecked(m_resourceDock->isVisible());
     }
+    if (m_actBoardDisplay && m_boardDisplayDock) {
+        connect(m_boardDisplayDock, &QDockWidget::visibilityChanged, m_actBoardDisplay, &QAction::setChecked);
+        m_actBoardDisplay->setChecked(m_boardDisplayDock->isVisible());
+    }
     if (m_actBuildOutput && m_buildDock) {
         connect(m_buildDock, &QDockWidget::visibilityChanged, m_actBuildOutput, &QAction::setChecked);
         m_actBuildOutput->setChecked(m_buildDock->isVisible());
@@ -1338,6 +1374,7 @@ void MainWindow::setupDocks() {
         m_workspaceManager->registerDesignDock("styles", m_stylesDock);
         m_workspaceManager->registerDesignDock("ai", m_aiDockWidget);
         m_workspaceManager->registerDesignDock("resource", m_resourceDock);
+        m_workspaceManager->registerDesignDock("boardDisplay", m_boardDisplayDock);
         m_workspaceManager->registerDesignDock("mcu", m_mcuDock);
         m_workspaceManager->registerDesignDock("build", m_buildDock);
         m_workspaceManager->registerDesignDock("deviceMonitor", m_deviceMonitorDock);
@@ -2605,6 +2642,7 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         m_dockVisibilityBeforeCodeMode["styles"] = m_stylesDock ? m_stylesDock->isVisible() : false;
         m_dockVisibilityBeforeCodeMode["ai"] = m_aiDockWidget ? m_aiDockWidget->isVisible() : false;
         m_dockVisibilityBeforeCodeMode["resource"] = m_resourceDock ? m_resourceDock->isVisible() : false;
+        m_dockVisibilityBeforeCodeMode["boardDisplay"] = m_boardDisplayDock ? m_boardDisplayDock->isVisible() : false;
         m_dockVisibilityBeforeCodeMode["mcu"] = m_mcuDock ? m_mcuDock->isVisible() : false;
         if (m_buildDock) m_dockVisibilityBeforeCodeMode["build"] = m_buildDock->isVisible();
         if (m_deviceMonitorDock) m_dockVisibilityBeforeCodeMode["deviceMonitor"] = m_deviceMonitorDock->isVisible();
@@ -2620,6 +2658,7 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         if (m_stylesDock) m_stylesDock->hide();
         if (m_aiDockWidget) m_aiDockWidget->hide();
         if (m_resourceDock) m_resourceDock->hide();
+        if (m_boardDisplayDock) m_boardDisplayDock->hide();
         if (m_mcuDock) m_mcuDock->hide();
         if (m_buildDock) m_buildDock->hide();
         if (m_deviceMonitorDock) m_deviceMonitorDock->hide();
@@ -2670,6 +2709,7 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         if (m_dockVisibilityBeforeCodeMode.value("styles", false) && m_stylesDock) m_stylesDock->show();
         if (m_dockVisibilityBeforeCodeMode.value("ai", false) && m_aiDockWidget) m_aiDockWidget->show();
         if (m_dockVisibilityBeforeCodeMode.value("resource", false) && m_resourceDock) m_resourceDock->show();
+        if (m_dockVisibilityBeforeCodeMode.value("boardDisplay", false) && m_boardDisplayDock) m_boardDisplayDock->show();
         if (m_dockVisibilityBeforeCodeMode.value("mcu", false) && m_mcuDock) m_mcuDock->show();
 
         // Ensure primary docks are visible

@@ -74,7 +74,15 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
     // Task 4: the board selection can change the external-flash budget, so it is
     // part of the cache key.
     const QString boardKey = project ? project->hardwareConfig().boardId : QString();
-    QString cacheKey = QString("%1|%2|%3|%4").arg(device.name, fw, compSig, boardKey);
+    // Task 5: buffering mode changes framebuffer_ram, so it is part of the key too.
+    QString framebufferKey;
+    if (project) {
+        const BoardDisplayConfig bd = project->boardDisplayConfig();
+        framebufferKey = QString("%1:%2")
+                             .arg(static_cast<int>(bd.framebufferMode))
+                             .arg(bd.partialBufferLines);
+    }
+    QString cacheKey = QString("%1|%2|%3|%4|%5").arg(device.name, fw, compSig, boardKey, framebufferKey);
     if (m_cache.hasProjectAnalysis(cacheKey)) {
         return m_cache.getProjectAnalysis(cacheKey);
     }
@@ -140,14 +148,23 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
     result.breakdown.assets_flash = analyzeAssets(project, &assetRam);
     result.breakdown.assets_ram = assetRam;
 
-    // 6. Framebuffer calculations (single display buffer)
+    // 6. Framebuffer calculations (Task 5: full frame or partial buffering;
+    //    the default "full" mode reproduces the previous estimate exactly)
     int width = 320, height = 240, bpp = 16;
+    int framebufferHeight = 0;   // lines per buffer, 0 => whole display height
+    int framebufferCount = 1;    // 1 = single buffer, 2 = double buffer
     if (project) {
         width = project->displayConfig().width > 0 ? project->displayConfig().width : 320;
         height = project->displayConfig().height > 0 ? project->displayConfig().height : 240;
         bpp = project->displayConfig().colorDepth > 0 ? project->displayConfig().colorDepth : 16;
+        const BoardDisplayConfig::FramebufferLayout layout =
+            project->boardDisplayConfig().framebufferLayout(height);
+        framebufferHeight = layout.bufferHeight;
+        framebufferCount = layout.bufferCount;
     }
-    result.breakdown.framebuffer_ram = static_cast<uint32_t>(calculateFramebufferBytes(width, height, bpp, 1));
+    if (framebufferHeight <= 0) framebufferHeight = height;
+    result.breakdown.framebuffer_ram = static_cast<uint32_t>(
+        calculateFramebufferBytes(width, framebufferHeight, bpp, framebufferCount));
 
     // 7. Total Usage Calculations
     result.flash_used = result.breakdown.framework_flash + result.breakdown.components_flash + result.breakdown.assets_flash;

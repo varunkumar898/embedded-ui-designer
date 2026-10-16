@@ -28,6 +28,7 @@ class FloatingSelectionToolbar;
 class EffectsPanel;
 class UploadsPanel;
 class ResourceAnalyzerPanel;
+class BoardDisplayPanel;
 class QToolButton;
 class QToolBar;
 class QStackedWidget;
@@ -76,6 +77,7 @@ public:
     EffectsPanel* effectsPanel() const { return m_effectsPanel; }
     UploadsPanel* uploadsPanel() const { return m_uploadsPanel; }
     ResourceAnalyzerPanel* resourceAnalyzerPanel() const { return m_resourcePanel; }
+    BoardDisplayPanel* boardDisplayPanel() const { return m_boardDisplayPanel; }
     ProblemsPanel* problemsPanel() const { return m_problemsPanel; }
     Diagnostics::DiagnosticsService* diagnosticsService() const { return m_diagnosticsService; }
 
@@ -210,6 +212,8 @@ private:
     ResourceAnalyzerPanel* m_resourcePanel = nullptr;
     QDockWidget* m_resourceDock = nullptr;
     QDockWidget* m_resourceAnalyzerPanel = nullptr;
+    BoardDisplayPanel* m_boardDisplayPanel = nullptr;
+    QDockWidget* m_boardDisplayDock = nullptr;
     BuildOutputPanel* m_buildOutputPanel = nullptr;
     QDockWidget* m_buildDock = nullptr;
     DeviceMonitorPanel* m_deviceMonitorPanel = nullptr;
@@ -224,6 +228,7 @@ private:
     QAction* m_actDeviceMonitor = nullptr;
     QAction* m_actProblems = nullptr;
     QAction* m_actResourceAnalyzer = nullptr;
+    QAction* m_actBoardDisplay = nullptr;
 
     // Workspace Central Stack & Switcher
     WorkspaceMode m_workspaceMode = WorkspaceMode::Design;

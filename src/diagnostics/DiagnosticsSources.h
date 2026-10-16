@@ -12,6 +12,7 @@ namespace DiagnosticsSources {
  *  - "Asset":     Image components that reference missing files.
  *  - "Binding":   Existing data-binding validation (GeneratorContext::validate).
  *  - "Layout":    Components outside the screen bounds (DiagnosticsEngine rule).
+ *  - "BoardDisplay": Task 5 framebuffer fit + LCD-controller contradictions.
  */
 void registerBuiltinSources(DiagnosticsService& service);
 

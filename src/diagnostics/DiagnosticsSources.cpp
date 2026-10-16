@@ -6,6 +6,8 @@
 #include "ImageComponent.h"
 #include "analyzer/ResourceAnalysis.h"
 #include "analyzer/ResourceEstimator.h"
+#include "analyzer/FramebufferFit.h"
+#include "models/BoardDisplayConfig.h"
 #include "codegen/GeneratorContext.h"
 #include "models/DiagnosticsEngine.h"
 
@@ -155,6 +157,55 @@ QVector<Diagnostic> layoutSource(const Project* project) {
     return out;
 }
 
+// Task 5: buffering / wiring diagnostics.
+//  * Error   - the chosen interface needs an on-chip LCD controller the MCU lacks.
+//  * Warning - the estimated framebuffer does not fit framebuffer-capable RAM.
+//  * Info    - RAM region suitability is not documented (never a hard error).
+// The "flash depends on board" Info stays in the Resources source; it is not
+// duplicated here.
+QVector<Diagnostic> boardDisplaySource(const Project* project) {
+    QVector<Diagnostic> out;
+    if (!project) return out;
+
+    const DeviceProfile device = project->getDeviceProfile();
+    if (device.name.isEmpty()) return out;
+
+    const BoardDisplayConfig board = project->boardDisplayConfig();
+    const DisplayConfig display = project->displayConfig();
+
+    if (!board.interfaceId.isEmpty() &&
+        BoardDisplayConfig::interfaceRequiresLcdController(board.interfaceId) &&
+        device.has_lcd_controller == 0) {
+        Diagnostic diagnostic;
+        diagnostic.severity = Diagnostic::Severity::Error;
+        diagnostic.message = QString("%1 requires an on-chip LCD controller, but %2 does not provide one.")
+                                 .arg(board.interfaceId, device.name);
+        diagnostic.source = QStringLiteral("BoardDisplay");
+        out.append(diagnostic);
+    }
+
+    if (device.ram_kb == 0) return out;
+
+    const FramebufferFit::Result fit = FramebufferFit::evaluate(
+        device, display.width, display.height, display.colorDepth, board);
+
+    if (fit.status == FramebufferFit::Result::Status::DoesNotFit) {
+        Diagnostic diagnostic;
+        diagnostic.severity = Diagnostic::Severity::Warning;
+        diagnostic.message = QString("Framebuffer: %1 %2").arg(fit.message, fit.hint);
+        diagnostic.source = QStringLiteral("BoardDisplay");
+        out.append(diagnostic);
+    } else if (fit.regionSuitabilityUnknown) {
+        Diagnostic diagnostic;
+        diagnostic.severity = Diagnostic::Severity::Info;
+        diagnostic.message = QString("Framebuffer (%1): %2")
+                                 .arg(device.name, fit.hint);
+        diagnostic.source = QStringLiteral("BoardDisplay");
+        out.append(diagnostic);
+    }
+    return out;
+}
+
 } // namespace
 
 void registerBuiltinSources(DiagnosticsService& service) {
@@ -162,6 +213,7 @@ void registerBuiltinSources(DiagnosticsService& service) {
     service.registerSource(QStringLiteral("Asset"), assetSource);
     service.registerSource(QStringLiteral("Binding"), bindingSource);
     service.registerSource(QStringLiteral("Layout"), layoutSource);
+    service.registerSource(QStringLiteral("BoardDisplay"), boardDisplaySource);
 }
 
 } // namespace DiagnosticsSources
