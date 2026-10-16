@@ -562,32 +562,32 @@ set(COMMON_SOURCES
     src/api/DesignerLocalServer.h
 
     # Multi-Provider AI Platform Subsystem
-    src/ai/AIProvider.cpp
-    src/ai/AIProvider.h
-    src/ai/AIProviderRegistry.cpp
-    src/ai/AIProviderRegistry.h
-    src/ai/AIProjectContext.cpp
-    src/ai/AIProjectContext.h
-    src/ai/AIToolRegistry.cpp
-    src/ai/AIToolRegistry.h
-    src/ai/providers/MockAIProvider.cpp
-    src/ai/providers/MockAIProvider.h
-    src/ai/providers/OpenAIProvider.cpp
-    src/ai/providers/OpenAIProvider.h
-    src/ai/providers/AnthropicProvider.cpp
-    src/ai/providers/AnthropicProvider.h
-    src/ai/providers/GeminiProvider.cpp
-    src/ai/providers/GeminiProvider.h
-    src/ai/providers/CustomOpenAICompatibleProvider.cpp
-    src/ai/providers/CustomOpenAICompatibleProvider.h
+    src/analyzer/ai/AIProvider.cpp
+    src/analyzer/ai/AIProvider.h
+    src/analyzer/ai/AIProviderRegistry.cpp
+    src/analyzer/ai/AIProviderRegistry.h
+    src/analyzer/ai/AIProjectContext.cpp
+    src/analyzer/ai/AIProjectContext.h
+    src/analyzer/ai/AIToolRegistry.cpp
+    src/analyzer/ai/AIToolRegistry.h
+    src/analyzer/ai/providers/MockAIProvider.cpp
+    src/analyzer/ai/providers/MockAIProvider.h
+    src/analyzer/ai/providers/OpenAIProvider.cpp
+    src/analyzer/ai/providers/OpenAIProvider.h
+    src/analyzer/ai/providers/AnthropicProvider.cpp
+    src/analyzer/ai/providers/AnthropicProvider.h
+    src/analyzer/ai/providers/GeminiProvider.cpp
+    src/analyzer/ai/providers/GeminiProvider.h
+    src/analyzer/ai/providers/CustomOpenAICompatibleProvider.cpp
+    src/analyzer/ai/providers/CustomOpenAICompatibleProvider.h
     src/dialogs/AISettingsDialog.cpp
     src/dialogs/AISettingsDialog.h
     src/dialogs/AIProposedChangesDialog.cpp
     src/dialogs/AIProposedChangesDialog.h
     src/panels/AIAssistantPanel.cpp
     src/panels/AIAssistantPanel.h
-    src/ai/CredentialManager.cpp
-    src/ai/CredentialManager.h
+    src/analyzer/ai/CredentialManager.cpp
+    src/analyzer/ai/CredentialManager.h
     src/models/DiagnosticsEngine.cpp
     src/models/DiagnosticsEngine.h
     src/git/GitService.cpp
@@ -667,7 +667,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -773,8 +773,8 @@ target_include_directories(test_all_cases PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -830,8 +830,8 @@ target_include_directories(test_functional_runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -887,8 +887,8 @@ target_include_directories(test_live_nucleo PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -939,7 +939,7 @@ target_include_directories(test_board_hal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -992,8 +992,8 @@ target_include_directories(test_hardening PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/build
     ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
@@ -1048,8 +1048,8 @@ target_include_directories(test_ir_serialization PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1102,8 +1102,8 @@ target_include_directories(test_ir_adapter PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1156,8 +1156,8 @@ target_include_directories(test_html_css_importer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1436,7 +1436,7 @@ target_include_directories(test_workspace_widgets PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1500,7 +1500,7 @@ target_include_directories(test_export_validation PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1564,7 +1564,7 @@ target_include_directories(test_live_test_resources PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1628,7 +1628,7 @@ target_include_directories(test_problems_diagnostics PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1692,7 +1692,7 @@ target_include_directories(test_mcu_capabilities PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1756,7 +1756,7 @@ target_include_directories(test_board_display_dock PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1820,7 +1820,7 @@ target_include_directories(test_target_backend PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins

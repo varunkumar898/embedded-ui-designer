@@ -1,5 +1,5 @@
 #include "GitService.h"
-#include "CredentialManager.h"
+#include "analyzer/ai/CredentialManager.h"
 
 #include <QProcess>
 #include <QDir>
