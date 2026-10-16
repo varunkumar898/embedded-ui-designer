@@ -268,6 +268,13 @@ private:
     QToolButton* m_liveTestButton = nullptr;
     void toggleLiveTestMode(bool enabled);
 
+    // Phase B minimal UI
+    QDockWidget* m_settingsDock = nullptr;
+    QWidget* m_activityBar = nullptr;
+    QList<QToolButton*> m_activityButtons;
+    int m_activeActivity = -1;
+    QList<QDockWidget*> m_sideDocks;
+
     void updateHardwareStatusBadge(bool connected, const QString& probeName);
 
     // Align/Distribute toolbar actions
@@ -294,6 +301,8 @@ private:
     void setupMenusAndToolbars();
     void setupDocks();
     void setupDiagnostics();
+    void setupActivityBar();
+    void onActivityClicked(int index);
     void updateProblemsBadge();
     void navigateToDiagnostic(const QString& screenId, const QString& componentId);
     void setupMCUSelection();

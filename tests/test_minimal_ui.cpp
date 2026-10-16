@@ -61,6 +61,8 @@ private slots:
     void mainToolbarIsIconOnly();
     void workspaceSwitcherUsesIconsAndThemeTokens();
     void liveTestButtonKeepsIdentityAndGainsIcon();
+    void propertiesDockVisibleAfterFirstLaunch();
+    void activityBarHasEightIconActions();
 };
 
 void TestMinimalUi::iconResourcesExist()
@@ -201,6 +203,38 @@ void TestMinimalUi::liveTestButtonKeepsIdentityAndGainsIcon()
     QVERIFY(button->toolTip().contains("Ctrl+L"));
     QVERIFY(!button->accessibleName().isEmpty());
     QCOMPARE(button->toolButtonStyle(), Qt::ToolButtonIconOnly);
+}
+
+void TestMinimalUi::activityBarHasEightIconActions()
+{
+    MainWindow win;
+    QWidget* activityBar = win.findChild<QWidget*>("activityBar");
+    QVERIFY(activityBar);
+    QCOMPARE(activityBar->width(), 48);
+
+    const auto buttons = activityBar->findChildren<QToolButton*>();
+    QCOMPARE(buttons.size(), 8);
+
+    for (int i = 0; i < 8; ++i) {
+        QToolButton* button = win.findChild<QToolButton*>(QString("activityItem%1").arg(i));
+        QVERIFY2(button != nullptr, qPrintable(QString("missing activity item %1").arg(i)));
+        QVERIFY2(!button->icon().isNull(), qPrintable(QString("activity %1 missing icon").arg(i)));
+        QVERIFY2(!button->toolTip().isEmpty(), qPrintable(QString("activity %1 missing tooltip").arg(i)));
+        QVERIFY2(!button->accessibleName().isEmpty(), qPrintable(QString("activity %1 missing accessible name").arg(i)));
+        QCOMPARE(button->toolButtonStyle(), Qt::ToolButtonIconOnly);
+    }
+}
+
+void TestMinimalUi::propertiesDockVisibleAfterFirstLaunch()
+{
+    MainWindow win;
+    win.resize(1600, 1000);
+    win.show();
+    QApplication::processEvents();
+    auto* dock = win.findChild<QDockWidget*>("propertiesDock");
+    QVERIFY(dock != nullptr);
+    QVERIFY2(dock->isVisible(),
+             "Properties dock should be visible on a default (upgraded) launch");
 }
 
 QTEST_MAIN(TestMinimalUi)

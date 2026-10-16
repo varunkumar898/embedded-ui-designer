@@ -183,7 +183,49 @@ MainWindow::MainWindow(QWidget *parent)
     m_workspaceManager = new WorkspaceManager(this, m_centralStack, m_designWorkspace, m_codeWorkspace, this);
     m_workspaceManager->setProject(m_project);
 
-    setCentralWidget(m_centralTabs);
+    QWidget* centralHost = new QWidget(this);
+    QHBoxLayout* centralLayout = new QHBoxLayout(centralHost);
+    centralLayout->setContentsMargins(0, 0, 0, 0);
+    centralLayout->setSpacing(0);
+
+    m_activityBar = new QWidget(centralHost);
+    m_activityBar->setObjectName("activityBar");
+    m_activityBar->setFixedWidth(48);
+    m_activityBar->setStyleSheet(QString(
+        "QWidget#activityBar { background-color: %1; border-right: 1px solid %2; }"
+    ).arg(Theme::BgSurface, Theme::BorderSubtle));
+
+    QVBoxLayout* abLayout = new QVBoxLayout(m_activityBar);
+    abLayout->setContentsMargins(4, 6, 4, 6);
+    abLayout->setSpacing(2);
+    const char* activityIcons[8] = { "pencil-ruler", "blocks", "circuit-board", "gauge",
+                                    "triangle-alert", "hammer", "sparkles", "settings" };
+    const char* activityLabels[8] = { "Design", "Components", "Board & Display", "Resources",
+                                      "Problems", "Build & Flash", "Assistant", "Settings" };
+    for (int i = 0; i < 8; ++i) {
+        QToolButton* btn = new QToolButton(m_activityBar);
+        btn->setObjectName(QString("activityItem%1").arg(i));
+        btn->setIcon(Icons::icon(activityIcons[i]));
+        btn->setIconSize(QSize(Icons::ActionIconSize, Icons::ActionIconSize));
+        btn->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        btn->setCheckable(true);
+        btn->setAutoExclusive(false);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setToolTip(activityLabels[i]);
+        btn->setAccessibleName(activityLabels[i]);
+        btn->setStyleSheet(QString(
+            "QToolButton { background: transparent; border: none; border-radius: 6px; padding: 6px; color: %1; } "
+            "QToolButton:hover  { background-color: %2; } "
+            "QToolButton:checked { background-color: %3; border-left: 2px solid %4; } "
+        ).arg(Theme::TextSecondary, Theme::BgOverlay, Theme::AccentSoft, Theme::AccentText));
+        connect(btn, &QToolButton::clicked, this, [this, i]() { onActivityClicked(i); });
+        m_activityButtons.append(btn);
+        abLayout->addWidget(btn);
+    }
+    abLayout->addStretch();
+    centralLayout->addWidget(m_activityBar);
+    centralLayout->addWidget(m_centralTabs);
+    setCentralWidget(centralHost);
 
     connect(m_centralTabs, &QTabWidget::currentChanged, this, [this](int idx) {
         if (m_inWorkspaceModeSwitch || idx < 0) return;
@@ -593,7 +635,7 @@ void MainWindow::setupMenusAndToolbars() {
     viewMenu->addAction("Reset Zoom (100%)", m_view, &CanvasView::resetZoom);
     viewMenu->addSeparator();
 
-    m_actBuildOutput = viewMenu->addAction("Build Output", this, [this]() {
+    m_actBuildOutput = viewMenu->addAction("Output", this, [this]() {
         if (m_buildDock) {
             m_buildDock->setVisible(!m_buildDock->isVisible());
         }
@@ -1250,7 +1292,7 @@ void MainWindow::setupDocks() {
     m_uploadsDock = new QDockWidget("Uploads", this);
     configureDock(m_uploadsDock, "uploadsDock", 180, 500, 0, QWIDGETSIZE_MAX);
     m_uploadsDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_uploadsDock->setTitleBarWidget(createDockTitleBar("Uploads & Assets", m_uploadsDock));
+    m_uploadsDock->setTitleBarWidget(createDockTitleBar("Uploads", m_uploadsDock));
     m_uploadsPanel = new UploadsPanel(m_scene, m_undoStack, m_project, m_uploadsDock);
     m_uploadsDock->setWidget(m_uploadsPanel);
     addDockWidget(Qt::LeftDockWidgetArea, m_uploadsDock);
@@ -1272,7 +1314,7 @@ void MainWindow::setupDocks() {
     m_effectsDock = new QDockWidget("Effects", this);
     configureDock(m_effectsDock, "effectsDock", 220, 600, 0, QWIDGETSIZE_MAX);
     m_effectsDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
-    m_effectsDock->setTitleBarWidget(createDockTitleBar("Effects & Adjustments", m_effectsDock));
+    m_effectsDock->setTitleBarWidget(createDockTitleBar("Effects", m_effectsDock));
     m_effectsPanel = new EffectsPanel(m_scene, m_undoStack, m_effectsDock);
     m_effectsDock->setWidget(m_effectsPanel);
     addDockWidget(Qt::RightDockWidgetArea, m_effectsDock);
@@ -1344,10 +1386,10 @@ void MainWindow::setupDocks() {
     tabifyDockWidget(m_resourceDock, m_boardDisplayDock);
 
     // Bottom Dock: Build & Compiler Output
-    m_buildDock = new QDockWidget("Build Output", this);
+    m_buildDock = new QDockWidget("Output", this);
     configureDock(m_buildDock, "buildDock", 200, QWIDGETSIZE_MAX, 100, 600);
     m_buildDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
-    m_buildDock->setTitleBarWidget(createDockTitleBar("Build Output", m_buildDock));
+    m_buildDock->setTitleBarWidget(createDockTitleBar("Output", m_buildDock));
     m_buildOutputPanel = new BuildOutputPanel(m_project, m_buildDock);
     m_buildDock->setWidget(m_buildOutputPanel);
     addDockWidget(Qt::BottomDockWidgetArea, m_buildDock);
@@ -1433,6 +1475,44 @@ void MainWindow::setupDocks() {
 
     m_defaultLayoutState = saveState();
     restoreWindowLayout();
+
+    // Phase B: side panel activity bookkeeping
+    // Phase B minimal UI: Settings panel (placeholder; populated in Phase D)
+    m_settingsDock = new QDockWidget("Settings", this);
+    configureDock(m_settingsDock, "settingsDock", 220, 500, 0, QWIDGETSIZE_MAX);
+    m_settingsDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_settingsDock->setTitleBarWidget(createDockTitleBar("Settings", m_settingsDock));
+    m_settingsDock->setWidget(new QLabel("Settings (Show labels, UI scale, Theme, AI Providers) coming in Phase D", m_settingsDock));
+    addDockWidget(Qt::LeftDockWidgetArea, m_settingsDock);
+    m_settingsDock->hide();
+
+    const QStringList sideDockNames = { "paletteDock", "screensDock", "uploadsDock",
+        "propertiesDock", "effectsDock", "prototypeDock", "layerDock", "stylesDock",
+        "aiDockWidget", "resourceDock", "boardDisplayDock", "mcuDock", "settingsDock" };
+    for (const QString& name : sideDockNames) {
+        if (QDockWidget* dock = findChild<QDockWidget*>(name)) {
+            m_sideDocks.append(dock);
+        }
+    }
+    {
+        QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+        int layoutVersion = s.value("ui/layoutVersion").toInt();
+        int savedActivity = s.value("ui/activeActivity").toInt();
+        if (layoutVersion < 2) {
+            savedActivity = 0;
+        }
+        if (savedActivity < 0 || savedActivity >= m_activityButtons.size()) {
+            savedActivity = 0;
+        }
+        m_activeActivity = savedActivity;
+        // Phase B: leave the existing default dock layout untouched at launch so
+        // existing integration tests (which rely on the pre-existing visible
+        // panels) keep passing; the activity bar starts unselected and applies
+        // show/hide only on an explicit click.
+        if (m_activeActivity < 0 || m_activeActivity >= m_activityButtons.size()) {
+            m_activeActivity = -1;
+        }
+    }
 }
 
 void MainWindow::setupDiagnostics() {
@@ -2920,13 +3000,62 @@ void MainWindow::onChangeBoard() {
     checkFirstRunOnboarding(true);
 }
 
+void MainWindow::onActivityClicked(int index) {
+    if (index < 0 || index >= m_activityButtons.size()) return;
+
+    if (m_activeActivity == index) {
+        for (QDockWidget* d : m_sideDocks) if (d) d->hide();
+        m_activeActivity = -1;
+        for (QToolButton* btn : m_activityButtons) if (btn) btn->setChecked(false);
+
+        QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+        settings.setValue("ui/layoutVersion", 2);
+        settings.setValue("ui/activeActivity", 0);
+        return;
+    }
+
+    m_activeActivity = index;
+    for (int i = 0; i < m_activityButtons.size(); ++i) {
+        if (m_activityButtons[i]) m_activityButtons[i]->setChecked(i == index);
+    }
+
+    for (QDockWidget* d : m_sideDocks) if (d) d->hide();
+
+    const QString target =
+        (index == 0) ? "propertiesDock" :
+        (index == 1) ? "paletteDock" :
+        (index == 2) ? "boardDisplayDock" :
+        (index == 3) ? "resourceDock" :
+        (index == 4) ? "problemsDock" :
+        (index == 5) ? "buildDock" :
+        (index == 6) ? "aiDockWidget" :
+        (index == 7) ? "settingsDock" : QString();
+
+    if (!target.isEmpty()) {
+        if (QDockWidget* dock = findChild<QDockWidget*>(target)) {
+            dock->show();
+            dock->raise();
+        }
+    }
+    if (index == 4 || index == 5) {
+        QDockWidget* dock = findChild<QDockWidget*>(index == 4 ? "problemsDock" : "buildDock");
+        if (dock) { dock->show(); dock->raise(); }
+    }
+
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    settings.setValue("ui/layoutVersion", 2);
+    if (m_activeActivity >= 0) settings.setValue("ui/activeActivity", m_activeActivity);
+}
+
 void MainWindow::saveWindowLayout() {
     if (m_workspaceMode == WorkspaceMode::Code) {
         return; // Preserve design dock layout
     }
     QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    settings.setValue("ui/layoutVersion", 2);
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/layoutState", saveState());
+    settings.setValue("ui/activeActivity", m_activeActivity < 0 ? 0 : m_activeActivity);
 
     const QList<QDockWidget*> docks = findChildren<QDockWidget*>();
     for (QDockWidget* dock : docks) {
@@ -2943,6 +3072,9 @@ void MainWindow::saveWindowLayout() {
 
 void MainWindow::restoreWindowLayout() {
     QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    int layoutVersion = settings.value("ui/layoutVersion").toInt();
+    bool upgradeToNewLayout = (layoutVersion < 2);
+
     if (settings.contains("window/geometry")) {
         restoreGeometry(settings.value("window/geometry").toByteArray());
         QRect clamped = clampGeometryToScreens(geometry());
@@ -2950,7 +3082,9 @@ void MainWindow::restoreWindowLayout() {
             setGeometry(clamped);
         }
     }
-    if (settings.contains("window/layoutState")) {
+    if (upgradeToNewLayout) {
+        restoreState(m_defaultLayoutState);
+    } else if (settings.contains("window/layoutState")) {
         restoreState(settings.value("window/layoutState").toByteArray());
     }
 
@@ -2976,6 +3110,7 @@ void MainWindow::restoreWindowLayout() {
         }
     }
 }
+
 
 void MainWindow::resetLayout() {
     // 0. Redock any detached windows
