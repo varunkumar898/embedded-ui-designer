@@ -1135,7 +1135,8 @@ void HardwareWizardDialog::onFinish() {
 
     // Collect pin overrides and protocol assignments from the configured engine
     QMap<QString, PinDef> pinOverrides;
-    for (auto it = m_engine.currentConfig().pins.begin(); it != m_engine.currentConfig().pins.end(); ++it) {
+    Hardware::HardwareConfig cfgPinOverrides = m_engine.currentConfig();
+    for (auto it = cfgPinOverrides.pins.begin(); it != cfgPinOverrides.pins.end(); ++it) {
         if (it.value().mode != "None" && it.value().mode != "Disabled") {
             PinDef pd;
             pd.function = it.value().mode;
@@ -1145,7 +1146,8 @@ void HardwareWizardDialog::onFinish() {
     }
 
     QMap<QString, QStringList> protocolOverrides;
-    for (auto it = m_engine.currentConfig().peripherals.begin(); it != m_engine.currentConfig().peripherals.end(); ++it) {
+    Hardware::HardwareConfig cfgProtoOverrides = m_engine.currentConfig();
+    for (auto it = cfgProtoOverrides.peripherals.begin(); it != cfgProtoOverrides.peripherals.end(); ++it) {
         if (it.value().enabled) {
             QStringList pList;
             for (auto sit = it.value().assignedPins.begin(); sit != it.value().assignedPins.end(); ++sit) {
@@ -1783,7 +1785,8 @@ void HardwareWizardDialog::updateReviewSummary() {
 
     summary += "\n=== CONFIGURED PERIPHERALS ===\n";
     int periCount = 0;
-    for (auto it = m_engine.currentConfig().peripherals.begin(); it != m_engine.currentConfig().peripherals.end(); ++it) {
+    Hardware::HardwareConfig cfgReview = m_engine.currentConfig();
+    for (auto it = cfgReview.peripherals.begin(); it != cfgReview.peripherals.end(); ++it) {
         if (it.value().enabled) {
             periCount++;
             summary += QString("• %1 (%2): ").arg(it.key(), it.value().type);
@@ -1798,7 +1801,8 @@ void HardwareWizardDialog::updateReviewSummary() {
 
     summary += "\n=== CONFIGURED PINS ===\n";
     int pinCount = 0;
-    for (auto it = m_engine.currentConfig().pins.begin(); it != m_engine.currentConfig().pins.end(); ++it) {
+    Hardware::HardwareConfig cfgReviewPins = m_engine.currentConfig();
+    for (auto it = cfgReviewPins.pins.begin(); it != cfgReviewPins.pins.end(); ++it) {
         if (it.value().mode != "None" && it.value().mode != "Disabled") {
             pinCount++;
             summary += QString("• %1: Mode=%2, AF=%3, Pull=%4\n")
