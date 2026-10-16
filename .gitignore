@@ -4,6 +4,7 @@ build*/
 build-*/
 build_*/
 cmake-build-*/
+!src/build/
 out/
 bin/
 lib/
