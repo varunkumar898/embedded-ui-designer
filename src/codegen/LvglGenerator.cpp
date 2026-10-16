@@ -27,6 +27,24 @@
 #include <QDir>
 #include <QFileInfo>
 
+static QString escapeCString(const QString& input) {
+    QString out;
+    out.reserve(input.size() * 2);
+    for (int i = 0; i < input.size(); ++i) {
+        QChar c = input.at(i);
+        if (c == QLatin1Char('\\')) out += "\\\\";
+        else if (c == QLatin1Char('"')) out += "\\\"";
+        else if (c == QLatin1Char('\n')) out += "\\n";
+        else if (c == QLatin1Char('\r')) out += "\\r";
+        else if (c == QLatin1Char('\t')) out += "\\t";
+        else if (c.toLatin1() >= 32 && c.toLatin1() <= 126) out += c;
+        else {
+            out += QString("\\x%1").arg(static_cast<uint>(c.unicode()), 2, 16, QChar('0'));
+        }
+    }
+    return out;
+}
+
 static UIComponent* findInteractionTarget(CanvasScene* scene, const QString& componentId) {
     if (!scene) return nullptr;
     for (UIComponent* component : scene->uiComponents()) {
@@ -62,8 +80,9 @@ static QString lvglObjectName(UIComponent* component) {
 
 static QString lvglInteractionAction(const QJsonObject& interaction, CanvasScene* scene) {
     UIComponent* target = findInteractionTarget(scene, interaction.value("target").toString());
+    if (!target) return {};
     const QString object = lvglObjectName(target);
-    if (!target || object.isEmpty()) return {};
+    if (object.isEmpty()) return {};
     const QString action = interaction.value("action").toString();
     const QString value = interaction.value("value").toString();
     QString code;
@@ -87,9 +106,9 @@ static QString lvglInteractionAction(const QJsonObject& interaction, CanvasScene
     } else if (action == "Set Value") {
         if (dynamic_cast<SliderComponent*>(target)) code = QString("lv_slider_set_value(%1, %2, LV_ANIM_ON);\n").arg(object, value);
         else if (dynamic_cast<ProgressBarComponent*>(target)) code = QString("lv_bar_set_value(%1, %2, LV_ANIM_ON);\n").arg(object, QString::number(qRound(value.toDouble() * 100.0)));
-        else if (dynamic_cast<LabelComponent*>(target)) code = QString("lv_label_set_text(%1, \"%2\");\n").arg(object, value);
-        else if (dynamic_cast<TextInputComponent*>(target)) code = QString("lv_textarea_set_text(%1, \"%2\");\n").arg(object, value);
-        else if (dynamic_cast<ButtonComponent*>(target)) code = QString("lv_label_set_text(%1_label, \"%2\");\n").arg(object, value);
+        else if (dynamic_cast<LabelComponent*>(target)) code = QString("lv_label_set_text(%1, \"%2\");\n").arg(object, escapeCString(value));
+        else if (dynamic_cast<TextInputComponent*>(target)) code = QString("lv_textarea_set_text(%1, \"%2\");\n").arg(object, escapeCString(value));
+        else if (dynamic_cast<ButtonComponent*>(target)) code = QString("lv_label_set_text(%1_label, \"%2\");\n").arg(object, escapeCString(value));
     }
     return code;
 }
@@ -831,7 +850,7 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    // Checkbox: %1\n").arg(id);
                 code += QString("    ui_cb_%1 = lv_checkbox_create(ui_Screen);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_cb_%1, %2, %3);\n").arg(id).arg(x).arg(y);
-                code += QString("    lv_checkbox_set_text(ui_cb_%1, \"%2\");\n").arg(id, chk->text());
+                code += QString("    lv_checkbox_set_text(ui_cb_%1, \"%2\");\n").arg(id, escapeCString(chk->text()));
                 if (chk->isChecked()) {
                     code += QString("    lv_obj_add_state(ui_cb_%1, LV_STATE_CHECKED);\n").arg(id);
                 }
@@ -857,9 +876,9 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    ui_ta_%1 = lv_textarea_create(ui_Screen);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_ta_%1, %2, %3);\n").arg(id).arg(x).arg(y);
                 code += QString("    lv_obj_set_size(ui_ta_%1, %2, %3);\n").arg(id).arg(w).arg(h);
-                code += QString("    lv_textarea_set_placeholder_text(ui_ta_%1, \"%2\");\n").arg(id, ta->placeholder());
+                code += QString("    lv_textarea_set_placeholder_text(ui_ta_%1, \"%2\");\n").arg(id, escapeCString(ta->placeholder()));
                 if (!ta->text().isEmpty()) {
-                    code += QString("    lv_textarea_set_text(ui_ta_%1, \"%2\");\n").arg(id, ta->text());
+                    code += QString("    lv_textarea_set_text(ui_ta_%1, \"%2\");\n").arg(id, escapeCString(ta->text()));
                 }
                 code += QString("    lv_textarea_set_one_line(ui_ta_%1, true);\n").arg(id);
                 code += QString("    lv_obj_set_style_bg_color(ui_ta_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, bgHex);
@@ -886,7 +905,7 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    ui_lbl_%1 = lv_label_create(ui_Screen);\n").arg(id);
                 code += QString("    lv_obj_set_pos(ui_lbl_%1, %2, %3);\n").arg(id).arg(lx).arg(ly);
                 code += QString("    lv_obj_set_size(ui_lbl_%1, %2, %3);\n").arg(id).arg(lw).arg(lh);
-                code += QString("    lv_label_set_text(ui_lbl_%1, \"%2\");\n").arg(id, lbl->text());
+                code += QString("    lv_label_set_text(ui_lbl_%1, \"%2\");\n").arg(id, escapeCString(lbl->text()));
                 code += QString("    lv_obj_set_style_text_color(ui_lbl_%1, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, textHex);
 
                 if (lbl->pixelSize() >= 24) {
@@ -956,7 +975,7 @@ QString LvglGenerator::generateUiSource() {
                 code += QString("    lv_obj_add_event_cb(ui_btn_%1, ui_event_btn_%1, LV_EVENT_CLICKED, NULL);\n").arg(id);
 
                 code += QString("    ui_btn_%1_label = lv_label_create(ui_btn_%1);\n").arg(id);
-                code += QString("    lv_label_set_text(ui_btn_%1_label, \"%2\");\n").arg(id, btn->text());
+                code += QString("    lv_label_set_text(ui_btn_%1_label, \"%2\");\n").arg(id, escapeCString(btn->text()));
                 code += QString("    lv_obj_set_style_text_color(ui_btn_%1_label, lv_color_hex(0x%2), LV_PART_MAIN | LV_STATE_DEFAULT);\n").arg(id, textHex);
                 code += QString("    lv_obj_center(ui_btn_%1_label);\n\n").arg(id);
             }
@@ -1271,7 +1290,7 @@ QString LvglGenerator::generateSimulatorMainSource() {
     code += "    (void)argc;\n";
     code += "    (void)argv;\n\n";
     code += "    printf(\"============================================================\\n\");\n";
-    code += QString("    printf(\" Starting %1 PC Simulator (LVGL)\\n\");\n").arg(name);
+    code += QString("    printf(\" Starting %1 PC Simulator (LVGL)\\n\");\n").arg(escapeCString(name));
     code += "    printf(\" Display: %d x %d (%s), %d-bit color depth\\n\",\n";
     code += "           SIMULATOR_WIDTH, SIMULATOR_HEIGHT,\n";
     code += "           SIMULATOR_IS_ROUND ? \"Round Display\" : \"Rectangular Display\",\n";
@@ -1279,7 +1298,7 @@ QString LvglGenerator::generateSimulatorMainSource() {
     code += "    printf(\"============================================================\\n\");\n\n";
 
     code += "    lv_init();\n\n";
-    code += QString("    if (!sdl_driver_init(\"%1 - LVGL PC Simulator\",\n").arg(name);
+    code += QString("    if (!sdl_driver_init(\"%1 - LVGL PC Simulator\",\n").arg(escapeCString(name));
     code += "                         SIMULATOR_WIDTH, SIMULATOR_HEIGHT,\n";
     code += "                         SIMULATOR_COLOR_DEPTH, SIMULATOR_IS_ROUND)) {\n";
     code += "        fprintf(stderr, \"Error: Failed to initialize SDL2 display driver!\\n\");\n";

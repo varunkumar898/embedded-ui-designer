@@ -1,9 +1,10 @@
 # Build and binary directories
-build/
-build*/
-build-*/
-build_*/
-cmake-build-*/
+/build/
+/build*/
+/build-*/
+/build_*/
+!src/build/
+/cmake-build-*/
 out/
 bin/
 lib/

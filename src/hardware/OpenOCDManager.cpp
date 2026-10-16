@@ -30,6 +30,8 @@ bool OpenOCDManager::createSocketConnection() {
             m_telnetSocket = new QTcpSocket(this);
         } else {
             m_telnetSocket = new QTcpSocket();
+            m_telnetSocket->moveToThread(this->thread());
+            m_telnetSocket->setParent(this);
         }
     }
 
@@ -126,7 +128,7 @@ void OpenOCDManager::disconnect() {
                 m_telnetSocket->waitForDisconnected(1000);
             }
         }
-        m_telnetSocket->deleteLater();
+        delete m_telnetSocket;
         m_telnetSocket = nullptr;
     }
     m_connected = false;

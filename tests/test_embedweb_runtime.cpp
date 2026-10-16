@@ -50,6 +50,7 @@ private slots:
     void testProgressBarRuntimeUpdateAndDirtyInvalidation();
     void testRuntimeValueClamping();
     void testGeneratedStaticCSourceConsistency();
+    void testCEscapingAndInjectionPrevention();
 
     /* Stage 4.5 Multi-MCU Hardware Abstraction & Adapter Tests */
     void testTargetAdapterBindingAndLifecycle();
@@ -1167,6 +1168,51 @@ void TestEmbedWebRuntime::testGeneratedStaticCSourceConsistency() {
     QString assetC = hydrator.generateStaticAssetsSource(proj);
     QVERIFY(assetC.contains("img_pixels_0"));
     QVERIFY(assetC.contains("img_asset_0"));
+}
+
+void TestEmbedWebRuntime::testCEscapingAndInjectionPrevention() {
+    // 1. Inputs specified in audit requirements:
+    // - hi"quoted"
+    // - ends-with-backslash\
+    // - line1\nline2 (a real newline)
+    // - x\"); system("id"); //
+
+    QString in1 = "hi\"quoted\"";
+    QString out1 = EmbedWeb::IRHydrator::escapeCStringLiteral(in1);
+    QCOMPARE(out1, QString("hi\\\"quoted\\\""));
+
+    QString in2 = "ends-with-backslash\\";
+    QString out2 = EmbedWeb::IRHydrator::escapeCStringLiteral(in2);
+    QCOMPARE(out2, QString("ends-with-backslash\\\\"));
+
+    QString in3 = "line1\nline2";
+    QString out3 = EmbedWeb::IRHydrator::escapeCStringLiteral(in3);
+    QCOMPARE(out3, QString("line1\\nline2"));
+
+    QString in4 = "x\\\"); system(\"id\"); //";
+    QString out4 = EmbedWeb::IRHydrator::escapeCStringLiteral(in4);
+    QCOMPARE(out4, QString("x\\\\\\\"); system(\\\"id\\\"); //"));
+
+    // Verify generated lines compile as valid C string literals via gcc -fsyntax-only
+    QStringList testCases = { out1, out2, out3, out4 };
+    for (const QString& escaped : testCases) {
+        QString cSource = QString(
+            "#include <string.h>\n"
+            "int main(void) {\n"
+            "    const char* s = \"%1\";\n"
+            "    (void)s;\n"
+            "    return 0;\n"
+            "}\n"
+        ).arg(escaped);
+
+        QProcess gcc;
+        gcc.start("gcc", QStringList() << "-fsyntax-only" << "-x" << "c" << "-");
+        QVERIFY(gcc.waitForStarted(3000));
+        gcc.write(cSource.toUtf8());
+        gcc.closeWriteChannel();
+        QVERIFY(gcc.waitForFinished(5000));
+        QCOMPARE(gcc.exitCode(), 0);
+    }
 }
 
 void TestEmbedWebRuntime::testTargetAdapterBindingAndLifecycle() {

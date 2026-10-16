@@ -637,20 +637,20 @@ void MainWindow::updateHardwareStatusBadge(bool connected, const QString& probeN
 void MainWindow::setupMenusAndToolbars() {
     // Top Menus
     QMenu* fileMenu = menuBar()->addMenu("File");
-    fileMenu->addAction("New Project...", this, &MainWindow::onNewProject, QKeySequence::New);
-    fileMenu->addAction("New Embedded Project...", this, &MainWindow::onCreateEmbeddedProject, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
-    fileMenu->addAction("Open Project...", this, &MainWindow::onOpenProject, QKeySequence::Open);
-    fileMenu->addAction("Open Firmware Folder...", this, &MainWindow::onOpenFirmwareFolder, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    fileMenu->addAction("New Project...", QKeySequence::New, this, &MainWindow::onNewProject);
+    fileMenu->addAction("New Embedded Project...", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N), this, &MainWindow::onCreateEmbeddedProject);
+    fileMenu->addAction("Open Project...", QKeySequence::Open, this, &MainWindow::onOpenProject);
+    fileMenu->addAction("Open Firmware Folder...", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O), this, &MainWindow::onOpenFirmwareFolder);
     fileMenu->addAction("Open Sample Project (Thermostat)", this, &MainWindow::onOpenSampleProject);
-    fileMenu->addAction("Import...", this, &MainWindow::onImportProject, QKeySequence(Qt::CTRL | Qt::Key_I));
+    fileMenu->addAction("Import...", QKeySequence(Qt::CTRL | Qt::Key_I), this, &MainWindow::onImportProject);
     fileMenu->addAction("Import HTML/CSS Design...", this, &MainWindow::onImportHtmlCss);
     fileMenu->addAction("Import Board Config...", this, &MainWindow::onImportBoardConfig);
     fileMenu->addAction("Import QML Design...", this, &MainWindow::onImportQmlDesign);
     fileMenu->addSeparator();
-    fileMenu->addAction("Save", this, &MainWindow::onSaveProject, QKeySequence::Save);
-    fileMenu->addAction("Save As...", this, &MainWindow::onSaveProjectAs, QKeySequence::SaveAs);
+    fileMenu->addAction("Save", QKeySequence::Save, this, &MainWindow::onSaveProject);
+    fileMenu->addAction("Save As...", QKeySequence::SaveAs, this, &MainWindow::onSaveProjectAs);
     fileMenu->addSeparator();
-    fileMenu->addAction("Export...", this, &MainWindow::onExport, QKeySequence(Qt::CTRL | Qt::Key_E));
+    fileMenu->addAction("Export...", QKeySequence(Qt::CTRL | Qt::Key_E), this, &MainWindow::onExport);
     fileMenu->addSeparator();
     QAction* exitAction = fileMenu->addAction("Exit", QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
@@ -664,12 +664,12 @@ void MainWindow::setupMenusAndToolbars() {
     editMenu->addAction(undoAct);
     editMenu->addAction(redoAct);
     editMenu->addSeparator();
-    editMenu->addAction("Duplicate", this, &MainWindow::onDuplicateSelected, QKeySequence(Qt::CTRL | Qt::Key_D));
-    editMenu->addAction("Delete", this, &MainWindow::onDeleteSelected, QKeySequence::Delete);
+    editMenu->addAction("Duplicate", QKeySequence(Qt::CTRL | Qt::Key_D), this, &MainWindow::onDuplicateSelected);
+    editMenu->addAction("Delete", QKeySequence::Delete, this, &MainWindow::onDeleteSelected);
 
     QMenu* viewMenu = menuBar()->addMenu("View");
-    viewMenu->addAction("Design / Canvas Workspace", this, &MainWindow::switchToDesignWorkspace, QKeySequence("Ctrl+1"));
-    viewMenu->addAction("</> Code Workspace", this, &MainWindow::switchToCodeWorkspace, QKeySequence("Ctrl+2"));
+    viewMenu->addAction("Design / Canvas Workspace", QKeySequence("Ctrl+1"), this, &MainWindow::switchToDesignWorkspace);
+    viewMenu->addAction("</> Code Workspace", QKeySequence("Ctrl+2"), this, &MainWindow::switchToCodeWorkspace);
     viewMenu->addSeparator();
 
     QAction* actGrid = viewMenu->addAction("Show Grid");
@@ -683,8 +683,8 @@ void MainWindow::setupMenusAndToolbars() {
     connect(actSnap, &QAction::toggled, this, &MainWindow::onToggleSnap);
 
     viewMenu->addSeparator();
-    viewMenu->addAction("Zoom In", m_view, &CanvasView::zoomIn, QKeySequence::ZoomIn);
-    viewMenu->addAction("Zoom Out", m_view, &CanvasView::zoomOut, QKeySequence::ZoomOut);
+    viewMenu->addAction("Zoom In", QKeySequence::ZoomIn, m_view, &CanvasView::zoomIn);
+    viewMenu->addAction("Zoom Out", QKeySequence::ZoomOut, m_view, &CanvasView::zoomOut);
     viewMenu->addAction("Reset Zoom (100%)", m_view, &CanvasView::resetZoom);
     viewMenu->addSeparator();
 
@@ -750,11 +750,11 @@ void MainWindow::setupMenusAndToolbars() {
         if (m_aiDockWidget) m_aiDockWidget->setVisible(!m_aiDockWidget->isVisible());
     });
     viewMenu->addSeparator();
-    viewMenu->addAction("Reset Layout", this, &MainWindow::resetLayout, QKeySequence("Ctrl+Shift+R"));
+    viewMenu->addAction("Reset Layout", QKeySequence("Ctrl+Shift+R"), this, &MainWindow::resetLayout);
 
     QMenu* projectMenu = menuBar()->addMenu("Project");
     projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
-    projectMenu->addAction("Export...", this, &MainWindow::onExport, QKeySequence(Qt::CTRL | Qt::Key_E));
+    projectMenu->addAction("Export...", QKeySequence(Qt::CTRL | Qt::Key_E), this, &MainWindow::onExport);
     projectMenu->addAction("Resource Analyzer", this, [this]() {
         if (m_resourcePanel && m_resourcePanel->parentWidget()) {
             m_resourcePanel->parentWidget()->show();
@@ -767,7 +767,7 @@ void MainWindow::setupMenusAndToolbars() {
     projectMenu->addAction("Project Diagnostics...", this, &MainWindow::onDiagnosticsDialog);
 
     QMenu* simMenu = menuBar()->addMenu("Simulation");
-    simMenu->addAction("Run Desktop Simulator...", this, &MainWindow::onRunSimulator, QKeySequence(Qt::CTRL | Qt::Key_R));
+    simMenu->addAction("Run Desktop Simulator...", QKeySequence(Qt::CTRL | Qt::Key_R), this, &MainWindow::onRunSimulator);
 
     QMenu* deviceMenu = menuBar()->addMenu("Device");
     deviceMenu->addAction("Create Embedded Project / Target Selector...", this, &MainWindow::onCreateEmbeddedProject);
@@ -878,7 +878,7 @@ void MainWindow::setupMenusAndToolbars() {
     windowMenu->addAction("Detach Code Workspace to Window", this, &MainWindow::detachCodeWorkspaceWindow);
     windowMenu->addAction("Re-dock All Detached Windows", this, &MainWindow::redockAllDetachedWindows);
     windowMenu->addSeparator();
-    windowMenu->addAction("Reset Layout", this, &MainWindow::resetLayout, QKeySequence("Ctrl+Shift+R"));
+    windowMenu->addAction("Reset Layout", QKeySequence("Ctrl+Shift+R"), this, &MainWindow::resetLayout);
 
     QMenu* helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
@@ -1075,7 +1075,7 @@ void MainWindow::setupMenusAndToolbars() {
 
     // Add keyboard shortcut (Ctrl+L)
     QAction* liveTestAction = new QAction(this);
-    liveTestAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_L));
+    liveTestAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
     addAction(liveTestAction);
 
     connect(liveTestAction, &QAction::triggered, this, [this]() {
@@ -1094,7 +1094,7 @@ void MainWindow::setupMenusAndToolbars() {
                      "search", "Command Palette (Ctrl+Shift+P)", "Command Palette")))) {
         button->setAccessibleName("Command Palette");
     }
-    viewMenu->addAction("Command Palette", this, &MainWindow::openCommandPalette, QKeySequence("Ctrl+Shift+P"));
+    viewMenu->addAction("Command Palette", QKeySequence("Ctrl+Shift+P"), this, &MainWindow::openCommandPalette);
 
     // ============ END: LIVE TEST MODE BUTTON ============
 }

@@ -85,6 +85,12 @@ public:
      * @brief Map normalized component type string to ew_widget_type_t.
      */
     static ew_widget_type_t mapWidgetType(const QString& type);
+
+    /**
+     * @brief Escape arbitrary text into a safe C string literal escaping backslashes,
+     * quotes, newlines, carriage returns, tabs, and non-printable control characters.
+     */
+    static QString escapeCStringLiteral(const QString& s);
 };
 
 } // namespace EmbedWeb

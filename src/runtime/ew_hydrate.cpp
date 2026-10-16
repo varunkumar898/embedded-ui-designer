@@ -29,6 +29,37 @@ ew_widget_type_t IRHydrator::mapWidgetType(const QString& rawType) {
     return EW_WIDGET_UNSUPPORTED;
 }
 
+QString IRHydrator::escapeCStringLiteral(const QString& s) {
+    QString out;
+    out.reserve(s.size() * 2);
+    for (int i = 0; i < s.size(); ++i) {
+        QChar c = s.at(i);
+        ushort u = c.unicode();
+        if (c == QLatin1Char('\\')) {
+            out += "\\\\";
+        } else if (c == QLatin1Char('"')) {
+            out += "\\\"";
+        } else if (c == QLatin1Char('\n')) {
+            out += "\\n";
+        } else if (c == QLatin1Char('\r')) {
+            out += "\\r";
+        } else if (c == QLatin1Char('\t')) {
+            out += "\\t";
+        } else if (u < 0x20) {
+            char buf[8];
+            snprintf(buf, sizeof(buf), "\\%03o", (unsigned int)u);
+            out += QString::fromLatin1(buf);
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
+static QString escapeCStringLiteral(const QString& s) {
+    return IRHydrator::escapeCStringLiteral(s);
+}
+
 static int countWidgetsRecursive(const QList<IR::IRWidget>& widgets) {
     int count = 0;
     for (const auto& w : widgets) {
@@ -385,7 +416,7 @@ static void emitWidgetCode(QTextStream& out, const ew_tree_t& tree, int16_t idx)
         << "        n->progress_value = " << n->progress_value << ";\n"
         << "        n->touchable = " << (int)n->touchable << ";\n";
     if (n->text[0] != '\0') {
-        out << "        strncpy(n->text, \"" << QString::fromUtf8(n->text).replace("\"", "\\\"") << "\", EW_MAX_TEXT_LEN);\n";
+        out << "        strncpy(n->text, \"" << escapeCStringLiteral(QString::fromUtf8(n->text)) << "\", EW_MAX_TEXT_LEN);\n";
     }
     out << "    }\n";
 }

@@ -14,6 +14,24 @@
 #include <QDir>
 #include <QFileInfo>
 
+static QString escapeCString(const QString& input) {
+    QString out;
+    out.reserve(input.size() * 2);
+    for (int i = 0; i < input.size(); ++i) {
+        QChar c = input.at(i);
+        if (c == QLatin1Char('\\')) out += "\\\\";
+        else if (c == QLatin1Char('"')) out += "\\\"";
+        else if (c == QLatin1Char('\n')) out += "\\n";
+        else if (c == QLatin1Char('\r')) out += "\\r";
+        else if (c == QLatin1Char('\t')) out += "\\t";
+        else if (c.toLatin1() >= 32 && c.toLatin1() <= 126) out += c;
+        else {
+            out += QString("\\x%1").arg(static_cast<uint>(c.unicode()), 2, 16, QChar('0'));
+        }
+    }
+    return out;
+}
+
 UgfxGenerator::UgfxGenerator(Project* project, CanvasScene* scene)
     : CodeGenerator(project)
     , m_scene(scene)
@@ -549,7 +567,7 @@ QString UgfxGenerator::generateUiSource() {
                 code += "    wi.g.show = gTrue;\n";
                 code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(chk->pos().x())).arg(static_cast<int>(chk->pos().y()));
                 code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(chk->compWidth())).arg(static_cast<int>(chk->compHeight()));
-                code += QString("    wi.text = \"%1\";\n").arg(chk->text());
+                code += QString("    wi.text = \"%1\";\n").arg(escapeCString(chk->text()));
                 code += QString("    ghChk_%1 = gwinCheckboxCreate(0, &wi);\n").arg(id);
                 code += QString("    gwinCheckboxCheck(ghChk_%1, %2);\n\n").arg(id).arg(chk->isChecked() ? "gTrue" : "gFalse");
             }
@@ -564,7 +582,7 @@ QString UgfxGenerator::generateUiSource() {
                 code += "    wi.g.show = gTrue;\n";
                 code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(txt->pos().x())).arg(static_cast<int>(txt->pos().y()));
                 code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(txt->compWidth())).arg(static_cast<int>(txt->compHeight()));
-                code += QString("    wi.text = \"%1\";\n").arg(txt->text());
+                code += QString("    wi.text = \"%1\";\n").arg(escapeCString(txt->text()));
                 code += QString("    ghEdit_%1 = gwinTexteditCreate(0, &wi, 100);\n").arg(id);
                 code += QString("    gwinSetColor(ghEdit_%1, HTML2COLOR(0x%2));\n")
                     .arg(id, txt->textColor().name().mid(1).toUpper());
@@ -582,7 +600,7 @@ QString UgfxGenerator::generateUiSource() {
                 code += "    wi.g.show = gTrue;\n";
                 code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(lbl->pos().x())).arg(static_cast<int>(lbl->pos().y()));
                 code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(lbl->compWidth())).arg(static_cast<int>(lbl->compHeight()));
-                code += QString("    wi.text = \"%1\";\n").arg(lbl->text());
+                code += QString("    wi.text = \"%1\";\n").arg(escapeCString(lbl->text()));
                 code += "    wi.customDraw = 0;\n";
                 code += QString("    ghLbl_%1 = gwinLabelCreate(0, &wi);\n").arg(id);
                 code += QString("    gwinSetColor(ghLbl_%1, HTML2COLOR(0x%2));\n")
@@ -605,7 +623,7 @@ QString UgfxGenerator::generateUiSource() {
                 code += "    wi.g.show = gTrue;\n";
                 code += QString("    wi.g.x = %1; wi.g.y = %2;\n").arg(static_cast<int>(btn->pos().x())).arg(static_cast<int>(btn->pos().y()));
                 code += QString("    wi.g.width = %1; wi.g.height = %2;\n").arg(static_cast<int>(btn->compWidth())).arg(static_cast<int>(btn->compHeight()));
-                code += QString("    wi.text = \"%1\";\n").arg(btn->text());
+                code += QString("    wi.text = \"%1\";\n").arg(escapeCString(btn->text()));
                 code += "    wi.customDraw = 0;\n";
                 code += QString("    ghBtn_%1 = gwinButtonCreate(0, &wi);\n").arg(id);
                 code += QString("    gwinSetColor(ghBtn_%1, HTML2COLOR(0x%2));\n")

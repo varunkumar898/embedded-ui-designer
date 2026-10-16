@@ -38,7 +38,16 @@ function createMockFirmwareServer(port = 8080) {
                     ".png": "image/png"
                 };
                 res.writeHead(200, { "Content-Type": mimeTypes[ext] || "text/plain" });
-                fs.createReadStream(filePath).pipe(res);
+                const stream = fs.createReadStream(filePath);
+                stream.on("error", (err) => {
+                    if (!res.headersSent) {
+                        res.writeHead(500, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "Failed to read file", details: err.message }));
+                    } else {
+                        res.destroy();
+                    }
+                });
+                stream.pipe(res);
                 return;
             }
         }
@@ -102,8 +111,19 @@ function createMockFirmwareServer(port = 8080) {
         // 4. REST API: POST /api/v1/pwm/write
         if (req.method === "POST" && pathname === "/api/v1/pwm/write") {
             let body = "";
-            req.on("data", chunk => { body += chunk; });
+            let tooLarge = false;
+            req.on("data", chunk => {
+                if (tooLarge) return;
+                body += chunk;
+                if (body.length > 1e6) {
+                    tooLarge = true;
+                    res.writeHead(413, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "Payload Too Large" }));
+                    req.destroy();
+                }
+            });
             req.on("end", () => {
+                if (tooLarge) return;
                 try {
                     const data = JSON.parse(body || "{}");
                     if (data.pin === undefined || data.dutyCycle === undefined) {

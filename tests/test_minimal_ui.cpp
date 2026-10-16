@@ -231,6 +231,10 @@ void TestMinimalUi::activityBarHasEightIconActions()
 
 void TestMinimalUi::propertiesDockVisibleAfterFirstLaunch()
 {
+    {
+        QSettings s("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+        s.clear();
+    }
     MainWindow win;
     win.resize(1600, 1000);
     win.show();
@@ -283,6 +287,7 @@ void TestMinimalUi::layoutStateRoundTrips()
     QVERIFY(s.value("ui/activeActivity").toInt() >= 0);
     // Ensure restore does not crash on the persisted state.
     win.restoreWindowLayout();
+    s.clear();
 }
 
 QTEST_MAIN(TestMinimalUi)

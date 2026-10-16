@@ -279,7 +279,7 @@ QString QtMcuGenerator::generateDesignQml() {
                     .arg(static_cast<int>(lbl->pos().y()))
                     .arg(static_cast<int>(lbl->compWidth()))
                     .arg(static_cast<int>(lbl->compHeight()));
-                qml += QString("        text: \"%1\"\n").arg(lbl->text());
+                qml += QString("        text: \"%1\"\n").arg(qmlString(lbl->text()));
                 qml += QString("        color: \"%1\"\n").arg(lbl->color().name());
                 qml += QString("        font.pixelSize: %1\n").arg(lbl->pixelSize());
                 if (lbl->bold()) qml += "        font.bold: true\n";
@@ -479,7 +479,7 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "        Text {\n";
                 qml += QString("            anchors.left: %1_box.right; anchors.leftMargin: 8\n").arg(chk->componentId());
                 qml += "            anchors.verticalCenter: parent.verticalCenter\n";
-                qml += QString("            text: \"%1\"\n").arg(chk->text());
+                qml += QString("            text: \"%1\"\n").arg(qmlString(chk->text()));
                 qml += QString("            color: \"%1\"\n").arg(chk->textColor().name());
                 qml += "            font.pixelSize: 13\n";
                 qml += "        }\n";
@@ -517,7 +517,7 @@ QString QtMcuGenerator::generateDesignQml() {
                 qml += "            anchors.fill: parent\n";
                 qml += "            anchors.leftMargin: 6; anchors.rightMargin: 6\n";
                 qml += "            anchors.verticalCenter: parent.verticalCenter\n";
-                qml += QString("            text: \"%1\"\n").arg(txt->text());
+                qml += QString("            text: \"%1\"\n").arg(qmlString(txt->text()));
                 qml += QString("            color: \"%1\"\n").arg(txt->textColor().name());
                 qml += QString("            font.pixelSize: %1\n").arg(txt->pixelSize());
                 if (txt->isReadOnly()) {
