@@ -15,6 +15,10 @@
 #include "hardware/BoardRegistry.h"
 
 #include <QFileInfo>
+#include <QCryptographicHash>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 namespace Diagnostics {
 namespace DiagnosticsSources {
@@ -276,6 +280,51 @@ QVector<Diagnostic> driverPackSource(const Project* project) {
     return out;
 }
 
+QVector<Diagnostic> manifestSource(const Project* project) {
+    QVector<Diagnostic> out;
+    if (!project) return out;
+
+    QString rootPath = project->firmwareDirectory();
+    if (rootPath.isEmpty() || !QDir(rootPath).exists()) {
+        rootPath = project->projectDirectory();
+    }
+    if (rootPath.isEmpty() || !QDir(rootPath).exists()) return out;
+
+    QDir rootDir(rootPath);
+    QString manifestPath = rootDir.filePath("generated/MANIFEST.json");
+    if (!QFile::exists(manifestPath)) return out;
+
+    QFile mf(manifestPath);
+    if (!mf.open(QIODevice::ReadOnly)) return out;
+
+    QJsonDocument doc = QJsonDocument::fromJson(mf.readAll());
+    mf.close();
+    if (!doc.isObject()) return out;
+
+    QJsonArray filesArr = doc.object().value("files").toArray();
+    for (const auto& item : filesArr) {
+        if (!item.isObject()) continue;
+        QString relPath = item.toObject().value("file").toString();
+        QString expectedHash = item.toObject().value("sha256").toString();
+        QString fullPath = rootDir.filePath(relPath);
+        if (QFile::exists(fullPath)) {
+            QFile f(fullPath);
+            if (f.open(QIODevice::ReadOnly)) {
+                QByteArray actualHash = QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256).toHex();
+                f.close();
+                if (actualHash != expectedHash.toUtf8()) {
+                    Diagnostic d;
+                    d.severity = Diagnostic::Severity::Warning;
+                    d.message = QString("Generated file %1 has been modified by user since generation").arg(relPath);
+                    d.source = QStringLiteral("Manifest");
+                    out.append(d);
+                }
+            }
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 void registerBuiltinSources(DiagnosticsService& service) {
@@ -286,6 +335,7 @@ void registerBuiltinSources(DiagnosticsService& service) {
     service.registerSource(QStringLiteral("BoardDisplay"), boardDisplaySource);
     service.registerSource(QStringLiteral("Backend"), backendSource);
     service.registerSource(QStringLiteral("DriverPack"), driverPackSource);
+    service.registerSource(QStringLiteral("Manifest"), manifestSource);
 }
 
 } // namespace DiagnosticsSources

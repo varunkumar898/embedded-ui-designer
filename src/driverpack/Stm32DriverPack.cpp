@@ -86,7 +86,7 @@ const McuDeviceSpec* Stm32DriverPack::findDevice(const std::string& partNumber) 
             if (dev.partNumber == "STM32F030R8") return &dev;
         }
     }
-    if (upper.find("F401") != std::string::npos) {
+    if (upper.find("F401") != std::string::npos || upper.find("F407") != std::string::npos) {
         for (const auto& dev : devices) {
             if (dev.partNumber == "STM32F401RE") return &dev;
         }

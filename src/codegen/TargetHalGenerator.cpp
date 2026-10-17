@@ -21,13 +21,21 @@ struct TargetResolution {
 TargetResolution resolveTarget(const Project* project, const QString& targetMcu = QString()) {
     TargetResolution res;
     QString boardId = project ? project->hardwareConfig().boardId.trimmed() : QString();
-    QString deviceId = project ? project->hardwareConfig().deviceId.trimmed() : QString();
-    if (deviceId.isEmpty() && !targetMcu.isEmpty()) {
-        deviceId = targetMcu.trimmed();
+    if (boardId.isEmpty()) {
+        BoardPreset preset = BoardRegistry::instance().activePreset();
+        if (!preset.boardId.isEmpty()) {
+            boardId = preset.boardId;
+        }
     }
+    QString deviceId = project ? project->hardwareConfig().deviceId.trimmed() : QString();
     DeviceProfile prof = project ? project->getDeviceProfile() : DeviceProfile();
     if (deviceId.isEmpty()) {
         deviceId = prof.name.trimmed();
+    }
+    if (deviceId.isEmpty() && !targetMcu.isEmpty() &&
+        targetMcu != "stm32" && targetMcu != "generic" &&
+        targetMcu != "esp32" && targetMcu != "pico") {
+        deviceId = targetMcu.trimmed();
     }
 
     if (boardId.isEmpty() && deviceId.isEmpty()) {
@@ -52,6 +60,10 @@ TargetResolution resolveTarget(const Project* project, const QString& targetMcu 
     BoardDef boardDef;
     if (!boardId.isEmpty()) {
         boardDef = BoardRegistry::instance().board(boardId);
+        BoardDef active = BoardRegistry::instance().activeBoard();
+        if (active.isValid() && active.id == boardId) {
+            boardDef = active;
+        }
     }
 
     if (boardDef.isValid()) {
@@ -146,7 +158,7 @@ QString TargetHalGenerator::generateHalHeader(const Project* project, const QStr
         code += "#include \"pico/stdlib.h\"\n";
         code += "#include \"hardware/gpio.h\"\n";
     } else if (fam == "STM32") {
-        if (target.deviceName.contains("F401", Qt::CaseInsensitive)) {
+        if (target.deviceName.contains("F4", Qt::CaseInsensitive)) {
             code += "#include \"stm32f4xx_hal.h\"\n";
         } else {
             code += "#include \"stm32_hal.h\"\n";

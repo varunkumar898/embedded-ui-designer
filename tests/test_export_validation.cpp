@@ -11,6 +11,10 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QDirIterator>
+#include <QCryptographicHash>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 #include "analyzer/ResourceAnalysis.h"
 #include "analyzer/ResourceEstimator.h"
@@ -32,6 +36,8 @@
 #include "codegen/TargetHalGenerator.h"
 #include "driverpack/DriverPackRegistry.h"
 #include "dialogs/ExportDialog.h"
+#include "diagnostics/DiagnosticsService.h"
+#include "diagnostics/DiagnosticsSources.h"
 
 class TestExportValidation : public QObject {
     Q_OBJECT
@@ -51,6 +57,10 @@ private slots:
     void testEstimationBaselinesDefaultsAuthoritative();
     void testEmptyFolderExportForAllDatabaseDevices();
     void testGoldenF030OutputUnchanged();
+    void testManifestDeterministic();
+    void testOrphanRemoval();
+    void testEditDetectionWithBackup();
+    void testUserFilesUntouched();
 };
 
 void TestExportValidation::initTestCase() {
@@ -637,6 +647,321 @@ void TestExportValidation::testGoldenF030OutputUnchanged() {
     QVERIFY(f030CContent.contains("[HAL: STM32] Initializing target board: STM32 NUCLEO-F030R8"));
     QVERIFY(f030CContent.contains("[HAL: STM32] Atomic BSRR Write pin %s -> %s"));
     QVERIFY(f030CContent.contains("GPIOA->BSRR"));
+}
+
+void TestExportValidation::testManifestDeterministic() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("DeterministicProject");
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    project.setHardwareConfig(hw);
+
+    FirmwareExportManager exportMgr;
+
+    QTemporaryDir dir1;
+    QVERIFY(dir1.isValid());
+    ExportOptions opts1;
+    opts1.outputDirectory = dir1.path();
+    opts1.targetFramework = "lvgl";
+    opts1.targetMcu = "STM32F030R8";
+    opts1.forceExport = true;
+
+    ExportResult res1 = exportMgr.exportProject(&project, opts1);
+    QVERIFY(res1.success);
+
+    QString manifestPath1 = QDir(dir1.path()).filePath("generated/MANIFEST.json");
+    QVERIFY(QFile::exists(manifestPath1));
+    QFile f1(manifestPath1);
+    QVERIFY(f1.open(QIODevice::ReadOnly));
+    QByteArray manifestBytes1 = f1.readAll();
+    f1.close();
+
+    // Verify manifest JSON structure
+    QJsonDocument doc1 = QJsonDocument::fromJson(manifestBytes1);
+    QVERIFY(doc1.isObject());
+    QJsonObject obj1 = doc1.object();
+    QCOMPARE(obj1.value("generatorVersion").toString(), QString("1.0.0"));
+    QCOMPARE(obj1.value("device").toString(), QString("STM32F030R8"));
+    QJsonArray filesArr1 = obj1.value("files").toArray();
+    QVERIFY(!filesArr1.isEmpty());
+
+    // Verify files in manifest match real disk files and their sha256
+    QStringList manifestFiles;
+    for (const auto& itemVal : filesArr1) {
+        QJsonObject item = itemVal.toObject();
+        QString relPath = item.value("file").toString();
+        QString hash = item.value("sha256").toString();
+        manifestFiles.append(relPath);
+
+        QFile diskFile(QDir(dir1.path()).filePath(relPath));
+        QVERIFY(diskFile.open(QIODevice::ReadOnly));
+        QByteArray actualHash = QCryptographicHash::hash(diskFile.readAll(), QCryptographicHash::Sha256).toHex();
+        diskFile.close();
+        QCOMPARE(hash, QString::fromUtf8(actualHash));
+    }
+    // Manifest must not track itself
+    QVERIFY(!manifestFiles.contains("generated/MANIFEST.json"));
+    // Manifest must track generated/target/target_hal.h, generated/ui/ui.h, etc.
+    QVERIFY(manifestFiles.contains("generated/target/target_hal.h"));
+    QVERIFY(manifestFiles.contains("generated/ui/ui.h"));
+
+    // Second export to separate folder with exact same inputs
+    QTemporaryDir dir2;
+    QVERIFY(dir2.isValid());
+    ExportOptions opts2;
+    opts2.outputDirectory = dir2.path();
+    opts2.targetFramework = "lvgl";
+    opts2.targetMcu = "STM32F030R8";
+    opts2.forceExport = true;
+
+    ExportResult res2 = exportMgr.exportProject(&project, opts2);
+    QVERIFY(res2.success);
+
+    QString manifestPath2 = QDir(dir2.path()).filePath("generated/MANIFEST.json");
+    QVERIFY(QFile::exists(manifestPath2));
+    QFile f2(manifestPath2);
+    QVERIFY(f2.open(QIODevice::ReadOnly));
+    QByteArray manifestBytes2 = f2.readAll();
+    f2.close();
+
+    // Determinism: Same input -> Byte-identical MANIFEST.json output
+    QCOMPARE(manifestBytes1, manifestBytes2);
+}
+
+void TestExportValidation::testOrphanRemoval() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("OrphanProject");
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    project.setHardwareConfig(hw);
+
+    FirmwareExportManager exportMgr;
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportOptions opts;
+    opts.outputDirectory = dir.path();
+    opts.targetFramework = "lvgl";
+    opts.targetMcu = "STM32F030R8";
+    opts.forceExport = true;
+
+    ExportResult res1 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res1.success);
+
+    // Create a dummy orphan in generated/ and add to generated/MANIFEST.json
+    QString orphanRel = "generated/ui/dummy_orphan.c";
+    QString orphanFull = QDir(dir.path()).filePath(orphanRel);
+    QFile orphanF(orphanFull);
+    QVERIFY(orphanF.open(QIODevice::WriteOnly | QIODevice::Text));
+    orphanF.write("// Old orphan code\nvoid old_orphan(void) {}\n");
+    orphanF.close();
+
+    // Update manifest to include orphan
+    QString manifestPath = QDir(dir.path()).filePath("generated/MANIFEST.json");
+    QFile mfRead(manifestPath);
+    QVERIFY(mfRead.open(QIODevice::ReadOnly));
+    QJsonDocument doc = QJsonDocument::fromJson(mfRead.readAll());
+    mfRead.close();
+
+    QJsonObject obj = doc.object();
+    QJsonArray arr = obj.value("files").toArray();
+    QJsonObject orphanEntry;
+    orphanEntry["file"] = orphanRel;
+    orphanEntry["sha256"] = "dummyhash123456";
+    arr.append(orphanEntry);
+    obj["files"] = arr;
+
+    QFile mfWrite(manifestPath);
+    QVERIFY(mfWrite.open(QIODevice::WriteOnly | QIODevice::Text));
+    mfWrite.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+    mfWrite.close();
+
+    QVERIFY(QFile::exists(orphanFull));
+
+    // Regenerate project: should detect orphan listed in old manifest and remove it
+    ExportResult res2 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res2.success);
+
+    // Orphan must be deleted from disk
+    QVERIFY(!QFile::exists(orphanFull));
+
+    // Must be reported in warnings
+    bool reported = false;
+    for (const QString& w : res2.warnings) {
+        if (w.contains("Removed orphan file: generated/ui/dummy_orphan.c")) {
+            reported = true;
+            break;
+        }
+    }
+    QVERIFY(reported);
+}
+
+void TestExportValidation::testEditDetectionWithBackup() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("BackupProject");
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    project.setHardwareConfig(hw);
+
+    FirmwareExportManager exportMgr;
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportOptions opts;
+    opts.outputDirectory = dir.path();
+    opts.targetFramework = "lvgl";
+    opts.targetMcu = "STM32F030R8";
+    opts.forceExport = true;
+
+    ExportResult res1 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res1.success);
+
+    // User edits a generated file: generated/ui/ui.h
+    QString uiHPath = QDir(dir.path()).filePath("generated/ui/ui.h");
+    QVERIFY(QFile::exists(uiHPath));
+    QFile editFile(uiHPath);
+    QVERIFY(editFile.open(QIODevice::Append | QIODevice::Text));
+    editFile.write("\n// USER MODIFICATION: Custom UI macro 99999\n");
+    editFile.close();
+
+    // Verify diagnostics source catches modification before regeneration
+    project.setFirmwareDirectory(dir.path());
+    Diagnostics::DiagnosticsService diagService;
+    Diagnostics::DiagnosticsSources::registerBuiltinSources(diagService);
+    diagService.setProject(&project);
+    QVector<Diagnostics::Diagnostic> diags = diagService.runNow();
+    bool foundDiag = false;
+    for (const auto& d : diags) {
+        if (d.source == "Manifest" && d.message.contains("generated/ui/ui.h has been modified by user")) {
+            foundDiag = true;
+            QCOMPARE(d.severity, Diagnostics::Diagnostic::Severity::Warning);
+            break;
+        }
+    }
+    QVERIFY(foundDiag);
+
+    // Regenerate project: should detect edit, back up to generated/.backup/<timestamp>/, and warn
+    ExportResult res2 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res2.success);
+
+    bool backupWarnFound = false;
+    for (const QString& w : res2.warnings) {
+        if (w.contains("User modified file generated/ui/ui.h backed up to generated/.backup/")) {
+            backupWarnFound = true;
+            break;
+        }
+    }
+    QVERIFY(backupWarnFound);
+
+    // Verify backup file exists in generated/.backup/
+    QDir backupBaseDir(QDir(dir.path()).filePath("generated/.backup"));
+    QVERIFY(backupBaseDir.exists());
+    QStringList timestampDirs = backupBaseDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    QVERIFY(!timestampDirs.isEmpty());
+
+    QString backupFile = backupBaseDir.filePath(timestampDirs.first() + "/generated/ui/ui.h");
+    QVERIFY(QFile::exists(backupFile));
+
+    // Verify the backup file contains the user's modifications
+    QFile bf(backupFile);
+    QVERIFY(bf.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString backupContent = QString::fromUtf8(bf.readAll());
+    bf.close();
+    QVERIFY(backupContent.contains("// USER MODIFICATION: Custom UI macro 99999"));
+
+    // Verify the freshly regenerated generated/ui/ui.h does NOT contain the user edit
+    QFile regeneratedF(uiHPath);
+    QVERIFY(regeneratedF.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString regeneratedContent = QString::fromUtf8(regeneratedF.readAll());
+    regeneratedF.close();
+    QVERIFY(!regeneratedContent.contains("// USER MODIFICATION: Custom UI macro 99999"));
+}
+
+void TestExportValidation::testUserFilesUntouched() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("UserFilesProject");
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    project.setHardwareConfig(hw);
+
+    FirmwareExportManager exportMgr;
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportOptions opts;
+    opts.outputDirectory = dir.path();
+    opts.targetFramework = "lvgl";
+    opts.targetMcu = "STM32F030R8";
+    opts.forceExport = true;
+    opts.overwriteUserCode = false;
+
+    ExportResult res1 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res1.success);
+
+    // Verify initial user files
+    QString mainCPath = QDir(dir.path()).filePath("user/main.c");
+    QVERIFY(QFile::exists(mainCPath));
+
+    // User edits user/main.c
+    QFile mainFile(mainCPath);
+    QVERIFY(mainFile.open(QIODevice::Append | QIODevice::Text));
+    mainFile.write("\n// USER PERSISTENT LOGIC 42\nint user_custom_var = 42;\n");
+    mainFile.close();
+
+    // User creates a brand new user file: user/custom_helper.c
+    QString customHelperPath = QDir(dir.path()).filePath("user/custom_helper.c");
+    QFile helperFile(customHelperPath);
+    QVERIFY(helperFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    helperFile.write("// User custom helper\nvoid helper_func(void) {}\n");
+    helperFile.close();
+
+    // Regenerate project with overwriteUserCode = false
+    ExportResult res2 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res2.success);
+
+    // 1. user/main.c must preserve user modifications
+    QFile mainCheck(mainCPath);
+    QVERIFY(mainCheck.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString mainContent = QString::fromUtf8(mainCheck.readAll());
+    mainCheck.close();
+    QVERIFY(mainContent.contains("// USER PERSISTENT LOGIC 42"));
+    QVERIFY(mainContent.contains("int user_custom_var = 42;"));
+
+    // 2. user/custom_helper.c must NEVER be touched or deleted as an orphan
+    QVERIFY(QFile::exists(customHelperPath));
+    QFile helperCheck(customHelperPath);
+    QVERIFY(helperCheck.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString helperContent = QString::fromUtf8(helperCheck.readAll());
+    helperCheck.close();
+    QVERIFY(helperContent.contains("// User custom helper"));
+
+    // 3. User files must NOT be backed up into generated/.backup/
+    QDir backupBaseDir(QDir(dir.path()).filePath("generated/.backup"));
+    if (backupBaseDir.exists()) {
+        QDirIterator it(backupBaseDir.path(), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString path = it.next();
+            QVERIFY(!path.contains("/user/"));
+        }
+    }
+
+    // 4. Preserved user files reported in result
+    bool mainPreserved = false;
+    for (const QString& f : res2.preservedUserFiles) {
+        if (f.contains("user/main.c")) {
+            mainPreserved = true;
+            break;
+        }
+    }
+    QVERIFY(mainPreserved);
 }
 
 QTEST_MAIN(TestExportValidation)
