@@ -1,5 +1,7 @@
 #include "AIProvider.h"
 #include <QJsonDocument>
+#include <QRegularExpression>
+#include <QNetworkReply>
 
 namespace AI {
 
@@ -243,6 +245,106 @@ void AIProvider::configure(const QString& apiKey, const QString& model, const QS
 void AIProvider::cancelRequest() {
     m_isCancelled = true;
     emit requestCancelled();
+}
+
+QString AIProvider::redactSecrets(const QString& text, const QString& knownKey) {
+    if (text.isEmpty()) return text;
+    QString result = text;
+
+    // 1. Redact known key if provided and not trivial (length >= 4)
+    if (!knownKey.isEmpty() && knownKey.length() >= 4) {
+        result.replace(knownKey, "***");
+    }
+
+    // 2. Redact query parameters in URLs (e.g. ?key=... or &key=... or apiKey=...)
+    static const QRegularExpression queryRegex(
+        R"(([\?&](?:key|apiKey|api_key|token|auth)=)([^&\s"'<>#]+))",
+        QRegularExpression::CaseInsensitiveOption);
+    result.replace(queryRegex, QStringLiteral("\\1***"));
+
+    // 3. Redact Authorization Bearer headers or tokens
+    static const QRegularExpression bearerRegex(
+        R"((Bearer\s+)[A-Za-z0-9_\-\.]{6,})",
+        QRegularExpression::CaseInsensitiveOption);
+    result.replace(bearerRegex, QStringLiteral("\\1***"));
+
+    // 4. Redact API key headers (e.g. x-goog-api-key, x-api-key)
+    static const QRegularExpression headerRegex(
+        R"(((?:x-goog-api-key|x-api-key|api-key):\s*)[^\s"'<>]+)",
+        QRegularExpression::CaseInsensitiveOption);
+    result.replace(headerRegex, QStringLiteral("\\1***"));
+
+    // 5. Redact typical API key token formats (Google, OpenAI, Anthropic)
+    static const QRegularExpression geminiKeyRegex(R"(AIza[0-9A-Za-z\-_]{35})");
+    result.replace(geminiKeyRegex, QStringLiteral("***"));
+
+    static const QRegularExpression openAiKeyRegex(R"(sk-(?:proj-)?[A-Za-z0-9\-_]{20,})");
+    result.replace(openAiKeyRegex, QStringLiteral("***"));
+
+    static const QRegularExpression anthropicKeyRegex(R"(sk-ant-[A-Za-z0-9\-_]{20,})");
+    result.replace(anthropicKeyRegex, QStringLiteral("***"));
+
+    return result;
+}
+
+QString AIProvider::maskedKeyDisplay(const QString& rawKey) {
+    QString trimmed = rawKey.trimmed();
+    if (trimmed.isEmpty()) return QString();
+    if (trimmed.length() <= 4) return QStringLiteral("****");
+    return QStringLiteral("••••••••••••") + trimmed.right(4);
+}
+
+ConnectionTestResult AIProvider::classifyReplyError(int httpStatus, int qtNetworkError, const QString& qtErrorString, const QString& urlStr, const QString& providerName) {
+    ConnectionTestResult res;
+    QString cleanUrl = redactSecrets(urlStr);
+
+    if (qtNetworkError == QNetworkReply::ConnectionRefusedError) {
+        res.status = ConnectionStatus::NetworkError;
+        res.message = QString("Cannot reach server at %1. Is it running?").arg(cleanUrl);
+    } else if (qtNetworkError == QNetworkReply::TimeoutError) {
+        res.status = ConnectionStatus::NetworkError;
+        res.message = QString("Connection to %1 timed out.").arg(cleanUrl);
+    } else if (qtNetworkError == QNetworkReply::HostNotFoundError) {
+        res.status = ConnectionStatus::NetworkError;
+        res.message = QString("DNS lookup failed: host in %1 not found.").arg(cleanUrl);
+    } else if (qtNetworkError == QNetworkReply::SslHandshakeFailedError) {
+        res.status = ConnectionStatus::NetworkError;
+        res.message = QString("TLS/SSL handshake failed connecting to %1.").arg(cleanUrl);
+    } else if (httpStatus == 401 || httpStatus == 403) {
+        res.status = ConnectionStatus::AuthenticationFailed;
+        res.message = QString("Authentication Failed: API key rejected or unauthorized for %1.").arg(providerName);
+    } else if (httpStatus == 404) {
+        res.status = ConnectionStatus::InvalidModel;
+        res.message = QString("Model or endpoint path not found at %1. (For OpenAI-compatible servers, verify the path includes '/v1').").arg(cleanUrl);
+    } else if (httpStatus == 429) {
+        res.status = ConnectionStatus::RateLimited;
+        res.message = QString("Rate limit or quota reached for %1. Please check your plan or try a Flash-class model.").arg(providerName);
+    } else if (httpStatus >= 500) {
+        res.status = ConnectionStatus::ProviderUnavailable;
+        res.message = QString("Provider Unavailable: %1 server error (HTTP %2).").arg(providerName).arg(httpStatus);
+    } else {
+        res.status = ConnectionStatus::NetworkError;
+        res.message = QString("Connection failed for %1: %2 (HTTP %3)")
+            .arg(providerName, redactSecrets(qtErrorString), QString::number(httpStatus));
+    }
+    return res;
+}
+
+QString AIProvider::normalizeBaseUrl(const QString& rawUrl, bool ensureV1) {
+    QString trimmed = rawUrl.trimmed();
+    if (trimmed.isEmpty()) return trimmed;
+    if (!trimmed.startsWith("http://", Qt::CaseInsensitive) && !trimmed.startsWith("https://", Qt::CaseInsensitive)) {
+        trimmed = "http://" + trimmed;
+    }
+    while (trimmed.endsWith('/')) {
+        trimmed.chop(1);
+    }
+    if (ensureV1) {
+        if (!trimmed.endsWith("/v1", Qt::CaseInsensitive) && !trimmed.endsWith("/v1beta", Qt::CaseInsensitive)) {
+            trimmed += "/v1";
+        }
+    }
+    return trimmed;
 }
 
 } // namespace AI

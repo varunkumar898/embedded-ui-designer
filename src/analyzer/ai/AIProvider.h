@@ -176,6 +176,12 @@ public:
     bool supportsStreaming() const { return capabilities().streaming; }
     bool supportsMultimodal() const { return capabilities().imageInput || capabilities().imageOutput; }
 
+    // Static security and error classification utilities
+    static QString redactSecrets(const QString& text, const QString& knownKey = QString());
+    static QString maskedKeyDisplay(const QString& rawKey);
+    static ConnectionTestResult classifyReplyError(int httpStatus, int qtNetworkError, const QString& qtErrorString, const QString& urlStr, const QString& providerName);
+    static QString normalizeBaseUrl(const QString& rawUrl, bool ensureV1 = false);
+
     // Async Operations
     virtual void listModels(std::function<void(const QStringList& models, const QString& error)> callback) = 0;
 

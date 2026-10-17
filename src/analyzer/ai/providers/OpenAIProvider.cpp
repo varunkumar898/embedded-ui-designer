@@ -3,6 +3,7 @@
 #include <QUrl>
 #include <QElapsedTimer>
 #include <QRegularExpression>
+#include <QTimer>
 
 namespace AI {
 
@@ -29,9 +30,17 @@ AIProviderCapabilities OpenAIProvider::capabilities() const {
 
 QString OpenAIProvider::effectiveBaseUrl() const {
     if (!m_baseUrl.isEmpty()) {
-        return m_baseUrl.endsWith('/') ? m_baseUrl.left(m_baseUrl.length() - 1) : m_baseUrl;
+        return normalizeBaseUrl(m_baseUrl, false);
     }
     return "https://api.openai.com/v1";
+}
+
+bool OpenAIProvider::isSuitableModel(const QString& modelId) const {
+    QString id = modelId.toLower();
+    if (id.contains("embed") || id.contains("moderation") || id.contains("tts") || id.contains("whisper") || id.contains("dall-e")) {
+        return false;
+    }
+    return id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3") || id.contains("chat");
 }
 
 void OpenAIProvider::setupAuthHeaders(QNetworkRequest& req) const {
@@ -159,10 +168,13 @@ void OpenAIProvider::listModels(std::function<void(const QStringList& models, co
     setupAuthHeaders(req);
 
     QNetworkReply* reply = m_net.get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, callback, url]() {
         reply->deleteLater();
+        int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
         if (reply->error() != QNetworkReply::NoError) {
-            callback(m_cachedModels, reply->errorString());
+            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
+            callback(m_cachedModels, classified.message);
             return;
         }
 
@@ -173,13 +185,21 @@ void OpenAIProvider::listModels(std::function<void(const QStringList& models, co
         QStringList models;
         for (const auto& item : dataArr) {
             QString id = item.toObject()["id"].toString();
-            if (id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3")) {
+            if (isSuitableModel(id)) {
                 models.append(id);
             }
         }
         models.sort();
         if (!models.isEmpty()) {
             m_cachedModels = models;
+            if (!m_currentModel.isEmpty() && !models.contains(m_currentModel)) {
+                QString best = models.first();
+                QString warn = QString("Model not available; choose another (model '%1' replaced with '%2')")
+                    .arg(m_currentModel, best);
+                m_currentModel = best;
+                callback(m_cachedModels, warn);
+                return;
+            }
         }
         callback(m_cachedModels, QString());
     });
@@ -189,8 +209,16 @@ void OpenAIProvider::sendMessage(const QList<AIMessage>& messages,
                                 const QJsonArray& tools,
                                 std::function<void(const AIMessage& response, const AIUsage& usage, const QString& error)> callback)
 {
+    sendMessageInternal(messages, tools, 0, callback);
+}
+
+void OpenAIProvider::sendMessageInternal(const QList<AIMessage>& messages,
+                                        const QJsonArray& tools,
+                                        int retryCount,
+                                        std::function<void(const AIMessage& response, const AIUsage& usage, const QString& error)> callback)
+{
     if (!isConfigured()) {
-        callback(AIMessage(), AIUsage(), "OpenAI API key not configured");
+        callback(AIMessage(), AIUsage(), QString("%1 API key not configured").arg(displayName()));
         return;
     }
 
@@ -216,18 +244,40 @@ void OpenAIProvider::sendMessage(const QList<AIMessage>& messages,
     QNetworkReply* reply = m_net.post(req, body);
     m_activeReply = reply;
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, messages, tools, retryCount, callback, url]() {
         reply->deleteLater();
         if (m_isCancelled) {
             callback(AIMessage(), AIUsage(), "Request cancelled by user");
             return;
         }
 
+        int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
         if (reply->error() != QNetworkReply::NoError) {
+            if (httpStatus == 429 && retryCount < 2) {
+                int delayMs = 500 * (retryCount + 1);
+                QByteArray retryAfter = reply->rawHeader("Retry-After");
+                if (!retryAfter.isEmpty()) {
+                    int secs = retryAfter.toInt();
+                    if (secs > 0) delayMs = std::min(secs * 1000, 3000);
+                }
+                QTimer::singleShot(delayMs, this, [this, messages, tools, retryCount, callback]() {
+                    if (!m_isCancelled) {
+                        sendMessageInternal(messages, tools, retryCount + 1, callback);
+                    }
+                });
+                return;
+            }
+
             QByteArray errData = reply->readAll();
             QJsonDocument errDoc = QJsonDocument::fromJson(errData);
             QString msg = errDoc.object()["error"].toObject()["message"].toString();
-            if (msg.isEmpty()) msg = reply->errorString();
+            if (msg.isEmpty()) {
+                auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
+                msg = classified.message;
+            } else {
+                msg = redactSecrets(msg, m_apiKey);
+            }
             callback(AIMessage(), AIUsage(), msg);
             return;
         }
@@ -246,8 +296,16 @@ void OpenAIProvider::streamMessage(const QList<AIMessage>& messages,
                                   const QJsonArray& tools,
                                   std::function<void(const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error)> callback)
 {
+    streamMessageInternal(messages, tools, 0, callback);
+}
+
+void OpenAIProvider::streamMessageInternal(const QList<AIMessage>& messages,
+                                          const QJsonArray& tools,
+                                          int retryCount,
+                                          std::function<void(const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error)> callback)
+{
     if (!isConfigured()) {
-        callback("", {}, true, AIUsage(), "OpenAI API key not configured");
+        callback("", {}, true, AIUsage(), QString("%1 API key not configured").arg(displayName()));
         return;
     }
 
@@ -299,6 +357,13 @@ void OpenAIProvider::streamMessage(const QList<AIMessage>& messages,
                 if (!doc.isObject()) continue;
 
                 QJsonObject obj = doc.object();
+                if (obj.contains("error")) {
+                    QString errText = obj["error"].toObject()["message"].toString();
+                    if (errText.isEmpty()) errText = "Mid-stream error in response";
+                    callback("", {}, true, *usage, redactSecrets(errText, m_apiKey));
+                    return;
+                }
+
                 QJsonArray choices = obj["choices"].toArray();
                 if (!choices.isEmpty()) {
                     QJsonObject delta = choices.first().toObject()["delta"].toObject();
@@ -322,15 +387,33 @@ void OpenAIProvider::streamMessage(const QList<AIMessage>& messages,
         }
     });
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, usage, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, usage, messages, tools, retryCount, callback, url]() {
         reply->deleteLater();
         if (m_isCancelled) {
             callback("", {}, true, *usage, "Request cancelled by user");
             return;
         }
 
+        int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
         if (reply->error() != QNetworkReply::NoError) {
-            callback("", {}, true, *usage, reply->errorString());
+            if (httpStatus == 429 && retryCount < 2) {
+                int delayMs = 500 * (retryCount + 1);
+                QByteArray retryAfter = reply->rawHeader("Retry-After");
+                if (!retryAfter.isEmpty()) {
+                    int secs = retryAfter.toInt();
+                    if (secs > 0) delayMs = std::min(secs * 1000, 3000);
+                }
+                QTimer::singleShot(delayMs, this, [this, messages, tools, retryCount, callback]() {
+                    if (!m_isCancelled) {
+                        streamMessageInternal(messages, tools, retryCount + 1, callback);
+                    }
+                });
+                return;
+            }
+
+            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
+            callback("", {}, true, *usage, classified.message);
             return;
         }
 
@@ -353,48 +436,41 @@ void OpenAIProvider::testConnection(std::function<void(const ConnectionTestResul
     setupAuthHeaders(req);
 
     QNetworkReply* reply = m_net.get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, callback, url]() {
         reply->deleteLater();
-        ConnectionTestResult res;
-
         int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
         if (reply->error() == QNetworkReply::NoError && httpStatus == 200) {
+            ConnectionTestResult res;
             res.status = ConnectionStatus::Connected;
-            res.message = "Successfully connected to OpenAI.";
+            res.message = QString("Successfully connected to %1.").arg(displayName());
 
             QByteArray data = reply->readAll();
             QJsonDocument doc = QJsonDocument::fromJson(data);
             QStringList models;
             for (const auto& item : doc.object()["data"].toArray()) {
                 QString id = item.toObject()["id"].toString();
-                if (id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3")) {
+                if (isSuitableModel(id)) {
                     models.append(id);
                 }
             }
             models.sort();
             res.detectedModels = models;
-            if (!models.isEmpty()) m_cachedModels = models;
-        } else {
-            if (httpStatus == 401) {
-                res.status = ConnectionStatus::AuthenticationFailed;
-                res.message = "Authentication Failed: Invalid OpenAI API key.";
-            } else if (httpStatus == 429) {
-                res.status = ConnectionStatus::RateLimited;
-                res.message = "Rate Limited: OpenAI quota or rate limit reached.";
-            } else if (httpStatus >= 500) {
-                res.status = ConnectionStatus::ProviderUnavailable;
-                res.message = QString("Provider Unavailable: OpenAI server error (HTTP %1).").arg(httpStatus);
-            } else if (reply->error() == QNetworkReply::HostNotFoundError || reply->error() == QNetworkReply::TimeoutError) {
-                res.status = ConnectionStatus::NetworkError;
-                res.message = QString("Network Error: %1").arg(reply->errorString());
-            } else {
-                res.status = ConnectionStatus::AuthenticationFailed;
-                res.message = QString("Connection failed: %1 (HTTP %2)").arg(reply->errorString()).arg(httpStatus);
+            if (!models.isEmpty()) {
+                m_cachedModels = models;
+                if (!m_currentModel.isEmpty() && !models.contains(m_currentModel)) {
+                    QString best = models.first();
+                    res.status = ConnectionStatus::InvalidModel;
+                    res.message = QString("Model not available; choose another (model '%1' is not available; reset to '%2').")
+                        .arg(m_currentModel, best);
+                    m_currentModel = best;
+                }
             }
+            callback(res);
+        } else {
+            auto res = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
+            callback(res);
         }
-
-        callback(res);
     });
 }
 

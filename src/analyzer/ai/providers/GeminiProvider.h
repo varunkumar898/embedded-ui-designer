@@ -32,6 +32,11 @@ public:
 
     void cancelRequest() override;
 
+    // Fallback model constant and filter helpers
+    static const QString FallbackDefaultModel;
+    static bool isSuitableChatModel(const QJsonObject& modelObj, QString* outModelId = nullptr);
+    static QString selectBestChatModel(const QStringList& suitableModels);
+
     // Format helpers
     static void formatContentsForGemini(const QList<AIMessage>& messages, QJsonObject& outSystemInstruction, QJsonArray& outContents);
     static QJsonArray formatToolsForGemini(const QJsonArray& universalTools);
@@ -39,6 +44,17 @@ public:
 
 private:
     QString effectiveEndpoint(const QString& action) const;
+    void setupAuthHeaders(QNetworkRequest& req) const;
+
+    void sendMessageInternal(const QList<AIMessage>& messages,
+                             const QJsonArray& tools,
+                             int retryCount,
+                             std::function<void(const AIMessage& response, const AIUsage& usage, const QString& error)> callback);
+
+    void streamMessageInternal(const QList<AIMessage>& messages,
+                              const QJsonArray& tools,
+                              int retryCount,
+                              std::function<void(const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error)> callback);
 
     QNetworkAccessManager m_net;
     QPointer<QNetworkReply> m_activeReply;

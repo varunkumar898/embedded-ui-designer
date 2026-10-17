@@ -39,8 +39,18 @@ public:
 protected:
     virtual QString effectiveBaseUrl() const;
     virtual void setupAuthHeaders(QNetworkRequest& req) const;
+    virtual bool isSuitableModel(const QString& modelId) const;
 
-private:
+    void sendMessageInternal(const QList<AIMessage>& messages,
+                             const QJsonArray& tools,
+                             int retryCount,
+                             std::function<void(const AIMessage& response, const AIUsage& usage, const QString& error)> callback);
+
+    void streamMessageInternal(const QList<AIMessage>& messages,
+                              const QJsonArray& tools,
+                              int retryCount,
+                              std::function<void(const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error)> callback);
+
     QNetworkAccessManager m_net;
     QPointer<QNetworkReply> m_activeReply;
 };

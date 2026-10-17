@@ -3,18 +3,20 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QElapsedTimer>
+#include <QTimer>
 
 namespace AI {
+
+const QString GeminiProvider::FallbackDefaultModel = "gemini-2.0-flash";
 
 GeminiProvider::GeminiProvider(QObject* parent)
     : AIProvider(parent)
 {
-    m_currentModel = "gemini-1.5-pro";
+    m_currentModel = FallbackDefaultModel;
     m_cachedModels = {
-        "gemini-1.5-pro",
-        "gemini-1.5-flash",
         "gemini-2.0-flash",
-        "gemini-2.0-flash-thinking-exp"
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
     };
 }
 
@@ -33,11 +35,69 @@ AIProviderCapabilities GeminiProvider::capabilities() const {
 }
 
 QString GeminiProvider::effectiveEndpoint(const QString& action) const {
-    QString model = m_currentModel.isEmpty() ? "gemini-1.5-pro" : m_currentModel;
+    QString model = m_currentModel.isEmpty() ? FallbackDefaultModel : m_currentModel;
     if (model.startsWith("models/")) {
         model = model.mid(7);
     }
     return QString("https://generativelanguage.googleapis.com/v1beta/models/%1:%2").arg(model, action);
+}
+
+void GeminiProvider::setupAuthHeaders(QNetworkRequest& req) const {
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    if (!m_apiKey.isEmpty()) {
+        req.setRawHeader("x-goog-api-key", m_apiKey.toUtf8());
+    }
+}
+
+bool GeminiProvider::isSuitableChatModel(const QJsonObject& modelObj, QString* outModelId) {
+    QString name = modelObj["name"].toString();
+    if (name.startsWith("models/")) name = name.mid(7);
+    QString nameLower = name.toLower();
+
+    if (!nameLower.contains("gemini")) {
+        return false;
+    }
+
+    // Check supported generation methods (must support generateContent or streamGenerateContent)
+    QJsonArray methods = modelObj["supportedGenerationMethods"].toArray();
+    bool supportsGenerate = false;
+    for (const auto& m : methods) {
+        QString mStr = m.toString();
+        if (mStr == "generateContent" || mStr == "streamGenerateContent") {
+            supportsGenerate = true;
+            break;
+        }
+    }
+    if (!supportsGenerate) {
+        return false;
+    }
+
+    // Exclude specialized / non-chat models
+    if (nameLower.contains("computer-use") ||
+        nameLower.contains("embedding") ||
+        nameLower.contains("embed") ||
+        nameLower.contains("imagen") ||
+        nameLower.contains("image") ||
+        nameLower.contains("audio") ||
+        nameLower.contains("live") ||
+        nameLower.contains("tts") ||
+        nameLower.contains("aqa")) {
+        return false;
+    }
+
+    if (outModelId) {
+        *outModelId = name;
+    }
+    return true;
+}
+
+QString GeminiProvider::selectBestChatModel(const QStringList& suitableModels) {
+    if (suitableModels.isEmpty()) return FallbackDefaultModel;
+    if (suitableModels.contains("gemini-2.0-flash")) return "gemini-2.0-flash";
+    if (suitableModels.contains("gemini-1.5-flash")) return "gemini-1.5-flash";
+    if (suitableModels.contains("gemini-1.5-pro")) return "gemini-1.5-pro";
+    if (suitableModels.contains("gemini-2.5-flash")) return "gemini-2.5-flash";
+    return suitableModels.first();
 }
 
 void GeminiProvider::formatContentsForGemini(const QList<AIMessage>& messages, QJsonObject& outSystemInstruction, QJsonArray& outContents) {
@@ -181,17 +241,18 @@ void GeminiProvider::listModels(std::function<void(const QStringList& models, co
     }
 
     QUrl url("https://generativelanguage.googleapis.com/v1beta/models");
-    QUrlQuery query;
-    query.addQueryItem("key", m_apiKey);
-    url.setQuery(query);
-
     QNetworkRequest req(url);
+    setupAuthHeaders(req);
+
     QNetworkReply* reply = m_net.get(req);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
         reply->deleteLater();
+        int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
         if (reply->error() != QNetworkReply::NoError) {
-            callback(m_cachedModels, reply->errorString());
+            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://generativelanguage.googleapis.com/v1beta/models", displayName());
+            callback(m_cachedModels, classified.message);
             return;
         }
 
@@ -201,15 +262,22 @@ void GeminiProvider::listModels(std::function<void(const QStringList& models, co
 
         QStringList list;
         for (const auto& mVal : modelsArr) {
-            QString name = mVal.toObject()["name"].toString();
-            if (name.startsWith("models/")) name = name.mid(7);
-            if (name.contains("gemini")) {
-                list.append(name);
+            QString modelId;
+            if (isSuitableChatModel(mVal.toObject(), &modelId)) {
+                list.append(modelId);
             }
         }
         list.sort();
         if (!list.isEmpty()) {
             m_cachedModels = list;
+            if (!m_currentModel.isEmpty() && !list.contains(m_currentModel)) {
+                QString best = selectBestChatModel(list);
+                QString warn = QString("Model not available; choose another (model '%1' is not available for chat; reset to '%2').")
+                    .arg(m_currentModel, best);
+                m_currentModel = best;
+                callback(m_cachedModels, warn);
+                return;
+            }
         }
         callback(m_cachedModels, QString());
     });
@@ -219,6 +287,14 @@ void GeminiProvider::sendMessage(const QList<AIMessage>& messages,
                                 const QJsonArray& tools,
                                 std::function<void(const AIMessage& response, const AIUsage& usage, const QString& error)> callback)
 {
+    sendMessageInternal(messages, tools, 0, callback);
+}
+
+void GeminiProvider::sendMessageInternal(const QList<AIMessage>& messages,
+                                        const QJsonArray& tools,
+                                        int retryCount,
+                                        std::function<void(const AIMessage& response, const AIUsage& usage, const QString& error)> callback)
+{
     if (!isConfigured()) {
         callback(AIMessage(), AIUsage(), "Google Gemini API key not configured");
         return;
@@ -227,12 +303,8 @@ void GeminiProvider::sendMessage(const QList<AIMessage>& messages,
     m_isCancelled = false;
 
     QUrl url(effectiveEndpoint("generateContent"));
-    QUrlQuery query;
-    query.addQueryItem("key", m_apiKey);
-    url.setQuery(query);
-
     QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    setupAuthHeaders(req);
 
     QJsonObject sysInstr;
     QJsonArray contents;
@@ -255,18 +327,41 @@ void GeminiProvider::sendMessage(const QList<AIMessage>& messages,
     QNetworkReply* reply = m_net.post(req, body);
     m_activeReply = reply;
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, messages, tools, retryCount, callback, url]() {
         reply->deleteLater();
         if (m_isCancelled) {
             callback(AIMessage(), AIUsage(), "Request cancelled by user");
             return;
         }
 
+        int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
         if (reply->error() != QNetworkReply::NoError) {
+            // Bounded automatic retry on 429
+            if (httpStatus == 429 && retryCount < 2) {
+                int delayMs = 500 * (retryCount + 1);
+                QByteArray retryAfter = reply->rawHeader("Retry-After");
+                if (!retryAfter.isEmpty()) {
+                    int secs = retryAfter.toInt();
+                    if (secs > 0) delayMs = std::min(secs * 1000, 3000);
+                }
+                QTimer::singleShot(delayMs, this, [this, messages, tools, retryCount, callback]() {
+                    if (!m_isCancelled) {
+                        sendMessageInternal(messages, tools, retryCount + 1, callback);
+                    }
+                });
+                return;
+            }
+
             QByteArray errData = reply->readAll();
             QJsonDocument errDoc = QJsonDocument::fromJson(errData);
             QString msg = errDoc.object()["error"].toObject()["message"].toString();
-            if (msg.isEmpty()) msg = reply->errorString();
+            if (msg.isEmpty()) {
+                auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
+                msg = classified.message;
+            } else {
+                msg = redactSecrets(msg, m_apiKey);
+            }
             callback(AIMessage(), AIUsage(), msg);
             return;
         }
@@ -285,6 +380,14 @@ void GeminiProvider::streamMessage(const QList<AIMessage>& messages,
                                   const QJsonArray& tools,
                                   std::function<void(const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error)> callback)
 {
+    streamMessageInternal(messages, tools, 0, callback);
+}
+
+void GeminiProvider::streamMessageInternal(const QList<AIMessage>& messages,
+                                          const QJsonArray& tools,
+                                          int retryCount,
+                                          std::function<void(const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error)> callback)
+{
     if (!isConfigured()) {
         callback("", {}, true, AIUsage(), "Google Gemini API key not configured");
         return;
@@ -295,11 +398,10 @@ void GeminiProvider::streamMessage(const QList<AIMessage>& messages,
     QUrl url(effectiveEndpoint("streamGenerateContent"));
     QUrlQuery query;
     query.addQueryItem("alt", "sse");
-    query.addQueryItem("key", m_apiKey);
     url.setQuery(query);
 
     QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    setupAuthHeaders(req);
 
     QJsonObject sysInstr;
     QJsonArray contents;
@@ -339,6 +441,22 @@ void GeminiProvider::streamMessage(const QList<AIMessage>& messages,
 
             if (line.startsWith("data: ")) {
                 QByteArray jsonPart = line.mid(6).trimmed();
+                if (jsonPart == "[DONE]") {
+                    callback("", {}, true, *usage, QString());
+                    return;
+                }
+
+                QJsonDocument doc = QJsonDocument::fromJson(jsonPart);
+                if (doc.isObject()) {
+                    QJsonObject root = doc.object();
+                    if (root.contains("error")) {
+                        QString errText = root["error"].toObject()["message"].toString();
+                        if (errText.isEmpty()) errText = "Mid-stream error in Gemini response";
+                        callback("", {}, true, *usage, redactSecrets(errText, m_apiKey));
+                        return;
+                    }
+                }
+
                 AIMessage chunkMsg;
                 AIUsage chunkUsage;
                 parseGeminiResponse(jsonPart, chunkMsg, chunkUsage);
@@ -356,15 +474,34 @@ void GeminiProvider::streamMessage(const QList<AIMessage>& messages,
         }
     });
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, usage, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, usage, messages, tools, retryCount, callback, url]() {
         reply->deleteLater();
         if (m_isCancelled) {
             callback("", {}, true, *usage, "Request cancelled by user");
             return;
         }
 
+        int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
         if (reply->error() != QNetworkReply::NoError) {
-            callback("", {}, true, *usage, reply->errorString());
+            // Bounded automatic retry on 429
+            if (httpStatus == 429 && retryCount < 2) {
+                int delayMs = 500 * (retryCount + 1);
+                QByteArray retryAfter = reply->rawHeader("Retry-After");
+                if (!retryAfter.isEmpty()) {
+                    int secs = retryAfter.toInt();
+                    if (secs > 0) delayMs = std::min(secs * 1000, 3000);
+                }
+                QTimer::singleShot(delayMs, this, [this, messages, tools, retryCount, callback]() {
+                    if (!m_isCancelled) {
+                        streamMessageInternal(messages, tools, retryCount + 1, callback);
+                    }
+                });
+                return;
+            }
+
+            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
+            callback("", {}, true, *usage, classified.message);
             return;
         }
 
@@ -383,20 +520,17 @@ void GeminiProvider::testConnection(std::function<void(const ConnectionTestResul
     }
 
     QUrl url("https://generativelanguage.googleapis.com/v1beta/models");
-    QUrlQuery query;
-    query.addQueryItem("key", m_apiKey);
-    url.setQuery(query);
-
     QNetworkRequest req(url);
+    setupAuthHeaders(req);
+
     QNetworkReply* reply = m_net.get(req);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
         reply->deleteLater();
-        ConnectionTestResult res;
-
         int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
         if (reply->error() == QNetworkReply::NoError && httpStatus == 200) {
+            ConnectionTestResult res;
             res.status = ConnectionStatus::Connected;
             res.message = "Successfully connected to Google Gemini.";
 
@@ -404,38 +538,28 @@ void GeminiProvider::testConnection(std::function<void(const ConnectionTestResul
             QJsonDocument doc = QJsonDocument::fromJson(data);
             QStringList models;
             for (const auto& item : doc.object()["models"].toArray()) {
-                QString name = item.toObject()["name"].toString();
-                if (name.startsWith("models/")) name = name.mid(7);
-                if (name.contains("gemini")) {
-                    models.append(name);
+                QString modelId;
+                if (isSuitableChatModel(item.toObject(), &modelId)) {
+                    models.append(modelId);
                 }
             }
             models.sort();
             res.detectedModels = models;
-            if (!models.isEmpty()) m_cachedModels = models;
-        } else {
-            if (httpStatus == 400 || httpStatus == 403) {
-                res.status = ConnectionStatus::AuthenticationFailed;
-                res.message = "Authentication Failed: Invalid Gemini API key or unauthorized project.";
-            } else if (httpStatus == 404) {
-                res.status = ConnectionStatus::InvalidModel;
-                res.message = "Invalid Model: Gemini model endpoint not found.";
-            } else if (httpStatus == 429) {
-                res.status = ConnectionStatus::RateLimited;
-                res.message = "Rate Limited: Gemini API quota exceeded.";
-            } else if (httpStatus >= 500) {
-                res.status = ConnectionStatus::ProviderUnavailable;
-                res.message = QString("Provider Unavailable: Google Gemini server error (HTTP %1).").arg(httpStatus);
-            } else if (reply->error() == QNetworkReply::HostNotFoundError || reply->error() == QNetworkReply::TimeoutError) {
-                res.status = ConnectionStatus::NetworkError;
-                res.message = QString("Network Error: %1").arg(reply->errorString());
-            } else {
-                res.status = ConnectionStatus::AuthenticationFailed;
-                res.message = QString("Connection failed: %1 (HTTP %2)").arg(reply->errorString()).arg(httpStatus);
+            if (!models.isEmpty()) {
+                m_cachedModels = models;
+                if (!m_currentModel.isEmpty() && !models.contains(m_currentModel)) {
+                    QString best = selectBestChatModel(models);
+                    res.status = ConnectionStatus::InvalidModel;
+                    res.message = QString("Model not available; choose another (model '%1' is not available for chat; reset to '%2').")
+                        .arg(m_currentModel, best);
+                    m_currentModel = best;
+                }
             }
+            callback(res);
+        } else {
+            auto res = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://generativelanguage.googleapis.com/v1beta/models", displayName());
+            callback(res);
         }
-
-        callback(res);
     });
 }
 
