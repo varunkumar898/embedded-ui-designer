@@ -1,6 +1,7 @@
 #include "TargetHalGenerator.h"
 #include "analyzer/CapabilityDatabase.h"
 #include "driverpack/DriverPackRegistry.h"
+#include "driverpack/CustomPackManager.h"
 #include <algorithm>
 
 namespace CodeGen {
@@ -79,6 +80,23 @@ TargetResolution resolveTarget(const Project* project, const QString& targetMcu 
             res.boardDisplayName = "STM32 NUCLEO-F030R8";
         } else {
             res.boardDisplayName = res.deviceName;
+        }
+    }
+
+    if (driverpack::CustomPackManager::instance().isCustomDevice(res.deviceName)) {
+        driverpack::CustomPackDef customPack = driverpack::CustomPackManager::instance().getPack(res.deviceName);
+        res.family = customPack.family.isEmpty() ? "Custom" : customPack.family;
+        res.boardDisplayName = customPack.name + " (Custom Pack)";
+        res.pinMap.clear();
+        for (const auto& pin : customPack.pinTable) {
+            PinDef pd;
+            pd.function = pin.function;
+            res.pinMap[pin.pin] = pd;
+        }
+        for (const auto& p : customPack.peripherals) {
+            if (!p.type.isEmpty()) {
+                res.protocols[p.type].append(p.name);
+            }
         }
     }
 
@@ -169,6 +187,10 @@ QString TargetHalGenerator::generateHalHeader(const Project* project, const QStr
     } else if (fam == "Nordic") {
         code += "#include <zephyr/kernel.h>\n";
         code += "#include <zephyr/drivers/gpio.h>\n";
+    } else if (driverpack::CustomPackManager::instance().isCustomDevice(target.deviceName)) {
+        driverpack::CustomPackDef customPack = driverpack::CustomPackManager::instance().getPack(target.deviceName);
+        code += QString("/* Custom device: %1 (%2) */\n").arg(customPack.name, customPack.vendor);
+        code += QString("#include \"%1_registers.h\"\n").arg(customPack.name.toLower());
     }
 
     code += "\n#ifdef __cplusplus\n";
@@ -340,12 +362,25 @@ QString TargetHalGenerator::generateHalSource(const Project* project, const QStr
     if (activeBoard.protocols.contains("UART")) code += "    hal_uart_init();\n";
     code += "}\n\n";
 
-    code += "bool hal_read_digital_pin(const char* pin_name) {\n";
-    code += "    (void)pin_name;\n";
-    code += "    return false;\n";
-    code += "}\n\n";
+    if (driverpack::CustomPackManager::instance().isCustomDevice(target.deviceName)) {
+        code += "bool hal_read_digital_pin(const char* pin_name) {\n";
+        code += QString("    printf(\"[HAL: Custom %1] gpio_read(%%s)\\n\", pin_name);\n").arg(target.deviceName);
+        code += "    return false;\n";
+        code += "}\n\n";
+    } else {
+        code += "bool hal_read_digital_pin(const char* pin_name) {\n";
+        code += "    (void)pin_name;\n";
+        code += "    return false;\n";
+        code += "}\n\n";
+    }
 
-    if (fam.compare("STM32", Qt::CaseInsensitive) == 0) {
+    if (driverpack::CustomPackManager::instance().isCustomDevice(target.deviceName)) {
+        driverpack::CustomPackDef customPack = driverpack::CustomPackManager::instance().getPack(target.deviceName);
+        code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";
+        code += QString("    /* Generated for custom device %1 (SVD-validated base addresses) */\n").arg(customPack.name);
+        code += QString("    printf(\"[HAL: Custom %1] gpio_write(%%s, %%d)\\n\", pin_name, high ? 1 : 0);\n").arg(customPack.name);
+        code += "}\n\n";
+    } else if (fam.compare("STM32", Qt::CaseInsensitive) == 0) {
         code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";
         code += "    printf(\"[HAL: STM32] Atomic BSRR Write pin %s -> %s\\n\", pin_name, high ? \"HIGH (1)\" : \"LOW (0)\");\n";
         code += "    /* GPIOA->BSRR = high ? (1 << pin_num) : (1 << (pin_num + 16)); */\n";

@@ -11,6 +11,7 @@ class QComboBox;
 class QSpinBox;
 class QLabel;
 class QTableWidget;
+class QPushButton;
 
 /**
  * @brief Task 5 - "Board & Display" dock.

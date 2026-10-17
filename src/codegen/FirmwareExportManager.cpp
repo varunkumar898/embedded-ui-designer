@@ -8,6 +8,8 @@
 #include "codegen/EmbedWebGenerator.h"
 #include "analyzer/ResourceEstimator.h"
 #include "driverpack/DriverPackRegistry.h"
+#include "driverpack/CustomPackManager.h"
+#include "driverpack/CustomDriverPack.h"
 #include "hardware/BoardRegistry.h"
 #include <QFile>
 #include <QTextStream>
@@ -454,6 +456,19 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
     QString halCContent = CodeGen::TargetHalGenerator::generateHalSource(project, options.targetMcu);
     if (!halCContent.isEmpty()) {
         if (!writeGeneratedFile("generated/target/target_hal.c", halCContent, rootDir, oldManifest, backupTimestamp, result)) return false;
+    }
+
+    const QString effectiveDev = !options.targetMcu.isEmpty() ? options.targetMcu : (project ? project->hardwareConfig().deviceId : QString());
+    if (driverpack::CustomPackManager::instance().isCustomDevice(effectiveDev)) {
+        driverpack::CustomPackDef customPack = driverpack::CustomPackManager::instance().getPack(effectiveDev);
+        driverpack::CustomDriverPack customDriver(customPack);
+        driverpack::GeneratedProject proj = customDriver.generateProjectTree(customDriver.supportedDevices().front(), {}, "Export");
+        std::string regRelPath = "Drivers/Inc/" + customPack.name.toLower().toStdString() + "_registers.h";
+        if (proj.hasFile(regRelPath)) {
+            QString regContent = QString::fromStdString(proj.getFileContent(regRelPath));
+            QString regTargetFile = QString("generated/target/%1_registers.h").arg(customPack.name.toLower());
+            if (!writeGeneratedFile(regTargetFile, regContent, rootDir, oldManifest, backupTimestamp, result)) return false;
+        }
     }
 
     // 4. Generate Assets Header (generated/assets/)
