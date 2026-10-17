@@ -18,6 +18,57 @@
 #include <QJsonObject>
 #include <QJsonArray>
 
+namespace {
+
+bool isSafeManifestPath(const QString& relPath, const QDir& rootDir) {
+    if (relPath.isEmpty()) return false;
+    if (relPath.contains("..") || relPath.startsWith("/") || relPath.startsWith("\\")) {
+        return false;
+    }
+    if (QDir::isAbsolutePath(relPath)) {
+        return false;
+    }
+    if (!relPath.startsWith("generated/") && !relPath.startsWith("generated\\")) {
+        return false;
+    }
+
+    QDir genDir(rootDir.filePath("generated"));
+    QString genCanonical = genDir.canonicalPath();
+    if (genCanonical.isEmpty()) {
+        genCanonical = QFileInfo(genDir.absolutePath()).absoluteFilePath();
+    }
+
+    QString fullPath = rootDir.filePath(relPath);
+    QFileInfo fi(fullPath);
+    if (fi.exists() || fi.isSymbolicLink()) {
+        if (fi.isSymbolicLink()) {
+            QString target = fi.symLinkTarget();
+            QFileInfo targetFi(target);
+            QString targetCanonical = targetFi.canonicalFilePath();
+            if (targetCanonical.isEmpty()) {
+                targetCanonical = targetFi.absoluteFilePath();
+            }
+            if (!targetCanonical.startsWith(genCanonical + "/") && targetCanonical != genCanonical) {
+                return false;
+            }
+        }
+        QString fileCanonical = fi.canonicalFilePath();
+        if (!fileCanonical.isEmpty() && !fileCanonical.startsWith(genCanonical + "/")) {
+            return false;
+        }
+    } else {
+        QString clean = QDir::cleanPath(fullPath);
+        QString cleanGen = QDir::cleanPath(rootDir.filePath("generated"));
+        if (!clean.startsWith(cleanGen + "/")) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+} // namespace
+
 FirmwareExportManager::FirmwareExportManager() {
 }
 
@@ -85,9 +136,8 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
     } else {
         auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(targetDevice.toStdString());
         if (!pack) {
-            result.success = false;
-            result.errorMessage = QString("No driver pack for %1; import one").arg(targetDevice);
-            return result;
+            result.warnings.append(QString("No driver pack for %1; import one").arg(targetDevice));
+            result.warnings.append(QString("Native HAL export blocked for unsupported device %1; UI export proceeding.").arg(targetDevice));
         }
     }
 
@@ -123,7 +173,12 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
                 QJsonArray arr = doc.object().value("files").toArray();
                 for (const auto& v : arr) {
                     if (v.isObject()) {
-                        oldManifest[v.toObject().value("file").toString()] = v.toObject().value("sha256").toString();
+                        QString p = v.toObject().value("file").toString();
+                        if (isSafeManifestPath(p, rootDir)) {
+                            oldManifest[p] = v.toObject().value("sha256").toString();
+                        } else {
+                            result.warnings.append(QString("Rejected unsafe manifest entry: %1").arg(p));
+                        }
                     }
                 }
             }
@@ -155,15 +210,28 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
     // 5. Remove orphans listed in the old manifest but no longer produced (never touches user/ code)
     for (auto it = oldManifest.begin(); it != oldManifest.end(); ++it) {
         QString oldRelPath = it.key();
-        if (oldRelPath.startsWith("user/") || oldRelPath.startsWith("user\\")) {
-            continue; // Never touch user code
+        if (!isSafeManifestPath(oldRelPath, rootDir)) {
+            result.warnings.append(QString("Rejected unsafe manifest entry: %1").arg(oldRelPath));
+            continue; // Manifest safety: only touch files inside generated/
         }
         if (oldRelPath == "generated/MANIFEST.json") {
             continue;
         }
         if (!result.generatedFiles.contains(oldRelPath)) {
             QString fullPath = rootDir.filePath(oldRelPath);
-            if (QFile::exists(fullPath)) {
+            QFileInfo fi(fullPath);
+            if (fi.exists() || fi.isSymbolicLink()) {
+                if (fi.isSymbolicLink()) {
+                    QString target = fi.symLinkTarget();
+                    QFileInfo targetFi(target);
+                    QString targetCanonical = targetFi.canonicalFilePath();
+                    QDir gDir(rootDir.filePath("generated"));
+                    QString gCanonical = gDir.canonicalPath();
+                    if (!targetCanonical.startsWith(gCanonical + "/")) {
+                        result.warnings.append(QString("Skipping orphan symlink resolving outside generated/: %1").arg(oldRelPath));
+                        continue;
+                    }
+                }
                 QFile f(fullPath);
                 if (f.open(QIODevice::ReadOnly)) {
                     QByteArray actualHash = QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256).toHex();
@@ -304,6 +372,11 @@ bool FirmwareExportManager::generateUserFiles(const Project* project, const QDir
 }
 
 bool FirmwareExportManager::writeGeneratedFile(const QString& relPath, const QString& content, const QDir& rootDir, const QMap<QString, QString>& oldManifest, const QString& backupTimestamp, ExportResult& result) {
+    if (!isSafeManifestPath(relPath, rootDir)) {
+        result.errorMessage = QString("Attempted unsafe write outside generated/: %1").arg(relPath);
+        return false;
+    }
+
     QString fullPath = rootDir.filePath(relPath);
     QFileInfo fi(fullPath);
     fi.dir().mkpath(".");

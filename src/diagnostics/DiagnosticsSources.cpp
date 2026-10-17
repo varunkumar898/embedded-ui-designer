@@ -305,6 +305,10 @@ QVector<Diagnostic> manifestSource(const Project* project) {
     for (const auto& item : filesArr) {
         if (!item.isObject()) continue;
         QString relPath = item.toObject().value("file").toString();
+        if (relPath.isEmpty() || relPath.contains("..") || QDir::isAbsolutePath(relPath) ||
+            (!relPath.startsWith("generated/") && !relPath.startsWith("generated\\"))) {
+            continue; // Skip unsafe paths outside generated/
+        }
         QString expectedHash = item.toObject().value("sha256").toString();
         QString fullPath = rootDir.filePath(relPath);
         if (QFile::exists(fullPath)) {

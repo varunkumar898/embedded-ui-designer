@@ -15,6 +15,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QProcess>
 
 #include "analyzer/ResourceAnalysis.h"
 #include "analyzer/ResourceEstimator.h"
@@ -61,6 +62,9 @@ private slots:
     void testOrphanRemoval();
     void testEditDetectionWithBackup();
     void testUserFilesUntouched();
+    void testUiExportWorksForUnsupportedDeviceWithoutHal();
+    void testManifestSafetyRejectsPathTraversalAndExternalSymlinks();
+    void testCompileCheckArmGccSyntax();
 };
 
 void TestExportValidation::initTestCase() {
@@ -499,17 +503,27 @@ void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
 
         auto* pack = dpReg.findPackForDevice(devName.toStdString());
         if (!pack) {
-            // Unsupported device: export MUST be blocked with error diagnostic
-            QVERIFY2(!res.success, qPrintable(QString("Device %1 is unsupported but export succeeded!").arg(devName)));
-            QVERIFY2(res.errorMessage.contains("No driver pack for") && res.errorMessage.contains("import one"),
-                     qPrintable(QString("Expected 'No driver pack for %1; import one', got '%2'").arg(devName, res.errorMessage)));
+            // Unsupported device: UI export succeeds, native HAL is blocked with warning in warnings
+            QVERIFY2(res.success, qPrintable(QString("Device %1 is unsupported but UI export failed: %2").arg(devName, res.errorMessage)));
+            bool hasPackWarning = false;
+            for (const QString& w : res.warnings) {
+                if (w.contains(QString("No driver pack for %1; import one").arg(devName))) {
+                    hasPackWarning = true;
+                    break;
+                }
+            }
+            QVERIFY2(hasPackWarning, qPrintable(QString("Expected warning 'No driver pack for %1; import one' in warnings").arg(devName)));
 
             // No HAL files must be produced
             QVERIFY(!QFile::exists(QDir(tempDir.path()).filePath("generated/target/target_hal.h")));
             QVERIFY(!QFile::exists(QDir(tempDir.path()).filePath("generated/target/target_hal.c")));
 
+            // UI files MUST be produced
+            QVERIFY(QFile::exists(QDir(tempDir.path()).filePath("generated/ui/ui.h")));
+            QVERIFY(QFile::exists(QDir(tempDir.path()).filePath("generated/ui/ui.c")));
+
             blockedCount++;
-            qDebug() << "Unsupported device correctly blocked:" << devName << "->" << res.errorMessage;
+            qDebug() << "Unsupported device native HAL correctly blocked (UI exported):" << devName;
         } else {
             // Supported device: export succeeds and HAL is generated per-family
             QVERIFY2(res.success, qPrintable(QString("Device %1 has pack %2 but export failed: %3")
@@ -962,6 +976,288 @@ void TestExportValidation::testUserFilesUntouched() {
         }
     }
     QVERIFY(mainPreserved);
+}
+
+void TestExportValidation::testUiExportWorksForUnsupportedDeviceWithoutHal() {
+    FirmwareExportManager exportMgr;
+
+    // Test 1: STM32H745 with LVGL
+    CanvasScene sceneLvgl;
+    Project projectLvgl(&sceneLvgl);
+    projectLvgl.setProjectName("H745_Lvgl");
+    Hardware::HardwareConfig hwH7;
+    hwH7.deviceId = "STM32H745";
+    hwH7.family = "STM32";
+    projectLvgl.setHardwareConfig(hwH7);
+
+    QTemporaryDir dirLvgl;
+    QVERIFY(dirLvgl.isValid());
+    ExportOptions optsLvgl;
+    optsLvgl.outputDirectory = dirLvgl.path();
+    optsLvgl.targetFramework = "lvgl";
+    optsLvgl.targetMcu = "STM32H745";
+    optsLvgl.forceExport = true;
+
+    ExportResult resLvgl = exportMgr.exportProject(&projectLvgl, optsLvgl);
+    QVERIFY(resLvgl.success);
+
+    // UI code is fully exported
+    QVERIFY(QFile::exists(QDir(dirLvgl.path()).filePath("generated/ui/ui.h")));
+    QVERIFY(QFile::exists(QDir(dirLvgl.path()).filePath("generated/ui/ui.c")));
+    QVERIFY(QFile::exists(QDir(dirLvgl.path()).filePath("generated/bindings/ui_bindings.h")));
+    QVERIFY(QFile::exists(QDir(dirLvgl.path()).filePath("generated/bindings/ui_bindings.c")));
+    QVERIFY(QFile::exists(QDir(dirLvgl.path()).filePath("generated/MANIFEST.json")));
+
+    // Native HAL is blocked (no target_hal.* files)
+    QVERIFY(!QFile::exists(QDir(dirLvgl.path()).filePath("generated/target/target_hal.h")));
+    QVERIFY(!QFile::exists(QDir(dirLvgl.path()).filePath("generated/target/target_hal.c")));
+
+    // Warning logged in result
+    bool foundH7Warn = false;
+    for (const QString& w : resLvgl.warnings) {
+        if (w.contains("No driver pack for STM32H745; import one")) {
+            foundH7Warn = true;
+            break;
+        }
+    }
+    QVERIFY(foundH7Warn);
+
+    // Test Problems dock diagnostics
+    projectLvgl.setFirmwareDirectory(dirLvgl.path());
+    Diagnostics::DiagnosticsService diagService;
+    Diagnostics::DiagnosticsSources::registerBuiltinSources(diagService);
+    diagService.setProject(&projectLvgl);
+    QVector<Diagnostics::Diagnostic> diags = diagService.runNow();
+    bool foundDiag = false;
+    for (const auto& d : diags) {
+        if (d.source == "DriverPack" && d.message.contains("No driver pack for STM32H745; import one")) {
+            QCOMPARE(d.severity, Diagnostics::Diagnostic::Severity::Error);
+            foundDiag = true;
+            break;
+        }
+    }
+    QVERIFY(foundDiag);
+
+    // Test 2: STM32H745 with Qt for MCUs
+    CanvasScene sceneQt;
+    Project projectQt(&sceneQt);
+    projectQt.setProjectName("H745_QtMcu");
+    projectQt.setHardwareConfig(hwH7);
+
+    QTemporaryDir dirQt;
+    QVERIFY(dirQt.isValid());
+    ExportOptions optsQt;
+    optsQt.outputDirectory = dirQt.path();
+    optsQt.targetFramework = "qt-for-mcus";
+    optsQt.targetMcu = "STM32H745";
+    optsQt.forceExport = true;
+
+    ExportResult resQt = exportMgr.exportProject(&projectQt, optsQt);
+    QVERIFY(resQt.success);
+
+    // QML is fully exported
+    QVERIFY(QFile::exists(QDir(dirQt.path()).filePath("generated/ui/MainScreen.qml")));
+    // Native HAL is blocked
+    QVERIFY(!QFile::exists(QDir(dirQt.path()).filePath("generated/target/target_hal.h")));
+    QVERIFY(!QFile::exists(QDir(dirQt.path()).filePath("generated/target/target_hal.c")));
+}
+
+void TestExportValidation::testManifestSafetyRejectsPathTraversalAndExternalSymlinks() {
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("SafetyProject");
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    project.setHardwareConfig(hw);
+
+    FirmwareExportManager exportMgr;
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportOptions opts;
+    opts.outputDirectory = dir.path();
+    opts.targetFramework = "lvgl";
+    opts.targetMcu = "STM32F030R8";
+    opts.forceExport = true;
+
+    ExportResult res1 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res1.success);
+
+    // Create external target files that must NEVER be touched
+    QString extDirPath = dir.path() + "/../outside_vault_" + QString::number(QCoreApplication::applicationPid());
+    QDir().mkpath(extDirPath);
+    QString outsideTraverseFile = extDirPath + "/secret_relative.txt";
+    QFile fOut1(outsideTraverseFile);
+    QVERIFY(fOut1.open(QIODevice::WriteOnly | QIODevice::Text));
+    fOut1.write("DO_NOT_DELETE_RELATIVE");
+    fOut1.close();
+
+    QString outsideAbsFile = extDirPath + "/secret_absolute.txt";
+    QFile fOut2(outsideAbsFile);
+    QVERIFY(fOut2.open(QIODevice::WriteOnly | QIODevice::Text));
+    fOut2.write("DO_NOT_DELETE_ABSOLUTE");
+    fOut2.close();
+
+    QString outsideSymlinkTarget = extDirPath + "/secret_symlink_target.txt";
+    QFile fOut3(outsideSymlinkTarget);
+    QVERIFY(fOut3.open(QIODevice::WriteOnly | QIODevice::Text));
+    fOut3.write("DO_NOT_DELETE_SYMLINK");
+    fOut3.close();
+
+    // Create symlink inside generated/ pointing outside
+    QString symlinkInGenerated = QDir(dir.path()).filePath("generated/symlink_escape.c");
+    QFile::link(outsideSymlinkTarget, symlinkInGenerated);
+    QVERIFY(QFile::exists(symlinkInGenerated));
+
+    // Maliciously tamper with generated/MANIFEST.json to inject path traversal and external paths
+    QString manifestPath = QDir(dir.path()).filePath("generated/MANIFEST.json");
+    QFile mfRead(manifestPath);
+    QVERIFY(mfRead.open(QIODevice::ReadOnly));
+    QJsonDocument doc = QJsonDocument::fromJson(mfRead.readAll());
+    mfRead.close();
+
+    QJsonObject obj = doc.object();
+    QJsonArray arr = obj.value("files").toArray();
+
+    // 1. Relative traversal
+    QJsonObject travEntry;
+    travEntry["file"] = "../outside_vault_" + QString::number(QCoreApplication::applicationPid()) + "/secret_relative.txt";
+    travEntry["sha256"] = "badhash1";
+    arr.append(travEntry);
+
+    // 2. Absolute path
+    QJsonObject absEntry;
+    absEntry["file"] = outsideAbsFile;
+    absEntry["sha256"] = "badhash2";
+    arr.append(absEntry);
+
+    // 3. Symlink pointing outside generated/
+    QJsonObject symEntry;
+    symEntry["file"] = "generated/symlink_escape.c";
+    symEntry["sha256"] = "badhash3";
+    arr.append(symEntry);
+
+    obj["files"] = arr;
+
+    QFile mfWrite(manifestPath);
+    QVERIFY(mfWrite.open(QIODevice::WriteOnly | QIODevice::Text));
+    mfWrite.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+    mfWrite.close();
+
+    // Regenerate project: must reject all unsafe entries and NEVER touch or backup external files
+    ExportResult res2 = exportMgr.exportProject(&project, opts);
+    QVERIFY(res2.success);
+
+    // 1. External files must still exist and be completely untouched
+    QVERIFY(QFile::exists(outsideTraverseFile));
+    QVERIFY(QFile::exists(outsideAbsFile));
+    QVERIFY(QFile::exists(outsideSymlinkTarget));
+
+    // 2. No backup of external files in generated/.backup/
+    QDir backupBaseDir(QDir(dir.path()).filePath("generated/.backup"));
+    if (backupBaseDir.exists()) {
+        QDirIterator it(backupBaseDir.path(), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString path = it.next();
+            QVERIFY(!path.contains("secret_relative"));
+            QVERIFY(!path.contains("secret_absolute"));
+            QVERIFY(!path.contains("secret_symlink"));
+        }
+    }
+
+    // 3. Rejected unsafe entries logged in warnings
+    bool sawRejected = false;
+    for (const QString& w : res2.warnings) {
+        if (w.contains("Rejected unsafe manifest entry")) {
+            sawRejected = true;
+            break;
+        }
+    }
+    QVERIFY(sawRejected);
+
+    // Cleanup external test dir
+    QFile::remove(outsideTraverseFile);
+    QFile::remove(outsideAbsFile);
+    QFile::remove(outsideSymlinkTarget);
+    QDir().rmdir(extDirPath);
+}
+
+void TestExportValidation::testCompileCheckArmGccSyntax() {
+    FirmwareExportManager exportMgr;
+
+    // 1. STM32F030R8 (Cortex-M0)
+    CanvasScene sceneF0;
+    Project projF0(&sceneF0);
+    projF0.setProjectName("F030_Syntax");
+    Hardware::HardwareConfig hwF0;
+    hwF0.deviceId = "STM32F030R8";
+    hwF0.family = "STM32";
+    projF0.setHardwareConfig(hwF0);
+
+    QTemporaryDir dirF0;
+    QVERIFY(dirF0.isValid());
+    ExportOptions optsF0;
+    optsF0.outputDirectory = dirF0.path();
+    optsF0.targetFramework = "lvgl";
+    optsF0.targetMcu = "STM32F030R8";
+    optsF0.forceExport = true;
+    ExportResult resF0 = exportMgr.exportProject(&projF0, optsF0);
+    QVERIFY(resF0.success);
+
+    QString f0CPath = QDir(dirF0.path()).filePath("generated/target/target_hal.c");
+    QVERIFY(QFile::exists(f0CPath));
+
+    QProcess procF0;
+    QStringList argsF0 = {
+        "-mcpu=cortex-m0", "-mthumb", "-fsyntax-only",
+        f0CPath,
+        "-I" + QDir(dirF0.path()).filePath("generated/target")
+    };
+    procF0.start("arm-none-eabi-gcc", argsF0);
+    QVERIFY(procF0.waitForFinished(10000));
+    QCOMPARE(procF0.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(procF0.exitCode(), 0);
+
+    // 2. STM32F401 (Cortex-M4)
+    CanvasScene sceneF4;
+    Project projF4(&sceneF4);
+    projF4.setProjectName("F401_Syntax");
+    Hardware::HardwareConfig hwF4;
+    hwF4.deviceId = "STM32F401";
+    hwF4.family = "STM32";
+    projF4.setHardwareConfig(hwF4);
+
+    QTemporaryDir dirF4;
+    QVERIFY(dirF4.isValid());
+    QDir targetDirF4(QDir(dirF4.path()).filePath("generated/target"));
+    targetDirF4.mkpath(".");
+    QFile shimF4(targetDirF4.filePath("stm32f4xx_hal.h"));
+    QVERIFY(shimF4.open(QIODevice::WriteOnly | QIODevice::Text));
+    shimF4.write("#pragma once\n#include <stdint.h>\n");
+    shimF4.close();
+
+    ExportOptions optsF4;
+    optsF4.outputDirectory = dirF4.path();
+    optsF4.targetFramework = "lvgl";
+    optsF4.targetMcu = "STM32F401";
+    optsF4.forceExport = true;
+    ExportResult resF4 = exportMgr.exportProject(&projF4, optsF4);
+    QVERIFY(resF4.success);
+
+    QString f4CPath = targetDirF4.filePath("target_hal.c");
+    QVERIFY(QFile::exists(f4CPath));
+
+    QProcess procF4;
+    QStringList argsF4 = {
+        "-mcpu=cortex-m4", "-mthumb", "-fsyntax-only",
+        f4CPath,
+        "-I" + targetDirF4.absolutePath()
+    };
+    procF4.start("arm-none-eabi-gcc", argsF4);
+    QVERIFY(procF4.waitForFinished(10000));
+    QCOMPARE(procF4.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(procF4.exitCode(), 0);
 }
 
 QTEST_MAIN(TestExportValidation)
