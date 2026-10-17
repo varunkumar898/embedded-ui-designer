@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QCoreApplication>
 #include <QFileInfo>
+#include <QDirIterator>
 
 #include "analyzer/ResourceAnalysis.h"
 #include "analyzer/ResourceEstimator.h"
@@ -46,6 +47,7 @@ private slots:
     void testOptimizeHeaviestComponents();
     void testRegressionGeneratorOutputUnchanged();
     void testEstimationBaselinesDefaultsAuthoritative();
+    void testEmptyFolderExportForAllDatabaseDevices();
 };
 
 void TestExportValidation::initTestCase() {
@@ -445,6 +447,70 @@ void TestExportValidation::testEstimationBaselinesDefaultsAuthoritative() {
     QCOMPARE(buttonAfter.flash, buttonBefore.flash);
     QCOMPARE(buttonAfter.ram, buttonBefore.ram);
     QCOMPARE(buttonAfter.cpu_percent, buttonBefore.cpu_percent);
+}
+
+void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
+    CapabilityDatabase db;
+    QStringList devices = db.listAllDevices();
+    FirmwareExportManager exportMgr;
+
+    qDebug() << "\n=== EMPTY-FOLDER EXPORT TEST FOR ALL DATABASE DEVICES ===";
+    qDebug() << "Total devices to test:" << devices.size();
+
+    int f030LeakageCount = 0;
+    for (const QString& devName : devices) {
+        CanvasScene scene;
+        Project project(&scene);
+        project.setProjectName("App_" + devName);
+
+        Hardware::HardwareConfig hw;
+        hw.deviceId = devName;
+        hw.targetType = "device";
+        // Also get family from profile if available
+        DeviceProfile prof = db.getDeviceProfile(devName);
+        hw.family = prof.family;
+        project.setHardwareConfig(hw);
+
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        ExportOptions opts;
+        opts.outputDirectory = tempDir.path();
+        opts.targetFramework = "lvgl";
+        opts.forceExport = true;
+        opts.targetMcu = devName;
+
+        ExportResult res = exportMgr.exportProject(&project, opts);
+        QVERIFY(res.success);
+
+        // Scan all generated files for F030R8-specific strings
+        QStringList f030Matches;
+        QDirIterator it(tempDir.path(), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString filePath = it.next();
+            QFile f(filePath);
+            if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QString content = QString::fromUtf8(f.readAll());
+                QString relPath = QDir(tempDir.path()).relativeFilePath(filePath);
+                if (content.contains("STM32F030", Qt::CaseInsensitive) ||
+                    content.contains("F030R8", Qt::CaseInsensitive) ||
+                    content.contains("NUCLEO-F030R8", Qt::CaseInsensitive) ||
+                    content.contains("nucleo_f030r8", Qt::CaseInsensitive)) {
+                    f030Matches.append(relPath);
+                }
+            }
+        }
+
+        if (devName == "STM32F030R8") {
+            qDebug() << "Device:" << devName << "(baseline) -> expected F030 matches in:" << f030Matches;
+        } else if (!f030Matches.isEmpty()) {
+            f030LeakageCount++;
+            qDebug() << "LEAK DETECTED for device:" << devName << "in files:" << f030Matches;
+        } else {
+            qDebug() << "Clean device (no F030 leakage):" << devName;
+        }
+    }
+    qDebug() << "Summary: devices with F030 leakage:" << f030LeakageCount << "/" << (devices.size() - 1);
 }
 
 QTEST_MAIN(TestExportValidation)
