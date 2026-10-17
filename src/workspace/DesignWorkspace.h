@@ -31,6 +31,9 @@ public:
 
     void syncWithProject(Project* project);
 
+    void setBoardBanner(QWidget* banner);
+    QWidget* boardBanner() const { return m_boardBanner; }
+
     // Zoom and view state preservation
     qreal currentZoom() const;
     void setZoom(qreal factor);
@@ -45,5 +48,6 @@ private:
     QVBoxLayout* m_layout = nullptr;
     CanvasView* m_canvasView = nullptr;
     ContextualTopToolbar* m_topToolbar = nullptr;
+    QWidget* m_boardBanner = nullptr;
     Project* m_project = nullptr;
 };

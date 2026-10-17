@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include <QPointer>
 #include "DisplayConfig.h"
+#include "BoardDisplayConfig.h"
 #include "CanvasScene.h"
 #include "ComponentDefinition.h"
 
@@ -14,6 +15,7 @@
 #include "Screen.h"
 #include "DataSource.h"
 #include "DataBinding.h"
+#include "analyzer/CapabilityDatabase.h"
 
 class Project : public QObject {
     Q_OBJECT
@@ -56,6 +58,12 @@ public:
 
     DisplayConfig displayConfig() const { return m_displayConfig; }
     void setDisplayConfig(const DisplayConfig& config);
+
+    // Task 5: Board & Display settings. All fields are optional in the saved
+    // file; when absent, the defaults reproduce the pre-Task-5 analyzer
+    // behaviour (full framebuffer, single buffer).
+    BoardDisplayConfig boardDisplayConfig() const { return m_boardDisplay; }
+    void setBoardDisplayConfig(const BoardDisplayConfig& config);
 
     bool isDirty() const { return m_dirty; }
     void setDirty(bool dirty);
@@ -121,6 +129,7 @@ public:
     // ── Universal Hardware Configuration ──────────────────────────────────
     Hardware::HardwareConfig hardwareConfig() const { return m_hardwareConfig; }
     void setHardwareConfig(const Hardware::HardwareConfig& config);
+    DeviceProfile getDeviceProfile() const;
 
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject& root);
@@ -136,6 +145,7 @@ signals:
     void firmwareDirectoryChanged(const QString& dir);
     void colorStylesChanged();
     void hardwareConfigChanged();
+    void boardDisplayConfigChanged();
 
     // Screen signals
     void screenAdded(Screen* screen);
@@ -167,6 +177,7 @@ private:
     QString m_targetBoard = "nucleo_f030r8"; // Default target board
     DisplayConfig m_displayConfig;
     Hardware::HardwareConfig m_hardwareConfig;
+    BoardDisplayConfig m_boardDisplay;
     bool m_dirty = false;
     QList<ComponentDefinition> m_componentLibrary;
 

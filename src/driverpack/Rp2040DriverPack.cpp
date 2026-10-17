@@ -1,5 +1,6 @@
 #include "Rp2040DriverPack.h"
 #include <sstream>
+#include <algorithm>
 
 namespace driverpack {
 
@@ -32,8 +33,18 @@ std::vector<McuDeviceSpec> Rp2040DriverPack::supportedDevices() const {
 }
 
 const McuDeviceSpec* Rp2040DriverPack::findDevice(const std::string& partNumber) const {
+    std::string upper = partNumber;
+    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+    if (upper.find("PICO 2") != std::string::npos || upper.find("PICO_2") != std::string::npos || upper.find("RP2350") != std::string::npos) {
+        return nullptr; // RP2350 / Pico 2 is a separate chip
+    }
     for (const auto& dev : devices) {
-        if (dev.partNumber == partNumber) return &dev;
+        std::string devUpper = dev.partNumber;
+        std::transform(devUpper.begin(), devUpper.end(), devUpper.begin(), ::toupper);
+        if (devUpper == upper) return &dev;
+    }
+    if (upper.find("RP2040") != std::string::npos || upper.find("PICO") != std::string::npos) {
+        if (!devices.empty()) return &devices[0];
     }
     return nullptr;
 }

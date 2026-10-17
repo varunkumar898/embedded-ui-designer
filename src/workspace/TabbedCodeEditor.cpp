@@ -1,5 +1,6 @@
 #include "TabbedCodeEditor.h"
 #include "CodeEditor.h"
+#include "DetachableTabWidget.h"
 #include "theme/Theme.h"
 
 #include <QVBoxLayout>
@@ -62,7 +63,7 @@ void TabbedCodeEditor::setupUi() {
     mainLayout->addWidget(topBar);
 
     // Tab Widget
-    m_tabWidget = new QTabWidget(this);
+    m_tabWidget = new DetachableTabWidget(this);
     m_tabWidget->setTabsClosable(true);
     m_tabWidget->setMovable(true);
     m_tabWidget->setDocumentMode(true);

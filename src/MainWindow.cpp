@@ -7,10 +7,12 @@
 #include "PinBindingDialog.h"
 #include "NewProjectDialog.h"
 #include "HardwareWizardDialog.h"
+#include "dialogs/InvalidBindingsDialog.h"
 #include "DeviceManager.h"
 #include "HardwareBridge.h"
 #include "HardwareManager.h"
 #include "SimulatorWindow.h"
+#include "hardware/BoardRegistry.h"
 #include "dialogs/AISettingsDialog.h"
 #include "panels/AIAssistantPanel.h"
 #include "dialogs/GitDialog.h"
@@ -34,11 +36,16 @@
 #include "panels/EffectsPanel.h"
 #include "panels/UploadsPanel.h"
 #include "panels/ResourceAnalyzerPanel.h"
+#include "panels/BoardDisplayPanel.h"
 #include "dialogs/ExportValidationDialog.h"
 #include "dialogs/ExportDialog.h"
 #include "panels/BuildOutputPanel.h"
 #include "panels/DeviceMonitorPanel.h"
+#include "panels/ProblemsPanel.h"
+#include "diagnostics/DiagnosticsService.h"
+#include "diagnostics/DiagnosticsSources.h"
 #include "analyzer/ResourceEstimator.h"
+#include "codegen/BackendRegistry.h"
 #include "project/QmlImporter.h"
 #include "importers/HtmlCssImporter.h"
 #include "ir/IRAdapter.h"
@@ -50,6 +57,11 @@
 #include "theme/Theme.h"
 #include "hardware/OpenOCDWorker.h"
 #include "workspace/CodeWorkspaceView.h"
+#include "workspace/TabbedCodeEditor.h"
+#include "workspace/ProjectExplorerWidget.h"
+#include "workspace/DetachableTabWidget.h"
+#include <QScreen>
+#include <QGuiApplication>
 #include <QStackedWidget>
 #include <QButtonGroup>
 #include <QProgressBar>
@@ -61,6 +73,7 @@
 #include <QStatusBar>
 #include <QKeySequence>
 #include <QDebug>
+#include <QSettings>
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -88,6 +101,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_project = new Project(m_scene, this);
     m_deviceManager = new DeviceManager(this);
 
+    m_diagnosticsService = new Diagnostics::DiagnosticsService(this);
+    Diagnostics::DiagnosticsSources::registerBuiltinSources(*m_diagnosticsService);
+    m_diagnosticsService->setProject(m_project);
+
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
         m_project->setDirty(!clean);
     });
@@ -97,30 +114,109 @@ MainWindow::MainWindow(QWidget *parent)
     m_contextualToolbar = m_topToolbar;
     m_floatingToolbar = new FloatingSelectionToolbar(m_view, m_scene, m_undoStack, m_view->viewport());
 
+    m_centralTabs = new DetachableTabWidget(this);
+    m_centralTabs->setObjectName("centralTabs");
+
     m_centralStack = new QStackedWidget(this);
 
     // Page 0: Visual Design Workspace
-    m_designWorkspace = new DesignWorkspace(m_centralStack);
+    m_designWorkspace = new DesignWorkspace(m_centralTabs);
     m_designWorkspace->setCanvasView(m_view);
     m_designWorkspace->setTopToolbar(m_topToolbar);
     m_designWorkspace->syncWithProject(m_project);
     m_designContainer = m_designWorkspace;
-    m_centralStack->addWidget(m_designWorkspace);
+
+    // Phase 3: Setup banner in editor
+    m_boardBanner = new QWidget(m_designWorkspace);
+    m_boardBanner->setObjectName("boardBanner");
+    QHBoxLayout* bannerLayout = new QHBoxLayout(m_boardBanner);
+    bannerLayout->setContentsMargins(12, 6, 12, 6);
+    bannerLayout->setSpacing(10);
+    m_boardBanner->setStyleSheet(QString(
+        "QWidget#boardBanner { "
+        "  background-color: #2a2415; "
+        "  border-bottom: 1px solid #d97706; "
+        "} "
+    ));
+
+    QLabel* bannerIcon = new QLabel("⚠", m_boardBanner);
+    bannerIcon->setStyleSheet("color: #f59e0b; font-size: 14px; font-weight: bold;");
+    bannerLayout->addWidget(bannerIcon);
+
+    QLabel* bannerLabel = new QLabel("No target board configured. Operating with placeholder generic board.", m_boardBanner);
+    bannerLabel->setObjectName("boardBannerLabel");
+    bannerLabel->setStyleSheet("color: #fef3c7; font-size: 12px; font-weight: 500;");
+    bannerLayout->addWidget(bannerLabel, 1);
+
+    QPushButton* btnChooseBoard = new QPushButton("Choose Board...", m_boardBanner);
+    btnChooseBoard->setObjectName("btnBannerChooseBoard");
+    btnChooseBoard->setCursor(Qt::PointingHandCursor);
+    btnChooseBoard->setStyleSheet(QString(
+        "QPushButton { "
+        "  background-color: #d97706; "
+        "  color: #ffffff; "
+        "  border: none; "
+        "  border-radius: %1px; "
+        "  padding: 4px 12px; "
+        "  font-weight: 600; "
+        "  font-size: 11px; "
+        "} "
+        "QPushButton:hover { background-color: #b45309; } "
+    ).arg(Theme::RadiusSm));
+    connect(btnChooseBoard, &QPushButton::clicked, this, &MainWindow::onChangeBoard);
+    bannerLayout->addWidget(btnChooseBoard);
+
+    m_designWorkspace->setBoardBanner(m_boardBanner);
+    m_boardBanner->hide();
+
+    m_centralTabs->addTab(m_designWorkspace, "Canvas");
 
     // Page 1: Firmware Code Workspace
-    m_codeWorkspace = new CodeWorkspaceView(m_project, m_deviceManager, m_centralStack);
-    m_centralStack->addWidget(m_codeWorkspace);
+    m_codeWorkspace = new CodeWorkspaceView(m_project, m_deviceManager, m_centralTabs);
+    m_centralTabs->addTab(m_codeWorkspace, "</> Code Workspace");
+
+    // Keep m_centralStack populated for compatibility
+    m_centralStack->addWidget(new QWidget(m_centralStack));
+    m_centralStack->addWidget(new QWidget(m_centralStack));
 
     m_workspaceManager = new WorkspaceManager(this, m_centralStack, m_designWorkspace, m_codeWorkspace, this);
     m_workspaceManager->setProject(m_project);
 
-    setCentralWidget(m_centralStack);
+    setCentralWidget(m_centralTabs);
+
+    connect(m_centralTabs, &QTabWidget::currentChanged, this, [this](int idx) {
+        if (m_inWorkspaceModeSwitch || idx < 0) return;
+        QWidget* w = m_centralTabs->widget(idx);
+        if (w == m_designWorkspace || w == m_designContainer) {
+            setWorkspaceMode(WorkspaceMode::Design);
+        } else if (w == m_codeWorkspace) {
+            setWorkspaceMode(WorkspaceMode::Code);
+        }
+    });
+
+    connect(m_centralTabs, &DetachableTabWidget::activeEditorChanged, this, [this](QWidget* activeWidget) {
+        if (!activeWidget) return;
+        CanvasView* view = qobject_cast<CanvasView*>(activeWidget);
+        if (!view) view = activeWidget->findChild<CanvasView*>();
+        if (view && m_propertiesPanel) {
+            m_propertiesPanel->setSelectedComponents(selectedComponents());
+        }
+    });
 
     connect(m_project, &Project::projectDirectoryChanged, this, [this](const QString&) {
         if (m_codeWorkspace) m_codeWorkspace->syncWithProject(m_project);
     });
     connect(m_project, &Project::projectLoaded, this, [this]() {
         if (m_codeWorkspace) m_codeWorkspace->syncWithProject(m_project);
+    });
+    connect(m_project, &Project::projectModified, this, [this]() {
+        if (m_codeWorkspace) {
+            QString err;
+            m_project->syncFirmwareFiles(&err);
+            if (m_codeWorkspace->projectExplorer()) {
+                m_codeWorkspace->projectExplorer()->refresh();
+            }
+        }
     });
 
     setupUi();
@@ -245,6 +341,14 @@ MainWindow::MainWindow(QWidget *parent)
             m_resourcePanel->setDevice(devId);
         }
     });
+    // Task 5: Board & Display edits refresh the analyzer immediately and ask the
+    // diagnostics service for a (debounced) recompute of the Problems list.
+    if (m_boardDisplayPanel) {
+        connect(m_boardDisplayPanel, &BoardDisplayPanel::settingsChanged, this, [this]() {
+            if (m_resourcePanel) m_resourcePanel->refresh();
+            if (m_diagnosticsService) m_diagnosticsService->scheduleRefresh(0);
+        });
+    }
     connect(m_scene, &CanvasScene::componentChanged, this, [this]() {
         if (m_resourcePanel) m_resourcePanel->refresh();
     });
@@ -255,6 +359,8 @@ MainWindow::MainWindow(QWidget *parent)
         if (m_resourcePanel) m_resourcePanel->refresh();
     });
 
+    setupDiagnostics();
+
 
     // ── Live MCP Controller & Local IPC Server ──────────────────────────────
     m_controller = new DesignerController(this, this);
@@ -262,9 +368,15 @@ MainWindow::MainWindow(QWidget *parent)
     m_localServer->start(8765);
 
     resize(1380, 880);
+
+    // First-run board onboarding check
+    QTimer::singleShot(0, this, [this]() {
+        checkFirstRunOnboarding();
+    });
 }
 
 MainWindow::~MainWindow() {
+    saveWindowLayout();
     stopLocalMcpServer();
     if (m_openocdThread) {
         if (m_openocdWorker) {
@@ -338,12 +450,24 @@ void MainWindow::setupUi() {
         }
     });
 
+    QPushButton* rescanBtn = new QPushButton("Rescan", statusWidget);
+    rescanBtn->setObjectName("hardwareRescanBtn");
+    rescanBtn->setCursor(Qt::PointingHandCursor);
+    rescanBtn->setToolTip("Rescan for connected USB debug probes");
+    rescanBtn->setStyleSheet(m_hardwareConnectBtn->styleSheet());
+    connect(rescanBtn, &QPushButton::clicked, this, [this]() {
+        HardwareBridge::instance().rescan();
+        updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
+                                  HardwareBridge::instance().connectedProbeName());
+    });
+
     statusLayout->addWidget(greenDot);
     statusLayout->addWidget(m_statusLabel);
     statusLayout->addSpacing(16);
     statusLayout->addWidget(m_hardwareStatusBadge);
     statusLayout->addSpacing(6);
     statusLayout->addWidget(m_hardwareConnectBtn);
+    statusLayout->addWidget(rescanBtn);
 
     updateHardwareStatusBadge(HardwareBridge::instance().isHardwareConnected(),
                               HardwareBridge::instance().connectedProbeName());
@@ -402,7 +526,7 @@ void MainWindow::updateHardwareStatusBadge(bool connected, const QString& probeN
             m_hardwareConnectBtn->setEnabled(true);
         }
     } else {
-        m_hardwareStatusBadge->setText("○ OpenOCD: Not Found (Simulated Mode)");
+        m_hardwareStatusBadge->setText("No probe connected (Not Found - Simulated Mode)");
         m_hardwareStatusBadge->setStyleSheet(QString(
             "color: %1; background-color: %2; border: 1px solid %1; "
             "border-radius: %3px; padding: 2px 8px; font-weight: bold; font-size: 11px;"
@@ -468,37 +592,69 @@ void MainWindow::setupMenusAndToolbars() {
     viewMenu->addAction("Reset Zoom (100%)", m_view, &CanvasView::resetZoom);
     viewMenu->addSeparator();
 
-    QAction* actBuildOutput = viewMenu->addAction("Build Output", this, [this]() {
+    m_actBuildOutput = viewMenu->addAction("Build Output", this, [this]() {
         if (m_buildDock) {
             m_buildDock->setVisible(!m_buildDock->isVisible());
         }
     });
-    actBuildOutput->setCheckable(true);
-    actBuildOutput->setChecked(false);
-    connect(m_buildDock, &QDockWidget::visibilityChanged, actBuildOutput, &QAction::setChecked);
+    m_actBuildOutput->setCheckable(true);
+    m_actBuildOutput->setChecked(false);
+    if (m_buildDock && m_actBuildOutput) {
+        connect(m_buildDock, &QDockWidget::visibilityChanged, m_actBuildOutput, &QAction::setChecked);
+    }
 
-    QAction* actDeviceMonitor = viewMenu->addAction("Device Monitor", this, [this]() {
+    m_actDeviceMonitor = viewMenu->addAction("Device Monitor", this, [this]() {
         if (m_deviceMonitorDock) {
             m_deviceMonitorDock->setVisible(!m_deviceMonitorDock->isVisible());
         }
     });
-    actDeviceMonitor->setCheckable(true);
-    actDeviceMonitor->setChecked(false);
-    connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, actDeviceMonitor, &QAction::setChecked);
+    m_actDeviceMonitor->setCheckable(true);
+    m_actDeviceMonitor->setChecked(false);
+    if (m_deviceMonitorDock && m_actDeviceMonitor) {
+        connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, m_actDeviceMonitor, &QAction::setChecked);
+    }
 
-    QAction* actResourceAnalyzer = viewMenu->addAction("Resource Analyzer", this, [this]() {
+    m_actProblems = viewMenu->addAction("Problems", this, [this]() {
+        if (m_problemsDock) {
+            m_problemsDock->setVisible(!m_problemsDock->isVisible());
+            if (m_problemsDock->isVisible()) m_problemsDock->raise();
+        }
+    });
+    m_actProblems->setCheckable(true);
+    m_actProblems->setChecked(false);
+    if (m_problemsDock && m_actProblems) {
+        connect(m_problemsDock, &QDockWidget::visibilityChanged, m_actProblems, &QAction::setChecked);
+    }
+
+    m_actResourceAnalyzer = viewMenu->addAction("Resource Analyzer", this, [this]() {
         if (m_resourceDock) {
             m_resourceDock->setVisible(!m_resourceDock->isVisible());
         }
     });
-    actResourceAnalyzer->setCheckable(true);
-    actResourceAnalyzer->setChecked(false);
-    connect(m_resourceDock, &QDockWidget::visibilityChanged, actResourceAnalyzer, &QAction::setChecked);
+    m_actResourceAnalyzer->setCheckable(true);
+    m_actResourceAnalyzer->setChecked(false);
+    if (m_resourceDock && m_actResourceAnalyzer) {
+        connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
+    }
+
+    m_actBoardDisplay = viewMenu->addAction("Board && Display", this, [this]() {
+        if (m_boardDisplayDock) {
+            m_boardDisplayDock->setVisible(!m_boardDisplayDock->isVisible());
+            if (m_boardDisplayDock->isVisible()) m_boardDisplayDock->raise();
+        }
+    });
+    m_actBoardDisplay->setCheckable(true);
+    m_actBoardDisplay->setChecked(false);
+    if (m_boardDisplayDock && m_actBoardDisplay) {
+        connect(m_boardDisplayDock, &QDockWidget::visibilityChanged, m_actBoardDisplay, &QAction::setChecked);
+    }
 
     viewMenu->addSeparator();
     viewMenu->addAction("Toggle AI Assistant Panel", this, [this]() {
         if (m_aiDockWidget) m_aiDockWidget->setVisible(!m_aiDockWidget->isVisible());
     });
+    viewMenu->addSeparator();
+    viewMenu->addAction("Reset Layout", this, &MainWindow::resetLayout, QKeySequence("Ctrl+Shift+R"));
 
     QMenu* projectMenu = menuBar()->addMenu("Project");
     projectMenu->addAction("Project Settings...", this, &MainWindow::onProjectSettingsDialog);
@@ -529,6 +685,50 @@ void MainWindow::setupMenusAndToolbars() {
     });
     deviceMenu->addAction("Serial Monitor...", this, &MainWindow::onSerialMonitor);
     deviceMenu->addAction("Flash Firmware...", this, &MainWindow::onFlashFirmware);
+    deviceMenu->addSeparator();
+    deviceMenu->addAction("Load Preset...", this, [this]() {
+        auto presets = BoardRegistry::instance().presets();
+        if (presets.isEmpty()) {
+            QMessageBox::information(this, "Load Preset", "No saved presets found.");
+            return;
+        }
+        QStringList names;
+        for (const auto& p : presets) names.append(p.name);
+        bool ok = false;
+        QString chosen = QInputDialog::getItem(this, "Load Preset", "Select preset to load:", names, 0, false, &ok);
+        if (ok && !chosen.isEmpty()) {
+            BoardRegistry::instance().selectPreset(chosen);
+            statusBar()->showMessage(QString("Preset '%1' loaded").arg(chosen), 3000);
+        }
+    });
+    deviceMenu->addAction("Save as Preset...", this, [this]() {
+        bool ok = false;
+        QString defaultName = BoardRegistry::instance().activePreset().name.isEmpty() ?
+            (BoardRegistry::instance().activeBoard().displayName + " Preset") :
+            BoardRegistry::instance().activePreset().name;
+        QString name = QInputDialog::getText(this, "Save Preset", "Preset Name:", QLineEdit::Normal, defaultName, &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            BoardRegistry::instance().savePreset(name.trimmed(), BoardRegistry::instance().activeBoard().id);
+            statusBar()->showMessage(QString("Preset '%1' saved").arg(name.trimmed()), 3000);
+        }
+    });
+    deviceMenu->addAction("Delete Preset...", this, [this]() {
+        auto presets = BoardRegistry::instance().presets();
+        if (presets.isEmpty()) {
+            QMessageBox::information(this, "Delete Preset", "No saved presets found.");
+            return;
+        }
+        QStringList names;
+        for (const auto& p : presets) names.append(p.name);
+        bool ok = false;
+        QString chosen = QInputDialog::getItem(this, "Delete Preset", "Select preset to delete:", names, 0, false, &ok);
+        if (ok && !chosen.isEmpty()) {
+            BoardRegistry::instance().deletePreset(chosen);
+            statusBar()->showMessage(QString("Preset '%1' deleted").arg(chosen), 3000);
+        }
+    });
+    deviceMenu->addSeparator();
+    deviceMenu->addAction("Change Board...", this, &MainWindow::onChangeBoard);
 
     QMenu* settingsMenu = menuBar()->addMenu("Settings");
     settingsMenu->addAction("AI Providers...", this, &MainWindow::onAISettingsDialog);
@@ -548,11 +748,38 @@ void MainWindow::setupMenusAndToolbars() {
         darkAction->setChecked(true);
     }
 
+    QMenu* windowMenu = menuBar()->addMenu("Window");
+    QMenu* moveMenu = windowMenu->addMenu("Move to Monitor");
+    connect(moveMenu, &QMenu::aboutToShow, this, [this, moveMenu]() {
+        moveMenu->clear();
+        const auto screens = QGuiApplication::screens();
+        for (int i = 0; i < screens.size(); ++i) {
+            QString label = QString("Monitor %1: %2x%3")
+                .arg(i + 1)
+                .arg(screens[i]->geometry().width())
+                .arg(screens[i]->geometry().height());
+            if (screens[i] == QGuiApplication::primaryScreen()) {
+                label += " (Primary)";
+            }
+            QAction* act = moveMenu->addAction(label);
+            connect(act, &QAction::triggered, this, [this, scr = screens[i]]() {
+                moveActiveWindowToScreen(scr);
+            });
+        }
+    });
+
+    windowMenu->addAction("Detach Canvas to Window", this, &MainWindow::detachCanvasWindow);
+    windowMenu->addAction("Detach Code Workspace to Window", this, &MainWindow::detachCodeWorkspaceWindow);
+    windowMenu->addAction("Re-dock All Detached Windows", this, &MainWindow::redockAllDetachedWindows);
+    windowMenu->addSeparator();
+    windowMenu->addAction("Reset Layout", this, &MainWindow::resetLayout, QKeySequence("Ctrl+Shift+R"));
+
     QMenu* helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction("About Embedded UI Designer", this, &MainWindow::onAbout);
 
     // Toolbar
     QToolBar* toolbar = addToolBar("Main Toolbar");
+    toolbar->setObjectName("mainToolbar");
     toolbar->setMovable(false);
     m_toolbar = toolbar;
 
@@ -682,6 +909,8 @@ void MainWindow::setupMenusAndToolbars() {
     QAction* zoomInAction = toolbar->addAction("+", m_view, &CanvasView::zoomIn);
     zoomInAction->setToolTip("Zoom in");
     toolbar->addAction("100%", m_view, &CanvasView::resetZoom);
+    toolbar->addSeparator();
+    toolbar->addAction("Change Board...", this, &MainWindow::onChangeBoard);
 
     // ============ NEW: LIVE TEST MODE BUTTON ============
 
@@ -691,6 +920,7 @@ void MainWindow::setupMenusAndToolbars() {
     m_liveTestButton->setCheckable(true);        // Makes it a toggle button
     m_liveTestButton->setChecked(false);         // Start OFF
     m_liveTestButton->setToolTip("Enable Live Test Mode (Ctrl+L)");
+    m_liveTestButton->setObjectName("liveTestButton");
 
     // Add button to toolbar
     m_toolbar->addSeparator();                   // Visual separator
@@ -712,11 +942,68 @@ void MainWindow::setupMenusAndToolbars() {
     // ============ END: LIVE TEST MODE BUTTON ============
 }
 
+void MainWindow::setDockCollapsed(QDockWidget* dock, bool collapsed, QPushButton* minBtn) {
+    if (!dock) return;
+    QWidget* content = dock->widget();
+    QWidget* titleBar = dock->titleBarWidget();
+    if (!minBtn && titleBar) {
+        minBtn = titleBar->findChild<QPushButton*>("dockMinButton");
+    }
+
+    int titleH = (titleBar && titleBar->sizeHint().height() > 0) ? titleBar->sizeHint().height() : 32;
+    if (titleH > 32) titleH = 32;
+
+    // Cache original constraints if not yet cached
+    if (!dock->property("origConstraintsCached").toBool()) {
+        dock->setProperty("origMinWidth", dock->minimumWidth());
+        dock->setProperty("origMaxWidth", dock->maximumWidth());
+        dock->setProperty("origMinHeight", dock->minimumHeight());
+        dock->setProperty("origMaxHeight", dock->maximumHeight());
+        dock->setProperty("origConstraintsCached", true);
+    }
+
+    int origMinW = dock->property("origMinWidth").toInt();
+    int origMaxW = dock->property("origMaxWidth").toInt();
+    int origMinH = dock->property("origMinHeight").toInt();
+    int origMaxH = dock->property("origMaxHeight").toInt();
+
+    dock->setProperty("isCollapsed", collapsed);
+
+    if (collapsed) {
+        if (content) content->setVisible(false);
+        dock->setMinimumHeight(titleH);
+        dock->setMaximumHeight(titleH);
+        if (minBtn) {
+            minBtn->setText("+");
+            minBtn->setToolTip("Restore Panel");
+        }
+    } else {
+        if (content) content->setVisible(true);
+        dock->setMinimumHeight(origMinH > 0 ? origMinH : 0);
+        dock->setMaximumHeight(origMaxH > 0 ? origMaxH : QWIDGETSIZE_MAX);
+        dock->setMinimumWidth(origMinW > 0 ? origMinW : 0);
+        dock->setMaximumWidth(origMaxW > 0 ? origMaxW : QWIDGETSIZE_MAX);
+        if (minBtn) {
+            minBtn->setText("—");
+            minBtn->setToolTip("Minimize Panel");
+        }
+    }
+
+    QString dockId = !dock->objectName().isEmpty() ? dock->objectName() : dock->windowTitle().remove(' ');
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    settings.setValue(QString("dock/%1/collapsed").arg(dockId), collapsed);
+}
+
+bool MainWindow::isDockCollapsed(QDockWidget* dock) {
+    return dock ? dock->property("isCollapsed").toBool() : false;
+}
+
 static QWidget* createDockTitleBar(const QString& titleText, QDockWidget* dock) {
     QWidget* bar = new QWidget(dock);
     bar->setObjectName("customDockTitle");
+    bar->setFixedHeight(32);
     QHBoxLayout* l = new QHBoxLayout(bar);
-    l->setContentsMargins(12, 6, 12, 6);
+    l->setContentsMargins(12, 4, 12, 4);
     l->setSpacing(8);
 
     QLabel* label = new QLabel(titleText, bar);
@@ -726,15 +1013,100 @@ static QWidget* createDockTitleBar(const QString& titleText, QDockWidget* dock) 
     l->addStretch(1);
 
     QPushButton* minBtn = new QPushButton("—", bar);
-    minBtn->setFixedSize(20, 20);
-    minBtn->setObjectName("flatButton");
+    minBtn->setFixedSize(22, 22);
+    minBtn->setObjectName("dockMinButton");
+    minBtn->setToolTip("Minimize Panel");
+    minBtn->setCursor(Qt::PointingHandCursor);
+    minBtn->setStyleSheet(QString(
+        "QPushButton#dockMinButton { "
+        "  background: transparent; "
+        "  border: none; "
+        "  color: %1; "
+        "  font-size: 12px; "
+        "  font-weight: bold; "
+        "  border-radius: 3px; "
+        "} "
+        "QPushButton#dockMinButton:hover { "
+        "  background-color: %2; "
+        "  color: %3; "
+        "}"
+    ).arg(Theme::TextMuted, Theme::BgRaised, Theme::TextPrimary));
     l->addWidget(minBtn);
 
+    QObject::connect(minBtn, &QPushButton::clicked, dock, [dock, minBtn]() {
+        bool currentlyCollapsed = dock->property("isCollapsed").toBool();
+        MainWindow::setDockCollapsed(dock, !currentlyCollapsed, minBtn);
+    });
+
     QPushButton* closeBtn = new QPushButton("✕", bar);
-    closeBtn->setFixedSize(20, 20);
-    closeBtn->setObjectName("flatButton");
+    closeBtn->setFixedSize(22, 22);
+    closeBtn->setObjectName("dockCloseButton");
+    closeBtn->setToolTip("Close Panel");
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    closeBtn->setStyleSheet(QString(
+        "QPushButton#dockCloseButton { "
+        "  background: transparent; "
+        "  border: none; "
+        "  color: %1; "
+        "  font-size: 11px; "
+        "  border-radius: 3px; "
+        "} "
+        "QPushButton#dockCloseButton:hover { "
+        "  background-color: rgba(235, 87, 87, 0.2); "
+        "  color: #ff6b6b; "
+        "}"
+    ).arg(Theme::TextMuted));
     QObject::connect(closeBtn, &QPushButton::clicked, dock, &QDockWidget::close);
     l->addWidget(closeBtn);
+
+    bar->setContextMenuPolicy(Qt::CustomContextMenu);
+    QObject::connect(bar, &QWidget::customContextMenuRequested, dock, [dock, bar](const QPoint& pos) {
+        QMenu menu(bar);
+        bool isFloating = dock->isFloating();
+        QAction* detachAct = menu.addAction(isFloating ? "Dock panel" : "Detach panel");
+        QObject::connect(detachAct, &QAction::triggered, dock, [dock, isFloating]() {
+            dock->setFloating(!isFloating);
+            if (!isFloating) {
+                dock->raise();
+                dock->activateWindow();
+            }
+        });
+
+        QMenu* monitorSubMenu = menu.addMenu("Move to Monitor");
+        const auto screens = QGuiApplication::screens();
+        for (int i = 0; i < screens.size(); ++i) {
+            QString name = QString("Monitor %1: %2x%3")
+                .arg(i + 1)
+                .arg(screens[i]->geometry().width())
+                .arg(screens[i]->geometry().height());
+            if (screens[i] == QGuiApplication::primaryScreen()) {
+                name += " (Primary)";
+            }
+            QAction* scrAct = monitorSubMenu->addAction(name);
+            QObject::connect(scrAct, &QAction::triggered, dock, [dock, scr = screens[i]]() {
+                if (!dock->isFloating()) {
+                    dock->setFloating(true);
+                }
+                QRect avail = scr->availableGeometry();
+                QSize sz = dock->size();
+                int x = avail.x() + qMax(0, (avail.width() - sz.width()) / 2);
+                int y = avail.y() + qMax(0, (avail.height() - sz.height()) / 2);
+                dock->move(x, y);
+                dock->raise();
+                dock->activateWindow();
+            });
+        }
+
+        menu.addSeparator();
+        bool currentlyCollapsed = dock->property("isCollapsed").toBool();
+        QAction* minAct = menu.addAction(currentlyCollapsed ? "Restore panel" : "Minimize panel");
+        QObject::connect(minAct, &QAction::triggered, dock, [dock]() {
+            bool col = dock->property("isCollapsed").toBool();
+            MainWindow::setDockCollapsed(dock, !col);
+        });
+
+        menu.exec(bar->mapToGlobal(pos));
+    });
 
     return bar;
 }
@@ -745,9 +1117,26 @@ void MainWindow::setupDocks() {
     setCorner(Qt::TopRightCorner, Qt::RightDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
 
+    setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks);
+
+    auto configureDock = [](QDockWidget* dock, const QString& objName, int minW, int maxW, int minH, int maxH) {
+        dock->setObjectName(objName);
+        dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+        if (minW > 0) dock->setMinimumWidth(minW);
+        if (maxW > 0) dock->setMaximumWidth(maxW);
+        if (minH > 0) dock->setMinimumHeight(minH);
+        if (maxH > 0) dock->setMaximumHeight(maxH);
+        dock->setProperty("origMinWidth", minW);
+        dock->setProperty("origMaxWidth", maxW);
+        dock->setProperty("origMinHeight", minH);
+        dock->setProperty("origMaxHeight", maxH);
+        dock->setProperty("origConstraintsCached", true);
+    };
+
     // Left Dock: Components Palette
     QDockWidget* paletteDock = new QDockWidget("Components", this);
     m_paletteDock = paletteDock;
+    configureDock(paletteDock, "paletteDock", 180, 500, 0, QWIDGETSIZE_MAX);
     paletteDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     paletteDock->setTitleBarWidget(createDockTitleBar("Components", paletteDock));
     m_palette = new ComponentPalette(paletteDock);
@@ -757,6 +1146,7 @@ void MainWindow::setupDocks() {
     // Left Dock: Screens Panel
     QDockWidget* screensDock = new QDockWidget("Screens", this);
     m_screensDock = screensDock;
+    configureDock(screensDock, "screensDock", 180, 500, 0, QWIDGETSIZE_MAX);
     screensDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     screensDock->setTitleBarWidget(createDockTitleBar("Screens", screensDock));
     m_screensPanel = new ScreensPanel(m_project, screensDock);
@@ -820,6 +1210,7 @@ void MainWindow::setupDocks() {
 
     // Left Dock: Uploads & Assets Panel
     m_uploadsDock = new QDockWidget("Uploads", this);
+    configureDock(m_uploadsDock, "uploadsDock", 180, 500, 0, QWIDGETSIZE_MAX);
     m_uploadsDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_uploadsDock->setTitleBarWidget(createDockTitleBar("Uploads & Assets", m_uploadsDock));
     m_uploadsPanel = new UploadsPanel(m_scene, m_undoStack, m_project, m_uploadsDock);
@@ -830,7 +1221,7 @@ void MainWindow::setupDocks() {
     // Right Top Dock: Properties Panel
     QDockWidget* propDock = new QDockWidget("Properties", this);
     m_propDock = propDock;
-    propDock->setObjectName("propertiesDock");
+    configureDock(propDock, "propertiesDock", 220, 600, 0, QWIDGETSIZE_MAX);
     propDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     propDock->setTitleBarWidget(createDockTitleBar("Properties", propDock));
     m_propertiesPanel = new PropertiesPanel(propDock);
@@ -841,6 +1232,7 @@ void MainWindow::setupDocks() {
 
     // Right Top Dock: Effects Panel (Canva-inspired)
     m_effectsDock = new QDockWidget("Effects", this);
+    configureDock(m_effectsDock, "effectsDock", 220, 600, 0, QWIDGETSIZE_MAX);
     m_effectsDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     m_effectsDock->setTitleBarWidget(createDockTitleBar("Effects & Adjustments", m_effectsDock));
     m_effectsPanel = new EffectsPanel(m_scene, m_undoStack, m_effectsDock);
@@ -850,6 +1242,7 @@ void MainWindow::setupDocks() {
 
     QDockWidget* prototypeDock = new QDockWidget("Prototype", this);
     m_prototypeDock = prototypeDock;
+    configureDock(prototypeDock, "prototypeDock", 220, 600, 0, QWIDGETSIZE_MAX);
     prototypeDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     prototypeDock->setTitleBarWidget(createDockTitleBar("Prototype", prototypeDock));
     m_prototypePanel = new PrototypePanel(m_scene, prototypeDock);
@@ -861,6 +1254,7 @@ void MainWindow::setupDocks() {
     // Right Bottom Dock: Layer Panel
     QDockWidget* layerDock = new QDockWidget("Layers", this);
     m_layerDock = layerDock;
+    configureDock(layerDock, "layerDock", 200, 600, 0, QWIDGETSIZE_MAX);
     layerDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     layerDock->setTitleBarWidget(createDockTitleBar("Layers", layerDock));
     m_layerPanel = new LayerPanel(m_scene, layerDock);
@@ -870,6 +1264,7 @@ void MainWindow::setupDocks() {
     // Right Dock: Named Color Styles (tabified with Layers)
     QDockWidget* stylesDock = new QDockWidget("Color Styles", this);
     m_stylesDock = stylesDock;
+    configureDock(stylesDock, "stylesDock", 200, 600, 0, QWIDGETSIZE_MAX);
     stylesDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     stylesDock->setTitleBarWidget(createDockTitleBar("Color Styles", stylesDock));
     m_stylesPanel = new StylesPanel(m_project, stylesDock);
@@ -879,6 +1274,7 @@ void MainWindow::setupDocks() {
 
     // Right Dock: AI Assistant Panel
     m_aiDockWidget = new QDockWidget("AI Assistant", this);
+    configureDock(m_aiDockWidget, "aiDockWidget", 240, 700, 0, QWIDGETSIZE_MAX);
     m_aiDockWidget->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     m_aiDockWidget->setTitleBarWidget(createDockTitleBar("AI Assistant", m_aiDockWidget));
     m_aiAssistantPanel = new AI::AIAssistantPanel(m_controller, m_project, m_undoStack, m_aiDockWidget);
@@ -889,6 +1285,7 @@ void MainWindow::setupDocks() {
     // Right Dock: Resource Analyzer Panel (Phase 2.1)
     m_resourceDock = new QDockWidget("Resource Analyzer", this);
     m_resourceAnalyzerPanel = m_resourceDock;
+    configureDock(m_resourceDock, "resourceDock", 220, 600, 0, QWIDGETSIZE_MAX);
     m_resourceDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     m_resourceDock->setTitleBarWidget(createDockTitleBar("Resource Analyzer", m_resourceDock));
     m_resourcePanel = new ResourceAnalyzerPanel(m_resourceDock);
@@ -897,8 +1294,20 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::RightDockWidgetArea, m_resourceDock);
     tabifyDockWidget(m_aiDockWidget, m_resourceDock);
 
+    // Right Dock: Board & Display (Task 5), tabified with the Resource Analyzer.
+    m_boardDisplayDock = new QDockWidget("Board & Display", this);
+    configureDock(m_boardDisplayDock, "boardDisplayDock", 240, 650, 0, QWIDGETSIZE_MAX);
+    m_boardDisplayDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
+    m_boardDisplayDock->setTitleBarWidget(createDockTitleBar("Board & Display", m_boardDisplayDock));
+    m_boardDisplayPanel = new BoardDisplayPanel(m_boardDisplayDock);
+    m_boardDisplayPanel->setProject(m_project);
+    m_boardDisplayDock->setWidget(m_boardDisplayPanel);
+    addDockWidget(Qt::RightDockWidgetArea, m_boardDisplayDock);
+    tabifyDockWidget(m_resourceDock, m_boardDisplayDock);
+
     // Bottom Dock: Build & Compiler Output
     m_buildDock = new QDockWidget("Build Output", this);
+    configureDock(m_buildDock, "buildDock", 200, QWIDGETSIZE_MAX, 100, 600);
     m_buildDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
     m_buildDock->setTitleBarWidget(createDockTitleBar("Build Output", m_buildDock));
     m_buildOutputPanel = new BuildOutputPanel(m_project, m_buildDock);
@@ -908,6 +1317,7 @@ void MainWindow::setupDocks() {
 
     // Bottom Dock: Device Monitor (Live Telemetry)
     m_deviceMonitorDock = new QDockWidget("Device Monitor", this);
+    configureDock(m_deviceMonitorDock, "deviceMonitorDock", 200, QWIDGETSIZE_MAX, 100, 600);
     m_deviceMonitorDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
     m_deviceMonitorDock->setTitleBarWidget(createDockTitleBar("Device Monitor", m_deviceMonitorDock));
     m_deviceMonitorPanel = new DeviceMonitorPanel(m_project, m_deviceMonitorDock);
@@ -916,6 +1326,39 @@ void MainWindow::setupDocks() {
     addDockWidget(Qt::BottomDockWidgetArea, m_deviceMonitorDock);
     tabifyDockWidget(m_buildDock, m_deviceMonitorDock);
     m_deviceMonitorDock->hide();
+
+    // Bottom Dock: Problems (project diagnostics)
+    m_problemsDock = new QDockWidget("Problems", this);
+    configureDock(m_problemsDock, "problemsDock", 200, 750, 100, 600);
+    m_problemsDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
+    m_problemsDock->setTitleBarWidget(createDockTitleBar("Problems", m_problemsDock));
+    m_problemsPanel = new ProblemsPanel(m_diagnosticsService, m_problemsDock);
+    m_problemsDock->setWidget(m_problemsPanel);
+    addDockWidget(Qt::BottomDockWidgetArea, m_problemsDock);
+    tabifyDockWidget(m_deviceMonitorDock, m_problemsDock);
+    m_problemsDock->hide();
+
+    if (m_actProblems && m_problemsDock) {
+        connect(m_problemsDock, &QDockWidget::visibilityChanged, m_actProblems, &QAction::setChecked);
+        m_actProblems->setChecked(m_problemsDock->isVisible());
+    }
+
+    if (m_actResourceAnalyzer && m_resourceDock) {
+        connect(m_resourceDock, &QDockWidget::visibilityChanged, m_actResourceAnalyzer, &QAction::setChecked);
+        m_actResourceAnalyzer->setChecked(m_resourceDock->isVisible());
+    }
+    if (m_actBoardDisplay && m_boardDisplayDock) {
+        connect(m_boardDisplayDock, &QDockWidget::visibilityChanged, m_actBoardDisplay, &QAction::setChecked);
+        m_actBoardDisplay->setChecked(m_boardDisplayDock->isVisible());
+    }
+    if (m_actBuildOutput && m_buildDock) {
+        connect(m_buildDock, &QDockWidget::visibilityChanged, m_actBuildOutput, &QAction::setChecked);
+        m_actBuildOutput->setChecked(m_buildDock->isVisible());
+    }
+    if (m_actDeviceMonitor && m_deviceMonitorDock) {
+        connect(m_deviceMonitorDock, &QDockWidget::visibilityChanged, m_actDeviceMonitor, &QAction::setChecked);
+        m_actDeviceMonitor->setChecked(m_deviceMonitorDock->isVisible());
+    }
 
     resizeDocks({paletteDock, screensDock, m_uploadsDock}, {210, 210, 210}, Qt::Horizontal);
     resizeDocks({propDock, m_effectsDock, prototypeDock, layerDock, stylesDock, m_aiDockWidget, m_resourceDock}, {260, 260, 260, 260, 260, 260, 260}, Qt::Horizontal);
@@ -932,6 +1375,7 @@ void MainWindow::setupDocks() {
         m_workspaceManager->registerDesignDock("styles", m_stylesDock);
         m_workspaceManager->registerDesignDock("ai", m_aiDockWidget);
         m_workspaceManager->registerDesignDock("resource", m_resourceDock);
+        m_workspaceManager->registerDesignDock("boardDisplay", m_boardDisplayDock);
         m_workspaceManager->registerDesignDock("mcu", m_mcuDock);
         m_workspaceManager->registerDesignDock("build", m_buildDock);
         m_workspaceManager->registerDesignDock("deviceMonitor", m_deviceMonitorDock);
@@ -940,12 +1384,110 @@ void MainWindow::setupDocks() {
     // Auto-detect and initialize board after OpenOCD connects
     if (m_openocd.isConnected()) {
         if (!m_openocd.autoDetectAndInitializeBoard()) {
-            qWarning() << "Board auto-detection failed. Falling back to STM32F030R8.";
-            m_openocd.setBoard("STM32F030R8");
+            BoardPreset active = BoardRegistry::instance().activePreset();
+            QString fallbackBoard = !active.boardId.isEmpty() ? active.boardId : "STM32F030R8";
+            qWarning() << "Board auto-detection failed. Falling back to" << fallbackBoard;
+            m_openocd.setBoard(fallbackBoard);
         }
     }
 
     setupMCUSelection();
+
+    m_defaultLayoutState = saveState();
+    restoreWindowLayout();
+}
+
+void MainWindow::setupDiagnostics() {
+    if (!m_diagnosticsService || !m_project) return;
+
+    // Debounced refresh on any project state change so the Problems panel
+    // reflects the live design, not just the last export.
+    const auto scheduleRefresh = [this]() {
+        if (m_diagnosticsService) m_diagnosticsService->scheduleRefresh();
+    };
+    connect(m_project, &Project::projectModified, this, scheduleRefresh);
+    connect(m_project, &Project::projectLoaded, this, scheduleRefresh);
+    connect(m_project, &Project::screenListChanged, this, scheduleRefresh);
+    connect(m_project, &Project::dataSourcesChanged, this, scheduleRefresh);
+    connect(m_project, &Project::dataBindingsChanged, this, scheduleRefresh);
+    connect(m_project, &Project::hardwareConfigChanged, this, scheduleRefresh);
+    connect(m_scene, &CanvasScene::componentAdded, this, scheduleRefresh);
+    connect(m_scene, &CanvasScene::componentRemoved, this, scheduleRefresh);
+    connect(m_scene, &CanvasScene::componentChanged, this, scheduleRefresh);
+
+    if (m_problemsPanel) {
+        connect(m_problemsPanel, &ProblemsPanel::navigateRequested,
+                this, &MainWindow::navigateToDiagnostic);
+    }
+
+    // Status-bar count badge, e.g. "2 errors, 5 warnings".
+    if (statusBar()) {
+        m_problemsBadgeLabel = new QLabel(this);
+        m_problemsBadgeLabel->setObjectName("problemsBadgeLabel");
+        m_problemsBadgeLabel->setToolTip("Problems detected in the current project");
+        statusBar()->addPermanentWidget(m_problemsBadgeLabel);
+    }
+
+    connect(m_diagnosticsService, &Diagnostics::DiagnosticsService::diagnosticsChanged,
+            this, [this](const QVector<Diagnostics::Diagnostic>&) { updateProblemsBadge(); });
+
+    updateProblemsBadge();
+    m_diagnosticsService->scheduleRefresh(0);
+}
+
+void MainWindow::updateProblemsBadge() {
+    if (!m_problemsBadgeLabel || !m_diagnosticsService) return;
+
+    const int errors = m_diagnosticsService->errorCount();
+    const int warnings = m_diagnosticsService->warningCount();
+    const int info = m_diagnosticsService->infoCount();
+
+    QString text = QString("%1 error%2, %3 warning%4")
+                       .arg(errors)
+                       .arg(errors == 1 ? "" : "s")
+                       .arg(warnings)
+                       .arg(warnings == 1 ? "" : "s");
+    if (info > 0) {
+        text += QString(", %1 info").arg(info);
+    }
+
+    QString color = Theme::TextMuted;
+    if (errors > 0) color = Theme::Danger;
+    else if (warnings > 0) color = Theme::Warning;
+    else if (info > 0) color = Theme::Info;
+
+    m_problemsBadgeLabel->setText(text);
+    m_problemsBadgeLabel->setStyleSheet(QString("color: %1; padding-right: 12px;").arg(color));
+}
+
+void MainWindow::navigateToDiagnostic(const QString& screenId, const QString& componentId) {
+    if (!m_project) return;
+
+    Screen* target = screenId.isEmpty() ? nullptr : m_project->findScreen(screenId);
+    UIComponent* component = nullptr;
+
+    if (!componentId.isEmpty()) {
+        if (target) component = target->findComponentById(componentId);
+        if (!component) {
+            for (Screen* screen : m_project->screens()) {
+                if (!screen) continue;
+                component = screen->findComponentById(componentId);
+                if (component) {
+                    target = screen;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Switch to the owning screen first so the component is attached to the scene.
+    if (target && target != m_project->activeScreen()) {
+        m_project->setActiveScreen(target);
+    }
+
+    if (component && m_canvasView) {
+        m_canvasView->revealComponent(component);
+    }
 }
 
 void MainWindow::applyTheme() {
@@ -1286,30 +1828,72 @@ void MainWindow::onSaveProjectAs() {
 void MainWindow::onExport() {
     ExportDialog dlg(m_project, this);
     dlg.exec();
+    // Task 6: the export dialog can change the target backend (single source of
+    // truth in the Project); reflect that immediately in analyzer + Problems.
+    if (m_resourcePanel) m_resourcePanel->refresh();
+    if (m_diagnosticsService) m_diagnosticsService->scheduleRefresh(0);
 }
 
 bool MainWindow::validateExportResources(const QString& targetFramework) {
     if (!m_project) return true;
 
+    // Task 6: backend compatibility findings for the dedicated menu exports.
+    // Errors block outright; warnings join the resource confirmation below so
+    // the user confirms all export-affecting warnings exactly once.
+    const BackendDescriptor backend = BackendRegistry::backendForFramework(targetFramework);
+    QStringList backendErrors;
+    QStringList backendWarnings;
+    for (const BackendFinding& finding : BackendRegistry::validate(m_project, backend.id)) {
+        if (finding.severity == BackendFindingSeverity::Error) {
+            if (!backendErrors.contains(finding.message)) backendErrors.append(finding.message);
+        } else if (finding.severity == BackendFindingSeverity::Warning) {
+            if (!backendWarnings.contains(finding.message)) backendWarnings.append(finding.message);
+        }
+    }
+    if (!backendErrors.isEmpty()) {
+        QMessageBox::critical(this, "Export Blocked",
+            QString("The %1 backend cannot generate this design:\n\n• %2\n\n"
+                    "Fix the reported components or choose a different target backend.")
+                .arg(backend.displayName, backendErrors.join("\n• ")));
+        return false;
+    }
+
     ResourceEstimator estimator;
-    QString devName;
-    if (!m_project->hardwareConfig().deviceId.isEmpty()) {
-        devName = m_project->hardwareConfig().deviceId;
-    } else if (!m_project->hardwareConfig().boardId.isEmpty()) {
-        devName = m_project->hardwareConfig().boardId;
+    DeviceProfile dev = m_project->getDeviceProfile();
+    const bool hasDevice = !(dev.name.isEmpty() || (dev.flash_kb == 0 && dev.ram_kb == 0));
+
+    ResourceAnalysis analysis{};
+    bool resourceWarning = false;
+    if (hasDevice) {
+        analysis = estimator.analyze(m_project, dev, targetFramework);
+
+        if (analysis.status == ResourceAnalysis::CRITICAL) {
+            QMessageBox::critical(this, "Export Blocked", "Design exceeds device limits. Optimize or select a larger MCU.");
+            return false;
+        }
+        resourceWarning = (analysis.status == ResourceAnalysis::WARNING ||
+                           analysis.status == ResourceAnalysis::MISMATCH ||
+                           analysis.flash_percent >= 80.0f || analysis.ram_percent >= 80.0f);
     }
-    if (devName.isEmpty()) devName = "STM32H745";
 
-    DeviceProfile dev = estimator.capabilityDatabase().getDeviceProfile(devName);
-    if (dev.name.isEmpty()) {
-        dev = estimator.capabilityDatabase().getDeviceProfile("STM32H745");
-    }
-
-    ResourceAnalysis analysis = estimator.analyze(m_project, dev, targetFramework);
-
-    if (analysis.status == ResourceAnalysis::CRITICAL || analysis.status == ResourceAnalysis::WARNING || analysis.status == ResourceAnalysis::MISMATCH) {
-        ExportValidationDialog dlg(analysis, this);
-        if (dlg.exec() != QDialog::Accepted || dlg.resultAction() == ExportValidationDialog::CANCEL) {
+    if (resourceWarning || !backendWarnings.isEmpty()) {
+        QStringList sections;
+        if (resourceWarning) {
+            sections << QString("Estimated resource utilization is high (%1% Flash, %2% RAM).\n\n"
+                                "Exporting may lead to runtime memory constraints or allocation failures on hardware.")
+                            .arg(analysis.flash_percent, 0, 'f', 1)
+                            .arg(analysis.ram_percent, 0, 'f', 1);
+        }
+        if (!backendWarnings.isEmpty()) {
+            sections << QString("The %1 backend cannot fully generate every component:\n\n• %2\n\n"
+                                "Exporting will produce output that differs from the design.")
+                            .arg(backend.displayName, backendWarnings.join("\n• "));
+        }
+        auto res = QMessageBox::warning(this,
+            resourceWarning ? "Estimated Resource Warning" : "Backend Compatibility Warning",
+            sections.join("\n\n") + "\n\nDo you want to proceed with firmware export anyway?",
+            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+        if (res != QMessageBox::Yes) {
             return false;
         }
     }
@@ -1729,7 +2313,16 @@ void MainWindow::createGpioControls() {
 
     // Pin selection
     QComboBox* pinCombo = new QComboBox();
-    pinCombo->addItems({"PA4", "PA5", "PB0", "PB1", "PA0", "PA1"});
+    auto updatePins = [pinCombo]() {
+        pinCombo->clear();
+        QStringList pins = BoardRegistry::instance().activeBoard().pinNames();
+        if (pins.isEmpty()) pins = {"PA4", "PA5", "PB0", "PB1", "PA0", "PA1"};
+        pinCombo->addItems(pins);
+    };
+    updatePins();
+    connect(&BoardRegistry::instance(), &BoardRegistry::activeBoardChanged, pinCombo, [updatePins]() {
+        updatePins();
+    });
     layout->addWidget(new QLabel("Pin:"));
     layout->addWidget(pinCombo);
 
@@ -1770,26 +2363,32 @@ void MainWindow::toggleLiveTestMode(bool enabled) {
         ).arg(Theme::LiveTestActive));
         statusBar()->showMessage("✓ Live Test: ON (Click switches to control GPIO)");
         
-        // NEW: Hide Resource Analyzer Panel
-        if (m_resourceAnalyzerPanel) {
-            m_resourceAnalyzerPanel->hide();
+        // Resource Analyzer stays visible in Live Test (superseded spec: it was hidden).
+        if (m_resourceDock) {
+            m_resourceDock->show();
+            m_resourceDock->raise();
+        }
+        if (m_resourcePanel) {
+            m_resourcePanel->setLiveTestMode(true);
         }
         
         qDebug() << "Live Test Mode: ON";
-        qDebug() << "Resource Analyzer: HIDDEN";
+        qDebug() << "Resource Analyzer: VISIBLE (Live Test banner shown)";
         
     } else {
         // LIVE TEST OFF
         m_liveTestButton->setStyleSheet("");
         statusBar()->showMessage("Design Mode (Resource Analyzer enabled)");
         
-        // NEW: Show Resource Analyzer Panel
-        if (m_resourceAnalyzerPanel) {
-            m_resourceAnalyzerPanel->show();
+        if (m_resourceDock) {
+            m_resourceDock->show();
+        }
+        if (m_resourcePanel) {
+            m_resourcePanel->setLiveTestMode(false);
         }
         
         qDebug() << "Live Test Mode: OFF";
-        qDebug() << "Resource Analyzer: VISIBLE";
+        qDebug() << "Resource Analyzer: VISIBLE (Live Test banner hidden)";
     }
 
     emit liveTestModeChanged(enabled);
@@ -1864,6 +2463,14 @@ void MainWindow::setupMCUSelection() {
     // Add as dock widget
     m_mcuDock = new QDockWidget("Board Configuration", this);
     m_mcuDock->setObjectName("boardConfigDock");
+    m_mcuDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    m_mcuDock->setMinimumWidth(220);
+    m_mcuDock->setMaximumWidth(600);
+    m_mcuDock->setProperty("origMinWidth", 220);
+    m_mcuDock->setProperty("origMaxWidth", 600);
+    m_mcuDock->setProperty("origMinHeight", 0);
+    m_mcuDock->setProperty("origMaxHeight", QWIDGETSIZE_MAX);
+    m_mcuDock->setProperty("origConstraintsCached", true);
     m_mcuDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
     m_mcuDock->setTitleBarWidget(createDockTitleBar("Board Configuration", m_mcuDock));
     m_mcuDock->setWidget(mcuPanel);
@@ -2052,10 +2659,14 @@ void MainWindow::switchToCodeWorkspace() {
 }
 
 void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
+    if (m_inWorkspaceModeSwitch) {
+        return;
+    }
     if (m_workspaceMode == mode && m_centralStack && m_centralStack->currentIndex() == (mode == WorkspaceMode::Design ? 0 : 1)) {
         return;
     }
 
+    m_inWorkspaceModeSwitch = true;
     m_workspaceMode = mode;
 
     if (mode == WorkspaceMode::Code) {
@@ -2070,6 +2681,7 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         m_dockVisibilityBeforeCodeMode["styles"] = m_stylesDock ? m_stylesDock->isVisible() : false;
         m_dockVisibilityBeforeCodeMode["ai"] = m_aiDockWidget ? m_aiDockWidget->isVisible() : false;
         m_dockVisibilityBeforeCodeMode["resource"] = m_resourceDock ? m_resourceDock->isVisible() : false;
+        m_dockVisibilityBeforeCodeMode["boardDisplay"] = m_boardDisplayDock ? m_boardDisplayDock->isVisible() : false;
         m_dockVisibilityBeforeCodeMode["mcu"] = m_mcuDock ? m_mcuDock->isVisible() : false;
         if (m_buildDock) m_dockVisibilityBeforeCodeMode["build"] = m_buildDock->isVisible();
         if (m_deviceMonitorDock) m_dockVisibilityBeforeCodeMode["deviceMonitor"] = m_deviceMonitorDock->isVisible();
@@ -2085,14 +2697,20 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         if (m_stylesDock) m_stylesDock->hide();
         if (m_aiDockWidget) m_aiDockWidget->hide();
         if (m_resourceDock) m_resourceDock->hide();
+        if (m_boardDisplayDock) m_boardDisplayDock->hide();
         if (m_mcuDock) m_mcuDock->hide();
         if (m_buildDock) m_buildDock->hide();
         if (m_deviceMonitorDock) m_deviceMonitorDock->hide();
 
         // 3. Switch the central workspace to the code editor
-        if (m_centralStack && m_codeWorkspace) {
-            m_centralStack->setCurrentWidget(m_codeWorkspace);
+        if (m_centralTabs && m_codeWorkspace && m_centralTabs->indexOf(m_codeWorkspace) >= 0) {
+            m_centralTabs->setCurrentWidget(m_codeWorkspace);
+        }
+        if (m_codeWorkspace) {
             m_codeWorkspace->syncWithProject(m_project);
+        }
+        if (m_centralStack) {
+            m_centralStack->setCurrentIndex(1);
         }
 
         // 4. Update switcher button states
@@ -2111,8 +2729,12 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
     } else {
         // Return to visual designer
         // 1. Switch the central workspace back to design canvas container
-        if (m_centralStack && m_designContainer) {
-            m_centralStack->setCurrentWidget(m_designContainer);
+        QWidget* designTarget = m_designWorkspace ? m_designWorkspace : m_designContainer;
+        if (m_centralTabs && designTarget && m_centralTabs->indexOf(designTarget) >= 0) {
+            m_centralTabs->setCurrentWidget(designTarget);
+        }
+        if (m_centralStack) {
+            m_centralStack->setCurrentIndex(0);
         }
 
         // 2. Restore previous canvas dock panels
@@ -2126,6 +2748,7 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
         if (m_dockVisibilityBeforeCodeMode.value("styles", false) && m_stylesDock) m_stylesDock->show();
         if (m_dockVisibilityBeforeCodeMode.value("ai", false) && m_aiDockWidget) m_aiDockWidget->show();
         if (m_dockVisibilityBeforeCodeMode.value("resource", false) && m_resourceDock) m_resourceDock->show();
+        if (m_dockVisibilityBeforeCodeMode.value("boardDisplay", false) && m_boardDisplayDock) m_boardDisplayDock->show();
         if (m_dockVisibilityBeforeCodeMode.value("mcu", false) && m_mcuDock) m_mcuDock->show();
 
         // Ensure primary docks are visible
@@ -2147,7 +2770,275 @@ void MainWindow::setWorkspaceMode(WorkspaceMode mode) {
 
         statusBar()->showMessage("Switched to Visual Design Canvas", 3000);
     }
+
+    m_inWorkspaceModeSwitch = false;
 }
+
+void MainWindow::checkFirstRunOnboarding(bool forceShow) {
+    if (!forceShow && BoardRegistry::instance().isOnboardingCompleted()) {
+        if (m_boardBanner) {
+            m_boardBanner->hide();
+        }
+        return;
+    }
+
+    if (!forceShow) {
+        if (qApp && (qApp->applicationName().contains("test", Qt::CaseInsensitive) ||
+                     qApp->property("suppressFirstRunWizard").toBool() ||
+                     (qEnvironmentVariableIsSet("QT_QPA_PLATFORM") && qgetenv("QT_QPA_PLATFORM") == "offscreen"))) {
+            BoardRegistry::instance().setActiveBoard("custom_board");
+            if (m_boardBanner) {
+                m_boardBanner->show();
+            }
+            return;
+        }
+    }
+
+    HardwareWizardDialog wizard(this);
+    wizard.setWindowTitle("Choose Your Board");
+    int res = wizard.exec();
+
+    if (res == QDialog::Accepted) {
+        if (m_boardBanner) {
+            m_boardBanner->hide();
+        }
+        BoardDef b = BoardRegistry::instance().activeBoard();
+        statusBar()->showMessage(QString("Target board set to: %1").arg(b.displayName.isEmpty() ? b.id : b.displayName), 3000);
+
+        if (m_scene) {
+            QList<InvalidBindingItem> invalidItems;
+            for (UIComponent* comp : m_scene->uiComponents()) {
+                if (!comp) continue;
+                QString proto = comp->protocol();
+                if (proto.isEmpty() || proto == "None") continue;
+
+                QStringList pinsToCheck;
+                if (proto == "GPIO" || proto == "PWM" || proto == "ADC") {
+                    pinsToCheck.append(comp->protocolPin("pin"));
+                } else if (proto == "SPI") {
+                    pinsToCheck << comp->protocolPin("sck") << comp->protocolPin("mosi")
+                                << comp->protocolPin("miso") << comp->protocolPin("ss");
+                } else if (proto == "I2C") {
+                    pinsToCheck << comp->protocolPin("scl") << comp->protocolPin("sda");
+                }
+
+                for (const QString& p : pinsToCheck) {
+                    if (p.isEmpty() || p == "[None]") continue;
+                    if (!b.pinMap.contains(p)) {
+                        InvalidBindingItem item;
+                        item.component = comp;
+                        item.componentId = comp->componentId();
+                        item.componentName = comp->componentId();
+                        item.currentPin = p;
+                        item.currentProtocol = proto;
+                        item.reason = QString("Pin '%1' not supported on target '%2'").arg(p, b.displayName.isEmpty() ? b.id : b.displayName);
+                        invalidItems.append(item);
+                    } else if (b.pinMap[p].reserved) {
+                        InvalidBindingItem item;
+                        item.component = comp;
+                        item.componentId = comp->componentId();
+                        item.componentName = comp->componentId();
+                        item.currentPin = p;
+                        item.currentProtocol = proto;
+                        item.reason = QString("Pin '%1' is reserved for system use (%2)").arg(p, b.pinMap[p].note.isEmpty() ? "System" : b.pinMap[p].note);
+                        invalidItems.append(item);
+                    }
+                }
+            }
+
+            if (!invalidItems.isEmpty()) {
+                InvalidBindingsDialog invDlg(b, invalidItems, this);
+                if (invDlg.exec() == QDialog::Accepted) {
+                    auto resolved = invDlg.resolvedBindings();
+                    for (const auto& item : resolved) {
+                        if (item.component && !item.keepAsCustom && !item.remappedPin.isEmpty()) {
+                            QString proto = item.currentProtocol;
+                            if (proto == "GPIO" || proto == "PWM" || proto == "ADC") {
+                                item.component->setProtocolPin("pin", item.remappedPin);
+                            } else if (proto == "SPI") {
+                                if (item.component->protocolPin("sck") == item.currentPin) item.component->setProtocolPin("sck", item.remappedPin);
+                                if (item.component->protocolPin("mosi") == item.currentPin) item.component->setProtocolPin("mosi", item.remappedPin);
+                                if (item.component->protocolPin("miso") == item.currentPin) item.component->setProtocolPin("miso", item.remappedPin);
+                                if (item.component->protocolPin("ss") == item.currentPin) item.component->setProtocolPin("ss", item.remappedPin);
+                            } else if (proto == "I2C") {
+                                if (item.component->protocolPin("scl") == item.currentPin) item.component->setProtocolPin("scl", item.remappedPin);
+                                if (item.component->protocolPin("sda") == item.currentPin) item.component->setProtocolPin("sda", item.remappedPin);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // Skipped with "Choose later" or cancelled
+        BoardRegistry::instance().setActiveBoard("custom_board");
+        if (m_boardBanner) {
+            m_boardBanner->show();
+        }
+    }
+}
+
+void MainWindow::onChangeBoard() {
+    checkFirstRunOnboarding(true);
+}
+
+void MainWindow::saveWindowLayout() {
+    if (m_workspaceMode == WorkspaceMode::Code) {
+        return; // Preserve design dock layout
+    }
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    settings.setValue("window/geometry", saveGeometry());
+    settings.setValue("window/layoutState", saveState());
+
+    const QList<QDockWidget*> docks = findChildren<QDockWidget*>();
+    for (QDockWidget* dock : docks) {
+        if (!dock->objectName().isEmpty()) {
+            bool collapsed = dock->property("isCollapsed").toBool();
+            settings.setValue(QString("dock/%1/collapsed").arg(dock->objectName()), collapsed);
+            settings.setValue(QString("dock/%1/floating").arg(dock->objectName()), dock->isFloating());
+            if (dock->isFloating()) {
+                settings.setValue(QString("dock/%1/geometry").arg(dock->objectName()), dock->geometry());
+            }
+        }
+    }
+}
+
+void MainWindow::restoreWindowLayout() {
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    if (settings.contains("window/geometry")) {
+        restoreGeometry(settings.value("window/geometry").toByteArray());
+        QRect clamped = clampGeometryToScreens(geometry());
+        if (clamped != geometry()) {
+            setGeometry(clamped);
+        }
+    }
+    if (settings.contains("window/layoutState")) {
+        restoreState(settings.value("window/layoutState").toByteArray());
+    }
+
+    const QList<QDockWidget*> docks = findChildren<QDockWidget*>();
+    for (QDockWidget* dock : docks) {
+        if (!dock->objectName().isEmpty()) {
+            QString key = QString("dock/%1/collapsed").arg(dock->objectName());
+            if (settings.contains(key)) {
+                bool collapsed = settings.value(key).toBool();
+                setDockCollapsed(dock, collapsed);
+            }
+            QString floatKey = QString("dock/%1/floating").arg(dock->objectName());
+            if (settings.contains(floatKey)) {
+                bool isFloat = settings.value(floatKey).toBool();
+                dock->setFloating(isFloat);
+            }
+            QString geomKey = QString("dock/%1/geometry").arg(dock->objectName());
+            if (dock->isFloating() && settings.contains(geomKey)) {
+                QRect savedGeom = settings.value(geomKey).toRect();
+                QRect clampedGeom = clampGeometryToScreens(savedGeom, geometry());
+                dock->setGeometry(clampedGeom);
+            }
+        }
+    }
+}
+
+void MainWindow::resetLayout() {
+    // 0. Redock any detached windows
+    redockAllDetachedWindows();
+
+    // 1. Uncollapse and unfloat all docks
+    const QList<QDockWidget*> docks = findChildren<QDockWidget*>();
+    for (QDockWidget* dock : docks) {
+        setDockCollapsed(dock, false);
+        dock->setFloating(false);
+    }
+
+    // 2. Restore default state if captured
+    if (!m_defaultLayoutState.isEmpty()) {
+        restoreState(m_defaultLayoutState);
+    }
+
+    // 3. Re-apply default sizing
+    if (m_paletteDock && m_screensDock && m_uploadsDock) {
+        resizeDocks({m_paletteDock, m_screensDock, m_uploadsDock}, {210, 210, 210}, Qt::Horizontal);
+    }
+    if (m_propDock && m_layerDock) {
+        resizeDocks({m_propDock, m_effectsDock, m_prototypeDock, m_layerDock, m_stylesDock, m_aiDockWidget, m_resourceDock},
+                    {260, 260, 260, 260, 260, 260, 260}, Qt::Horizontal);
+        resizeDocks({m_propDock, m_layerDock}, {550, 330}, Qt::Vertical);
+    }
+
+    // 4. Clear saved settings in QSettings and re-save
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    settings.remove("window/layoutState");
+    for (QDockWidget* dock : docks) {
+        if (!dock->objectName().isEmpty()) {
+            settings.remove(QString("dock/%1/collapsed").arg(dock->objectName()));
+            settings.remove(QString("dock/%1/floating").arg(dock->objectName()));
+            settings.remove(QString("dock/%1/geometry").arg(dock->objectName()));
+        }
+    }
+    saveWindowLayout();
+}
+
+void MainWindow::moveActiveWindowToScreen(QScreen* screen) {
+    if (!screen) return;
+    QWidget* active = QApplication::activeWindow();
+    if (!active) active = this;
+
+    QDockWidget* floatingDock = qobject_cast<QDockWidget*>(active);
+    if (!floatingDock) {
+        for (QWidget* p = active; p; p = p->parentWidget()) {
+            if (auto* d = qobject_cast<QDockWidget*>(p)) {
+                if (d->isFloating()) {
+                    floatingDock = d;
+                    break;
+                }
+            }
+        }
+    }
+
+    QWidget* toMove = floatingDock ? static_cast<QWidget*>(floatingDock) : active;
+    QRect avail = screen->availableGeometry();
+    QSize sz = toMove->size();
+    int x = avail.x() + qMax(0, (avail.width() - sz.width()) / 2);
+    int y = avail.y() + qMax(0, (avail.height() - sz.height()) / 2);
+    toMove->move(x, y);
+    toMove->raise();
+    toMove->activateWindow();
+}
+
+void MainWindow::detachCanvasWindow() {
+    if (!m_centralTabs) return;
+    int idx = m_centralTabs->indexOf(m_designWorkspace);
+    if (idx >= 0) {
+        m_centralTabs->detachTab(idx);
+    }
+}
+
+void MainWindow::detachCodeWorkspaceWindow() {
+    if (!m_centralTabs) return;
+    int idx = m_centralTabs->indexOf(m_codeWorkspace);
+    if (idx >= 0) {
+        m_centralTabs->detachTab(idx);
+    }
+}
+
+void MainWindow::redockAllDetachedWindows() {
+    if (m_centralTabs) {
+        m_centralTabs->redockAll();
+    }
+    if (m_codeWorkspace && m_codeWorkspace->tabbedEditor() && m_codeWorkspace->tabbedEditor()->tabWidget()) {
+        m_codeWorkspace->tabbedEditor()->tabWidget()->redockAll();
+    }
+}
+
+QRect MainWindow::clampGeometryToScreens(const QRect& targetRect, const QRect& fallbackRect) {
+    return DetachableTabWidget::clampGeometryToScreens(targetRect, fallbackRect);
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    saveWindowLayout();
+    QMainWindow::closeEvent(event);
+}
+
 
 
 

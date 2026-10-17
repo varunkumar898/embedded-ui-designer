@@ -11,6 +11,10 @@
 #include <QHeaderView>
 #include "HardwareBridge.h"
 
+#include "hardware/PinoutViewWidget.h"
+#include "hardware/PinMuxEngine.h"
+#include "hardware/BoardRegistry.h"
+
 class CanvasScene;
 
 class PinBindingDialog : public QDialog {
@@ -39,6 +43,7 @@ private slots:
     void onSimulationToggleClicked(bool checked);
     void onHardwareBridgeUpdate();
     void onImportBoardConfigClicked();
+    void onSaveCustomPresetClicked();
 
 private:
     void setupUi();
@@ -51,6 +56,7 @@ private:
     // Top Toolbar
     QComboBox* m_boardCombo = nullptr;
     QPushButton* m_importBtn = nullptr;
+    QPushButton* m_savePresetBtn = nullptr;
     QPushButton* m_detectProbeBtn = nullptr;
     QPushButton* m_connectBtn = nullptr;
     QPushButton* m_disconnectBtn = nullptr;
@@ -67,8 +73,10 @@ private:
     QLineEdit* m_searchEdit = nullptr;
     QLabel* m_conflictBanner = nullptr;
 
-    // Pin Table
+    // Pin Table & Pinout View
     QTableWidget* m_pinTable = nullptr;
+    Hardware::PinoutViewWidget* m_pinoutWidget = nullptr;
+    Hardware::PinMuxEngine m_pinMuxEngine;
 
     QString m_selectedTask = "Task A"; // "Task A", "Task B", "All Tasks"
     QString m_selectedPort = "All Ports";

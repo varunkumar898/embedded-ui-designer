@@ -43,6 +43,17 @@ void DesignWorkspace::setTopToolbar(ContextualTopToolbar* toolbar) {
     }
 }
 
+void DesignWorkspace::setBoardBanner(QWidget* banner) {
+    if (m_boardBanner) {
+        m_layout->removeWidget(m_boardBanner);
+    }
+    m_boardBanner = banner;
+    if (m_boardBanner) {
+        int idx = m_topToolbar ? 1 : 0;
+        m_layout->insertWidget(idx, m_boardBanner);
+    }
+}
+
 void DesignWorkspace::syncWithProject(Project* project) {
     m_project = project;
 }

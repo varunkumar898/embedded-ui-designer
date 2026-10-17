@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QThread>
 #include <QElapsedTimer>
+#include <QLibrary>
 
 #ifdef HAVE_QT_SERIALPORT
 #include <QSerialPortInfo>
@@ -25,10 +26,9 @@ OpenOcdManager::~OpenOcdManager() {
 }
 
 void OpenOcdManager::startProbePolling(int intervalMs) {
-    m_pollTimer.setInterval(intervalMs);
-    if (!m_pollTimer.isActive()) {
-        m_pollTimer.start();
-    }
+    Q_UNUSED(intervalMs);
+    m_pollTimer.setSingleShot(true);
+    m_backoffIndex = 0;
     // Run an initial scan immediately
     onPollTimer();
 }
@@ -37,11 +37,218 @@ void OpenOcdManager::stopProbePolling() {
     m_pollTimer.stop();
 }
 
+void OpenOcdManager::rescan() {
+    m_backoffIndex = 0;
+    onPollTimer();
+}
+
+void OpenOcdManager::scheduleNextPoll(bool probeFound) {
+    if (probeFound) {
+        m_backoffIndex = 0;
+        m_pollTimer.start(2000); // Poll every 2s when probe is active
+    } else {
+        // Exponential backoff: 5s, 10s, 30s, max 60s
+        static const int kBackoffMs[] = { 5000, 10000, 30000, 60000 };
+        int interval = kBackoffMs[qMin(m_backoffIndex, 3)];
+        if (m_backoffIndex < 3) {
+            m_backoffIndex++;
+        }
+        m_pollTimer.start(interval);
+    }
+}
+
 DiscoveredProbe OpenOcdManager::scanUsbProbes() {
     DiscoveredProbe found;
-    qDebug().noquote() << "[OpenOcdManager] Attempting to detect board...";
 
-    // 1. Scan Linux sysfs USB devices
+#ifdef HAVE_QT_SERIALPORT
+    // 1. Portable: check connected serial and debug probe ports
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const auto& p : ports) {
+        QString desc = p.description().toLower();
+        QString mfg = p.manufacturer().toLower();
+        quint16 vid = p.vendorIdentifier();
+        quint16 pid = p.productIdentifier();
+
+        if (vid == 0x0483 || desc.contains("stlink") || mfg.contains("stmicroelectronics")) {
+            found.detected = true;
+            found.vendorId = QString::number(vid, 16);
+            found.productId = QString::number(pid, 16);
+            found.name = "STM32F030R8 via ST-Link";
+            found.suggestedInterface = "interface/stlink.cfg";
+            return found;
+        }
+        if (vid == 0x2e8a || desc.contains("picoprobe") || desc.contains("rp2040")) {
+            found.detected = true;
+            found.vendorId = QString::number(vid, 16);
+            found.productId = QString::number(pid, 16);
+            found.name = p.description().isEmpty() ? "Raspberry Pi Debug Probe" : p.description();
+            found.suggestedInterface = "interface/cmsis-dap.cfg";
+            return found;
+        }
+        if (vid == 0x0d28 || desc.contains("daplink") || desc.contains("cmsis-dap")) {
+            found.detected = true;
+            found.vendorId = QString::number(vid, 16);
+            found.productId = QString::number(pid, 16);
+            found.name = p.description().isEmpty() ? "CMSIS-DAP Debugger" : p.description();
+            found.suggestedInterface = "interface/cmsis-dap.cfg";
+            return found;
+        }
+        if (vid == 0x10c4 || desc.contains("cp210") || desc.contains("esp32")) {
+            found.detected = true;
+            found.vendorId = QString::number(vid, 16);
+            found.productId = QString::number(pid, 16);
+            found.name = "ESP32 DEVKIT V1 via CP210x";
+            found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+            return found;
+        }
+        if (vid == 0x1a86 || desc.contains("ch340") || desc.contains("ch341")) {
+            found.detected = true;
+            found.vendorId = QString::number(vid, 16);
+            found.productId = QString::number(pid, 16);
+            found.name = "ESP32 DEVKIT V1 via CH340";
+            found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+            return found;
+        }
+    }
+#endif
+
+    // 2. Portable: libusb-1.0 USB device enumeration
+    {
+        typedef void* libusb_ctx;
+        typedef void* libusb_dev;
+#pragma pack(push, 1)
+        struct LibusbDevDesc {
+            uint8_t  bLength;
+            uint8_t  bDescriptorType;
+            uint16_t bcdUSB;
+            uint8_t  bDeviceClass;
+            uint8_t  bDeviceSubClass;
+            uint8_t  bDeviceProtocol;
+            uint8_t  bMaxPacketSize0;
+            uint16_t idVendor;
+            uint16_t idProduct;
+            uint16_t bcdDevice;
+            uint8_t  iManufacturer;
+            uint8_t  iProduct;
+            uint8_t  iSerialNumber;
+            uint8_t  bNumConfigurations;
+        };
+#pragma pack(pop)
+        typedef int (*fn_libusb_init)(libusb_ctx**);
+        typedef void (*fn_libusb_exit)(libusb_ctx*);
+        typedef ssize_t (*fn_libusb_get_device_list)(libusb_ctx*, libusb_dev***);
+        typedef void (*fn_libusb_free_device_list)(libusb_dev**, int);
+        typedef int (*fn_libusb_get_device_descriptor)(libusb_dev*, LibusbDevDesc*);
+
+        QLibrary libusbLib("usb-1.0");
+        if (!libusbLib.load()) {
+            libusbLib.setFileName("libusb-1.0");
+            libusbLib.load();
+        }
+        if (libusbLib.isLoaded()) {
+            auto p_init = (fn_libusb_init)libusbLib.resolve("libusb_init");
+            auto p_exit = (fn_libusb_exit)libusbLib.resolve("libusb_exit");
+            auto p_get_list = (fn_libusb_get_device_list)libusbLib.resolve("libusb_get_device_list");
+            auto p_free_list = (fn_libusb_free_device_list)libusbLib.resolve("libusb_free_device_list");
+            auto p_get_desc = (fn_libusb_get_device_descriptor)libusbLib.resolve("libusb_get_device_descriptor");
+
+            if (p_init && p_exit && p_get_list && p_free_list && p_get_desc) {
+                libusb_ctx* ctx = nullptr;
+                if (p_init(&ctx) == 0) {
+                    libusb_dev** devList = nullptr;
+                    ssize_t count = p_get_list(ctx, &devList);
+                    for (ssize_t i = 0; i < count; ++i) {
+                        LibusbDevDesc desc;
+                        if (p_get_desc(devList[i], &desc) == 0) {
+                            quint16 vid = desc.idVendor;
+                            quint16 pid = desc.idProduct;
+
+                            if (vid == 0x0483) {
+                                found.detected = true;
+                                found.vendorId = "0483";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "STM32F030R8 via ST-Link";
+                                found.suggestedInterface = "interface/stlink.cfg";
+                                break;
+                            } else if (vid == 0x2e8a) {
+                                found.detected = true;
+                                found.vendorId = "2e8a";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "Raspberry Pi Debug Probe";
+                                found.suggestedInterface = "interface/cmsis-dap.cfg";
+                                break;
+                            } else if (vid == 0x0d28) {
+                                found.detected = true;
+                                found.vendorId = "0d28";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "CMSIS-DAP Debugger";
+                                found.suggestedInterface = "interface/cmsis-dap.cfg";
+                                break;
+                            } else if (vid == 0x303a) {
+                                found.detected = true;
+                                found.vendorId = "303a";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "ESP32 USB-JTAG / Serial";
+                                found.suggestedInterface = "interface/esp_usb_jtag.cfg";
+                                break;
+                            } else if (vid == 0x1366) {
+                                found.detected = true;
+                                found.vendorId = "1366";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "SEGGER J-Link";
+                                found.suggestedInterface = "interface/jlink.cfg";
+                                break;
+                            } else if (vid == 0x0403) {
+                                found.detected = true;
+                                found.vendorId = "0403";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "FTDI Debug Probe";
+                                found.suggestedInterface = "interface/ftdi/ft2232h.cfg";
+                                break;
+                            } else if (vid == 0x10c4) {
+                                found.detected = true;
+                                found.vendorId = "10c4";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "ESP32 DEVKIT V1 via CP210x";
+                                found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+                                break;
+                            } else if (vid == 0x1a86) {
+                                found.detected = true;
+                                found.vendorId = "1a86";
+                                found.productId = QString::number(pid, 16);
+                                found.name = "ESP32 DEVKIT V1 via CH340";
+                                found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+                                break;
+                            }
+                        }
+                    }
+                    if (devList) p_free_list(devList, 1);
+                    p_exit(ctx);
+                    if (found.detected) return found;
+                }
+            }
+        }
+    }
+
+    // 3. Portable: probe using OpenOCD interface query if executable exists
+    if (!found.detected) {
+        QString openocdExe = QStandardPaths::findExecutable("openocd");
+        if (!openocdExe.isEmpty()) {
+            QProcess ocdProc;
+            ocdProc.start(openocdExe, {"-c", "interface list", "-c", "shutdown"});
+            if (ocdProc.waitForFinished(1000)) {
+                QString out = QString::fromUtf8(ocdProc.readAllStandardError()) + " " + QString::fromUtf8(ocdProc.readAllStandardOutput());
+                if (out.contains("st-link") && out.contains("hla")) {
+                    // OpenOCD has st-link support built in
+                }
+            } else {
+                ocdProc.kill();
+            }
+        }
+    }
+
+#ifdef Q_OS_LINUX
+    // 3. Linux-only fallback: Scan sysfs USB devices
     QDir usbDir("/sys/bus/usb/devices");
     if (usbDir.exists()) {
         const QStringList entries = usbDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
@@ -79,7 +286,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                         found.serialNumber = serial;
                         found.suggestedInterface = "interface/stlink.cfg";
                         found.name = "STM32F030R8 via ST-Link";
-                        qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                         return found;
                     }
 
@@ -91,7 +297,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                         found.serialNumber = serial;
                         found.suggestedInterface = "interface/cmsis-dap.cfg";
                         found.name = prod.isEmpty() ? "Raspberry Pi Debug Probe" : prod;
-                        qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                         return found;
                     }
 
@@ -103,7 +308,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                         found.serialNumber = serial;
                         found.suggestedInterface = "interface/cmsis-dap.cfg";
                         found.name = prod.isEmpty() ? "CMSIS-DAP / DAPLink Probe" : prod;
-                        qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                         return found;
                     }
 
@@ -115,7 +319,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                         found.serialNumber = serial;
                         found.suggestedInterface = "interface/esp_usb_jtag.cfg";
                         found.name = prod.isEmpty() ? "ESP32 USB-JTAG / Serial" : prod;
-                        qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                         return found;
                     }
 
@@ -127,7 +330,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                         found.serialNumber = serial;
                         found.suggestedInterface = "interface/ftdi/ft2232h.cfg";
                         found.name = prod.isEmpty() ? "FTDI Debug Probe" : prod;
-                        qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                         return found;
                     }
 
@@ -139,7 +341,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                         found.serialNumber = serial;
                         found.suggestedInterface = "interface/jlink.cfg";
                         found.name = prod.isEmpty() ? "SEGGER J-Link" : prod;
-                        qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                         return found;
                     }
                 }
@@ -147,58 +348,9 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
         }
     }
 
-#ifdef HAVE_QT_SERIALPORT
-    // 2. Fallback to serial port descriptors
-    const auto ports = QSerialPortInfo::availablePorts();
-    for (const auto& p : ports) {
-        QString desc = p.description().toLower();
-        QString mfg = p.manufacturer().toLower();
-        quint16 vid = p.vendorIdentifier();
-        quint16 pid = p.productIdentifier();
-
-        if (vid == 0x0483 || desc.contains("stlink") || mfg.contains("stmicroelectronics")) {
-            found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = "STM32F030R8 via ST-Link";
-            found.suggestedInterface = "interface/stlink.cfg";
-            qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
-            return found;
-        }
-        if (vid == 0x2e8a || desc.contains("picoprobe") || desc.contains("rp2040")) {
-            found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = p.description().isEmpty() ? "Raspberry Pi Debug Probe" : p.description();
-            found.suggestedInterface = "interface/cmsis-dap.cfg";
-            qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
-            return found;
-        }
-        if (vid == 0x0d28 || desc.contains("daplink") || desc.contains("cmsis-dap")) {
-            found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = p.description().isEmpty() ? "CMSIS-DAP Debugger" : p.description();
-            found.suggestedInterface = "interface/cmsis-dap.cfg";
-            qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
-            return found;
-        }
-        if (vid == 0x10c4 || desc.contains("cp210") || desc.contains("esp32")) {
-            found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = "ESP32 DEVKIT V1 via CP210x";
-            found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
-            qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
-            return found;
-        }
-    }
-#endif
-
-    // 3. Fallback to lsusb
+    // 4. Linux-only fallback to lsusb
     if (!found.detected) {
         QProcess lsusbProc;
-        qDebug().noquote() << "[OpenOcdManager] Running command: lsusb";
         lsusbProc.start("lsusb");
         if (lsusbProc.waitForFinished(1000)) {
             QString out = QString::fromUtf8(lsusbProc.readAllStandardOutput());
@@ -208,7 +360,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                 found.productId = "374b";
                 found.name = "STM32F030R8 via ST-Link";
                 found.suggestedInterface = "interface/stlink.cfg";
-                qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                 return found;
             }
             if (out.contains("10c4:ea60") || out.contains("CP210", Qt::CaseInsensitive)) {
@@ -217,7 +368,6 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                 found.productId = "ea60";
                 found.name = "ESP32 DEVKIT V1 via CP210x";
                 found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
-                qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                 return found;
             }
             if (out.contains("1a86:7523") || out.contains("CH340", Qt::CaseInsensitive)) {
@@ -226,15 +376,11 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                 found.productId = "7523";
                 found.name = "ESP32 DEVKIT V1 via CH340";
                 found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
-                qDebug().noquote() << QString("[OpenOcdManager] Result: Board detected: %1").arg(found.name);
                 return found;
             }
         }
     }
-
-    if (!found.detected) {
-        qDebug().noquote() << "[OpenOcdManager] Result: No board detected";
-    }
+#endif
 
     return found;
 }
@@ -246,19 +392,24 @@ void OpenOcdManager::onPollTimer() {
 
     DiscoveredProbe probe = scanUsbProbes();
 
-    if (probe.detected && !m_lastProbe.detected) {
-        m_lastProbe = probe;
-        emit probeDiscovered(probe);
-        qDebug().noquote() << QString("[OpenOcdManager] Auto-detected probe: %1 (VID: %2, PID: %3).")
-            .arg(probe.name, probe.vendorId, probe.productId);
-    } else if (probe.detected && m_lastProbe.detected) {
-        m_lastProbe = probe;
-    } else if (!probe.detected && m_lastProbe.detected) {
-        qDebug().noquote() << "[OpenOcdManager] Hardware probe unplugged! Disconnecting OpenOCD session.";
-        m_lastProbe = DiscoveredProbe();
-        emit probeRemoved();
-        disconnectTarget();
+    bool stateChanged = (probe.detected != m_lastProbe.detected) ||
+                        (probe.detected && probe.name != m_lastProbe.name);
+
+    if (stateChanged) {
+        if (probe.detected) {
+            m_lastProbe = probe;
+            emit probeDiscovered(probe);
+            qDebug().noquote() << QString("[OpenOcdManager] Board detected: %1 (VID: %2, PID: %3).")
+                .arg(probe.name, probe.vendorId, probe.productId);
+        } else {
+            qDebug().noquote() << "[OpenOcdManager] No probe connected.";
+            m_lastProbe = DiscoveredProbe();
+            emit probeRemoved();
+            disconnectTarget();
+        }
     }
+
+    scheduleNextPoll(probe.detected);
 }
 
 bool OpenOcdManager::connectToTarget(const QString& interfaceCfg, const QString& targetCfg, int tclPort, int telnetPort) {

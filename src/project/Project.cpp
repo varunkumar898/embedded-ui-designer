@@ -24,6 +24,8 @@
 #include "TableComponent.h"
 #include "GroupComponent.h"
 #include "codegen/FirmwareExportManager.h"
+#include "hardware/DeviceDatabase.h"
+#include "hardware/BoardRegistry.h"
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
@@ -186,6 +188,10 @@ void Project::newProject(const QString& name, int width, int height) {
     m_hardwareConfig.clear();
     emit hardwareConfigChanged();
 
+    // Task 5: back to the defaults (full framebuffer, single buffer) for a new project.
+    m_boardDisplay = BoardDisplayConfig();
+    emit boardDisplayConfigChanged();
+
     m_dataSources.clear();
     emit dataSourcesChanged();
 
@@ -206,6 +212,96 @@ void Project::setHardwareConfig(const Hardware::HardwareConfig& config) {
     setDirty(true);
     emit hardwareConfigChanged();
     emit projectModified();
+}
+
+void Project::setBoardDisplayConfig(const BoardDisplayConfig& config) {
+    if (m_boardDisplay == config) {
+        return;
+    }
+    m_boardDisplay = config;
+    setDirty(true);
+    emit boardDisplayConfigChanged();
+    // Unconditional: the Resource Analyzer relies on projectModified to refresh
+    // even when the dirty flag was already set (mirrors setHardwareConfig).
+    emit projectModified();
+}
+
+DeviceProfile Project::getDeviceProfile() const {
+    // 1. Identify device or board identifier
+    QString devId = m_hardwareConfig.deviceId.trimmed();
+    QString boardId = m_hardwareConfig.boardId.trimmed();
+    if (devId.isEmpty() && boardId.isEmpty()) {
+        return DeviceProfile{};
+    }
+
+    CapabilityDatabase db;
+    db.loadBuiltinDatabase();
+
+    // 1. Try resolving deviceId directly
+    if (!devId.isEmpty()) {
+        QString devKey = devId.toLower();
+        for (const QString& dName : db.listAllDevices()) {
+            if (dName.trimmed().toLower() == devKey) {
+                return db.getDeviceProfile(dName);
+            }
+        }
+        auto devDef = Hardware::DeviceDatabase::instance().findDevice(devId);
+        if (!devDef.partNumber.isEmpty()) {
+            DeviceProfile prof;
+            prof.name = devDef.partNumber;
+            prof.family = devDef.family;
+            prof.flash_kb = static_cast<uint32_t>(devDef.flashBytes / 1024);
+            prof.ram_kb = static_cast<uint32_t>(devDef.ramBytes / 1024);
+            prof.cpu_speed_mhz = static_cast<uint32_t>(devDef.maxClockMhz);
+            prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+            return prof;
+        }
+    }
+
+    // 2. Try resolving boardId
+    if (!boardId.isEmpty()) {
+        BoardDef board = BoardRegistry::instance().board(boardId);
+        if (board.isValid()) {
+            QString mcuName = board.mcu.trimmed();
+            for (const QString& dName : db.listAllDevices()) {
+                if (dName.trimmed().compare(mcuName, Qt::CaseInsensitive) == 0 ||
+                    (!dName.isEmpty() && mcuName.startsWith(dName, Qt::CaseInsensitive)) ||
+                    dName.trimmed().compare(board.id, Qt::CaseInsensitive) == 0) {
+                    return db.getDeviceProfile(dName);
+                }
+            }
+            for (const QString& dName : db.listAllDevices()) {
+                DeviceProfile p = db.getDeviceProfile(dName);
+                if (!p.module_variant.isEmpty() && p.module_variant.compare(board.id, Qt::CaseInsensitive) == 0) {
+                    return p;
+                }
+            }
+            auto bDev = Hardware::DeviceDatabase::instance().findDevice(mcuName);
+            if (!bDev.partNumber.isEmpty()) {
+                DeviceProfile prof;
+                prof.name = bDev.partNumber;
+                prof.family = bDev.family;
+                prof.flash_kb = static_cast<uint32_t>(bDev.flashBytes / 1024);
+                prof.ram_kb = static_cast<uint32_t>(bDev.ramBytes / 1024);
+                prof.cpu_speed_mhz = static_cast<uint32_t>(bDev.maxClockMhz);
+                prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+                return prof;
+            }
+            if (board.flashBytes > 0 || board.ramBytes > 0) {
+                DeviceProfile prof;
+                prof.name = !board.mcu.isEmpty() ? board.mcu : board.id;
+                prof.family = board.family;
+                prof.flash_kb = static_cast<uint32_t>(board.flashBytes / 1024);
+                prof.ram_kb = static_cast<uint32_t>(board.ramBytes / 1024);
+                prof.cpu_speed_mhz = static_cast<uint32_t>(board.clockMhz);
+                prof.supported_frameworks = {"qt-for-mcus", "ugfx", "lvgl"};
+                return prof;
+            }
+        }
+    }
+
+    // Fallback: return empty/invalid profile, NOT a made-up default MCU
+    return DeviceProfile{};
 }
 
 // ── Multi-Screen Operations ──────────────────────────────────────────────
@@ -554,6 +650,8 @@ QJsonObject Project::toJson() const {
     root["componentLibrary"] = libArr;
 
     root["hardware"] = m_hardwareConfig.toJson();
+    // Task 5: additive optional block; older builds simply ignore it.
+    root["boardDisplay"] = m_boardDisplay.toJson();
 
     return root;
 }
@@ -573,6 +671,15 @@ bool Project::fromJson(const QJsonObject& root) {
     if (root.contains("display") && root.value("display").isObject()) {
         m_displayConfig = DisplayConfig::fromJson(root.value("display").toObject());
     }
+
+    // Task 5: optional "boardDisplay" block; absence means "use the defaults"
+    // (full framebuffer, single buffer) so old .euiproj files load unchanged.
+    if (root.contains("boardDisplay") && root.value("boardDisplay").isObject()) {
+        m_boardDisplay = BoardDisplayConfig::fromJson(root.value("boardDisplay").toObject());
+    } else {
+        m_boardDisplay = BoardDisplayConfig();
+    }
+    emit boardDisplayConfigChanged();
 
     // ── Named color styles ────────────────────────────────────────────────
     m_colorStyles.clear();

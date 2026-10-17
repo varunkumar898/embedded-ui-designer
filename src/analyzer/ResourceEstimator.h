@@ -31,6 +31,17 @@ public:
     ResourceAnalysis analyzeProject(const Project* project, const DeviceProfile& device, const QString& framework = QString()) {
         return analyze(project, device, framework);
     }
+    ResourceAnalysis analyzeProject(const Project* project, const QString& framework = QString());
+
+    // Heaviest components breakdown for optimization
+    struct ComponentResourceEntry {
+        QString componentType;
+        int count = 0;
+        uint32_t totalFlashBytes = 0;
+        uint32_t totalRamBytes = 0;
+        QString optimizationSuggestion;
+    };
+    QVector<ComponentResourceEntry> getHeaviestComponents(const Project* project) const;
 
     // Component-level analysis
     ResourceAnalysis::Breakdown analyzeComponent(const UIComponent* comp);
@@ -47,9 +58,11 @@ public:
     static size_t calculateRowStrideBytes(int width, int bpp, size_t dmaAlignment = 16);
 
     // Validation
+    void validateFitsOnDevice(ResourceAnalysis& analysis);
     void validateFitsOnDevice(const ResourceAnalysis& analysis,
                               ResourceAnalysis::Status& status_out,
                               QVector<QString>& warnings_out);
+    void clearCache() { m_cache.clear(); }
 
     // Convert Hardware::DeviceDefinition to DeviceProfile
     static DeviceProfile deviceDefinitionToProfile(const Hardware::DeviceDefinition& dev);

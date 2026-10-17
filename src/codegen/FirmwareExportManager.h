@@ -15,6 +15,7 @@ struct ExportOptions {
     bool generateCmake = true;
     bool overwriteUserCode = false; // Always defaults to FALSE to preserve user code!
     bool optimizeAssets = true;
+    bool forceExport = false;
 };
 
 struct ExportResult {
@@ -36,7 +37,8 @@ public:
 private:
     bool createDirectoryStructure(const QDir& rootDir, QString* errorMsg);
     bool generateUserFiles(const Project* project, const QDir& userDir, const ExportOptions& options, ExportResult& result);
-    bool generateGeneratedFiles(const Project* project, const QDir& genDir, const ExportOptions& options, ExportResult& result);
+    bool generateGeneratedFiles(const Project* project, const QDir& rootDir, const QDir& genDir, const ExportOptions& options, ExportResult& result, const QMap<QString, QString>& oldManifest, const QString& backupTimestamp);
+    bool writeGeneratedFile(const QString& relPath, const QString& content, const QDir& rootDir, const QMap<QString, QString>& oldManifest, const QString& backupTimestamp, ExportResult& result);
     bool generateRootCMake(const Project* project, const QDir& rootDir, const ExportOptions& options, ExportResult& result);
 
     QString generateMainEntryCode(const Project* project, const ExportOptions& options) const;

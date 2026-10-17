@@ -191,10 +191,11 @@ void CodeWorkspaceView::syncWithProject(Project* project) {
         m_buildOutput->setProject(project);
     }
 
-    connect(project, &Project::firmwareDirectoryChanged, this, [this](const QString& dir) {
+    QObject::disconnect(m_dirConn);
+    m_dirConn = connect(project, &Project::firmwareDirectoryChanged, this, [this](const QString& dir) {
         m_explorer->setRootDirectory(dir);
         m_terminal->setWorkingDirectory(dir);
-    }, Qt::UniqueConnection);
+    });
 
     // If no file is open, open the primary firmware source
     if (m_editor && m_editor->openFileCount() == 0) {

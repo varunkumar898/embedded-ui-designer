@@ -4,7 +4,7 @@
 #include <QStringList>
 #include <QJsonObject>
 #include <QList>
-#include "AIProvider.h"
+#include "analyzer/ai/AIProvider.h"
 
 class QTextEdit;
 class QPushButton;

@@ -1,4 +1,5 @@
 #include "SimulationBackend.h"
+#include "hardware/BoardRegistry.h"
 #include <QDateTime>
 #include <QDebug>
 #include <algorithm>
@@ -179,11 +180,15 @@ bool SimulationBackend::resetTarget() {
 }
 
 QStringList SimulationBackend::availablePins() const {
-    return {
-        "PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7",
-        "PB0", "PB1", "PB2", "PB3", "PB4", "PB5", "PB6", "PB7", "PB8", "PB9",
-        "PC0", "PC1", "PC13"
-    };
+    QStringList pins = BoardRegistry::instance().activeBoard().pinNames();
+    if (pins.isEmpty()) {
+        pins = {
+            "PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7",
+            "PB0", "PB1", "PB2", "PB3", "PB4", "PB5", "PB6", "PB7", "PB8", "PB9",
+            "PC0", "PC1", "PC13"
+        };
+    }
+    return pins;
 }
 
 void SimulationBackend::setSimulatedDigital(const QString& pin, bool high) {

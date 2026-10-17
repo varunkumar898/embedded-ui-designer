@@ -1,5 +1,9 @@
 #include "CodegenEngine.h"
 #include "model/TypeSystem.h"
+#if defined(QT_CORE_LIB)
+#include "hardware/BoardRegistry.h"
+#include "driverpack/DriverPackRegistry.h"
+#endif
 #include <sstream>
 #include <algorithm>
 
@@ -80,26 +84,64 @@ bool CCodegen::validate(const Project& project, const GenerationConfig& config, 
 
 std::string CCodegen::selectHalImports(const std::string& targetBoard) {
     std::ostringstream ss;
-    if (targetBoard == "STM32F030R8" || targetBoard.find("STM32") != std::string::npos) {
+    if (targetBoard == "STM32F030R8" || targetBoard == "STM32F0") {
         ss << "#include <stdint.h>\n"
            << "#include <stdbool.h>\n"
            << "#include <string.h>\n"
            << "#include <stdio.h>\n"
            << "#include \"stm32f0xx_hal.h\"\n";
-    } else if (targetBoard == "RP2040") {
+    } else if (targetBoard.find("STM32F4") != std::string::npos) {
+        ss << "#include <stdint.h>\n"
+           << "#include <stdbool.h>\n"
+           << "#include <string.h>\n"
+           << "#include <stdio.h>\n"
+           << "#include \"stm32f4xx_hal.h\"\n";
+    } else if (targetBoard.find("STM32H7") != std::string::npos) {
+        ss << "#include <stdint.h>\n"
+           << "#include <stdbool.h>\n"
+           << "#include <string.h>\n"
+           << "#include <stdio.h>\n"
+           << "#include \"stm32h7xx_hal.h\"\n";
+    } else if (targetBoard.find("STM32F0") != std::string::npos || targetBoard.find("F030") != std::string::npos || targetBoard.empty()) {
+        ss << "#include <stdint.h>\n"
+           << "#include <stdbool.h>\n"
+           << "#include <string.h>\n"
+           << "#include <stdio.h>\n"
+           << "#include \"stm32f0xx_hal.h\"\n";
+    } else if (targetBoard.find("STM32") != std::string::npos) {
+        ss << "#include <stdint.h>\n"
+           << "#include <stdbool.h>\n"
+           << "#include <string.h>\n"
+           << "#include <stdio.h>\n"
+           << "#include \"stm32_hal.h\"\n";
+    } else if (targetBoard == "RP2040" || targetBoard.find("RP20") != std::string::npos || targetBoard.find("Pico") != std::string::npos) {
         ss << "#include <stdint.h>\n"
            << "#include <stdbool.h>\n"
            << "#include <string.h>\n"
            << "#include <stdio.h>\n"
            << "#include \"pico/stdlib.h\"\n"
            << "#include \"hardware/gpio.h\"\n";
-    } else if (targetBoard == "ESP32") {
+    } else if (targetBoard == "ESP32" || targetBoard.find("ESP32") != std::string::npos) {
         ss << "#include <stdint.h>\n"
            << "#include <stdbool.h>\n"
            << "#include <string.h>\n"
            << "#include <stdio.h>\n"
            << "#include \"driver/gpio.h\"\n"
            << "#include \"esp_timer.h\"\n";
+    } else if (targetBoard.find("RT10") != std::string::npos || targetBoard.find("MIMX") != std::string::npos) {
+        ss << "#include <stdint.h>\n"
+           << "#include <stdbool.h>\n"
+           << "#include <string.h>\n"
+           << "#include <stdio.h>\n"
+           << "#include \"fsl_gpio.h\"\n"
+           << "#include \"fsl_common.h\"\n";
+    } else if (targetBoard.find("Nordic") != std::string::npos || targetBoard.find("nRF") != std::string::npos || targetBoard.find("52840") != std::string::npos) {
+        ss << "#include <stdint.h>\n"
+           << "#include <stdbool.h>\n"
+           << "#include <string.h>\n"
+           << "#include <stdio.h>\n"
+           << "#include <zephyr/kernel.h>\n"
+           << "#include <zephyr/drivers/gpio.h>\n";
     } else {
         ss << "#include <stdint.h>\n"
            << "#include <stdbool.h>\n"
@@ -152,26 +194,96 @@ std::string CCodegen::generateHandlerFunction(const ApiEndpoint& endpoint, const
         }
     }
 
-    // 2. HAL invocation
+    // 2. HAL invocation using active board pin map & protocols
     ss << "\n    // Hardware HAL invocation\n";
-    if (config.targetBoard == "STM32F030R8" || config.targetBoard.find("STM32") != std::string::npos) {
-        ss << "    #ifdef TARGET_STM32F030R8\n";
-        ss << "    uint8_t hal_val = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);\n";
+    std::string defaultGpioPin = "PA0";
+    std::string fam = "STM32";
+
+#if defined(QT_CORE_LIB)
+    std::string target = config.targetBoard;
+    QString targetQ = QString::fromStdString(target).trimmed();
+    BoardDef activeBoard;
+    if (!target.empty()) {
+        BoardDef b = BoardRegistry::instance().board(targetQ);
+        if (!b.isValid()) {
+            for (const auto& brd : BoardRegistry::instance().boards()) {
+                if (brd.mcu.compare(targetQ, Qt::CaseInsensitive) == 0 ||
+                    brd.displayName.compare(targetQ, Qt::CaseInsensitive) == 0) {
+                    b = brd;
+                    break;
+                }
+            }
+        }
+        if (b.isValid()) {
+            activeBoard = b;
+            fam = activeBoard.family.toStdString();
+        } else {
+            auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(target);
+            if (pack) {
+                fam = pack->familyId();
+            } else if (targetQ.startsWith("STM32", Qt::CaseInsensitive)) {
+                fam = "STM32";
+            } else if (targetQ.startsWith("ESP32", Qt::CaseInsensitive)) {
+                fam = "ESP32";
+            } else if (targetQ.contains("RP2040", Qt::CaseInsensitive) || targetQ.contains("Pico", Qt::CaseInsensitive)) {
+                fam = "RP2040";
+            } else if (targetQ.contains("RT10", Qt::CaseInsensitive) || targetQ.contains("MIMX", Qt::CaseInsensitive)) {
+                fam = "i.MX RT";
+            } else if (targetQ.contains("nRF", Qt::CaseInsensitive) || targetQ.contains("52840", Qt::CaseInsensitive)) {
+                fam = "Nordic";
+            } else {
+                fam = "Generic";
+            }
+            BoardDef synth;
+            synth.family = QString::fromStdString(fam);
+            BoardRegistry::instance().ensureFamilyPinDefaults(synth);
+            activeBoard = synth;
+        }
+    } else {
+        BoardDef nucleo = BoardRegistry::instance().board("nucleo_f030r8");
+        if (nucleo.isValid()) activeBoard = nucleo;
+        else activeBoard = BoardRegistry::instance().activeBoard();
+        fam = activeBoard.family.toStdString();
+    }
+
+    for (auto it = activeBoard.pinMap.begin(); it != activeBoard.pinMap.end(); ++it) {
+        if (!it.value().reserved && it.value().function == "GPIO") {
+            defaultGpioPin = it.key().toStdString();
+            break;
+        }
+    }
+#endif
+
+    if (fam == "STM32") {
+        if (config.targetBoard.empty() || config.targetBoard.find("F030") != std::string::npos) {
+            ss << "    #if defined(TARGET_STM32) || defined(TARGET_STM32F030R8)\n";
+        } else {
+            ss << "    #if defined(TARGET_STM32)\n";
+        }
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
         ss << "    uint32_t hal_tick = HAL_GetTick();\n";
         ss << "    #else\n";
         ss << "    uint8_t hal_val = 1;\n";
         ss << "    uint32_t hal_tick = 100;\n";
         ss << "    #endif\n";
-    } else if (config.targetBoard == "RP2040") {
+    } else if (fam == "RP2040") {
         ss << "    #ifdef TARGET_RP2040\n";
-        ss << "    uint8_t hal_val = gpio_get(0);\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
+        ss << "    uint32_t hal_tick = 100;\n";
+        ss << "    #else\n";
+        ss << "    uint8_t hal_val = 1;\n";
+        ss << "    uint32_t hal_tick = 100;\n";
+        ss << "    #endif\n";
+    } else if (fam == "ESP32") {
+        ss << "    #ifdef TARGET_ESP32\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
         ss << "    uint32_t hal_tick = 100;\n";
         ss << "    #else\n";
         ss << "    uint8_t hal_val = 1;\n";
         ss << "    uint32_t hal_tick = 100;\n";
         ss << "    #endif\n";
     } else {
-        ss << "    uint8_t hal_val = 1;\n";
+        ss << "    uint8_t hal_val = hal_read_digital_pin(\"" << defaultGpioPin << "\");\n";
         ss << "    uint32_t hal_tick = 100;\n";
     }
 

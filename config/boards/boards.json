@@ -7,7 +7,7 @@
       "id": "nucleo_f030r8",
       "name": "STM32 NUCLEO-F030R8",
       "manufacturer": "STMicroelectronics",
-      "family": "STM32F0",
+      "family": "STM32",
       "mcuModel": "STM32F030R8",
       "mcu": "STM32F030R8T6",
       "architecture": "ARM Cortex-M0",
@@ -22,10 +22,44 @@
       "openOcdConfig": "target/stm32f0x.cfg",
       "toolchain": "arm-none-eabi-gcc",
       "productUrl": "https://www.st.com/en/evaluation-tools/nucleo-f030r8.html",
-      "features": ["UART", "SPI", "I2C", "ADC", "Timers"],
-      "analog_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7"],
-      "pwm_pins": ["PB0", "PB1", "PB4", "PB5"],
-      "digital_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7", "PB0", "PB1", "PB4", "PB5", "PC13"],
+      "features": [
+        "UART",
+        "SPI",
+        "I2C",
+        "ADC",
+        "Timers"
+      ],
+      "analog_pins": [
+        "PA0",
+        "PA1",
+        "PA2",
+        "PA3",
+        "PA4",
+        "PA5",
+        "PA6",
+        "PA7"
+      ],
+      "pwm_pins": [
+        "PB0",
+        "PB1",
+        "PB4",
+        "PB5"
+      ],
+      "digital_pins": [
+        "PA0",
+        "PA1",
+        "PA2",
+        "PA3",
+        "PA4",
+        "PA5",
+        "PA6",
+        "PA7",
+        "PB0",
+        "PB1",
+        "PB4",
+        "PB5",
+        "PC13"
+      ],
       "usb_adapter": {
         "type": "ST-Link",
         "vid": "0483",
@@ -39,22 +73,412 @@
         "transport": "hla_swd"
       },
       "datasheetUrl": "https://www.st.com/resource/en/datasheet/stm32f030r8.pdf",
-      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f030r8.pdf"
+      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f030r8.pdf",
+      "displayName": "STM32 NUCLEO-F030R8",
+      "vendor": "STMicroelectronics",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "PA0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA2": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN2",
+            "USART2_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA3": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN3",
+            "USART2_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA4": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN4",
+            "SPI1_NSS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA5": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN5",
+            "SPI1_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA6": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN6",
+            "SPI1_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA7": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN7",
+            "SPI1_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA9": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA10": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWDIO (Debug)"
+        },
+        "PA14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWCLK (Debug)"
+        },
+        "PA15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB0": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB1": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB4": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH5"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB5": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB8": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB9": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB10": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH11"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB13": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB14": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB15": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PC0": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC1": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC5": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC9": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC10": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "User Button / LED"
+        },
+        "VDD": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power Supply"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1",
+          "SPI2"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "USART1",
+          "USART2"
+        ],
+        "PWM": [
+          "TIM1",
+          "TIM3"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "target/stm32f0x.cfg",
+      "flashCommand": "openocd -f interface/stlink.cfg -f target/stm32f0x.cfg -c 'program {BINARY} 0x08000000 verify reset exit'"
     },
     {
       "id": "nucleo_f401re",
       "name": "STM32 NUCLEO-F401RE",
       "manufacturer": "STMicroelectronics",
-      "family": "STM32F4",
+      "family": "STM32",
       "mcu": "STM32F401RET6",
       "architecture": "ARM Cortex-M4",
       "frequency_mhz": 84,
       "flash_kb": 512,
       "ram_kb": 96,
       "gpio_count": 50,
-      "analog_pins": ["PA0", "PA1", "PA4", "PB0", "PC0", "PC1"],
-      "pwm_pins": ["PA5", "PA6", "PB3", "PB10"],
-      "digital_pins": ["PA0", "PA1", "PA4", "PA5", "PA6", "PB0", "PB3", "PB10", "PC0", "PC1", "PC13"],
+      "analog_pins": [
+        "PA0",
+        "PA1",
+        "PA4",
+        "PB0",
+        "PC0",
+        "PC1"
+      ],
+      "pwm_pins": [
+        "PA5",
+        "PA6",
+        "PB3",
+        "PB10"
+      ],
+      "digital_pins": [
+        "PA0",
+        "PA1",
+        "PA4",
+        "PA5",
+        "PA6",
+        "PB0",
+        "PB3",
+        "PB10",
+        "PC0",
+        "PC1",
+        "PC13"
+      ],
       "usb_adapter": {
         "type": "ST-Link/V2-1",
         "vid": "0483",
@@ -72,22 +496,415 @@
         "hal_header": "stm32f4xx_hal.h",
         "flags": "-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
       },
-      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f401re.pdf"
+      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f401re.pdf",
+      "displayName": "STM32 NUCLEO-F401RE",
+      "vendor": "STMicroelectronics",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "PA0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA2": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN2",
+            "USART2_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA3": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN3",
+            "USART2_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA4": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN4",
+            "SPI1_NSS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA5": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN5",
+            "SPI1_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA6": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN6",
+            "SPI1_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA7": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN7",
+            "SPI1_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA9": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA10": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWDIO (Debug)"
+        },
+        "PA14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWCLK (Debug)"
+        },
+        "PA15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB0": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB1": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB4": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH5"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB5": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB8": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB9": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB10": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH11"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB13": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB14": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB15": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PC0": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC1": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC5": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC9": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC10": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "User Button / LED"
+        },
+        "VDD": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power Supply"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1",
+          "SPI2"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "USART1",
+          "USART2"
+        ],
+        "PWM": [
+          "TIM1",
+          "TIM3"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "board/st_nucleo_f4.cfg",
+      "flashCommand": "openocd -f interface/stlink.cfg -f target/stm32f0x.cfg -c 'program {BINARY} 0x08000000 verify reset exit'"
     },
     {
       "id": "stm32_bluepill",
       "name": "STM32 Blue Pill (STM32F103C8)",
       "manufacturer": "Generic / STMicroelectronics",
-      "family": "STM32F1",
+      "family": "STM32",
       "mcu": "STM32F103C8T6",
       "architecture": "ARM Cortex-M3",
       "frequency_mhz": 72,
       "flash_kb": 64,
       "ram_kb": 20,
       "gpio_count": 37,
-      "analog_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7"],
-      "pwm_pins": ["PA8", "PA9", "PA10", "PB6", "PB7"],
-      "digital_pins": ["PA0", "PA1", "PA2", "PA3", "PA4", "PA5", "PA6", "PA7", "PB0", "PB1", "PC13"],
+      "analog_pins": [
+        "PA0",
+        "PA1",
+        "PA2",
+        "PA3",
+        "PA4",
+        "PA5",
+        "PA6",
+        "PA7"
+      ],
+      "pwm_pins": [
+        "PA8",
+        "PA9",
+        "PA10",
+        "PB6",
+        "PB7"
+      ],
+      "digital_pins": [
+        "PA0",
+        "PA1",
+        "PA2",
+        "PA3",
+        "PA4",
+        "PA5",
+        "PA6",
+        "PA7",
+        "PB0",
+        "PB1",
+        "PC13"
+      ],
       "usb_adapter": {
         "type": "ST-Link V2",
         "vid": "0483",
@@ -105,7 +922,373 @@
         "hal_header": "stm32f1xx_hal.h",
         "flags": "-mcpu=cortex-m3 -mthumb"
       },
-      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf"
+      "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf",
+      "displayName": "STM32 Blue Pill (STM32F103C8)",
+      "vendor": "Generic / STMicroelectronics",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "PA0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA2": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN2",
+            "USART2_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA3": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN3",
+            "USART2_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA4": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN4",
+            "SPI1_NSS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA5": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN5",
+            "SPI1_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA6": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN6",
+            "SPI1_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA7": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN7",
+            "SPI1_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA9": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA10": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWDIO (Debug)"
+        },
+        "PA14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWCLK (Debug)"
+        },
+        "PA15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB0": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB1": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB4": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH5"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB5": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB8": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB9": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB10": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH11"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB13": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB14": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB15": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PC0": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC1": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC5": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC9": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC10": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "User Button / LED"
+        },
+        "VDD": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power Supply"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1",
+          "SPI2"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "USART1",
+          "USART2"
+        ],
+        "PWM": [
+          "TIM1",
+          "TIM3"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "target/stm32f1x.cfg",
+      "flashCommand": "openocd -f interface/stlink.cfg -f target/stm32f0x.cfg -c 'program {BINARY} 0x08000000 verify reset exit'"
     },
     {
       "id": "esp32_devkitv1",
@@ -140,7 +1323,313 @@
       "datasheetUrl": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
       "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
       "productUrl": "https://www.espressif.com/en/products/devkits",
-      "features": ["WiFi", "Bluetooth", "802.15.4", "ADC", "SPI", "I2C"]
+      "features": [
+        "WiFi",
+        "Bluetooth",
+        "802.15.4",
+        "ADC",
+        "SPI",
+        "I2C"
+      ],
+      "displayName": "ESP32 DEVKITV1",
+      "vendor": "Espressif",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "target/esp32.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
     },
     {
       "id": "esp32_devkitv1_cp2104",
@@ -153,9 +1642,39 @@
       "flash_kb": 4096,
       "ram_kb": 520,
       "gpio_count": 36,
-      "analog_pins": ["GPIO32", "GPIO33", "GPIO34", "GPIO35", "GPIO36", "GPIO39"],
-      "pwm_pins": ["GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
-      "digital_pins": ["GPIO2", "GPIO4", "GPIO5", "GPIO12", "GPIO13", "GPIO14", "GPIO15", "GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
+      "analog_pins": [
+        "GPIO32",
+        "GPIO33",
+        "GPIO34",
+        "GPIO35",
+        "GPIO36",
+        "GPIO39"
+      ],
+      "pwm_pins": [
+        "GPIO16",
+        "GPIO17",
+        "GPIO18",
+        "GPIO19",
+        "GPIO21",
+        "GPIO22",
+        "GPIO23"
+      ],
+      "digital_pins": [
+        "GPIO2",
+        "GPIO4",
+        "GPIO5",
+        "GPIO12",
+        "GPIO13",
+        "GPIO14",
+        "GPIO15",
+        "GPIO16",
+        "GPIO17",
+        "GPIO18",
+        "GPIO19",
+        "GPIO21",
+        "GPIO22",
+        "GPIO23"
+      ],
       "usb_adapter": {
         "type": "Silicon Labs CP2104 / CP2102",
         "vid": "10c4",
@@ -173,7 +1692,306 @@
         "hal_header": "driver/gpio.h",
         "flags": "-mlongcalls -Wno-frame-address"
       },
-      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf"
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
+      "displayName": "ESP32 DEVKIT V1 (CP2104)",
+      "vendor": "DOIT / Espressif",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "config/openocd/esp32-devkitv1-cp210x.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
     },
     {
       "id": "esp32_devkitv1_ch340",
@@ -186,9 +2004,39 @@
       "flash_kb": 4096,
       "ram_kb": 520,
       "gpio_count": 36,
-      "analog_pins": ["GPIO32", "GPIO33", "GPIO34", "GPIO35", "GPIO36", "GPIO39"],
-      "pwm_pins": ["GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
-      "digital_pins": ["GPIO2", "GPIO4", "GPIO5", "GPIO12", "GPIO13", "GPIO14", "GPIO15", "GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"],
+      "analog_pins": [
+        "GPIO32",
+        "GPIO33",
+        "GPIO34",
+        "GPIO35",
+        "GPIO36",
+        "GPIO39"
+      ],
+      "pwm_pins": [
+        "GPIO16",
+        "GPIO17",
+        "GPIO18",
+        "GPIO19",
+        "GPIO21",
+        "GPIO22",
+        "GPIO23"
+      ],
+      "digital_pins": [
+        "GPIO2",
+        "GPIO4",
+        "GPIO5",
+        "GPIO12",
+        "GPIO13",
+        "GPIO14",
+        "GPIO15",
+        "GPIO16",
+        "GPIO17",
+        "GPIO18",
+        "GPIO19",
+        "GPIO21",
+        "GPIO22",
+        "GPIO23"
+      ],
       "usb_adapter": {
         "type": "WCH CH340 / CH341",
         "vid": "1a86",
@@ -206,22 +2054,351 @@
         "hal_header": "driver/gpio.h",
         "flags": "-mlongcalls"
       },
-      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf"
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
+      "displayName": "ESP32 DEVKIT V1 (CH340)",
+      "vendor": "Generic / Espressif",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "config/openocd/esp32-devkitv1-cp210x.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
     },
     {
       "id": "esp32_s3_devkitc",
       "name": "ESP32-S3-DevKitC-1",
       "manufacturer": "Espressif Systems",
-      "family": "ESP32-S3",
+      "family": "ESP32",
       "mcu": "ESP32-S3-WROOM-1",
       "architecture": "Xtensa Dual-Core 32-bit LX7 with Vector Instructions",
       "frequency_mhz": 240,
       "flash_kb": 8192,
       "ram_kb": 512,
       "gpio_count": 45,
-      "analog_pins": ["GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5", "GPIO6", "GPIO7", "GPIO8"],
-      "pwm_pins": ["GPIO9", "GPIO10", "GPIO11", "GPIO12", "GPIO13", "GPIO14"],
-      "digital_pins": ["GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5", "GPIO6", "GPIO7", "GPIO8", "GPIO9", "GPIO10", "GPIO21", "GPIO47", "GPIO48"],
+      "analog_pins": [
+        "GPIO1",
+        "GPIO2",
+        "GPIO3",
+        "GPIO4",
+        "GPIO5",
+        "GPIO6",
+        "GPIO7",
+        "GPIO8"
+      ],
+      "pwm_pins": [
+        "GPIO9",
+        "GPIO10",
+        "GPIO11",
+        "GPIO12",
+        "GPIO13",
+        "GPIO14"
+      ],
+      "digital_pins": [
+        "GPIO1",
+        "GPIO2",
+        "GPIO3",
+        "GPIO4",
+        "GPIO5",
+        "GPIO6",
+        "GPIO7",
+        "GPIO8",
+        "GPIO9",
+        "GPIO10",
+        "GPIO21",
+        "GPIO47",
+        "GPIO48"
+      ],
       "usb_adapter": {
         "type": "Built-in USB Serial/JTAG",
         "vid": "303a",
@@ -239,22 +2416,344 @@
         "hal_header": "driver/gpio.h",
         "flags": "-mlongcalls"
       },
-      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf"
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf",
+      "displayName": "ESP32-S3-DevKitC-1",
+      "vendor": "Espressif Systems",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "board/esp32s3-builtin.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
     },
     {
       "id": "esp32_c3_devkitm",
       "name": "ESP32-C3-DevKitM-1",
       "manufacturer": "Espressif Systems",
-      "family": "ESP32-C3",
+      "family": "ESP32",
       "mcu": "ESP32-C3-MINI-1",
       "architecture": "RISC-V 32-bit Single-Core",
       "frequency_mhz": 160,
       "flash_kb": 4096,
       "ram_kb": 400,
       "gpio_count": 22,
-      "analog_pins": ["GPIO0", "GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5"],
-      "pwm_pins": ["GPIO6", "GPIO7", "GPIO8", "GPIO10"],
-      "digital_pins": ["GPIO0", "GPIO1", "GPIO2", "GPIO3", "GPIO4", "GPIO5", "GPIO6", "GPIO7", "GPIO8", "GPIO9"],
+      "analog_pins": [
+        "GPIO0",
+        "GPIO1",
+        "GPIO2",
+        "GPIO3",
+        "GPIO4",
+        "GPIO5"
+      ],
+      "pwm_pins": [
+        "GPIO6",
+        "GPIO7",
+        "GPIO8",
+        "GPIO10"
+      ],
+      "digital_pins": [
+        "GPIO0",
+        "GPIO1",
+        "GPIO2",
+        "GPIO3",
+        "GPIO4",
+        "GPIO5",
+        "GPIO6",
+        "GPIO7",
+        "GPIO8",
+        "GPIO9"
+      ],
       "usb_adapter": {
         "type": "Built-in USB Serial/JTAG",
         "vid": "303a",
@@ -272,7 +2771,306 @@
         "hal_header": "driver/gpio.h",
         "flags": "-march=rv32imc -mabi=ilp32"
       },
-      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf"
+      "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf",
+      "displayName": "ESP32-C3-DevKitM-1",
+      "vendor": "Espressif Systems",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "board/esp32c3-builtin.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
     },
     {
       "id": "rpi_pico_rp2040",
@@ -291,13 +3089,48 @@
       "gpio_count": 26,
       "usbAdapter": "CMSIS-DAP",
       "openOcdConfig": "target/rp2040.cfg",
-      "toolchain": "arm-none-eabi-gcc",
+      "toolchain": {
+        "compiler": "arm-none-eabi-gcc",
+        "hal_header": "hardware/gpio.h",
+        "flags": "-mcpu=cortex-m0plus -mthumb"
+      },
       "productUrl": "https://www.raspberrypi.com/products/raspberry-pi-pico/",
-      "features": ["USB Device", "Dual Core", "ADC", "SPI", "I2C", "UART"],
+      "features": [
+        "USB Device",
+        "Dual Core",
+        "ADC",
+        "SPI",
+        "I2C",
+        "UART"
+      ],
       "datasheetUrl": "https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf",
-      "analog_pins": ["GP26", "GP27", "GP28"],
-      "pwm_pins": ["GP0", "GP1", "GP2", "GP3", "GP16", "GP17"],
-      "digital_pins": ["GP0", "GP1", "GP2", "GP3", "GP4", "GP5", "GP16", "GP17", "GP25", "GP26", "GP27", "GP28"],
+      "analog_pins": [
+        "GP26",
+        "GP27",
+        "GP28"
+      ],
+      "pwm_pins": [
+        "GP0",
+        "GP1",
+        "GP2",
+        "GP3",
+        "GP16",
+        "GP17"
+      ],
+      "digital_pins": [
+        "GP0",
+        "GP1",
+        "GP2",
+        "GP3",
+        "GP4",
+        "GP5",
+        "GP16",
+        "GP17",
+        "GP25",
+        "GP26",
+        "GP27",
+        "GP28"
+      ],
       "usb_adapter": {
         "type": "Raspberry Pi Debug Probe / CMSIS-DAP",
         "vid": "2e8a",
@@ -310,27 +3143,308 @@
         "config_file": "target/rp2040.cfg",
         "transport": "swd"
       },
-      "toolchain": {
-        "compiler": "arm-none-eabi-gcc",
-        "hal_header": "hardware/gpio.h",
-        "flags": "-mcpu=cortex-m0plus -mthumb"
+      "datasheet_url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf",
+      "displayName": "Raspberry Pi Pico",
+      "vendor": "Raspberry Pi",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
       },
-      "datasheet_url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf"
+      "pinMap": {
+        "GP0": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX",
+            "I2C0_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX",
+            "I2C0_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP2": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1_SDA",
+            "SPI0_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP3": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1_SCL",
+            "SPI0_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP4": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0_CSn"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP6": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP7": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_7"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP8": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_8"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP9": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_9"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP10": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_10"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP16": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP17": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP20": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP21": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP22": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP23": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP24": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP25": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Onboard LED"
+        },
+        "GP26": {
+          "function": "ADC",
+          "alternates": [
+            "ADC0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP27": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP28": {
+          "function": "ADC",
+          "alternates": [
+            "ADC2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP29": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI0",
+          "SPI1"
+        ],
+        "I2C": [
+          "I2C0",
+          "I2C1"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "PWM0",
+          "PWM1"
+        ],
+        "ADC": [
+          "ADC0"
+        ]
+      },
+      "openocdConfig": "target/rp2040.cfg",
+      "flashCommand": "picotool load -x {BINARY}"
     },
     {
       "id": "rpi_pico2_rp2350",
       "name": "Raspberry Pi Pico 2 (RP2350)",
       "manufacturer": "Raspberry Pi Ltd",
-      "family": "RP2350",
+      "family": "RP2040",
       "mcu": "RP2350A",
       "architecture": "Dual ARM Cortex-M33 / Dual Hazard3 RISC-V",
       "frequency_mhz": 150,
       "flash_kb": 4096,
       "ram_kb": 520,
       "gpio_count": 30,
-      "analog_pins": ["GP26", "GP27", "GP28"],
-      "pwm_pins": ["GP0", "GP1", "GP2", "GP3", "GP16", "GP17"],
-      "digital_pins": ["GP0", "GP1", "GP2", "GP3", "GP4", "GP5", "GP16", "GP17", "GP25"],
+      "analog_pins": [
+        "GP26",
+        "GP27",
+        "GP28"
+      ],
+      "pwm_pins": [
+        "GP0",
+        "GP1",
+        "GP2",
+        "GP3",
+        "GP16",
+        "GP17"
+      ],
+      "digital_pins": [
+        "GP0",
+        "GP1",
+        "GP2",
+        "GP3",
+        "GP4",
+        "GP5",
+        "GP16",
+        "GP17",
+        "GP25"
+      ],
       "usb_adapter": {
         "type": "Raspberry Pi Debug Probe / CMSIS-DAP",
         "vid": "2e8a",
@@ -348,22 +3462,300 @@
         "hal_header": "hardware/gpio.h",
         "flags": "-mcpu=cortex-m33 -mthumb"
       },
-      "datasheet_url": "https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf"
+      "datasheet_url": "https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf",
+      "displayName": "Raspberry Pi Pico 2 (RP2350)",
+      "vendor": "Raspberry Pi Ltd",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GP0": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX",
+            "I2C0_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX",
+            "I2C0_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP2": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1_SDA",
+            "SPI0_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP3": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1_SCL",
+            "SPI0_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP4": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0_CSn"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP6": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP7": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_7"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP8": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_8"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP9": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_9"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP10": {
+          "function": "PWM",
+          "alternates": [
+            "PWM_10"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP16": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP17": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP20": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP21": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP22": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP23": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP24": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GP25": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Onboard LED"
+        },
+        "GP26": {
+          "function": "ADC",
+          "alternates": [
+            "ADC0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP27": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP28": {
+          "function": "ADC",
+          "alternates": [
+            "ADC2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GP29": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI0",
+          "SPI1"
+        ],
+        "I2C": [
+          "I2C0",
+          "I2C1"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "PWM0",
+          "PWM1"
+        ],
+        "ADC": [
+          "ADC0"
+        ]
+      },
+      "openocdConfig": "target/rp2350.cfg",
+      "flashCommand": "picotool load -x {BINARY}"
     },
     {
       "id": "nxp_imxrt1060_evk",
       "name": "NXP i.MX RT1060 EVK",
       "manufacturer": "NXP Semiconductors",
-      "family": "i.MX RT1060",
+      "family": "NXP",
       "mcu": "MIMXRT1062DVL6A",
       "architecture": "ARM Cortex-M7",
       "frequency_mhz": 600,
       "flash_kb": 8192,
       "ram_kb": 1024,
       "gpio_count": 64,
-      "analog_pins": ["GPIO_AD_B0_12", "GPIO_AD_B0_13", "GPIO_AD_B0_14"],
-      "pwm_pins": ["GPIO_AD_B0_02", "GPIO_AD_B0_03"],
-      "digital_pins": ["GPIO_AD_B0_02", "GPIO_AD_B0_03", "GPIO_AD_B0_12", "GPIO_AD_B0_13", "GPIO_B1_00"],
+      "analog_pins": [
+        "GPIO_AD_B0_12",
+        "GPIO_AD_B0_13",
+        "GPIO_AD_B0_14"
+      ],
+      "pwm_pins": [
+        "GPIO_AD_B0_02",
+        "GPIO_AD_B0_03"
+      ],
+      "digital_pins": [
+        "GPIO_AD_B0_02",
+        "GPIO_AD_B0_03",
+        "GPIO_AD_B0_12",
+        "GPIO_AD_B0_13",
+        "GPIO_B1_00"
+      ],
       "usb_adapter": {
         "type": "DAPLink / OpenSDA CMSIS-DAP",
         "vid": "0d28",
@@ -381,22 +3773,213 @@
         "hal_header": "fsl_gpio.h",
         "flags": "-mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard"
       },
-      "datasheet_url": "https://www.nxp.com/docs/en/data-sheet/IMXRT1060CEC.pdf"
+      "datasheet_url": "https://www.nxp.com/docs/en/data-sheet/IMXRT1060CEC.pdf",
+      "displayName": "NXP i.MX RT1060 EVK",
+      "vendor": "NXP Semiconductors",
+      "display": {
+        "width": 480,
+        "height": 272,
+        "colorDepth": 16,
+        "interface": "eLCDIF",
+        "type": "TFT LCD"
+      },
+      "pinMap": {
+        "PIN_0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_2": {
+          "function": "PWM",
+          "alternates": [
+            "PWM1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_3": {
+          "function": "PWM",
+          "alternates": [
+            "PWM1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_4": {
+          "function": "UART",
+          "alternates": [
+            "UART1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_5": {
+          "function": "UART",
+          "alternates": [
+            "UART1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_6": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_7": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "VCC": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "UART1"
+        ],
+        "PWM": [
+          "PWM1"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "board/nxp_imxrt1060_evk.cfg",
+      "flashCommand": "blhost -u -- write-memory 0x60000000 {BINARY}"
     },
     {
       "id": "arduino_nano_esp32",
       "name": "Arduino Nano ESP32",
       "manufacturer": "Arduino",
-      "family": "ESP32-S3",
+      "family": "ESP32",
       "mcu": "ESP32-S3",
       "architecture": "Xtensa Dual-Core 32-bit LX7",
       "frequency_mhz": 240,
       "flash_kb": 16384,
       "ram_kb": 512,
       "gpio_count": 22,
-      "analog_pins": ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7"],
-      "pwm_pins": ["D2", "D3", "D5", "D6", "D9", "D10"],
-      "digital_pins": ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D13"],
+      "analog_pins": [
+        "A0",
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7"
+      ],
+      "pwm_pins": [
+        "D2",
+        "D3",
+        "D5",
+        "D6",
+        "D9",
+        "D10"
+      ],
+      "digital_pins": [
+        "D0",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7",
+        "D8",
+        "D9",
+        "D10",
+        "D11",
+        "D12",
+        "D13"
+      ],
       "usb_adapter": {
         "type": "Arduino USB DFU / JTAG",
         "vid": "2341",
@@ -414,22 +3997,343 @@
         "hal_header": "Arduino.h",
         "flags": "-mlongcalls"
       },
-      "datasheet_url": "https://docs.arduino.cc/resources/datasheets/ABX00083-datasheet.pdf"
+      "datasheet_url": "https://docs.arduino.cc/resources/datasheets/ABX00083-datasheet.pdf",
+      "displayName": "Arduino Nano ESP32",
+      "vendor": "Arduino",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "board/esp32s3-builtin.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
     },
     {
       "id": "seeed_xiao_esp32c3",
       "name": "Seeed Studio XIAO ESP32C3",
       "manufacturer": "Seeed Studio",
-      "family": "ESP32-C3",
+      "family": "ESP32",
       "mcu": "ESP32-C3",
       "architecture": "RISC-V 32-bit Single-Core",
       "frequency_mhz": 160,
       "flash_kb": 4096,
       "ram_kb": 400,
       "gpio_count": 11,
-      "analog_pins": ["A0", "A1", "A2", "A3"],
-      "pwm_pins": ["D0", "D1", "D2", "D3"],
-      "digital_pins": ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10"],
+      "analog_pins": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "pwm_pins": [
+        "D0",
+        "D1",
+        "D2",
+        "D3"
+      ],
+      "digital_pins": [
+        "D0",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7",
+        "D8",
+        "D9",
+        "D10"
+      ],
       "usb_adapter": {
         "type": "Built-in USB Serial/JTAG",
         "vid": "303a",
@@ -447,7 +4351,1789 @@
         "hal_header": "driver/gpio.h",
         "flags": "-march=rv32imc -mabi=ilp32"
       },
-      "datasheet_url": "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/"
+      "datasheet_url": "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/",
+      "displayName": "Seeed Studio XIAO ESP32C3",
+      "vendor": "Seeed Studio",
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2",
+          "SPI3"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "LEDC0",
+          "LEDC1"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "board/esp32c3-builtin.cfg",
+      "flashCommand": "esptool.py --chip esp32 -p {PORT} write_flash 0x10000 {BINARY}"
+    },
+    {
+      "id": "stm32h747i_disco",
+      "name": "STM32H747I-DISCO",
+      "displayName": "STM32H747I Discovery (STM32H747XI)",
+      "vendor": "STMicroelectronics",
+      "manufacturer": "STMicroelectronics",
+      "family": "STM32",
+      "mcu": "STM32H747XI",
+      "architecture": "ARM Cortex-M7 + M4",
+      "cores": 2,
+      "ram_kb": 1024,
+      "flash_kb": 2048,
+      "frequency_mhz": 480,
+      "display": {
+        "width": 800,
+        "height": 480,
+        "colorDepth": 24,
+        "interface": "LTDC / MIPI-DSI",
+        "type": "TFT LCD"
+      },
+      "pinMap": {
+        "PA0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA2": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN2",
+            "USART2_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA3": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN3",
+            "USART2_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA4": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN4",
+            "SPI1_NSS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA5": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN5",
+            "SPI1_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA6": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN6",
+            "SPI1_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA7": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN7",
+            "SPI1_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA9": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA10": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWDIO (Debug)"
+        },
+        "PA14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWCLK (Debug)"
+        },
+        "PA15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB0": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB1": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB4": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH5"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB5": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB8": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB9": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB10": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH11"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB13": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB14": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB15": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PC0": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC1": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC5": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC9": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC10": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "User Button / LED"
+        },
+        "VDD": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power Supply"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1",
+          "SPI2",
+          "SPI4"
+        ],
+        "I2C": [
+          "I2C1",
+          "I2C2"
+        ],
+        "UART": [
+          "USART1",
+          "USART2"
+        ],
+        "PWM": [
+          "TIM1",
+          "TIM3"
+        ],
+        "ADC": [
+          "ADC1",
+          "ADC2"
+        ]
+      },
+      "openocdConfig": "board/stm32h747i_disco.cfg",
+      "flashCommand": "STM32_Programmer_CLI -c port=SWD -w {BINARY} 0x08000000 -v -rst"
+    },
+    {
+      "id": "stm32f469i_disco",
+      "name": "STM32F469I-DISCO",
+      "displayName": "STM32F469I Discovery (STM32F469NI)",
+      "vendor": "STMicroelectronics",
+      "manufacturer": "STMicroelectronics",
+      "family": "STM32",
+      "mcu": "STM32F469NI",
+      "architecture": "ARM Cortex-M4",
+      "cores": 1,
+      "ram_kb": 384,
+      "flash_kb": 2048,
+      "frequency_mhz": 180,
+      "display": {
+        "width": 800,
+        "height": 480,
+        "colorDepth": 24,
+        "interface": "MIPI-DSI",
+        "type": "Capacitive Touch LCD"
+      },
+      "pinMap": {
+        "PA0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA2": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN2",
+            "USART2_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA3": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN3",
+            "USART2_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA4": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN4",
+            "SPI1_NSS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA5": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN5",
+            "SPI1_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA6": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN6",
+            "SPI1_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA7": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_IN7",
+            "SPI1_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA9": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA10": {
+          "function": "GPIO",
+          "alternates": [
+            "USART1_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PA11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PA13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWDIO (Debug)"
+        },
+        "PA14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": true,
+          "note": "SWCLK (Debug)"
+        },
+        "PA15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB0": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB1": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH2"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB4": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH5"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB5": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH6"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB8": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB9": {
+          "function": "GPIO",
+          "alternates": [
+            "I2C1_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB10": {
+          "function": "PWM",
+          "alternates": [
+            "TIM3_CH11"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PB13": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB14": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PB15": {
+          "function": "GPIO",
+          "alternates": [
+            "SPI2_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "PC0": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC1": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC2": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC3": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC5": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC7": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC8": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC9": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC10": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "PC13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "User Button / LED"
+        },
+        "VDD": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power Supply"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1",
+          "SPI2"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "USART3"
+        ],
+        "PWM": [
+          "TIM1",
+          "TIM3"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "board/stm32f469discovery.cfg",
+      "flashCommand": "STM32_Programmer_CLI -c port=SWD -w {BINARY} 0x08000000 -v -rst"
+    },
+    {
+      "id": "esp32_s3_box",
+      "name": "ESP32-S3-BOX",
+      "displayName": "ESP32-S3-BOX AIoT Dev Kit",
+      "vendor": "Espressif",
+      "manufacturer": "Espressif",
+      "family": "ESP32",
+      "mcu": "ESP32-S3",
+      "architecture": "Xtensa LX7 Dual-Core",
+      "cores": 2,
+      "ram_kb": 512,
+      "flash_kb": 16384,
+      "frequency_mhz": 240,
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI",
+        "type": "IPS LCD"
+      },
+      "pinMap": {
+        "GPIO0": {
+          "function": "GPIO",
+          "alternates": [
+            "BOOT",
+            "ADC2_CH1"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (Pulled HIGH)"
+        },
+        "GPIO1": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO2": {
+          "function": "GPIO",
+          "alternates": [
+            "LED",
+            "ADC2_CH2"
+          ],
+          "reserved": false,
+          "note": "Strapping pin / Onboard LED"
+        },
+        "GPIO3": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RX"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO5": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_CS"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO6": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_FLASH"
+          ],
+          "reserved": true,
+          "note": "Internal SPI Flash (Do not use)"
+        },
+        "GPIO12": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDI",
+            "ADC2_CH5"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDI)"
+        },
+        "GPIO13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO15": {
+          "function": "GPIO",
+          "alternates": [
+            "MTDO",
+            "ADC2_CH3"
+          ],
+          "reserved": false,
+          "note": "Strapping pin (MTDO)"
+        },
+        "GPIO16": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH16"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO17": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH17"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO18": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_SCK"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO19": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MISO"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO21": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SDA"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO22": {
+          "function": "I2C",
+          "alternates": [
+            "I2C_SCL"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO23": {
+          "function": "SPI",
+          "alternates": [
+            "SPI_MOSI"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO25": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH25"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO26": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH26"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO27": {
+          "function": "PWM",
+          "alternates": [
+            "LEDC_CH27"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO32": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH0"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO33": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH1"
+          ],
+          "reserved": false,
+          "note": ""
+        },
+        "GPIO34": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH2"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO35": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH3"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO36": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH4"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "GPIO39": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1_CH7"
+          ],
+          "reserved": false,
+          "note": "Input only (No pull-up/down)"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "3.3V Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI2"
+        ],
+        "I2C": [
+          "I2C0"
+        ],
+        "UART": [
+          "UART0"
+        ],
+        "PWM": [
+          "LEDC0"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "board/esp32s3-builtin.cfg",
+      "flashCommand": "esptool.py --chip esp32s3 -p {PORT} write_flash 0x0 {BINARY}"
+    },
+    {
+      "id": "rpi_4",
+      "name": "Raspberry Pi 4 Model B",
+      "displayName": "Raspberry Pi 4 Model B (Broadcom BCM2711)",
+      "vendor": "Raspberry Pi Ltd",
+      "manufacturer": "Raspberry Pi Ltd",
+      "family": "RaspberryPi",
+      "mcu": "BCM2711",
+      "architecture": "Quad-core Cortex-A72 (ARM v8) 64-bit",
+      "cores": 4,
+      "ram_kb": 4194304,
+      "flash_kb": 33554432,
+      "frequency_mhz": 1500,
+      "display": {
+        "width": 1920,
+        "height": 1080,
+        "colorDepth": 32,
+        "interface": "HDMI / DSI",
+        "type": "HDMI Monitor / DSI Touchscreen"
+      },
+      "pinMap": {
+        "GPIO2": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1_SDA"
+          ],
+          "reserved": false,
+          "note": "BCM 2 / Physical Pin 3"
+        },
+        "GPIO3": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1_SCL"
+          ],
+          "reserved": false,
+          "note": "BCM 3 / Physical Pin 5"
+        },
+        "GPIO4": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 4 / Physical Pin 7"
+        },
+        "GPIO14": {
+          "function": "UART",
+          "alternates": [
+            "UART0_TXD"
+          ],
+          "reserved": false,
+          "note": "BCM 14 / Physical Pin 8"
+        },
+        "GPIO15": {
+          "function": "UART",
+          "alternates": [
+            "UART0_RXD"
+          ],
+          "reserved": false,
+          "note": "BCM 15 / Physical Pin 10"
+        },
+        "GPIO17": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 17 / Physical Pin 11"
+        },
+        "GPIO18": {
+          "function": "PWM",
+          "alternates": [
+            "PWM"
+          ],
+          "reserved": false,
+          "note": "BCM 18 / Physical Pin 12"
+        },
+        "GPIO27": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 27 / Physical Pin 13"
+        },
+        "GPIO22": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 22 / Physical Pin 15"
+        },
+        "GPIO23": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 23 / Physical Pin 16"
+        },
+        "GPIO24": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 24 / Physical Pin 18"
+        },
+        "GPIO10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": "BCM 10 / Physical Pin 19"
+        },
+        "GPIO9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": "BCM 9 / Physical Pin 21"
+        },
+        "GPIO25": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 25 / Physical Pin 22"
+        },
+        "GPIO11": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": "BCM 11 / Physical Pin 23"
+        },
+        "GPIO8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": "BCM 8 / Physical Pin 24"
+        },
+        "GPIO7": {
+          "function": "SPI",
+          "alternates": [
+            "SPI0"
+          ],
+          "reserved": false,
+          "note": "BCM 7 / Physical Pin 26"
+        },
+        "GPIO5": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 5 / Physical Pin 29"
+        },
+        "GPIO6": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 6 / Physical Pin 31"
+        },
+        "GPIO12": {
+          "function": "PWM",
+          "alternates": [
+            "PWM"
+          ],
+          "reserved": false,
+          "note": "BCM 12 / Physical Pin 32"
+        },
+        "GPIO13": {
+          "function": "PWM",
+          "alternates": [
+            "PWM"
+          ],
+          "reserved": false,
+          "note": "BCM 13 / Physical Pin 33"
+        },
+        "GPIO19": {
+          "function": "PWM",
+          "alternates": [
+            "PWM"
+          ],
+          "reserved": false,
+          "note": "BCM 19 / Physical Pin 35"
+        },
+        "GPIO16": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 16 / Physical Pin 36"
+        },
+        "GPIO26": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 26 / Physical Pin 37"
+        },
+        "GPIO20": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 20 / Physical Pin 38"
+        },
+        "GPIO21": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "BCM 21 / Physical Pin 40"
+        },
+        "3V3": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Physical Pin 1"
+        },
+        "5V": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Physical Pin 2, 4"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Physical Pin 6, 9, 14, 20, 25, 30, 34, 39"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI0",
+          "SPI1"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "UART0",
+          "UART1"
+        ],
+        "PWM": [
+          "PWM0",
+          "PWM1"
+        ],
+        "ADC": []
+      },
+      "openocdConfig": "target/bcm2835.cfg",
+      "flashCommand": "cp {BINARY} /media/$USER/boot/"
+    },
+    {
+      "id": "custom_board",
+      "name": "Custom Board Profile",
+      "displayName": "Custom Board (User Configured)",
+      "vendor": "Custom",
+      "manufacturer": "Custom",
+      "family": "Custom",
+      "mcu": "Custom MCU",
+      "architecture": "Custom",
+      "cores": 1,
+      "ram_kb": 256,
+      "flash_kb": 1024,
+      "frequency_mhz": 100,
+      "display": {
+        "width": 320,
+        "height": 240,
+        "colorDepth": 16,
+        "interface": "SPI",
+        "type": "LCD"
+      },
+      "pinMap": {
+        "PIN_0": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_1": {
+          "function": "ADC",
+          "alternates": [
+            "ADC1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_2": {
+          "function": "PWM",
+          "alternates": [
+            "PWM1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_3": {
+          "function": "PWM",
+          "alternates": [
+            "PWM1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_4": {
+          "function": "UART",
+          "alternates": [
+            "UART1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_5": {
+          "function": "UART",
+          "alternates": [
+            "UART1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_6": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_7": {
+          "function": "I2C",
+          "alternates": [
+            "I2C1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_8": {
+          "function": "SPI",
+          "alternates": [
+            "SPI1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_9": {
+          "function": "SPI",
+          "alternates": [
+            "SPI1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_10": {
+          "function": "SPI",
+          "alternates": [
+            "SPI1"
+          ],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_11": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_12": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_13": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_14": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "PIN_15": {
+          "function": "GPIO",
+          "alternates": [],
+          "reserved": false,
+          "note": "Configurable pin"
+        },
+        "VCC": {
+          "function": "POWER",
+          "alternates": [],
+          "reserved": true,
+          "note": "Power"
+        },
+        "GND": {
+          "function": "GND",
+          "alternates": [],
+          "reserved": true,
+          "note": "Ground"
+        }
+      },
+      "protocols": {
+        "SPI": [
+          "SPI1"
+        ],
+        "I2C": [
+          "I2C1"
+        ],
+        "UART": [
+          "UART1"
+        ],
+        "PWM": [
+          "PWM1"
+        ],
+        "ADC": [
+          "ADC1"
+        ]
+      },
+      "openocdConfig": "target/custom.cfg",
+      "flashCommand": ""
     }
   ]
 }

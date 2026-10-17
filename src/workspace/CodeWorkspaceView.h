@@ -62,4 +62,5 @@ private:
     BuildOutputPanel* m_buildOutput = nullptr;
     TerminalWidget* m_terminal = nullptr;
     SerialMonitorWidget* m_serialMonitor = nullptr;
+    QMetaObject::Connection m_dirConn;
 };

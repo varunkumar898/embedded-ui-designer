@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QDockWidget>
+#include <QCloseEvent>
 #include <QLabel>
 #include <QComboBox>
 #include <QAction>
@@ -27,6 +28,7 @@ class FloatingSelectionToolbar;
 class EffectsPanel;
 class UploadsPanel;
 class ResourceAnalyzerPanel;
+class BoardDisplayPanel;
 class QToolButton;
 class QToolBar;
 class QStackedWidget;
@@ -46,10 +48,15 @@ class DesignerController;
 class DesignerLocalServer;
 class ResourceAnalyzerPanel;
 class BuildOutputPanel;
+class ProblemsPanel;
 class QProgressBar;
 class OpenOCDWorker;
 class QThread;
 class DeviceMonitorPanel;
+
+namespace Diagnostics {
+class DiagnosticsService;
+}
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -70,6 +77,9 @@ public:
     EffectsPanel* effectsPanel() const { return m_effectsPanel; }
     UploadsPanel* uploadsPanel() const { return m_uploadsPanel; }
     ResourceAnalyzerPanel* resourceAnalyzerPanel() const { return m_resourcePanel; }
+    BoardDisplayPanel* boardDisplayPanel() const { return m_boardDisplayPanel; }
+    ProblemsPanel* problemsPanel() const { return m_problemsPanel; }
+    Diagnostics::DiagnosticsService* diagnosticsService() const { return m_diagnosticsService; }
 
     DesignerController* designerController() const { return m_controller; }
     DesignerLocalServer* localServer() const { return m_localServer; }
@@ -85,13 +95,27 @@ public:
     WorkspaceManager* workspaceManager() const { return m_workspaceManager; }
     DesignWorkspace* designWorkspace() const { return m_designWorkspace; }
     CodeWorkspaceView* codeWorkspaceView() const { return m_codeWorkspace; }
+    class DetachableTabWidget* centralTabWidget() const { return m_centralTabs; }
     BoardDetector& boardDetector() { return m_boardDetector; }
     void setWorkspaceMode(WorkspaceMode mode);
+    QWidget* boardBanner() const { return m_boardBanner; }
+    void checkFirstRunOnboarding(bool forceShow = false);
 
 public slots:
     void switchToDesignWorkspace();
     void switchToCodeWorkspace();
     void onOpenBoardSelectorDialog();
+    void onChangeBoard();
+    void saveWindowLayout();
+    void restoreWindowLayout();
+    void resetLayout();
+    void moveActiveWindowToScreen(class QScreen* screen);
+    void detachCanvasWindow();
+    void detachCodeWorkspaceWindow();
+    void redockAllDetachedWindows();
+    static void setDockCollapsed(QDockWidget* dock, bool collapsed, QPushButton* minBtn = nullptr);
+    static bool isDockCollapsed(QDockWidget* dock);
+    static QRect clampGeometryToScreens(const QRect& targetRect, const QRect& fallbackRect = QRect());
 
 private slots:
     // File Actions
@@ -188,24 +212,39 @@ private:
     ResourceAnalyzerPanel* m_resourcePanel = nullptr;
     QDockWidget* m_resourceDock = nullptr;
     QDockWidget* m_resourceAnalyzerPanel = nullptr;
+    BoardDisplayPanel* m_boardDisplayPanel = nullptr;
+    QDockWidget* m_boardDisplayDock = nullptr;
     BuildOutputPanel* m_buildOutputPanel = nullptr;
     QDockWidget* m_buildDock = nullptr;
     DeviceMonitorPanel* m_deviceMonitorPanel = nullptr;
     DeviceMonitorPanel* m_deviceMonitor = nullptr;
     QDockWidget* m_deviceMonitorDock = nullptr;
+    ProblemsPanel* m_problemsPanel = nullptr;
+    QDockWidget* m_problemsDock = nullptr;
+    Diagnostics::DiagnosticsService* m_diagnosticsService = nullptr;
+    QLabel* m_problemsBadgeLabel = nullptr;
+
+    QAction* m_actBuildOutput = nullptr;
+    QAction* m_actDeviceMonitor = nullptr;
+    QAction* m_actProblems = nullptr;
+    QAction* m_actResourceAnalyzer = nullptr;
+    QAction* m_actBoardDisplay = nullptr;
 
     // Workspace Central Stack & Switcher
     WorkspaceMode m_workspaceMode = WorkspaceMode::Design;
     WorkspaceManager* m_workspaceManager = nullptr;
     DesignWorkspace* m_designWorkspace = nullptr;
+    QWidget* m_boardBanner = nullptr;
     BoardDetector m_boardDetector;
     QStackedWidget* m_centralStack = nullptr;
+    class DetachableTabWidget* m_centralTabs = nullptr;
     QWidget* m_designContainer = nullptr;
     CodeWorkspaceView* m_codeWorkspace = nullptr;
     QToolButton* m_designModeBtn = nullptr;
     QToolButton* m_codeModeBtn = nullptr;
     QButtonGroup* m_workspaceGroup = nullptr;
     QMap<QString, bool> m_dockVisibilityBeforeCodeMode;
+    bool m_inWorkspaceModeSwitch = false;
 
     ContextualTopToolbar* m_topToolbar = nullptr;
     QWidget* m_contextualToolbar = nullptr;
@@ -254,6 +293,9 @@ private:
     void setupUi();
     void setupMenusAndToolbars();
     void setupDocks();
+    void setupDiagnostics();
+    void updateProblemsBadge();
+    void navigateToDiagnostic(const QString& screenId, const QString& componentId);
     void setupMCUSelection();
     void applyTheme();
     void setTheme(const QString& theme);
@@ -270,4 +312,10 @@ private slots:
     void onCancelOpenOCDConnection();
     void onMCUSelectionChanged(const QString& mcuName);
     void onBrowseMCUConfig();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QByteArray m_defaultLayoutState;
 };

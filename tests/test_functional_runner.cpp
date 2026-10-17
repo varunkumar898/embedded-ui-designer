@@ -155,21 +155,25 @@ public:
         }
         {
             auto t = std::chrono::high_resolution_clock::now();
-            // Toggle ON
+            // Toggle ON — Resource Analyzer must STAY VISIBLE with Live Test banner
             window.m_liveTestButton->click();
+            QLabel* banner = window.findChild<QLabel*>("liveTestBannerLabel");
             bool onOk = window.m_liveTestMode && window.m_liveTestButton->isChecked()
                         && (window.m_liveTestButton->styleSheet().contains(Theme::LiveTestActive) || window.m_liveTestButton->styleSheet().contains("#2ecc71"))
                         && window.statusBar()->currentMessage().contains("Live Test: ON")
                         && window.m_resourceAnalyzerPanel != nullptr
-                        && window.m_resourceAnalyzerPanel->isHidden();
+                        && !window.m_resourceAnalyzerPanel->isHidden()
+                        && banner != nullptr && banner->isVisible()
+                        && banner->text().contains("Live Test: the design runs on your PC");
 
-            // Toggle OFF
+            // Toggle OFF — Resource Analyzer still visible, banner hidden
             window.m_liveTestButton->click();
             bool offOk = !window.m_liveTestMode && !window.m_liveTestButton->isChecked()
                          && window.m_liveTestButton->styleSheet().isEmpty()
                          && window.statusBar()->currentMessage().contains("Design Mode")
                          && window.m_resourceAnalyzerPanel != nullptr
-                         && !window.m_resourceAnalyzerPanel->isHidden();
+                         && !window.m_resourceAnalyzerPanel->isHidden()
+                         && banner != nullptr && !banner->isVisible();
 
             // 10+ rapid toggles
             for (int i = 0; i < 20; ++i) {

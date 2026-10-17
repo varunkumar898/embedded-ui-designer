@@ -1,6 +1,6 @@
 #include "AISettingsDialog.h"
-#include "ai/AIProviderRegistry.h"
-#include "ai/AIProvider.h"
+#include "analyzer/ai/AIProviderRegistry.h"
+#include "analyzer/ai/AIProvider.h"
 #include "theme/Theme.h"
 
 #include <QVBoxLayout>

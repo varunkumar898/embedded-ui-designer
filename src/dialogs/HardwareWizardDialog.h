@@ -32,6 +32,8 @@ public:
     int displayHeight() const;
     bool isRound() const;
     int colorDepth() const;
+    bool choseLater() const { return m_choseLater; }
+    QString presetName() const;
 
 private slots:
     void onNextStep();
@@ -99,6 +101,9 @@ private:
     QPushButton* m_btnNext = nullptr;
     QPushButton* m_btnCancel = nullptr;
     QPushButton* m_btnFinish = nullptr;
+    QPushButton* m_btnChooseLater = nullptr;
+    QLineEdit* m_presetNameEdit = nullptr;
+    bool m_choseLater = false;
 
     // Step 1 Widgets
     QTabWidget* m_hwTabs = nullptr;

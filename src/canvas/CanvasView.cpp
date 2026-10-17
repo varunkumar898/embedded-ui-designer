@@ -934,6 +934,14 @@ void CanvasView::selectComponent(UIComponent* component) {
     component->setSelected(true);
 }
 
+void CanvasView::revealComponent(UIComponent* component) {
+    if (!component) return;
+    selectComponent(component);
+    if (component->scene()) {
+        ensureVisible(component, 40, 40);
+    }
+}
+
 void CanvasView::onComponentClicked(UIComponent* component) {
     // NEW: Check if Live Test Mode is ON
     if (!m_liveTestMode) {

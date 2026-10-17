@@ -1,5 +1,6 @@
 #include "LVGLCodeGenerator.h"
 #include "components/ComponentLibrary.h"
+#include "hardware/BoardRegistry.h"
 
 #include <QDir>
 #include <QFile>
@@ -21,13 +22,31 @@ QString LVGLCodeGenerator::generateHeader(const QString& targetBoard) const {
     ts << "#define UI_LVGL_GEN_H\n\n";
     ts << "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n";
 
-    if (targetBoard.contains("esp32", Qt::CaseInsensitive)) {
+    BoardDef board = BoardRegistry::instance().activeBoard();
+    if (!targetBoard.isEmpty()) {
+        BoardDef b = BoardRegistry::instance().board(targetBoard);
+        if (b.isValid()) board = b;
+    }
+
+    ts << "/* Target Board: " << (board.displayName.isEmpty() ? board.id : board.displayName) << " (" << board.family << ") */\n";
+    if (board.family.contains("esp32", Qt::CaseInsensitive)) {
         ts << "/* ESP-IDF / ESP32 Target */\n";
         ts << "#include \"esp_system.h\"\n";
-    } else if (targetBoard.contains("stm32", Qt::CaseInsensitive)) {
+    } else if (board.family.contains("stm32", Qt::CaseInsensitive)) {
         ts << "/* STM32 Target */\n";
         ts << "#include \"stm32f0xx_hal.h\"\n";
+    } else if (board.family.contains("rp2040", Qt::CaseInsensitive)) {
+        ts << "/* RP2040 Target */\n";
+        ts << "#include \"pico/stdlib.h\"\n";
     }
+
+    ts << "\n/* Active Board Pin Definitions */\n";
+    for (auto it = board.pinMap.begin(); it != board.pinMap.end(); ++it) {
+        ts << QString("#define PIN_%1 \"%1\" /* %2%3 */\n")
+            .arg(it.key(), it.value().function,
+                 it.value().strapping ? " [Strapping]" : (it.value().reserved ? " [Reserved]" : ""));
+    }
+    ts << "\n";
 
     ts << "#include \"lvgl.h\"\n\n";
 
@@ -47,10 +66,16 @@ QString LVGLCodeGenerator::generateHeader(const QString& targetBoard) const {
 }
 
 QString LVGLCodeGenerator::generateSource(const QString& targetBoard) const {
+    Q_UNUSED(targetBoard);
     QString out;
     QTextStream ts(&out);
 
-    ts << "#include \"ui.h\"\n\n";
+    ts << "#include \"ui.h\"\n";
+    ts << "#if defined(__has_include)\n";
+    ts << "#  if __has_include(\"target_hal.h\")\n";
+    ts << "#    include \"target_hal.h\"\n";
+    ts << "#  endif\n";
+    ts << "#endif\n\n";
 
     ts << "/* Static Widget Allocations */\n";
     for (const auto& w : m_widgets) {
@@ -72,6 +97,10 @@ QString LVGLCodeGenerator::generateSource(const QString& targetBoard) const {
     }
 
     ts << "void ui_init(void) {\n";
+    ts << "    /* Target Hardware HAL Initialization */\n";
+    ts << "    #if defined(TARGET_HAL_H)\n";
+    ts << "    target_hal_init();\n";
+    ts << "    #endif\n\n";
     ts << "    lv_obj_t* parent = lv_scr_act();\n\n";
 
     for (const auto& w : m_widgets) {

@@ -6,10 +6,68 @@
 #include "codegen/BindingLayerGenerator.h"
 #include "codegen/TargetHalGenerator.h"
 #include "codegen/EmbedWebGenerator.h"
+#include "analyzer/ResourceEstimator.h"
+#include "driverpack/DriverPackRegistry.h"
+#include "hardware/BoardRegistry.h"
 #include <QFile>
 #include <QTextStream>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QCryptographicHash>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
+namespace {
+
+bool isSafeManifestPath(const QString& relPath, const QDir& rootDir) {
+    if (relPath.isEmpty()) return false;
+    if (relPath.contains("..") || relPath.startsWith("/") || relPath.startsWith("\\")) {
+        return false;
+    }
+    if (QDir::isAbsolutePath(relPath)) {
+        return false;
+    }
+    if (!relPath.startsWith("generated/") && !relPath.startsWith("generated\\")) {
+        return false;
+    }
+
+    QDir genDir(rootDir.filePath("generated"));
+    QString genCanonical = genDir.canonicalPath();
+    if (genCanonical.isEmpty()) {
+        genCanonical = QFileInfo(genDir.absolutePath()).absoluteFilePath();
+    }
+
+    QString fullPath = rootDir.filePath(relPath);
+    QFileInfo fi(fullPath);
+    if (fi.exists() || fi.isSymbolicLink()) {
+        if (fi.isSymbolicLink()) {
+            QString target = fi.symLinkTarget();
+            QFileInfo targetFi(target);
+            QString targetCanonical = targetFi.canonicalFilePath();
+            if (targetCanonical.isEmpty()) {
+                targetCanonical = targetFi.absoluteFilePath();
+            }
+            if (!targetCanonical.startsWith(genCanonical + "/") && targetCanonical != genCanonical) {
+                return false;
+            }
+        }
+        QString fileCanonical = fi.canonicalFilePath();
+        if (!fileCanonical.isEmpty() && !fileCanonical.startsWith(genCanonical + "/")) {
+            return false;
+        }
+    } else {
+        QString clean = QDir::cleanPath(fullPath);
+        QString cleanGen = QDir::cleanPath(rootDir.filePath("generated"));
+        if (!clean.startsWith(cleanGen + "/")) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+} // namespace
 
 FirmwareExportManager::FirmwareExportManager() {
 }
@@ -26,6 +84,61 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         result.success = false;
         result.errorMessage = "Export output directory cannot be empty.";
         return result;
+    }
+
+    // Shared Pre-Export Resource Validation Hook
+    ResourceEstimator estimator;
+    DeviceProfile dev = project->getDeviceProfile();
+    if (!dev.name.isEmpty() && (dev.flash_kb > 0 || dev.ram_kb > 0)) {
+        ResourceAnalysis analysis = estimator.analyze(project, dev, options.targetFramework);
+        for (const auto& w : analysis.structuredWarnings) {
+            result.warnings.append(w.message);
+        }
+        if (analysis.status == ResourceAnalysis::CRITICAL && !options.forceExport) {
+            result.success = false;
+            result.errorMessage = QString("Export blocked: %1").arg(analysis.summary.isEmpty() ? "Design exceeds device limits. Optimize or select a larger MCU." : analysis.summary);
+            return result;
+        }
+    }
+
+    // Target device and driver pack validation
+    QString boardId = project->hardwareConfig().boardId.trimmed();
+    if (boardId.isEmpty()) {
+        BoardPreset preset = BoardRegistry::instance().activePreset();
+        if (!preset.boardId.isEmpty()) {
+            boardId = preset.boardId;
+        }
+    }
+    QString deviceId = project->hardwareConfig().deviceId.trimmed();
+    if (deviceId.isEmpty()) {
+        deviceId = dev.name.trimmed();
+    }
+    if (deviceId.isEmpty() && !options.targetMcu.isEmpty() &&
+        options.targetMcu != "stm32" && options.targetMcu != "generic" &&
+        options.targetMcu != "esp32" && options.targetMcu != "pico") {
+        deviceId = options.targetMcu.trimmed();
+    }
+
+    QString targetDevice;
+    if (!boardId.isEmpty()) {
+        BoardDef bd = BoardRegistry::instance().board(boardId);
+        if (bd.isValid()) {
+            targetDevice = !bd.mcu.isEmpty() ? bd.mcu : boardId;
+        } else {
+            targetDevice = boardId;
+        }
+    } else if (!deviceId.isEmpty()) {
+        targetDevice = deviceId;
+    }
+
+    if (targetDevice.isEmpty()) {
+        result.warnings.append(QStringLiteral("Info: No device selected; using default STM32F030R8 baseline."));
+    } else {
+        auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(targetDevice.toStdString());
+        if (!pack) {
+            result.warnings.append(QString("No driver pack for %1; import one").arg(targetDevice));
+            result.warnings.append(QString("Native HAL export blocked for unsupported device %1; UI export proceeding.").arg(targetDevice));
+        }
     }
 
     QDir rootDir(options.outputDirectory);
@@ -48,6 +161,32 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
     QDir genDir(rootDir.filePath("generated"));
     QDir userDir(rootDir.filePath("user"));
 
+    // Read existing manifest if any
+    QString manifestPath = rootDir.filePath("generated/MANIFEST.json");
+    QMap<QString, QString> oldManifest;
+    if (QFile::exists(manifestPath)) {
+        QFile mf(manifestPath);
+        if (mf.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(mf.readAll());
+            mf.close();
+            if (doc.isObject()) {
+                QJsonArray arr = doc.object().value("files").toArray();
+                for (const auto& v : arr) {
+                    if (v.isObject()) {
+                        QString p = v.toObject().value("file").toString();
+                        if (isSafeManifestPath(p, rootDir)) {
+                            oldManifest[p] = v.toObject().value("sha256").toString();
+                        } else {
+                            result.warnings.append(QString("Rejected unsafe manifest entry: %1").arg(p));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    QString backupTimestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
+
     // 2. Safely Generate User Application Files (main.c, custom_logic.c/h)
     if (!generateUserFiles(project, userDir, options, result)) {
         result.success = false;
@@ -55,7 +194,7 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
     }
 
     // 3. Generate Hardware & UI Artifacts in generated/
-    if (!generateGeneratedFiles(project, genDir, options, result)) {
+    if (!generateGeneratedFiles(project, rootDir, genDir, options, result, oldManifest, backupTimestamp)) {
         result.success = false;
         return result;
     }
@@ -66,6 +205,86 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
             result.success = false;
             return result;
         }
+    }
+
+    // 5. Remove orphans listed in the old manifest but no longer produced (never touches user/ code)
+    for (auto it = oldManifest.begin(); it != oldManifest.end(); ++it) {
+        QString oldRelPath = it.key();
+        if (!isSafeManifestPath(oldRelPath, rootDir)) {
+            result.warnings.append(QString("Rejected unsafe manifest entry: %1").arg(oldRelPath));
+            continue; // Manifest safety: only touch files inside generated/
+        }
+        if (oldRelPath == "generated/MANIFEST.json") {
+            continue;
+        }
+        if (!result.generatedFiles.contains(oldRelPath)) {
+            QString fullPath = rootDir.filePath(oldRelPath);
+            QFileInfo fi(fullPath);
+            if (fi.exists() || fi.isSymbolicLink()) {
+                if (fi.isSymbolicLink()) {
+                    QString target = fi.symLinkTarget();
+                    QFileInfo targetFi(target);
+                    QString targetCanonical = targetFi.canonicalFilePath();
+                    QDir gDir(rootDir.filePath("generated"));
+                    QString gCanonical = gDir.canonicalPath();
+                    if (!targetCanonical.startsWith(gCanonical + "/")) {
+                        result.warnings.append(QString("Skipping orphan symlink resolving outside generated/: %1").arg(oldRelPath));
+                        continue;
+                    }
+                }
+                QFile f(fullPath);
+                if (f.open(QIODevice::ReadOnly)) {
+                    QByteArray actualHash = QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256).toHex();
+                    f.close();
+                    if (actualHash != it.value().toUtf8()) {
+                        QString backupRel = QString("generated/.backup/%1/%2").arg(backupTimestamp, oldRelPath);
+                        QString backupFull = rootDir.filePath(backupRel);
+                        QFileInfo(backupFull).dir().mkpath(".");
+                        QFile::copy(fullPath, backupFull);
+                        result.warnings.append(QString("User modified orphan file %1 backed up to %2 before removal.").arg(oldRelPath, backupRel));
+                    }
+                }
+                QFile::remove(fullPath);
+                result.warnings.append(QString("Removed orphan file: %1").arg(oldRelPath));
+            }
+        }
+    }
+
+    // 6. Write generated/MANIFEST.json (file, SHA-256, generator version, device)
+    QJsonObject manifestObj;
+    manifestObj["generatorVersion"] = "1.0.0";
+    manifestObj["device"] = targetDevice.isEmpty() ? "STM32F030R8" : targetDevice;
+
+    QStringList filesToTrack;
+    for (const QString& f : result.generatedFiles) {
+        if (f.startsWith("generated/") && f != "generated/MANIFEST.json") {
+            filesToTrack.append(f);
+        }
+    }
+    filesToTrack.sort();
+    filesToTrack.removeDuplicates();
+
+    QJsonArray filesArr;
+    for (const QString& relPath : filesToTrack) {
+        QString fullPath = rootDir.filePath(relPath);
+        QFile f(fullPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            QByteArray hash = QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256).toHex();
+            f.close();
+            QJsonObject item;
+            item["file"] = relPath;
+            item["sha256"] = QString::fromUtf8(hash);
+            filesArr.append(item);
+        }
+    }
+    manifestObj["files"] = filesArr;
+
+    QJsonDocument doc(manifestObj);
+    QFile mfOut(manifestPath);
+    if (mfOut.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        mfOut.write(doc.toJson(QJsonDocument::Indented));
+        mfOut.close();
+        result.generatedFiles.append("generated/MANIFEST.json");
     }
 
     result.success = true;
@@ -152,39 +371,64 @@ bool FirmwareExportManager::generateUserFiles(const Project* project, const QDir
     return true;
 }
 
-bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const QDir& genDir, const ExportOptions& options, ExportResult& result) {
+bool FirmwareExportManager::writeGeneratedFile(const QString& relPath, const QString& content, const QDir& rootDir, const QMap<QString, QString>& oldManifest, const QString& backupTimestamp, ExportResult& result) {
+    if (!isSafeManifestPath(relPath, rootDir)) {
+        result.errorMessage = QString("Attempted unsafe write outside generated/: %1").arg(relPath);
+        return false;
+    }
+
+    QString fullPath = rootDir.filePath(relPath);
+    QFileInfo fi(fullPath);
+    fi.dir().mkpath(".");
+
+    if (QFile::exists(fullPath)) {
+        QFile existing(fullPath);
+        if (existing.open(QIODevice::ReadOnly)) {
+            QByteArray actualHash = QCryptographicHash::hash(existing.readAll(), QCryptographicHash::Sha256).toHex();
+            existing.close();
+
+            bool shouldBackup = false;
+            if (oldManifest.contains(relPath)) {
+                if (actualHash != oldManifest.value(relPath).toUtf8()) {
+                    shouldBackup = true;
+                }
+            } else if (!oldManifest.isEmpty()) {
+                shouldBackup = true;
+            }
+
+            if (shouldBackup) {
+                QString backupRel = QString("generated/.backup/%1/%2").arg(backupTimestamp, relPath);
+                QString backupFull = rootDir.filePath(backupRel);
+                QFileInfo(backupFull).dir().mkpath(".");
+                QFile::copy(fullPath, backupFull);
+                result.warnings.append(QString("User modified file %1 backed up to %2").arg(relPath, backupRel));
+            }
+        }
+    }
+
+    QFile outFile(fullPath);
+    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        result.errorMessage = QString("Failed to write %1").arg(relPath);
+        return false;
+    }
+    QTextStream out(&outFile);
+    out << content;
+    outFile.close();
+    result.generatedFiles.append(relPath);
+    return true;
+}
+
+bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const QDir& rootDir, const QDir& genDir, const ExportOptions& options, ExportResult& result, const QMap<QString, QString>& oldManifest, const QString& backupTimestamp) {
     QString fw = options.targetFramework.isEmpty() ? project->targetFramework().toLower() : options.targetFramework.toLower();
 
     // 1. Generate UI Files (generated/ui/)
-    QDir uiDir(genDir.filePath("ui"));
     if (fw.contains("ugfx")) {
         UgfxGenerator gen(const_cast<Project*>(project), nullptr);
-
-        QFile hFile(uiDir.filePath("gui.h"));
-        if (hFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&hFile);
-            out << gen.generateUiHeader();
-            hFile.close();
-            result.generatedFiles.append("generated/ui/gui.h");
-        }
-
-        QFile cFile(uiDir.filePath("gui.c"));
-        if (cFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&cFile);
-            out << gen.generateUiSource();
-            cFile.close();
-            result.generatedFiles.append("generated/ui/gui.c");
-        }
-    } else if (fw.contains("qtmcu") || fw.contains("qul")) {
+        if (!writeGeneratedFile("generated/ui/gui.h", gen.generateUiHeader(), rootDir, oldManifest, backupTimestamp, result)) return false;
+        if (!writeGeneratedFile("generated/ui/gui.c", gen.generateUiSource(), rootDir, oldManifest, backupTimestamp, result)) return false;
+    } else if (fw.contains("qtmcu") || fw.contains("qul") || fw.contains("qt")) {
         QtMcuGenerator gen(const_cast<Project*>(project), nullptr);
-
-        QFile qmlFile(uiDir.filePath("MainScreen.qml"));
-        if (qmlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&qmlFile);
-            out << gen.generateDesignQml();
-            qmlFile.close();
-            result.generatedFiles.append("generated/ui/MainScreen.qml");
-        }
+        if (!writeGeneratedFile("generated/ui/MainScreen.qml", gen.generateDesignQml(), rootDir, oldManifest, backupTimestamp, result)) return false;
     } else if (fw.contains("embedweb")) {
         CodeGen::EmbedWebGenerator gen(project);
         if (!gen.generate(genDir, result.generatedFiles, &result.errorMessage)) {
@@ -193,69 +437,27 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
     } else {
         // Default to LVGL v8 / v9
         LvglGenerator gen(const_cast<Project*>(project), nullptr);
-
-        QFile hFile(uiDir.filePath("ui.h"));
-        if (hFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&hFile);
-            out << gen.generateUiHeader();
-            hFile.close();
-            result.generatedFiles.append("generated/ui/ui.h");
-        }
-
-        QFile cFile(uiDir.filePath("ui.c"));
-        if (cFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&cFile);
-            out << gen.generateUiSource();
-            cFile.close();
-            result.generatedFiles.append("generated/ui/ui.c");
-        }
+        if (!writeGeneratedFile("generated/ui/ui.h", gen.generateUiHeader(), rootDir, oldManifest, backupTimestamp, result)) return false;
+        if (!writeGeneratedFile("generated/ui/ui.c", gen.generateUiSource(), rootDir, oldManifest, backupTimestamp, result)) return false;
     }
 
     // 2. Generate Data Bindings (generated/bindings/)
-    QDir bindingsDir(genDir.filePath("bindings"));
-    QFile bindH(bindingsDir.filePath("ui_bindings.h"));
-    if (bindH.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&bindH);
-        out << CodeGen::BindingLayerGenerator::generateBindingsHeader(project);
-        bindH.close();
-        result.generatedFiles.append("generated/bindings/ui_bindings.h");
-    }
-
-    QFile bindC(bindingsDir.filePath("ui_bindings.c"));
-    if (bindC.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&bindC);
-        out << CodeGen::BindingLayerGenerator::generateBindingsSource(project);
-        bindC.close();
-        result.generatedFiles.append("generated/bindings/ui_bindings.c");
-    }
+    if (!writeGeneratedFile("generated/bindings/ui_bindings.h", CodeGen::BindingLayerGenerator::generateBindingsHeader(project), rootDir, oldManifest, backupTimestamp, result)) return false;
+    if (!writeGeneratedFile("generated/bindings/ui_bindings.c", CodeGen::BindingLayerGenerator::generateBindingsSource(project), rootDir, oldManifest, backupTimestamp, result)) return false;
 
     // 3. Generate Hardware HAL (generated/target/)
-    QDir targetDir(genDir.filePath("target"));
-    QFile halH(targetDir.filePath("target_hal.h"));
-    if (halH.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&halH);
-        out << CodeGen::TargetHalGenerator::generateHalHeader(project);
-        halH.close();
-        result.generatedFiles.append("generated/target/target_hal.h");
+    QString halHContent = CodeGen::TargetHalGenerator::generateHalHeader(project, options.targetMcu);
+    if (!halHContent.isEmpty()) {
+        if (!writeGeneratedFile("generated/target/target_hal.h", halHContent, rootDir, oldManifest, backupTimestamp, result)) return false;
     }
 
-    QFile halC(targetDir.filePath("target_hal.c"));
-    if (halC.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&halC);
-        out << CodeGen::TargetHalGenerator::generateHalSource(project);
-        halC.close();
-        result.generatedFiles.append("generated/target/target_hal.c");
+    QString halCContent = CodeGen::TargetHalGenerator::generateHalSource(project, options.targetMcu);
+    if (!halCContent.isEmpty()) {
+        if (!writeGeneratedFile("generated/target/target_hal.c", halCContent, rootDir, oldManifest, backupTimestamp, result)) return false;
     }
 
     // 4. Generate Assets Header (generated/assets/)
-    QDir assetsDir(genDir.filePath("assets"));
-    QFile assetH(assetsDir.filePath("assets.h"));
-    if (assetH.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&assetH);
-        out << "/* Auto-generated asset declarations */\n#pragma once\n#include <stdint.h>\n\n";
-        assetH.close();
-        result.generatedFiles.append("generated/assets/assets.h");
-    }
+    if (!writeGeneratedFile("generated/assets/assets.h", "/* Auto-generated asset declarations */\n#pragma once\n#include <stdint.h>\n\n", rootDir, oldManifest, backupTimestamp, result)) return false;
 
     return true;
 }
@@ -331,7 +533,7 @@ QString FirmwareExportManager::generateMainEntryCode(const Project* project, con
         code += "#include \"gui.h\"\n\n";
     } else if (fw.contains("embedweb")) {
         code += "#include \"ui_tree.h\"\n#include \"ew_hal.h\"\n\n";
-    } else if (!fw.contains("qtmcu")) {
+    } else if (!fw.contains("qtmcu") && !fw.contains("qt")) {
         code += "#include \"ui.h\"\n\n";
     }
 
@@ -346,7 +548,7 @@ QString FirmwareExportManager::generateMainEntryCode(const Project* project, con
         code += "    // 2. Initialize EmbedWeb Native GUI\n";
         code += "    static ew_tree_t ui_tree;\n";
         code += "    ui_tree_init(&ui_tree);\n\n";
-    } else if (!fw.contains("qtmcu")) {
+    } else if (!fw.contains("qtmcu") && !fw.contains("qt")) {
         code += "    // 2. Initialize LVGL GUI\n";
         code += "    ui_init();\n\n";
     }

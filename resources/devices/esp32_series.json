@@ -3,30 +3,156 @@
   "devices": [
     {
       "name": "ESP32",
-      "ram_kb": 520,
-      "flash_kb": 4096,
+      "family": "ESP32",
+      "vendor": "Espressif Systems",
+      "cores": ["Xtensa LX6 (dual-core, 240 MHz)"],
       "cpu_speed_mhz": 240,
+      "ram_kb": 520,
+      "ram": {
+        "total_kb": 520,
+        "regions": [
+          { "name": "SRAM", "kb": 520, "usable_for_framebuffer": null }
+        ]
+      },
+      "flash_kb": 4096,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 4096 },
       "peripherals": ["UART0", "UART1", "SPI2", "SPI3", "I2C0", "WiFi", "BLE"],
-      "supported_frameworks": ["lvgl", "qt-for-mcus", "ugfx"],
-      "notes": "Dual-core Xtensa LX6 with 4MB Flash"
+      "supported_frameworks": ["lvgl", "qt-for-mcus", "ugfx", "embedweb"],
+      "architecture": "Xtensa-LX6",
+      "required_toolchain": "xtensa-esp32-elf-gcc",
+      "embedweb_adapter_status": "supported_untested",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 520,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 64,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 320,
+      "tcm_kb": 0,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 4096,
+      "module_variant": "ESP32-WROOM-32",
+      "has_lcd_controller": false,
+      "notes": "NO on-chip flash: firmware executes from external SPI flash (ESP32-WROOM-32 module ships 4 MB; other modules 4-16 MB). The compiled-in profile presented the 4096 KB module size as a hard limit; Task 4 marks the flash as external and the analyzer reports it as Info unless a board flash size is configured. 520 KB SRAM on-chip, no PSRAM on WROOM-32.",
+      "sources": [
+        "ESP32 Series Datasheet v5.3, Espressif (https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf)",
+        "ESP32-WROOM-32 Datasheet, Espressif (4 MB SPI flash module)"
+      ],
+      "verified": true
     },
     {
       "name": "ESP32-S3",
-      "ram_kb": 512,
-      "flash_kb": 8192,
+      "family": "ESP32",
+      "vendor": "Espressif Systems",
+      "cores": ["Xtensa LX7 (dual-core, 240 MHz)"],
       "cpu_speed_mhz": 240,
+      "ram_kb": 512,
+      "ram": {
+        "total_kb": 512,
+        "regions": [
+          { "name": "SRAM", "kb": 512, "usable_for_framebuffer": null }
+        ]
+      },
+      "flash_kb": 8192,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 8192 },
       "peripherals": ["UART0", "UART1", "SPI2", "I2C0", "USB", "WiFi", "BLE"],
-      "supported_frameworks": ["lvgl", "qt-for-mcus", "ugfx"],
-      "notes": "Dual-core Xtensa LX7 with vector instructions"
+      "supported_frameworks": ["lvgl", "qt-for-mcus", "ugfx", "embedweb"],
+      "architecture": "Xtensa-LX7",
+      "required_toolchain": "xtensa-esp32s3-elf-gcc",
+      "embedweb_adapter_status": "supported_untested",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 512,
+      "psram_kb": 8192,
+      "bootloader_flash_kb": 64,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 384,
+      "tcm_kb": 0,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 8192,
+      "module_variant": "ESP32-S3-DevKitC-1-N8R8",
+      "has_lcd_controller": true,
+      "notes": "NO on-chip flash: N8R8 module = 8 MB external SPI flash + 8 MB octal PSRAM. 512 KB internal SRAM on-chip (+16 KB RTC SRAM, +384 KB ROM). The LCD_CAM peripheral provides an 8/16-bit parallel RGB LCD interface (has_lcd_controller=true). Module flash size is typical only; not enforced without a board profile.",
+      "sources": [
+        "ESP32-S3 Series Datasheet v2.2, Espressif (https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf)",
+        "ESP32-S3-WROOM-1 Datasheet, Espressif (N8R8 = 8 MB flash, 8 MB PSRAM)"
+      ],
+      "verified": true
     },
     {
       "name": "ESP32-C3",
-      "ram_kb": 400,
-      "flash_kb": 4096,
+      "family": "ESP32",
+      "vendor": "Espressif Systems",
+      "cores": ["RISC-V (single-core, 160 MHz)"],
       "cpu_speed_mhz": 160,
+      "ram_kb": 400,
+      "ram": {
+        "total_kb": 400,
+        "regions": [
+          { "name": "SRAM", "kb": 400, "usable_for_framebuffer": null }
+        ]
+      },
+      "flash_kb": 4096,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 4096 },
       "peripherals": ["UART0", "UART1", "SPI2", "I2C0", "WiFi", "BLE"],
-      "supported_frameworks": ["lvgl", "ugfx"],
-      "notes": "Single-core RISC-V with WiFi and BLE"
+      "supported_frameworks": ["lvgl", "ugfx", "embedweb"],
+      "architecture": "RISC-V",
+      "required_toolchain": "riscv32-esp-elf-gcc",
+      "embedweb_adapter_status": "supported_untested",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 400,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 64,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 384,
+      "tcm_kb": 0,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 4096,
+      "module_variant": "ESP32-C3-DevKitM-1",
+      "has_lcd_controller": false,
+      "notes": "NO on-chip flash: the ESP32-C3-MINI-1 module (DevKitM-1) ships 4 MB external SPI flash. 400 KB SRAM on-chip (16 KB used as cache). Single-core RISC-V @160 MHz.",
+      "sources": [
+        "ESP32-C3 Series Datasheet v2.4, Espressif (https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf)",
+        "ESP32-C3-MINI-1 Datasheet, Espressif (4 MB flash module)"
+      ],
+      "verified": true
+    },
+    {
+      "name": "ESP32-C6",
+      "family": "ESP32",
+      "vendor": "Espressif Systems",
+      "cores": ["RISC-V (single-core, 160 MHz)"],
+      "cpu_speed_mhz": 160,
+      "ram_kb": 512,
+      "ram": {
+        "total_kb": 512,
+        "regions": [
+          { "name": "HP SRAM", "kb": 512, "usable_for_framebuffer": null }
+        ]
+      },
+      "flash_kb": 8192,
+      "flash": { "internal_kb": null, "external": true, "typical_external_kb": 8192 },
+      "peripherals": ["UART0", "UART1", "SPI2", "I2C0", "WiFi", "BLE", "Zigbee"],
+      "supported_frameworks": ["lvgl", "ugfx", "embedweb"],
+      "architecture": "RISC-V",
+      "required_toolchain": "riscv32-esp-elf-gcc",
+      "embedweb_adapter_status": "supported_untested",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 512,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 64,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 384,
+      "tcm_kb": 0,
+      "onchip_flash_kb": 0,
+      "external_flash_kb": 8192,
+      "module_variant": "ESP32-C6-DevKitC-1",
+      "has_lcd_controller": false,
+      "notes": "NO on-chip flash. CORRECTED typical flash 4096 -> 8192 KB: the ESP32-C6-DevKitC-1 ships the N8 module variant (8 MB, per the Espressif user guide); 4 MB (N4) variants also exist, so this is a typical value only. 512 KB HP SRAM + 16 KB LP SRAM on-chip (LP is accessible from the HP core; the 512 KB HP total is used for budgeting).",
+      "sources": [
+        "ESP32-C6 Series Datasheet v1.5, Espressif (https://www.espressif.com/sites/default/files/documentation/esp32-c6_datasheet_en.pdf)",
+        "ESP32-C6-DevKitC-1 User Guide, Espressif (module ESP32-C6-WROOM-1-N8, 8 MB flash)",
+        "ESP32-C6-WROOM-1 Datasheet, Espressif"
+      ],
+      "verified": true
     }
   ]
 }

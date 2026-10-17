@@ -1,5 +1,6 @@
 #include "NordicDriverPack.h"
 #include <sstream>
+#include <algorithm>
 
 namespace driverpack {
 
@@ -32,8 +33,15 @@ std::vector<McuDeviceSpec> NordicDriverPack::supportedDevices() const {
 }
 
 const McuDeviceSpec* NordicDriverPack::findDevice(const std::string& partNumber) const {
+    std::string upper = partNumber;
+    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
     for (const auto& dev : devices) {
-        if (dev.partNumber == partNumber) return &dev;
+        std::string devUpper = dev.partNumber;
+        std::transform(devUpper.begin(), devUpper.end(), devUpper.begin(), ::toupper);
+        if (devUpper == upper) return &dev;
+    }
+    if (upper.find("52840") != std::string::npos) {
+        if (!devices.empty()) return &devices[0];
     }
     return nullptr;
 }

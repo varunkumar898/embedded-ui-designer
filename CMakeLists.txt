@@ -174,6 +174,8 @@ set(COMMON_SOURCES
     src/workspace/SerialMonitorWidget.h
     src/workspace/CodeWorkspaceView.cpp
     src/workspace/CodeWorkspaceView.h
+    src/workspace/DetachableTabWidget.cpp
+    src/workspace/DetachableTabWidget.h
 
     # Universal Board Detection & Specifications (espboards.dev)
     src/hardware/BoardDatabase.cpp
@@ -209,6 +211,10 @@ set(COMMON_SOURCES
     src/dialogs/NewProjectDialog.h
     src/dialogs/HardwareWizardDialog.cpp
     src/dialogs/HardwareWizardDialog.h
+    src/dialogs/DriverDiffPreviewDialog.cpp
+    src/dialogs/DriverDiffPreviewDialog.h
+    src/dialogs/InvalidBindingsDialog.cpp
+    src/dialogs/InvalidBindingsDialog.h
     src/dialogs/ExportDialog.cpp
     src/dialogs/ExportDialog.h
 
@@ -229,6 +235,26 @@ set(COMMON_SOURCES
     # Track 3: Firmware Export
     src/codegen/FirmwareExportManager.cpp
     src/codegen/FirmwareExportManager.h
+
+    # MCU Driver Packs
+    src/driverpack/IMcuDriverPack.h
+    src/driverpack/McuDeviceSpec.h
+    src/driverpack/DriverDependency.cpp
+    src/driverpack/DriverDependency.h
+    src/driverpack/Stm32DriverPack.cpp
+    src/driverpack/Stm32DriverPack.h
+    src/driverpack/Esp32DriverPack.cpp
+    src/driverpack/Esp32DriverPack.h
+    src/driverpack/Rp2040DriverPack.cpp
+    src/driverpack/Rp2040DriverPack.h
+    src/driverpack/NxpDriverPack.cpp
+    src/driverpack/NxpDriverPack.h
+    src/driverpack/NordicDriverPack.cpp
+    src/driverpack/NordicDriverPack.h
+    src/driverpack/DriverPackRegistry.cpp
+    src/driverpack/DriverPackRegistry.h
+    src/driverpack/McuProjectGenerator.cpp
+    src/driverpack/McuProjectGenerator.h
 
     # Track 4: Hardware Device Monitor with Live Telemetry
     src/telemetry/TelemetryProtocol.cpp
@@ -353,6 +379,8 @@ set(COMMON_SOURCES
     src/codegen/LvglGenerator.h
     src/codegen/EmbedWebGenerator.cpp
     src/codegen/EmbedWebGenerator.h
+    src/codegen/BackendRegistry.cpp
+    src/codegen/BackendRegistry.h
 
     # EmbedWeb Runtime
     src/runtime/ew_tree.c
@@ -385,6 +413,8 @@ set(COMMON_SOURCES
     # Hardware Bridge & Flashing Subsystem
     src/hardware/HardwareBridge.cpp
     src/hardware/HardwareBridge.h
+    src/hardware/BoardRegistry.cpp
+    src/hardware/BoardRegistry.h
     src/hardware/BoardConfigParser.cpp
     src/hardware/BoardConfigParser.h
     src/hardware/DeviceManager.cpp
@@ -476,6 +506,20 @@ set(COMMON_SOURCES
     src/dialogs/ExportValidationDialog.cpp
     src/dialogs/ExportValidationDialog.h
 
+    # Diagnostics Service & Problems Panel (Task 3)
+    src/diagnostics/DiagnosticsService.cpp
+    src/diagnostics/DiagnosticsService.h
+    src/diagnostics/DiagnosticsSources.cpp
+    src/diagnostics/DiagnosticsSources.h
+    src/panels/ProblemsPanel.cpp
+    src/panels/ProblemsPanel.h
+
+    # Board & Display dock (Task 5)
+    src/models/BoardDisplayConfig.h
+    src/analyzer/FramebufferFit.h
+    src/panels/BoardDisplayPanel.cpp
+    src/panels/BoardDisplayPanel.h
+
     # Unified Device Adapter (Phase 0)
     src/analyzer/UnifiedDeviceAdapter.cpp
     src/analyzer/UnifiedDeviceAdapter.h
@@ -538,32 +582,32 @@ set(COMMON_SOURCES
     src/api/DesignerLocalServer.h
 
     # Multi-Provider AI Platform Subsystem
-    src/ai/AIProvider.cpp
-    src/ai/AIProvider.h
-    src/ai/AIProviderRegistry.cpp
-    src/ai/AIProviderRegistry.h
-    src/ai/AIProjectContext.cpp
-    src/ai/AIProjectContext.h
-    src/ai/AIToolRegistry.cpp
-    src/ai/AIToolRegistry.h
-    src/ai/providers/MockAIProvider.cpp
-    src/ai/providers/MockAIProvider.h
-    src/ai/providers/OpenAIProvider.cpp
-    src/ai/providers/OpenAIProvider.h
-    src/ai/providers/AnthropicProvider.cpp
-    src/ai/providers/AnthropicProvider.h
-    src/ai/providers/GeminiProvider.cpp
-    src/ai/providers/GeminiProvider.h
-    src/ai/providers/CustomOpenAICompatibleProvider.cpp
-    src/ai/providers/CustomOpenAICompatibleProvider.h
+    src/analyzer/ai/AIProvider.cpp
+    src/analyzer/ai/AIProvider.h
+    src/analyzer/ai/AIProviderRegistry.cpp
+    src/analyzer/ai/AIProviderRegistry.h
+    src/analyzer/ai/AIProjectContext.cpp
+    src/analyzer/ai/AIProjectContext.h
+    src/analyzer/ai/AIToolRegistry.cpp
+    src/analyzer/ai/AIToolRegistry.h
+    src/analyzer/ai/providers/MockAIProvider.cpp
+    src/analyzer/ai/providers/MockAIProvider.h
+    src/analyzer/ai/providers/OpenAIProvider.cpp
+    src/analyzer/ai/providers/OpenAIProvider.h
+    src/analyzer/ai/providers/AnthropicProvider.cpp
+    src/analyzer/ai/providers/AnthropicProvider.h
+    src/analyzer/ai/providers/GeminiProvider.cpp
+    src/analyzer/ai/providers/GeminiProvider.h
+    src/analyzer/ai/providers/CustomOpenAICompatibleProvider.cpp
+    src/analyzer/ai/providers/CustomOpenAICompatibleProvider.h
     src/dialogs/AISettingsDialog.cpp
     src/dialogs/AISettingsDialog.h
     src/dialogs/AIProposedChangesDialog.cpp
     src/dialogs/AIProposedChangesDialog.h
     src/panels/AIAssistantPanel.cpp
     src/panels/AIAssistantPanel.h
-    src/ai/CredentialManager.cpp
-    src/ai/CredentialManager.h
+    src/analyzer/ai/CredentialManager.cpp
+    src/analyzer/ai/CredentialManager.h
     src/models/DiagnosticsEngine.cpp
     src/models/DiagnosticsEngine.h
     src/git/GitService.cpp
@@ -643,7 +687,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -658,6 +702,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
 )
 
 # Target Link Libraries
@@ -749,14 +794,15 @@ target_include_directories(test_all_cases PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
     ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
     ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
 )
 
 target_link_libraries(test_all_cases PRIVATE
@@ -806,8 +852,8 @@ target_include_directories(test_functional_runner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -863,8 +909,8 @@ target_include_directories(test_live_nucleo PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -915,7 +961,7 @@ target_include_directories(test_board_hal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -968,8 +1014,8 @@ target_include_directories(test_hardening PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/build
     ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
@@ -1024,8 +1070,8 @@ target_include_directories(test_ir_serialization PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1078,8 +1124,8 @@ target_include_directories(test_ir_adapter PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1132,8 +1178,8 @@ target_include_directories(test_html_css_importer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1412,7 +1458,7 @@ target_include_directories(test_workspace_widgets PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/api
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/src/git
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
     ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
@@ -1446,6 +1492,454 @@ endif()
 
 set_target_properties(test_workspace_widgets PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME WorkspaceWidgetsAcceptanceTests COMMAND test_workspace_widgets)
+
+# Task 1 Export Validation Integration Acceptance Tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_export_validation
+        tests/test_export_validation.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_export_validation
+        tests/test_export_validation.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_export_validation PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
+)
+
+target_link_libraries(test_export_validation PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_export_validation PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_export_validation PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_export_validation PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME ExportValidationAcceptanceTests COMMAND test_export_validation)
+
+# Task 2 Resource Analyzer + Live Test Integration Acceptance Tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_live_test_resources
+        tests/test_live_test_resources.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_live_test_resources
+        tests/test_live_test_resources.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_live_test_resources PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_live_test_resources PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_live_test_resources PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_live_test_resources PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_live_test_resources PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME LiveTestResourceAnalyzerTests COMMAND test_live_test_resources)
+
+# Task 3 Diagnostics Service + Problems Panel Acceptance Tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_problems_diagnostics
+        tests/test_problems_diagnostics.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_problems_diagnostics
+        tests/test_problems_diagnostics.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_problems_diagnostics PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_problems_diagnostics PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_problems_diagnostics PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_problems_diagnostics PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_problems_diagnostics PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME ProblemsDiagnosticsAcceptanceTests COMMAND test_problems_diagnostics)
+
+# Task 4 MCU Capability Database Acceptance Tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_mcu_capabilities
+        tests/test_mcu_capabilities.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_mcu_capabilities
+        tests/test_mcu_capabilities.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_mcu_capabilities PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_mcu_capabilities PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_mcu_capabilities PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_mcu_capabilities PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_mcu_capabilities PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME McuCapabilityDatabaseTests COMMAND test_mcu_capabilities)
+
+# Task 5 Board & Display Dock Acceptance Tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_board_display_dock
+        tests/test_board_display_dock.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_board_display_dock
+        tests/test_board_display_dock.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_board_display_dock PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_board_display_dock PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_board_display_dock PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_board_display_dock PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_board_display_dock PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME BoardDisplayDockAcceptanceTests COMMAND test_board_display_dock)
+
+# Task 6 Target Backend selector + widget support matrix acceptance tests
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_target_backend
+        tests/test_target_backend.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_target_backend
+        tests/test_target_backend.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_target_backend PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_target_backend PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_target_backend PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_target_backend PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_target_backend PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME TargetBackendAcceptanceTests COMMAND test_target_backend)
+
+# Temporary reproduction harness: select board/device then Next in the wizard.
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_wizard_repro
+        tests/test_wizard_repro.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_wizard_repro
+        tests/test_wizard_repro.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_wizard_repro PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ir
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/importers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/styles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+)
+
+target_link_libraries(test_wizard_repro PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+    Qt6::Xml
+    Clipper2
+    ${JSONCPP_TARGET}
+)
+
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_wizard_repro PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_wizard_repro PRIVATE HAVE_QT_SERIALPORT)
+endif()
+
+set_target_properties(test_wizard_repro PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME WizardSelectThenNextRepro COMMAND test_wizard_repro)
 endif() # HAVE_QT6
 
 

@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <QString>
 #include <QList>
-#include "AIProvider.h"
+#include "analyzer/ai/AIProvider.h"
 
 class QComboBox;
 class QTextBrowser;

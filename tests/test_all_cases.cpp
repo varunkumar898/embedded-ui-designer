@@ -74,7 +74,11 @@
 #include "BoardConfigParser.h"
 #include "QmlImporter.h"
 #include "DeviceManager.h"
+#include "hardware/BoardRegistry.h"
 #include "MainWindow.h"
+#include "workspace/DetachableTabWidget.h"
+#include "workspace/CodeWorkspaceView.h"
+#include "workspace/TabbedCodeEditor.h"
 #include "LayerPanel.h"
 #include "ColorPickerDialog.h"
 #include "Project.h"
@@ -97,6 +101,8 @@
 #include "HardwareProvider.h"
 #include "DeviceDatabase.h"
 #include "HardwareWizardDialog.h"
+#include "dialogs/DriverDiffPreviewDialog.h"
+#include "dialogs/InvalidBindingsDialog.h"
 #include "PinMuxEngine.h"
 #include "DesignerController.h"
 
@@ -106,17 +112,17 @@
 #include "SimulatorWindow.h"
 
 // AI Platform Subsystem
-#include "ai/AIProvider.h"
-#include "ai/AIProviderRegistry.h"
-#include "ai/AIProjectContext.h"
-#include "ai/AIToolRegistry.h"
-#include "ai/providers/MockAIProvider.h"
-#include "ai/providers/OpenAIProvider.h"
-#include "ai/providers/AnthropicProvider.h"
-#include "ai/providers/GeminiProvider.h"
-#include "ai/providers/CustomOpenAICompatibleProvider.h"
+#include "analyzer/ai/AIProvider.h"
+#include "analyzer/ai/AIProviderRegistry.h"
+#include "analyzer/ai/AIProjectContext.h"
+#include "analyzer/ai/AIToolRegistry.h"
+#include "analyzer/ai/providers/MockAIProvider.h"
+#include "analyzer/ai/providers/OpenAIProvider.h"
+#include "analyzer/ai/providers/AnthropicProvider.h"
+#include "analyzer/ai/providers/GeminiProvider.h"
+#include "analyzer/ai/providers/CustomOpenAICompatibleProvider.h"
 #include "dialogs/AISettingsDialog.h"
-#include "CredentialManager.h"
+#include "analyzer/ai/CredentialManager.h"
 #include "DiagnosticsEngine.h"
 #include "GitService.h"
 #include "CICDGenerator.h"
@@ -376,6 +382,11 @@ private slots:
     void testResourceEstimatorAnalysisAndWarnings();
     void testResourceAnalyzerPanelLiveUpdates();
     void testExportValidationDialogCriticalFlow();
+    void testPhase2BoardRegistryAndPresetsPersistence();
+    void testPhase3FirstRunBoardSelection();
+    void testPhase4BoardPinBindingAndDiffPreview();
+    void testPhase5ResizableAndMinimizablePanels();
+    void testPhase6MultiMonitorAndDetachablePanels();
 
     void cleanupTestCase();
 
@@ -1715,6 +1726,7 @@ void TestAllCases::testPinBindingDialogUiAndPotentiometerSlider() {
 }
 
 void TestAllCases::testComponentProtocolConfigurationAndScreenshots() {
+    BoardRegistry::instance().setActiveBoard("nucleo_f030r8");
     SliderComponent slider("slider_protocol");
     slider.setCompPos(20, 20);
     slider.setCompSize(200, 36);
@@ -7338,6 +7350,555 @@ void TestAllCases::testExportValidationDialogCriticalFlow() {
 
     // Test actions
     QCOMPARE(dlg.resultAction(), ExportValidationDialog::CANCEL);
+}
+
+void TestAllCases::testPhase2BoardRegistryAndPresetsPersistence() {
+    BoardRegistry& reg = BoardRegistry::instance();
+    QVERIFY(reg.loadFromBoardsJson());
+
+    // 1. Verify board count and families
+    auto boards = reg.boards();
+    QVERIFY(boards.size() >= 18);
+    QStringList families = reg.families();
+    QVERIFY(families.contains("STM32"));
+    QVERIFY(families.contains("ESP32"));
+    QVERIFY(families.contains("RP2040"));
+    QVERIFY(families.contains("NXP"));
+    QVERIFY(families.contains("RaspberryPi"));
+    QVERIFY(families.contains("Custom"));
+
+    // 2. Verify STM32 Nucleo F030R8
+    BoardDef nucleo = reg.board("nucleo_f030r8");
+    QVERIFY(nucleo.isValid());
+    QCOMPARE(nucleo.family, QString("STM32"));
+    QCOMPARE(nucleo.vendor, QString("STMicroelectronics"));
+    QCOMPARE(nucleo.display.width, 320);
+    QCOMPARE(nucleo.display.height, 240);
+    QVERIFY(!nucleo.openocdConfig.isEmpty());
+    QVERIFY(!nucleo.flashCommand.isEmpty());
+    QVERIFY(nucleo.protocols.contains("SPI"));
+    QVERIFY(nucleo.protocols.contains("I2C"));
+    QVERIFY(nucleo.pinMap.contains("PA0"));
+    QVERIFY(nucleo.pinMap.contains("PA13"));
+    QVERIFY(nucleo.pinMap["PA13"].reserved);
+
+    // 3. Verify ESP32 DevKitV1 strapping and reserved pins
+    BoardDef esp32 = reg.board("esp32_devkitv1");
+    QVERIFY(esp32.isValid());
+    QCOMPARE(esp32.family, QString("ESP32"));
+    QVERIFY(esp32.pinMap.contains("GPIO0"));
+    QVERIFY(esp32.pinMap["GPIO0"].strapping);
+    QVERIFY(esp32.pinMap.contains("GPIO6"));
+    QVERIFY(esp32.pinMap["GPIO6"].reserved);
+
+    // 4. Verify RP2040 GP naming
+    BoardDef pico = reg.board("rpi_pico_rp2040");
+    QVERIFY(pico.isValid());
+    QCOMPARE(pico.family, QString("RP2040"));
+    QVERIFY(pico.pinMap.contains("GP0"));
+    QVERIFY(pico.pinMap.contains("GP28"));
+
+    // 5. Verify Raspberry Pi BCM / physical naming
+    BoardDef rpi = reg.board("rpi_4");
+    QVERIFY(rpi.isValid());
+    QCOMPARE(rpi.family, QString("RaspberryPi"));
+    QVERIFY(rpi.pinMap.contains("GPIO2"));
+
+    // 6. Verify NXP migrated board
+    BoardDef nxp = reg.board("nxp_imxrt1060_evk");
+    QVERIFY(nxp.isValid());
+    QCOMPARE(nxp.family, QString("NXP"));
+    QCOMPARE(nxp.display.width, 480);
+    QCOMPARE(nxp.display.height, 272);
+    QVERIFY(!nxp.flashCommand.isEmpty());
+
+    // 7. Verify Presets save, select, reload, delete
+    QString testPreset = "UnitTesting_Preset_Phase2";
+    reg.savePreset(testPreset, "nucleo_f030r8");
+    QVERIFY(reg.hasPresets());
+    QCOMPARE(reg.activePreset().name, testPreset);
+    QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
+
+    // Reload from file to verify persistence across restarts
+    reg.loadPresets();
+    QCOMPARE(reg.activePreset().name, testPreset);
+    QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
+
+    // Clean up preset
+    QVERIFY(reg.deletePreset(testPreset));
+}
+
+void TestAllCases::testPhase3FirstRunBoardSelection() {
+    BoardRegistry& reg = BoardRegistry::instance();
+    QVERIFY(reg.loadFromBoardsJson());
+
+    // 1. Reset onboarding state for fresh test
+    reg.setOnboardingCompleted(false);
+    QVERIFY(!reg.isOnboardingCompleted());
+
+    // 2. Instantiate HardwareWizardDialog and check "Choose later" button
+    HardwareWizardDialog wizard;
+    QPushButton* btnChooseLater = wizard.findChild<QPushButton*>("btnChooseLater");
+    QVERIFY(btnChooseLater != nullptr);
+    QCOMPARE(btnChooseLater->text(), QString("Choose later"));
+
+    // Click Choose later
+    btnChooseLater->click();
+    QVERIFY(wizard.choseLater());
+
+    // 3. Verify MainWindow banner behavior on uncompleted onboarding
+    MainWindow win;
+    QVERIFY(win.boardBanner() != nullptr);
+    // Since onboarding is false, in non-interactive/test mode banner is displayed with placeholder board
+    win.checkFirstRunOnboarding(false);
+    QVERIFY(!win.boardBanner()->isHidden());
+    QCOMPARE(reg.activeBoard().id, QString("custom_board"));
+
+    // 4. Test board selection, specs, pin map/protocols, and saving preset with name
+    HardwareWizardDialog fullWizard;
+    QLineEdit* presetEdit = fullWizard.findChild<QLineEdit*>("presetNameEdit");
+    QVERIFY(presetEdit != nullptr);
+    presetEdit->setText("Nucleo Custom Preset");
+
+    // Table of boards with display, RAM, flash specs
+    QTableWidget* boardTable = fullWizard.findChild<QTableWidget*>("boardHardwareTable");
+    QVERIFY(boardTable != nullptr);
+    QVERIFY(boardTable->columnCount() >= 6);
+
+    // Complete preset save
+    reg.savePreset("Nucleo Custom Preset", "nucleo_f030r8");
+    reg.setActiveBoard("nucleo_f030r8");
+    reg.setOnboardingCompleted(true);
+    QVERIFY(reg.isOnboardingCompleted());
+
+    // 5. Subsequent run should remember choice and hide banner
+    win.checkFirstRunOnboarding(false);
+    QVERIFY(win.boardBanner()->isHidden());
+    QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
+
+    // 6. Verify OpenOCDManager picks up saved preset and logs preset name instead of hardcoded default
+    OpenOCDManager ocd;
+    QCOMPARE(reg.activePreset().name, QString("Nucleo Custom Preset"));
+
+    // Clean up test preset
+    reg.deletePreset("Nucleo Custom Preset");
+}
+
+void TestAllCases::testPhase4BoardPinBindingAndDiffPreview() {
+    BoardRegistry& reg = BoardRegistry::instance();
+    QVERIFY(reg.loadFromBoardsJson());
+
+    // 1. Board change synchronization: Nucleo STM32 vs ESP32 DevKit
+    reg.setActiveBoard("nucleo_f030r8");
+    BoardDef stm32Board = reg.activeBoard();
+    QCOMPARE(stm32Board.id, QString("nucleo_f030r8"));
+    QCOMPARE(stm32Board.family, QString("STM32"));
+    QVERIFY(stm32Board.pinMap.contains("PA0"));
+    QVERIFY(!stm32Board.pinMap.contains("GPIO15"));
+
+    // Verify protocol choices limited to what the board supports
+    QVERIFY(stm32Board.protocols.contains("SPI"));
+    QVERIFY(stm32Board.protocols.contains("I2C"));
+
+    // Test PropertiesPanel pin dropdowns and protocol updating
+    PropertiesPanel panel;
+    auto* btn = new ButtonComponent();
+    panel.setTargetComponent(btn);
+
+    QComboBox* protoCombo = panel.findChild<QComboBox*>("protocolCombo");
+    QVERIFY(protoCombo != nullptr);
+    // Board supports SPI, I2C, UART, PWM, ADC
+    QStringList availableProtos;
+    for (int i = 0; i < protoCombo->count(); ++i) availableProtos.append(protoCombo->itemText(i));
+    QVERIFY(availableProtos.contains("SPI"));
+    QVERIFY(availableProtos.contains("I2C"));
+    QVERIFY(availableProtos.contains("GPIO"));
+
+    // Verify pin dropdown shows only that board's pins with functions
+    QComboBox* gpioCombo = panel.findChild<QComboBox*>("gpioPinCombo");
+    QVERIFY(gpioCombo != nullptr);
+    bool foundPA0 = false;
+    for (int i = 0; i < gpioCombo->count(); ++i) {
+        if (gpioCombo->itemData(i).toString() == "PA0") {
+            foundPA0 = true;
+            QVERIFY(gpioCombo->itemText(i).contains("PA0"));
+            break;
+        }
+    }
+    QVERIFY(foundPA0);
+
+    // Switch board to ESP32 and verify dropdowns update
+    reg.setActiveBoard("esp32_devkitv1");
+    BoardDef espBoard = reg.activeBoard();
+    QCOMPARE(espBoard.family, QString("ESP32"));
+    QVERIFY(espBoard.pinMap.contains("GPIO15"));
+    QVERIFY(!espBoard.pinMap.contains("PA0"));
+
+    // Check strapping pin marked
+    QVERIFY(espBoard.pinMap.contains("GPIO0"));
+    QVERIFY(espBoard.pinMap["GPIO0"].strapping);
+
+    // 2. Custom pin configs: edit individual pins and store as named preset referencing base board
+    QMap<QString, PinDef> overrides;
+    PinDef customPin;
+    customPin.function = "PWM";
+    customPin.note = "Custom User PWM Output";
+    overrides["GPIO15"] = customPin;
+
+    QString customPresetName = "ESP32 Custom PWM Preset";
+    QVERIFY(reg.savePreset(customPresetName, "esp32_devkitv1", overrides));
+    reg.selectPreset(customPresetName);
+    QCOMPARE(reg.activePreset().boardId, QString("esp32_devkitv1"));
+    QVERIFY(reg.activePreset().pinOverrides.contains("GPIO15"));
+    QCOMPARE(reg.activePreset().pinOverrides["GPIO15"].function, QString("PWM"));
+
+    // 3. PinBindingDialog with table and PinoutViewWidget visual highlighting
+    CanvasScene scene;
+    PinBindingDialog pinDlg(&scene);
+    QTableWidget* pinTable = pinDlg.findChild<QTableWidget*>("pinTable");
+    QVERIFY(pinTable != nullptr);
+    QVERIFY(pinTable->rowCount() > 0);
+    Hardware::PinoutViewWidget* pinout = pinDlg.findChild<Hardware::PinoutViewWidget*>("mcuPinoutView");
+    QVERIFY(pinout != nullptr);
+
+    // 4. Invalid bindings warning dialog & remapping
+    btn->setProtocol("GPIO");
+    btn->setProtocolPin("pin", "PA0"); // Bound on STM32, invalid on ESP32
+
+    InvalidBindingItem invItem;
+    invItem.component = btn;
+    invItem.componentId = btn->componentId();
+    invItem.componentName = btn->componentId();
+    invItem.currentPin = "PA0";
+    invItem.currentProtocol = "GPIO";
+    invItem.reason = "Pin 'PA0' not supported on target ESP32";
+
+    InvalidBindingsDialog invDlg(espBoard, {invItem});
+    QTableWidget* invTable = invDlg.findChild<QTableWidget*>("invalidBindingsTable");
+    QVERIFY(invTable != nullptr);
+    QCOMPARE(invTable->rowCount(), 1);
+    QCOMPARE(invTable->item(0, 1)->text(), QString("PA0"));
+
+    // Apply remapping to GPIO15
+    auto* remapCombo = qobject_cast<QComboBox*>(invTable->cellWidget(0, 4));
+    QVERIFY(remapCombo != nullptr);
+    int gpio15Idx = -1;
+    for (int i = 0; i < remapCombo->count(); ++i) {
+        if (remapCombo->itemData(i).toString() == "GPIO15") {
+            gpio15Idx = i;
+            break;
+        }
+    }
+    QVERIFY(gpio15Idx >= 0);
+    remapCombo->setCurrentIndex(gpio15Idx);
+    invDlg.applyButton()->click();
+
+    auto resolved = invDlg.resolvedBindings();
+    QCOMPARE(resolved.size(), 1);
+    QCOMPARE(resolved[0].remappedPin, QString("GPIO15"));
+    QVERIFY(!resolved[0].keepAsCustom);
+
+    // Remap on component
+    btn->setProtocolPin("pin", resolved[0].remappedPin);
+    QCOMPARE(btn->protocolPin("pin"), QString("GPIO15"));
+
+    // Test keep all as custom
+    InvalidBindingsDialog invDlg2(espBoard, {invItem});
+    invDlg2.keepAllButton()->click();
+    auto resolved2 = invDlg2.resolvedBindings();
+    QCOMPARE(resolved2.size(), 1);
+    QVERIFY(resolved2[0].keepAsCustom);
+    QCOMPARE(resolved2[0].remappedPin, QString("PA0"));
+
+    // 5. Generated code uses active board's pin map and protocol selections
+    Project prj(&scene);
+    QString halH = CodeGen::TargetHalGenerator::generateHalHeader(&prj);
+    QVERIFY(halH.contains("ESP32"));
+    QVERIFY(halH.contains("PIN_GPIO15"));
+
+    QString halC = CodeGen::TargetHalGenerator::generateHalSource(&prj);
+    QVERIFY(halC.contains("ESP32"));
+
+    // 6. Protocol changes regenerate affected driver init code and show diff preview
+    QString oldCode = CodeGen::TargetHalGenerator::generateDriverInitCode(espBoard, "GPIO", {{"pin", "GPIO15"}});
+    QString newCode = CodeGen::TargetHalGenerator::generateDriverInitCode(espBoard, "SPI", {{"mosi", "GPIO23"}, {"miso", "GPIO19"}, {"sck", "GPIO18"}});
+    QVERIFY(oldCode != newCode);
+    QVERIFY(newCode.contains("hal_spi_init"));
+
+    DriverDiffPreviewDialog diffDlg("SPI", oldCode, newCode);
+    QVERIFY(diffDlg.diffViewer() != nullptr);
+    QVERIFY(diffDlg.diffViewer()->toPlainText().contains("-/* GPIO Driver:"));
+    QVERIFY(diffDlg.diffViewer()->toPlainText().contains("+/* SPI Driver:"));
+
+    // Clean up
+    delete btn;
+    reg.deletePreset(customPresetName);
+    reg.setActiveBoard("nucleo_f030r8");
+}
+
+void TestAllCases::testPhase5ResizableAndMinimizablePanels() {
+    QSettings cleanSettings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    cleanSettings.clear();
+
+    MainWindow win;
+    win.resetLayout();
+    win.show();
+    QApplication::processEvents();
+
+    // 1. Verify dock options
+    QMainWindow::DockOptions opts = win.dockOptions();
+    QVERIFY(opts & QMainWindow::AnimatedDocks);
+    QVERIFY(opts & QMainWindow::AllowNestedDocks);
+    QVERIFY(opts & QMainWindow::AllowTabbedDocks);
+
+    // 2. Verify all docks have objectName, features, and size constraints
+    const QList<QDockWidget*> docks = win.findChildren<QDockWidget*>();
+    QVERIFY(docks.size() >= 10);
+
+    QDockWidget* propDock = nullptr;
+    QDockWidget* paletteDock = nullptr;
+    QDockWidget* buildDock = nullptr;
+
+    for (QDockWidget* dock : docks) {
+        QVERIFY(!dock->objectName().isEmpty());
+        QDockWidget::DockWidgetFeatures feat = dock->features();
+        QVERIFY(feat & QDockWidget::DockWidgetMovable);
+        QVERIFY(feat & QDockWidget::DockWidgetFloatable);
+        QVERIFY(feat & QDockWidget::DockWidgetClosable);
+
+        if (dock->objectName() == "propertiesDock") propDock = dock;
+        if (dock->objectName() == "paletteDock") paletteDock = dock;
+        if (dock->objectName() == "buildDock") buildDock = dock;
+
+        if (dock->objectName() == "buildDock" || dock->objectName() == "deviceMonitorDock") {
+            // Bottom dock constraints
+            QVERIFY(dock->minimumHeight() >= 100);
+            QVERIFY(dock->maximumHeight() <= 600);
+            QVERIFY(dock->minimumWidth() >= 180);
+        } else {
+            // Side dock constraints
+            QVERIFY(dock->minimumWidth() >= 160);
+            QVERIFY(dock->maximumWidth() <= 750);
+        }
+    }
+
+    QVERIFY(propDock != nullptr);
+    QVERIFY(paletteDock != nullptr);
+    QVERIFY(buildDock != nullptr);
+
+    // 3. Verify minimize button in createDockTitleBar and collapsing/restoring
+    QWidget* propTitleBar = propDock->titleBarWidget();
+    QVERIFY(propTitleBar != nullptr);
+    QPushButton* minBtn = propTitleBar->findChild<QPushButton*>("dockMinButton");
+    QVERIFY(minBtn != nullptr);
+    QCOMPARE(minBtn->text(), QString("—"));
+    QVERIFY(!MainWindow::isDockCollapsed(propDock));
+    QVERIFY(propDock->widget() != nullptr);
+    QVERIFY(propDock->widget()->isVisible());
+
+    // Click minimize button to collapse
+    minBtn->click();
+    QApplication::processEvents();
+    QVERIFY(MainWindow::isDockCollapsed(propDock));
+    QCOMPARE(minBtn->text(), QString("+"));
+    QVERIFY(!propDock->widget()->isVisible());
+    QVERIFY(propDock->maximumHeight() <= 36);
+
+    // Check stored in QSettings
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    QCOMPARE(settings.value("dock/propertiesDock/collapsed").toBool(), true);
+
+    // Click minimize button to restore
+    minBtn->click();
+    QApplication::processEvents();
+    QVERIFY(!MainWindow::isDockCollapsed(propDock));
+    QCOMPARE(minBtn->text(), QString("—"));
+    QVERIFY(propDock->widget()->isVisible());
+    QVERIFY(propDock->maximumHeight() >= 500);
+    QCOMPARE(settings.value("dock/propertiesDock/collapsed").toBool(), false);
+
+    // 4. Test saveWindowLayout and restoreWindowLayout
+    settings.setValue("dock/paletteDock/collapsed", true);
+    win.restoreWindowLayout();
+    QVERIFY(MainWindow::isDockCollapsed(paletteDock));
+    QCOMPARE(settings.value("dock/paletteDock/collapsed").toBool(), true);
+
+    settings.setValue("dock/paletteDock/collapsed", false);
+    win.restoreWindowLayout();
+    QVERIFY(!MainWindow::isDockCollapsed(paletteDock));
+    QCOMPARE(settings.value("dock/paletteDock/collapsed").toBool(), false);
+
+    // Save and verify persistence
+    MainWindow::setDockCollapsed(paletteDock, true);
+    win.saveWindowLayout();
+    QCOMPARE(settings.value("dock/paletteDock/collapsed").toBool(), true);
+
+    // 5. Verify "Reset layout" action exists and restores pristine layout
+    QAction* resetAct = nullptr;
+    for (QAction* act : win.menuBar()->actions()) {
+        if (act->menu()) {
+            for (QAction* subAct : act->menu()->actions()) {
+                if (subAct->text().contains("Reset Layout", Qt::CaseInsensitive)) {
+                    resetAct = subAct;
+                    break;
+                }
+            }
+        }
+        if (resetAct) break;
+    }
+    QVERIFY(resetAct != nullptr);
+
+    // Make propDock floating
+    propDock->setFloating(true);
+    QVERIFY(propDock->isFloating());
+
+    // Trigger reset layout
+    win.resetLayout();
+    QApplication::processEvents();
+
+    QVERIFY(!MainWindow::isDockCollapsed(paletteDock));
+    QVERIFY(!MainWindow::isDockCollapsed(propDock));
+    QVERIFY(!propDock->isFloating());
+    QCOMPARE(settings.value("dock/paletteDock/collapsed").toBool(), false);
+}
+
+void TestAllCases::testPhase6MultiMonitorAndDetachablePanels() {
+    MainWindow win;
+    win.show();
+    QApplication::processEvents();
+
+    QSettings settings("EmbeddedUIDesigner", "EmbeddedUIDesigner");
+    settings.clear();
+    win.resetLayout();
+    QApplication::processEvents();
+
+    // 1. Multi-monitor screen geometry validation & clamping helper
+    const auto screens = QGuiApplication::screens();
+    QVERIFY(!screens.isEmpty());
+    QScreen* primary = QGuiApplication::primaryScreen() ? QGuiApplication::primaryScreen() : screens.first();
+    QRect primaryAvail = primary->availableGeometry();
+
+    // Valid on-screen rectangle must remain unchanged
+    QRect validOnScreen(primaryAvail.x() + 100, primaryAvail.y() + 100, 300, 200);
+    QRect clampedValid = MainWindow::clampGeometryToScreens(validOnScreen);
+    QCOMPARE(clampedValid, validOnScreen);
+
+    // Completely off-screen rectangle (simulated second monitor disconnected at x=3500)
+    QRect offscreenRect(3500, 200, 400, 300);
+    QRect clampedOffscreen = MainWindow::clampGeometryToScreens(offscreenRect);
+    QVERIFY(primaryAvail.contains(clampedOffscreen.topLeft()));
+    QVERIFY(clampedOffscreen.right() <= primaryAvail.right());
+    QVERIFY(clampedOffscreen.bottom() <= primaryAvail.bottom());
+
+    // 2. Floating dock panels remember geometry and restore clamped when disconnected
+    QDockWidget* propDock = win.findChild<QDockWidget*>("propertiesDock");
+    QVERIFY(propDock != nullptr);
+    propDock->setFloating(true);
+    QVERIFY(propDock->isFloating());
+
+    // Place floating dock at an offscreen location to simulate previous session on 2nd monitor
+    propDock->setGeometry(3500, 200, 350, 450);
+    win.saveWindowLayout();
+    QCOMPARE(settings.value("dock/propertiesDock/floating").toBool(), true);
+    QCOMPARE(settings.value("dock/propertiesDock/geometry").toRect(), QRect(3500, 200, 350, 450));
+
+    // Restore window layout -> Must be clamped back into visible monitor
+    win.restoreWindowLayout();
+    QVERIFY(propDock->isFloating());
+    QRect restoredGeom = propDock->geometry();
+    QVERIFY(primaryAvail.contains(restoredGeom.topLeft()));
+    QVERIFY(restoredGeom.x() < primaryAvail.right());
+
+    // Title bar context menu policy
+    QWidget* titleBar = propDock->titleBarWidget();
+    QVERIFY(titleBar != nullptr);
+    QCOMPARE(titleBar->contextMenuPolicy(), Qt::CustomContextMenu);
+
+    // 3. Central area detachable tabs
+    DetachableTabWidget* centralTabs = win.centralTabWidget();
+    QVERIFY(centralTabs != nullptr);
+    QCOMPARE(centralTabs->count(), 2);
+    QVERIFY(centralTabs->isMovable());
+    QVERIFY(centralTabs->tabsClosable());
+
+    // Detach Canvas tab
+    DetachedEditorWindow* detachedCanvas = centralTabs->detachTab(0);
+    QVERIFY(detachedCanvas != nullptr);
+    QVERIFY(detachedCanvas->isVisible());
+    QCOMPARE(detachedCanvas->contentWidget(), win.designWorkspace());
+    QCOMPARE(centralTabs->count(), 1);
+    QCOMPARE(centralTabs->detachedWindows().size(), 1);
+
+    // 4. Properties panel follows active editor in detached canvas window
+    CanvasScene* scene = win.canvasScene();
+    QVERIFY(scene != nullptr);
+    PropertiesPanel* propPanel = win.propertiesPanel();
+    QVERIFY(propPanel != nullptr);
+
+    UIComponent* btn = Project::createComponentInstance("Button", "test_btn_phase6");
+    QVERIFY(btn != nullptr);
+    scene->addUIComponent(btn);
+    scene->clearSelection();
+    btn->setSelected(true);
+    QApplication::processEvents();
+
+    // Verify properties panel reflects the selection in the detached canvas
+    QCOMPARE(propPanel->targetComponent(), btn);
+
+    // 5. Re-dock canvas tab
+    detachedCanvas->redock();
+    QApplication::processEvents();
+    QCOMPARE(centralTabs->count(), 2);
+    QCOMPARE(centralTabs->detachedWindows().size(), 0);
+
+    // Detach Code Workspace tab
+    DetachedEditorWindow* detachedCode = centralTabs->detachTab(1);
+    QVERIFY(detachedCode != nullptr);
+    QVERIFY(detachedCode->isVisible());
+    QCOMPARE(detachedCode->contentWidget(), win.codeWorkspaceView());
+
+    // Re-dock all detached windows
+    win.redockAllDetachedWindows();
+    QApplication::processEvents();
+    QCOMPARE(centralTabs->count(), 2);
+
+    // 6. TabbedCodeEditor also has detachable tabs
+    TabbedCodeEditor* codeEditor = win.codeWorkspaceView()->tabbedEditor();
+    QVERIFY(codeEditor != nullptr);
+    QVERIFY(codeEditor->tabWidget() != nullptr);
+    QVERIFY(codeEditor->tabWidget()->isMovable());
+    QVERIFY(codeEditor->tabWidget()->tabsClosable());
+
+    // 7. Window menu with Move to Monitor and detachment actions
+    QMenu* windowMenu = nullptr;
+    for (QAction* act : win.menuBar()->actions()) {
+        if (act->menu() && act->menu()->title() == "Window") {
+            windowMenu = act->menu();
+            break;
+        }
+    }
+    QVERIFY(windowMenu != nullptr);
+
+    bool hasMoveMonitorSubmenu = false;
+    bool hasDetachCanvas = false;
+    bool hasDetachCode = false;
+    bool hasRedockAll = false;
+    for (QAction* act : windowMenu->actions()) {
+        if (act->menu() && act->menu()->title() == "Move to Monitor") {
+            hasMoveMonitorSubmenu = true;
+        }
+        if (act->text().contains("Detach Canvas")) hasDetachCanvas = true;
+        if (act->text().contains("Detach Code Workspace")) hasDetachCode = true;
+        if (act->text().contains("Re-dock All")) hasRedockAll = true;
+    }
+    QVERIFY(hasMoveMonitorSubmenu);
+    QVERIFY(hasDetachCanvas);
+    QVERIFY(hasDetachCode);
+    QVERIFY(hasRedockAll);
+
+    // Clean up
+    win.resetLayout();
+    settings.clear();
 }
 
 QTEST_MAIN(TestAllCases)

@@ -18,6 +18,9 @@
 #include <QDateTime>
 #include <QFileDialog>
 #include <QApplication>
+#include <QSplitter>
+#include <QInputDialog>
+#include "InvalidBindingsDialog.h"
 
 PinBindingDialog::PinBindingDialog(CanvasScene* scene, QWidget* parent)
     : QDialog(parent)
@@ -77,14 +80,31 @@ void PinBindingDialog::setupUi() {
         "QComboBox QAbstractItemView { background-color: %1; color: %2; selection-background-color: %6; selection-color: %7; border: 1px solid %3; }"
     ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
           Theme::BorderStrong, Theme::AccentSoft, Theme::AccentText));
-    for (const auto& b : m_bridge.availableBoards()) {
-        m_boardCombo->addItem(QString("%1 (%2)").arg(b.name, b.mcuFamily), b.id);
+    for (const auto& b : BoardRegistry::instance().boards()) {
+        m_boardCombo->addItem(QString("%1 (%2)").arg(b.displayName.isEmpty() ? b.id : b.displayName, b.family), b.id);
     }
-    const int curIdx = m_boardCombo->findData(m_bridge.currentBoardId());
+    for (const auto& bp : m_bridge.availableBoards()) {
+        if (m_boardCombo->findData(bp.id) < 0) {
+            m_boardCombo->addItem(QString("%1 (%2)").arg(bp.name.isEmpty() ? bp.id : bp.name, bp.mcuFamily), bp.id);
+        }
+    }
+    QString activeId = !m_bridge.currentBoardId().isEmpty() ? m_bridge.currentBoardId() : BoardRegistry::instance().activeBoard().id;
+    int curIdx = m_boardCombo->findData(activeId);
+    if (curIdx < 0) curIdx = m_boardCombo->findData(BoardRegistry::instance().activeBoard().id);
     if (curIdx >= 0) m_boardCombo->setCurrentIndex(curIdx);
     connect(m_boardCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &PinBindingDialog::onBoardChanged);
     topToolbar->addWidget(m_boardCombo);
+
+    m_savePresetBtn = new QPushButton("Save Custom Preset...", this);
+    m_savePresetBtn->setObjectName("saveCustomPresetBtn");
+    m_savePresetBtn->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
+        "QPushButton:hover { background-color: %5; border-color: %6; }"
+    ).arg(Theme::BgRaised, Theme::AccentText, Theme::BorderSubtle, QString::number(Theme::RadiusMd),
+          Theme::BgOverlay, Theme::Accent));
+    connect(m_savePresetBtn, &QPushButton::clicked, this, &PinBindingDialog::onSaveCustomPresetClicked);
+    topToolbar->addWidget(m_savePresetBtn);
 
     m_importBtn = new QPushButton("Import Config...", this);
     m_importBtn->setObjectName("importBoardConfigBtn");
@@ -279,7 +299,38 @@ void PinBindingDialog::setupUi() {
         "QTableWidget::item:selected { background-color: %9; color: %10; }"
     ).arg(Theme::BgBase, Theme::BgSurface, Theme::BorderSubtle, Theme::TextPrimary, Theme::BorderStrong,
           QString::number(Theme::RadiusMd), Theme::BgRaised, Theme::TextSecondary, Theme::AccentSoft, Theme::AccentText));
-    mainLayout->addWidget(m_pinTable, 1);
+
+    QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, this);
+    mainSplitter->addWidget(m_pinTable);
+
+    m_pinoutWidget = new Hardware::PinoutViewWidget(this);
+    m_pinoutWidget->setObjectName("mcuPinoutView");
+    m_pinoutWidget->setEngine(&m_pinMuxEngine);
+    m_pinoutWidget->setMinimumWidth(320);
+    mainSplitter->addWidget(m_pinoutWidget);
+    mainSplitter->setStretchFactor(0, 3);
+    mainSplitter->setStretchFactor(1, 2);
+
+    connect(m_pinoutWidget, &Hardware::PinoutViewWidget::pinClicked, this, [this](const QString& pin) {
+        if (!m_pinTable) return;
+        for (int r = 0; r < m_pinTable->rowCount(); ++r) {
+            if (m_pinTable->item(r, 0) && (m_pinTable->item(r, 0)->text().startsWith(pin + " ") || m_pinTable->item(r, 0)->text() == pin)) {
+                m_pinTable->selectRow(r);
+                m_pinTable->scrollToItem(m_pinTable->item(r, 0));
+                break;
+            }
+        }
+    });
+    connect(m_pinTable, &QTableWidget::itemSelectionChanged, this, [this]() {
+        int r = m_pinTable->currentRow();
+        if (r >= 0 && m_pinTable->item(r, 0)) {
+            QString pin = m_pinTable->item(r, 0)->data(Qt::UserRole).toString();
+            if (pin.isEmpty()) pin = m_pinTable->item(r, 0)->text().split(' ').first();
+            if (m_pinoutWidget) m_pinoutWidget->setSelectedPin(pin);
+        }
+    });
+
+    mainLayout->addWidget(mainSplitter, 1);
 
     // ────────────────────────────────────────────────────────────────────────
     // 5. Bottom Action Bar
@@ -354,7 +405,7 @@ void PinBindingDialog::updateStatusBadge() {
         m_connectBtn->setEnabled(true);
         m_disconnectBtn->setEnabled(false);
     } else {
-        m_statusBadge->setText("○ OpenOCD: NOT FOUND (Simulated Test Mode)");
+        m_statusBadge->setText("No probe connected (OpenOCD: NOT FOUND)");
         m_statusBadge->setStyleSheet(QString("color: %1; font-weight: bold; padding: 5px 12px; background: %2; border: 1px solid %1; border-radius: %3px; font-size: 12px;").arg(Theme::Warning, Theme::WarningBg, QString::number(Theme::RadiusMd)));
         m_connectBtn->setEnabled(true);
         m_disconnectBtn->setEnabled(false);
@@ -382,17 +433,30 @@ void PinBindingDialog::updateConflictBanner() {
 }
 
 void PinBindingDialog::refreshTable() {
-    const QStringList allPins = m_bridge.availablePinsForPort(m_selectedPort);
-    QStringList filteredPins;
+    BoardDef activeBoard = BoardRegistry::instance().activeBoard();
+    QString curId = m_boardCombo ? m_boardCombo->currentData().toString() : m_bridge.currentBoardId();
+    if (!curId.isEmpty() && curId != activeBoard.id) {
+        BoardDef b = BoardRegistry::instance().board(curId);
+        if (b.isValid()) activeBoard = b;
+    }
+    QStringList boardPins = activeBoard.pinNames();
+    if (boardPins.isEmpty() || (!m_bridge.currentBoardId().isEmpty() && m_bridge.currentBoardId() == curId)) {
+        boardPins = m_bridge.availablePins();
+    }
 
-    for (const QString& pin : allPins) {
+    QStringList filteredPins;
+    for (const QString& pin : boardPins) {
         const PinProfile prof = m_bridge.pinProfile(pin);
+        const PinDef pd = activeBoard.pinMap.value(pin);
+        if (m_selectedPort != "All Ports" && !prof.portGroup.isEmpty() && prof.portGroup != m_selectedPort) {
+            continue;
+        }
         if (!m_searchQuery.isEmpty()) {
             bool matches = pin.contains(m_searchQuery, Qt::CaseInsensitive) ||
+                           pd.function.contains(m_searchQuery, Qt::CaseInsensitive) ||
+                           pd.note.contains(m_searchQuery, Qt::CaseInsensitive) ||
                            prof.description.contains(m_searchQuery, Qt::CaseInsensitive) ||
-                           prof.supportedPeripherals.join(" ").contains(m_searchQuery, Qt::CaseInsensitive) ||
-                           prof.taskAPeripheral.contains(m_searchQuery, Qt::CaseInsensitive) ||
-                           prof.taskBPeripheral.contains(m_searchQuery, Qt::CaseInsensitive);
+                           prof.supportedPeripherals.join(" ").contains(m_searchQuery, Qt::CaseInsensitive);
             if (!matches) continue;
         }
         filteredPins.append(pin);
@@ -427,22 +491,30 @@ void PinBindingDialog::refreshTable() {
     for (int r = 0; r < filteredPins.size(); ++r) {
         const QString pinName = filteredPins.at(r);
         const PinProfile prof = m_bridge.pinProfile(pinName);
+        const PinDef pd = activeBoard.pinMap.value(pinName);
         const PinConflict conflict = m_bridge.checkPinConflict(pinName);
 
-        // Column 0: Pin Name
-        auto* pinItem = new QTableWidgetItem(pinName);
-        pinItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-        pinItem->setFont(QFont("Monospace", 10, QFont::Bold));
+        // Column 0: Pin Name with function and markings
+        QString pinDisplay = pinName;
+        if (!pd.function.isEmpty()) pinDisplay += QString(" (%1)").arg(pd.function);
+        if (pd.strapping) pinDisplay += " [Strapping]";
+        else if (pd.reserved || prof.isReserved) pinDisplay += " [Reserved]";
 
-        QString tip = QString("Pin: %1\nPort Group: %2\nSupported Modes: %3")
-            .arg(pinName, prof.portGroup.isEmpty() ? "Default" : prof.portGroup, QString::number(prof.supportedModes.size()));
-        if (prof.isReserved) tip += QString("\nRESERVED: %1").arg(prof.reservedReason);
+        auto* pinItem = new QTableWidgetItem(pinDisplay);
+        pinItem->setData(Qt::UserRole, pinName);
+        pinItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        pinItem->setFont(QFont("Monospace", 9, QFont::Bold));
+
+        QString tip = QString("Pin: %1\nDefault Function: %2\nPort Group: %3")
+            .arg(pinName, pd.function.isEmpty() ? "GPIO" : pd.function, prof.portGroup.isEmpty() ? "Default" : prof.portGroup);
+        if (pd.reserved || prof.isReserved) tip += QString("\nRESERVED: %1").arg(pd.note.isEmpty() ? prof.reservedReason : pd.note);
+        if (pd.strapping) tip += QString("\nSTRAPPING PIN (Boot Mode)");
         if (!prof.supportedPeripherals.isEmpty()) tip += QString("\nPeripherals: %1").arg(prof.supportedPeripherals.join(", "));
         pinItem->setToolTip(tip);
 
         if (conflict.hasConflict) {
             pinItem->setForeground(QBrush(Theme::cDanger()));
-        } else if (prof.isReserved) {
+        } else if (pd.reserved || prof.isReserved || pd.strapping) {
             pinItem->setForeground(QBrush(Theme::cWarning()));
         } else {
             pinItem->setForeground(QBrush(Theme::cInfo()));
@@ -450,7 +522,7 @@ void PinBindingDialog::refreshTable() {
         m_pinTable->setItem(r, 0, pinItem);
 
         // Helper lambda to configure mode combo
-        auto createModeCombo = [this, &generalModes, &prof, &pinName](PinMode currentMode, bool isEnabledContext) -> QComboBox* {
+        auto createModeCombo = [this, &generalModes, &prof, &pd, &pinName](PinMode currentMode, bool isEnabledContext) -> QComboBox* {
             auto* combo = new QComboBox(m_pinTable);
             combo->setStyleSheet(QString(
                 "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 2px 6px; font-size: 11px; }"
@@ -460,7 +532,13 @@ void PinBindingDialog::refreshTable() {
             combo->setEnabled(isEnabledContext);
 
             for (PinMode m : generalModes) {
-                const bool available = prof.supportedModes.contains(m) || (m == PinMode::None);
+                bool available = prof.supportedModes.contains(m) || (m == PinMode::None);
+                if (pd.function == "ADC" && m == PinMode::AnalogIn) available = true;
+                if (pd.function == "PWM" && m == PinMode::PwmOutput) available = true;
+                if (pd.function == "SPI" && m == PinMode::SpiRawTransfer) available = true;
+                if (pd.function == "I2C" && m == PinMode::I2cBus) available = true;
+                if (pd.function == "UART" && m == PinMode::UartTxRx) available = true;
+
                 QString label = pinModeToString(m);
                 if (!available) {
                     label += " [Unavailable]";
@@ -499,9 +577,14 @@ void PinBindingDialog::refreshTable() {
         periphCombo->setStyleSheet(QString(
             "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 2px 6px; font-size: 11px; }"
         ).arg(Theme::BgRaised, Theme::TextPrimary, Theme::BorderSubtle, QString::number(Theme::RadiusSm)));
-        periphCombo->addItem("(None / GPIO)", "GPIO");
+        periphCombo->addItem(QString("(Default: %1)").arg(pd.function.isEmpty() ? "GPIO" : pd.function), "GPIO");
         for (const QString& periph : prof.supportedPeripherals) {
             periphCombo->addItem(periph, periph);
+        }
+        for (const QString& alt : pd.alternates) {
+            if (periphCombo->findText(alt) < 0) {
+                periphCombo->addItem(alt, alt);
+            }
         }
 
         QString activePeriph = (m_selectedTask == "Task B") ? prof.taskBPeripheral : prof.taskAPeripheral;
@@ -526,6 +609,8 @@ void PinBindingDialog::refreshTable() {
             compCombo->addItem(compText, comp->componentId());
             if (!boundCompId.isEmpty() && comp->componentId() == boundCompId) {
                 compCombo->setCurrentIndex(compCombo->count() - 1);
+            } else if (comp->protocolPin("pin") == pinName || comp->protocolPin("sck") == pinName || comp->protocolPin("scl") == pinName) {
+                compCombo->setCurrentIndex(compCombo->count() - 1);
             }
         }
         connect(compCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -542,8 +627,11 @@ void PinBindingDialog::refreshTable() {
         if (conflict.hasConflict) {
             statusText = "✗ Conflict";
             statusColor = Theme::cDanger();
-        } else if (prof.isReserved) {
+        } else if (pd.reserved || prof.isReserved) {
             statusText = "⚠ Reserved";
+            statusColor = Theme::cWarning();
+        } else if (pd.strapping) {
+            statusText = "⚡ Strapping";
             statusColor = Theme::cWarning();
         } else if (prof.taskAMode != PinMode::None || prof.taskBMode != PinMode::None) {
             statusText = "● Active";
@@ -558,6 +646,56 @@ void PinBindingDialog::refreshTable() {
         if (conflict.hasConflict) statusItem->setToolTip(conflict.reason);
         m_pinTable->setItem(r, 6, statusItem);
     }
+
+    // Synchronize PinMuxEngine for visual pinout diagram
+    Hardware::DeviceDefinition dev;
+    dev.partNumber = activeBoard.mcu.isEmpty() ? activeBoard.displayName : activeBoard.mcu;
+    dev.vendor = activeBoard.vendor;
+    dev.family = activeBoard.family;
+    dev.package = "LQFP64";
+    for (auto it = activeBoard.pinMap.begin(); it != activeBoard.pinMap.end(); ++it) {
+        Hardware::PinDefinition d;
+        d.name = it.key();
+        d.defaultFunction = it.value().function;
+        d.alternateFunctions = it.value().alternates;
+        d.isReserved = it.value().reserved;
+        d.isBoot = it.value().strapping;
+        if (it.value().function == "POWER") d.isPower = true;
+        if (it.value().function == "GND") d.isGround = true;
+        dev.pins.append(d);
+    }
+    m_pinMuxEngine.setDevice(dev);
+
+    // Highlight bound pins from components & bridge
+    for (const QString& p : activeBoard.pinMap.keys()) {
+        PinMode mode = m_bridge.taskPinMode(p, "Task A");
+        if (mode != PinMode::None) {
+            Hardware::PinConfiguration cfg;
+            cfg.pin = p;
+            cfg.mode = pinModeToString(mode);
+            m_pinMuxEngine.assignPin(p, cfg, true);
+        }
+    }
+    if (m_scene) {
+        for (UIComponent* comp : m_scene->uiComponents()) {
+            if (!comp) continue;
+            QString proto = comp->protocol();
+            if (proto.isEmpty() || proto == "None") continue;
+            QStringList bound;
+            if (proto == "GPIO" || proto == "PWM" || proto == "ADC") bound << comp->protocolPin("pin");
+            else if (proto == "SPI") bound << comp->protocolPin("miso") << comp->protocolPin("mosi") << comp->protocolPin("sck") << comp->protocolPin("ss");
+            else if (proto == "I2C") bound << comp->protocolPin("scl") << comp->protocolPin("sda");
+            for (const QString& bp : bound) {
+                if (!bp.isEmpty() && bp != "[None]") {
+                    Hardware::PinConfiguration cfg;
+                    cfg.pin = bp;
+                    cfg.mode = proto;
+                    m_pinMuxEngine.assignPin(bp, cfg, true);
+                }
+            }
+        }
+    }
+    if (m_pinoutWidget) m_pinoutWidget->update();
 }
 
 void PinBindingDialog::updateRowLiveValue(int row, const QString& pinName, const PinProfile& prof) {
@@ -598,6 +736,77 @@ void PinBindingDialog::updateRowLiveValue(int row, const QString& pinName, const
 
 void PinBindingDialog::onBoardChanged(int index) {
     const QString boardId = m_boardCombo->itemData(index).toString();
+    BoardDef newBoard = BoardRegistry::instance().board(boardId);
+
+    // Conflict detection across current component bindings
+    QList<InvalidBindingItem> invalidItems;
+    if (m_scene) {
+        for (UIComponent* comp : m_scene->uiComponents()) {
+            if (!comp) continue;
+            QString proto = comp->protocol();
+            if (proto.isEmpty() || proto == "None") continue;
+
+            QStringList pinsToCheck;
+            if (proto == "GPIO" || proto == "PWM" || proto == "ADC") {
+                pinsToCheck << comp->protocolPin("pin");
+            } else if (proto == "SPI") {
+                pinsToCheck << comp->protocolPin("miso") << comp->protocolPin("mosi")
+                            << comp->protocolPin("sck") << comp->protocolPin("ss");
+            } else if (proto == "I2C") {
+                pinsToCheck << comp->protocolPin("scl") << comp->protocolPin("sda");
+            }
+
+            for (const QString& p : pinsToCheck) {
+                if (p.isEmpty() || p == "[None]") continue;
+                if (!newBoard.pinMap.contains(p)) {
+                    InvalidBindingItem item;
+                    item.component = comp;
+                    item.componentId = comp->componentId();
+                    item.componentName = comp->componentId();
+                    item.currentPin = p;
+                    item.currentProtocol = proto;
+                    item.reason = QString("Pin '%1' not supported on target '%2'").arg(p, newBoard.displayName.isEmpty() ? newBoard.id : newBoard.displayName);
+                    invalidItems.append(item);
+                } else if (newBoard.pinMap[p].reserved) {
+                    InvalidBindingItem item;
+                    item.component = comp;
+                    item.componentId = comp->componentId();
+                    item.componentName = comp->componentId();
+                    item.currentPin = p;
+                    item.currentProtocol = proto;
+                    item.reason = QString("Pin '%1' is reserved for system use (%2)").arg(p, newBoard.pinMap[p].note.isEmpty() ? "System" : newBoard.pinMap[p].note);
+                    invalidItems.append(item);
+                }
+            }
+        }
+    }
+
+    if (!invalidItems.isEmpty()) {
+        InvalidBindingsDialog invDlg(newBoard, invalidItems, this);
+        if (invDlg.exec() == QDialog::Accepted) {
+            auto resolved = invDlg.resolvedBindings();
+            for (const auto& item : resolved) {
+                if (item.component && !item.keepAsCustom && !item.remappedPin.isEmpty()) {
+                    QString proto = item.currentProtocol;
+                    if (proto == "GPIO" || proto == "PWM" || proto == "ADC") {
+                        item.component->setProtocolPin("pin", item.remappedPin);
+                        m_bridge.bindComponent(item.component, item.remappedPin,
+                            proto == "ADC" ? PinMode::AnalogIn : (proto == "PWM" ? PinMode::PwmOutput : PinMode::DigitalOut));
+                    } else if (proto == "SPI") {
+                        if (item.component->protocolPin("sck") == item.currentPin) item.component->setProtocolPin("sck", item.remappedPin);
+                        if (item.component->protocolPin("mosi") == item.currentPin) item.component->setProtocolPin("mosi", item.remappedPin);
+                        if (item.component->protocolPin("miso") == item.currentPin) item.component->setProtocolPin("miso", item.remappedPin);
+                        if (item.component->protocolPin("ss") == item.currentPin) item.component->setProtocolPin("ss", item.remappedPin);
+                    } else if (proto == "I2C") {
+                        if (item.component->protocolPin("scl") == item.currentPin) item.component->setProtocolPin("scl", item.remappedPin);
+                        if (item.component->protocolPin("sda") == item.currentPin) item.component->setProtocolPin("sda", item.remappedPin);
+                    }
+                }
+            }
+        }
+    }
+
+    BoardRegistry::instance().setActiveBoard(boardId);
     m_bridge.setBoard(boardId);
     populatePortFilterCombo();
     refreshTable();
@@ -626,7 +835,29 @@ void PinBindingDialog::onSearchTextChanged(const QString& text) {
 
 void PinBindingDialog::onTaskAModeChanged(int row, int index) {
     if (row < 0 || row >= m_pinTable->rowCount()) return;
-    const QString pinName = m_pinTable->item(row, 0)->text();
+    const QString pinName = m_pinTable->item(row, 0)->data(Qt::UserRole).toString().isEmpty()
+        ? m_pinTable->item(row, 0)->text().split(' ').first()
+        : m_pinTable->item(row, 0)->data(Qt::UserRole).toString();
+
+    BoardDef board = BoardRegistry::instance().activeBoard();
+    const PinDef pd = board.pinMap.value(pinName);
+    if (pd.reserved || pd.strapping) {
+        QString tag = pd.reserved ? "Reserved" : "Strapping";
+        auto reply = QMessageBox::warning(
+            this,
+            QString("%1 Pin Warning").arg(tag),
+            QString("Pin '%1' is designated as %2 (%3).\n"
+                    "Binding this pin may interfere with flashing, debug, or boot operations.\n\n"
+                    "Are you sure you want to proceed?")
+                .arg(pinName, tag, pd.note.isEmpty() ? pd.function : pd.note),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No);
+        if (reply != QMessageBox::Yes) {
+            refreshTable();
+            return;
+        }
+    }
+
     auto* combo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 1));
     if (!combo) return;
 
@@ -646,7 +877,29 @@ void PinBindingDialog::onTaskAModeChanged(int row, int index) {
 
 void PinBindingDialog::onTaskBModeChanged(int row, int index) {
     if (row < 0 || row >= m_pinTable->rowCount()) return;
-    const QString pinName = m_pinTable->item(row, 0)->text();
+    const QString pinName = m_pinTable->item(row, 0)->data(Qt::UserRole).toString().isEmpty()
+        ? m_pinTable->item(row, 0)->text().split(' ').first()
+        : m_pinTable->item(row, 0)->data(Qt::UserRole).toString();
+
+    BoardDef board = BoardRegistry::instance().activeBoard();
+    const PinDef pd = board.pinMap.value(pinName);
+    if (pd.reserved || pd.strapping) {
+        QString tag = pd.reserved ? "Reserved" : "Strapping";
+        auto reply = QMessageBox::warning(
+            this,
+            QString("%1 Pin Warning").arg(tag),
+            QString("Pin '%1' is designated as %2 (%3).\n"
+                    "Binding this pin may interfere with flashing, debug, or boot operations.\n\n"
+                    "Are you sure you want to proceed?")
+                .arg(pinName, tag, pd.note.isEmpty() ? pd.function : pd.note),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No);
+        if (reply != QMessageBox::Yes) {
+            refreshTable();
+            return;
+        }
+    }
+
     auto* combo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 2));
     if (!combo) return;
 
@@ -666,7 +919,9 @@ void PinBindingDialog::onTaskBModeChanged(int row, int index) {
 
 void PinBindingDialog::onPeripheralChanged(int row, int index) {
     if (row < 0 || row >= m_pinTable->rowCount()) return;
-    const QString pinName = m_pinTable->item(row, 0)->text();
+    const QString pinName = m_pinTable->item(row, 0)->data(Qt::UserRole).toString().isEmpty()
+        ? m_pinTable->item(row, 0)->text().split(' ').first()
+        : m_pinTable->item(row, 0)->data(Qt::UserRole).toString();
     auto* combo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 3));
     if (!combo) return;
 
@@ -679,11 +934,36 @@ void PinBindingDialog::onPeripheralChanged(int row, int index) {
 
 void PinBindingDialog::onComponentBindingChanged(int row, int index) {
     if (row < 0 || row >= m_pinTable->rowCount()) return;
-    const QString pinName = m_pinTable->item(row, 0)->text();
+    const QString pinName = m_pinTable->item(row, 0)->data(Qt::UserRole).toString().isEmpty()
+        ? m_pinTable->item(row, 0)->text().split(' ').first()
+        : m_pinTable->item(row, 0)->data(Qt::UserRole).toString();
+
     auto* compCombo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(row, 4));
     if (!compCombo) return;
 
     const QString compId = compCombo->itemData(index).toString();
+
+    if (!compId.isEmpty()) {
+        BoardDef board = BoardRegistry::instance().activeBoard();
+        const PinDef pd = board.pinMap.value(pinName);
+        if (pd.reserved || pd.strapping) {
+            QString tag = pd.reserved ? "Reserved" : "Strapping";
+            auto reply = QMessageBox::warning(
+                this,
+                QString("%1 Pin Warning").arg(tag),
+                QString("Pin '%1' is designated as %2 (%3).\n"
+                        "Binding this pin may interfere with flashing, debug, or boot operations.\n\n"
+                        "Are you sure you want to proceed?")
+                    .arg(pinName, tag, pd.note.isEmpty() ? pd.function : pd.note),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::No);
+            if (reply != QMessageBox::Yes) {
+                refreshTable();
+                return;
+            }
+        }
+    }
+
     QString task = (m_selectedTask == "Task B") ? "Task B" : "Task A";
 
     if (compId.isEmpty()) {
@@ -706,6 +986,34 @@ void PinBindingDialog::onComponentBindingChanged(int row, int index) {
     }
 
     refreshTable();
+}
+
+void PinBindingDialog::onSaveCustomPresetClicked() {
+    BoardDef activeBoard = BoardRegistry::instance().activeBoard();
+    bool ok = false;
+    QString defaultName = (activeBoard.displayName.isEmpty() ? activeBoard.id : activeBoard.displayName) + " Custom Preset";
+    QString name = QInputDialog::getText(this, "Save Custom Pin Preset",
+                                         "Preset Name:", QLineEdit::Normal,
+                                         defaultName, &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    QMap<QString, PinDef> pinOverrides;
+    for (int r = 0; r < m_pinTable->rowCount(); ++r) {
+        if (!m_pinTable->item(r, 0)) continue;
+        QString pin = m_pinTable->item(r, 0)->data(Qt::UserRole).toString();
+        if (pin.isEmpty()) pin = m_pinTable->item(r, 0)->text().split(' ').first();
+
+        auto* aCombo = qobject_cast<QComboBox*>(m_pinTable->cellWidget(r, 1));
+        if (aCombo && aCombo->currentText() != "None" && !aCombo->currentText().contains("Unavailable")) {
+            PinDef pd = activeBoard.pinMap.value(pin);
+            pd.function = aCombo->currentText();
+            pinOverrides[pin] = pd;
+        }
+    }
+
+    BoardRegistry::instance().savePreset(name.trimmed(), activeBoard.id, pinOverrides);
+    QMessageBox::information(this, "Preset Saved",
+        QString("Custom pin configuration preset '%1' has been saved successfully.").arg(name.trimmed()));
 }
 
 void PinBindingDialog::onConnectClicked() {

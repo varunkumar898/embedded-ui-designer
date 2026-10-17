@@ -1,12 +1,27 @@
 #include "ResourceEstimator.h"
 #include "Project.h"
 #include "Screen.h"
+#include "hardware/BoardRegistry.h"
 #include "UIComponent.h"
 #include "ImageComponent.h"
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QDir>
 #include <algorithm>
+
+namespace {
+// Task 4: resolve the flash size (in KB) provided by the project's board profile.
+// Returns 0 when no board is selected or the board flash size is unknown.
+qint64 resolveBoardFlashKb(const Project* project) {
+    if (!project) return 0;
+    const Hardware::HardwareConfig hw = project->hardwareConfig();
+    if (hw.boardId.isEmpty()) return 0;
+    if (hw.flashBytes > 0) return static_cast<qint64>(hw.flashBytes / 1024);
+    const BoardDef board = BoardRegistry::instance().board(hw.boardId);
+    if (board.flashBytes > 0) return board.flashBytes / 1024;
+    return 0;
+}
+} // namespace
 
 ResourceEstimator::ResourceEstimator(QObject* parent)
     : QObject(parent)
@@ -29,24 +44,91 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const QStrin
     return analyze(project, dev);
 }
 
+ResourceAnalysis ResourceEstimator::analyzeProject(const Project* project, const QString& framework) {
+    DeviceProfile dev;
+    if (project) {
+        dev = project->getDeviceProfile();
+    }
+    return analyze(project, dev, framework);
+}
+
 ResourceAnalysis ResourceEstimator::analyze(const Project* project, const DeviceProfile& device, const QString& framework) {
+    QString fw = !framework.isEmpty() ? framework : (project ? project->targetFramework() : "qt-for-mcus");
+    if (fw.isEmpty()) fw = "qt-for-mcus";
+
+    // 1. Check cache for quick return (<100 ms)
+    QString compSig;
+    if (project) {
+        int compCount = 0;
+        size_t compHash = 0;
+        for (const Screen* s : project->screens()) {
+            if (!s) continue;
+            for (const UIComponent* c : s->components()) {
+                if (!c) continue;
+                compCount++;
+                compHash ^= qHash(c->componentId()) ^ (qHash(c->componentType()) << 1);
+            }
+        }
+        compSig = QString("%1:%2:%3").arg(project->screens().size()).arg(compCount).arg(compHash);
+    }
+    // Task 4: the board selection can change the external-flash budget, so it is
+    // part of the cache key.
+    const QString boardKey = project ? project->hardwareConfig().boardId : QString();
+    // Task 5: buffering mode changes framebuffer_ram, so it is part of the key too.
+    QString framebufferKey;
+    if (project) {
+        const BoardDisplayConfig bd = project->boardDisplayConfig();
+        framebufferKey = QString("%1:%2")
+                             .arg(static_cast<int>(bd.framebufferMode))
+                             .arg(bd.partialBufferLines);
+    }
+    QString cacheKey = QString("%1|%2|%3|%4|%5").arg(device.name, fw, compSig, boardKey, framebufferKey);
+    if (m_cache.hasProjectAnalysis(cacheKey)) {
+        return m_cache.getProjectAnalysis(cacheKey);
+    }
+
     ResourceAnalysis result;
     result.analyzed_at = QDateTime::currentDateTime();
     result.device_name = device.name;
     result.device = device;
+    result.has_device = !device.name.isEmpty() && (device.flash_kb > 0 || device.ram_kb > 0);
     result.ram_total = device.ram_kb * 1024;
     result.flash_total = device.flash_kb * 1024;
-
-    QString fw = !framework.isEmpty() ? framework : (project ? project->targetFramework() : "qt-for-mcus");
-    if (fw.isEmpty()) fw = "qt-for-mcus";
     result.target_framework = fw;
 
-    // 1. Analyze Components
+    // Task 4: parts without on-chip flash (ESP32, RP2040, i.MX RT...) keep their
+    // firmware in external module/board flash. Budget against the configured board
+    // size when available; otherwise mark the flash budget as unbounded so a
+    // typical module size is reported as Info instead of a hard limit.
+    if (device.flash_is_external) {
+        const qint64 boardFlashKb = resolveBoardFlashKb(project);
+        if (boardFlashKb > 0) {
+            result.flash_total = static_cast<uint32_t>(boardFlashKb) * 1024u;
+        } else {
+            result.flash_external_unbounded = true;
+        }
+    }
+
+    // Handle missing device profile gracefully without blocking export
+    if (!result.has_device) {
+        result.status = ResourceAnalysis::OK;
+        result.summary = "No device selected";
+        ResourceAnalysis::ResourceWarning rw;
+        rw.severity = ResourceAnalysis::WarningSeverity::Info;
+        rw.message = "No device selected. Export will proceed without target MCU memory constraints.";
+        result.structuredWarnings.append(rw);
+        result.warnings.append(rw.message);
+        m_cache.putProjectAnalysis(cacheKey, result);
+        emit analysisUpdated(result);
+        return result;
+    }
+
+    // 2. Analyze Components
     ResourceAnalysis::Breakdown compBreakdown = analyzeAllComponents(project);
     result.breakdown.components_ram = compBreakdown.components_ram;
     result.breakdown.components_flash = compBreakdown.components_flash;
 
-    // 2. Count total components and screens for framework overhead
+    // 3. Count total components and screens for framework overhead
     int totalComps = 0;
     int numScreens = 1;
     if (project) {
@@ -56,17 +138,35 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
         }
     }
 
-    // 3. Framework Overhead
+    // 4. Framework Overhead
     auto fwBaseline = EstimationFormulas::getFrameworkBaseline(fw);
     result.breakdown.framework_flash = fwBaseline.flash_minimum + (totalComps * fwBaseline.flash_per_component) + ((numScreens - 1) * 2048);
     result.breakdown.framework_ram = fwBaseline.ram_minimum + (totalComps * fwBaseline.ram_per_component) + ((numScreens - 1) * 1024);
 
-    // 4. Asset Sizes
+    // 5. Asset Sizes
     uint32_t assetRam = 0;
     result.breakdown.assets_flash = analyzeAssets(project, &assetRam);
     result.breakdown.assets_ram = assetRam;
 
-    // 5. Total Usage Calculations
+    // 6. Framebuffer calculations (Task 5: full frame or partial buffering;
+    //    the default "full" mode reproduces the previous estimate exactly)
+    int width = 320, height = 240, bpp = 16;
+    int framebufferHeight = 0;   // lines per buffer, 0 => whole display height
+    int framebufferCount = 1;    // 1 = single buffer, 2 = double buffer
+    if (project) {
+        width = project->displayConfig().width > 0 ? project->displayConfig().width : 320;
+        height = project->displayConfig().height > 0 ? project->displayConfig().height : 240;
+        bpp = project->displayConfig().colorDepth > 0 ? project->displayConfig().colorDepth : 16;
+        const BoardDisplayConfig::FramebufferLayout layout =
+            project->boardDisplayConfig().framebufferLayout(height);
+        framebufferHeight = layout.bufferHeight;
+        framebufferCount = layout.bufferCount;
+    }
+    if (framebufferHeight <= 0) framebufferHeight = height;
+    result.breakdown.framebuffer_ram = static_cast<uint32_t>(
+        calculateFramebufferBytes(width, framebufferHeight, bpp, framebufferCount));
+
+    // 7. Total Usage Calculations
     result.flash_used = result.breakdown.framework_flash + result.breakdown.components_flash + result.breakdown.assets_flash;
     result.ram_used = result.breakdown.framework_ram + result.breakdown.components_ram + result.breakdown.assets_ram;
 
@@ -76,7 +176,7 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
     result.breakdown.user_space_flash = result.flash_total > result.flash_used ? (result.flash_total - result.flash_used) : 0;
     result.breakdown.user_space_ram = result.ram_total > result.ram_used ? (result.ram_total - result.ram_used) : 0;
 
-    // 6. CPU Estimate
+    // 8. CPU Estimate
     float baseCpu = 2.5f; // base engine render overhead @ 60fps
     float compCpu = 0.0f;
     if (project) {
@@ -91,26 +191,27 @@ ResourceAnalysis ResourceEstimator::analyze(const Project* project, const Device
     }
     result.cpu_overhead_percent = std::min(100.0f, baseCpu + compCpu);
 
-    // 7. Validate and Generate Warnings
+    // 9. Validate and Generate Warnings
     validateFitsOnDevice(result, result.status, result.warnings);
 
-    // 8. Human-readable summary
+    // 10. Human-readable summary
     if (result.status == ResourceAnalysis::OK) {
-        result.summary = QString("Design fits comfortably (%1% Flash, %2% RAM used).")
+        result.summary = QString("Design fits comfortably (Estimated %1% Flash, %2% RAM used).")
                              .arg(result.flash_percent, 0, 'f', 1)
                              .arg(result.ram_percent, 0, 'f', 1);
     } else if (result.status == ResourceAnalysis::WARNING) {
-        result.summary = QString("Resource warning: High usage (%1% Flash, %2% RAM).")
+        result.summary = QString("Resource warning: High usage (Estimated %1% Flash, %2% RAM).")
                              .arg(result.flash_percent, 0, 'f', 1)
                              .arg(result.ram_percent, 0, 'f', 1);
     } else if (result.status == ResourceAnalysis::CRITICAL) {
-        result.summary = QString("CRITICAL: Exceeds target device capacity (%1% Flash, %2% RAM)!")
+        result.summary = QString("CRITICAL: Exceeds target device capacity (Estimated %1% Flash, %2% RAM)!")
                              .arg(result.flash_percent, 0, 'f', 1)
                              .arg(result.ram_percent, 0, 'f', 1);
     } else {
         result.summary = QString("Framework mismatch with target device %1.").arg(device.name);
     }
 
+    m_cache.putProjectAnalysis(cacheKey, result);
     emit analysisUpdated(result);
     return result;
 }
@@ -178,57 +279,171 @@ uint32_t ResourceEstimator::analyzeAssets(const Project* project, uint32_t* ramA
     return flashSize;
 }
 
+void ResourceEstimator::validateFitsOnDevice(ResourceAnalysis& analysis) {
+    validateFitsOnDevice(analysis, analysis.status, analysis.warnings);
+}
+
 void ResourceEstimator::validateFitsOnDevice(const ResourceAnalysis& analysis,
                                             ResourceAnalysis::Status& status_out,
                                             QVector<QString>& warnings_out)
 {
     warnings_out.clear();
     status_out = ResourceAnalysis::OK;
+    auto* mutableAnalysis = const_cast<ResourceAnalysis*>(&analysis);
+    if (mutableAnalysis) {
+        mutableAnalysis->structuredWarnings.clear();
+    }
+
+    if (!analysis.has_device || analysis.device_name.isEmpty()) {
+        status_out = ResourceAnalysis::OK;
+        return;
+    }
 
     // 1. Framework compatibility check
-    if (!m_db.supportsFramework(analysis.device_name, analysis.target_framework)) {
+    if (!analysis.target_framework.isEmpty() && !m_db.supportsFramework(analysis.device_name, analysis.target_framework)) {
         status_out = ResourceAnalysis::MISMATCH;
-        warnings_out.append(QString("Target framework '%1' is not officially supported on %2.")
-                                .arg(analysis.target_framework, analysis.device_name));
+        QString msg = QString("Target framework '%1' is not officially supported on %2.")
+                          .arg(analysis.target_framework, analysis.device_name);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Warning, msg});
+        }
     }
 
     // 2. Capacity checks
-    if (analysis.flash_percent > 100.0f) {
+    // Task 4: external-flash parts without a known board size must not be judged
+    // against a typical module size - report a single Info notice instead.
+    if (analysis.flash_external_unbounded) {
+        QString msg = QString("Flash size depends on your board: %1 has no on-chip flash "
+                              "(typical module: %2 KB). External flash capacity is not enforced.")
+                          .arg(analysis.device_name)
+                          .arg(analysis.device.external_flash_kb > 0
+                                   ? analysis.device.external_flash_kb
+                                   : analysis.flash_total / 1024);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Info, msg});
+        }
+    } else if (analysis.flash_percent >= 95.0f) {
         status_out = ResourceAnalysis::CRITICAL;
-        warnings_out.append(QString("CRITICAL: Flash memory exceeded! Design uses %1 KB (%2% of %3 KB).")
-                                .arg(analysis.flash_used / 1024)
-                                .arg(analysis.flash_percent, 0, 'f', 1)
-                                .arg(analysis.flash_total / 1024));
+        QString msg = QString("CRITICAL: Flash memory exceeded! Design uses %1 KB (%2% of %3 KB).")
+                          .arg(analysis.flash_used / 1024)
+                          .arg(analysis.flash_percent, 0, 'f', 1)
+                          .arg(analysis.flash_total / 1024);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Critical, msg});
+        }
     } else if (analysis.flash_percent >= 80.0f) {
         if (status_out != ResourceAnalysis::CRITICAL && status_out != ResourceAnalysis::MISMATCH) {
             status_out = ResourceAnalysis::WARNING;
         }
-        warnings_out.append(QString("Warning: Flash usage is %1%. Only %2 KB remaining for user application logic.")
-                                .arg(analysis.flash_percent, 0, 'f', 1)
-                                .arg(analysis.breakdown.user_space_flash / 1024));
+        QString msg = QString("Warning: Flash usage is %1%. Only %2 KB remaining for user application logic.")
+                          .arg(analysis.flash_percent, 0, 'f', 1)
+                          .arg(analysis.breakdown.user_space_flash / 1024);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Warning, msg});
+        }
+    } else {
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({
+                ResourceAnalysis::WarningSeverity::Info,
+                QString("Estimated Flash utilization: %1% (%2 KB / %3 KB).")
+                    .arg(analysis.flash_percent, 0, 'f', 1)
+                    .arg(analysis.flash_used / 1024)
+                    .arg(analysis.flash_total / 1024)
+            });
+        }
     }
 
-    if (analysis.ram_percent > 100.0f) {
+    if (analysis.ram_percent >= 95.0f) {
         status_out = ResourceAnalysis::CRITICAL;
-        warnings_out.append(QString("CRITICAL: RAM memory exceeded! Design uses %1 KB (%2% of %3 KB).")
-                                .arg(analysis.ram_used / 1024)
-                                .arg(analysis.ram_percent, 0, 'f', 1)
-                                .arg(analysis.ram_total / 1024));
+        QString msg = QString("CRITICAL: RAM memory exceeded! Design uses %1 KB (%2% of %3 KB).")
+                          .arg(analysis.ram_used / 1024)
+                          .arg(analysis.ram_percent, 0, 'f', 1)
+                          .arg(analysis.ram_total / 1024);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Critical, msg});
+        }
     } else if (analysis.ram_percent >= 80.0f) {
         if (status_out != ResourceAnalysis::CRITICAL && status_out != ResourceAnalysis::MISMATCH) {
             status_out = ResourceAnalysis::WARNING;
         }
-        warnings_out.append(QString("Warning: RAM usage is %1%. Heap/stack margin is slim (%2 KB free).")
-                                .arg(analysis.ram_percent, 0, 'f', 1)
-                                .arg(analysis.breakdown.user_space_ram / 1024));
+        QString msg = QString("Warning: RAM usage is %1%. Heap/stack margin is slim (%2 KB free).")
+                          .arg(analysis.ram_percent, 0, 'f', 1)
+                          .arg(analysis.breakdown.user_space_ram / 1024);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Warning, msg});
+        }
+    } else {
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({
+                ResourceAnalysis::WarningSeverity::Info,
+                QString("Estimated RAM utilization: %1% (%2 KB / %3 KB).")
+                    .arg(analysis.ram_percent, 0, 'f', 1)
+                    .arg(analysis.ram_used / 1024)
+                    .arg(analysis.ram_total / 1024)
+            });
+        }
     }
 
     // 3. CPU overhead check
     if (analysis.cpu_overhead_percent > 50.0f) {
         if (status_out == ResourceAnalysis::OK) status_out = ResourceAnalysis::WARNING;
-        warnings_out.append(QString("High UI render load estimated (~%1% of CPU frame budget). Consider optimizing vector paths or complex widgets.")
-                                .arg(analysis.cpu_overhead_percent, 0, 'f', 1));
+        QString msg = QString("High UI render load estimated (~%1% of CPU frame budget). Consider optimizing vector paths or complex widgets.")
+                          .arg(analysis.cpu_overhead_percent, 0, 'f', 1);
+        warnings_out.append(msg);
+        if (mutableAnalysis) {
+            mutableAnalysis->structuredWarnings.append({ResourceAnalysis::WarningSeverity::Warning, msg});
+        }
     }
+}
+
+QVector<ResourceEstimator::ComponentResourceEntry> ResourceEstimator::getHeaviestComponents(const Project* project) const {
+    QVector<ComponentResourceEntry> entries;
+    if (!project) return entries;
+
+    QMap<QString, ComponentResourceEntry> typeMap;
+    for (const Screen* s : project->screens()) {
+        if (!s) continue;
+        for (const UIComponent* c : s->components()) {
+            if (!c) continue;
+            QString type = c->componentType();
+            if (type.isEmpty()) type = "CustomComponent";
+            auto fp = EstimationFormulas::estimateComponent(c);
+            auto& entry = typeMap[type];
+            entry.componentType = type;
+            entry.count++;
+            entry.totalFlashBytes += fp.flash;
+            entry.totalRamBytes += fp.ram;
+        }
+    }
+
+    for (auto it = typeMap.begin(); it != typeMap.end(); ++it) {
+        ComponentResourceEntry e = it.value();
+        if (e.componentType.contains("Image", Qt::CaseInsensitive)) {
+            e.optimizationSuggestion = "Convert to RGB565 / indexed palette or compress assets in flash.";
+        } else if (e.componentType.contains("Table", Qt::CaseInsensitive) || e.componentType.contains("List", Qt::CaseInsensitive)) {
+            e.optimizationSuggestion = "Use virtualized list rows to allocate only visible screen items in RAM.";
+        } else if (e.componentType.contains("Gauge", Qt::CaseInsensitive) || e.componentType.contains("Speedo", Qt::CaseInsensitive)) {
+            e.optimizationSuggestion = "Pre-render static gauge face as ROM bitmap to reduce dynamic rendering.";
+        } else if (e.componentType.contains("Tab", Qt::CaseInsensitive)) {
+            e.optimizationSuggestion = "Instantiate inactive tab views lazily on demand.";
+        } else {
+            e.optimizationSuggestion = "Combine adjacent static labels or reduce complex decorations.";
+        }
+        entries.append(e);
+    }
+
+    // Sort descending by total estimated footprint
+    std::sort(entries.begin(), entries.end(), [](const ComponentResourceEntry& a, const ComponentResourceEntry& b) {
+        return (a.totalFlashBytes + a.totalRamBytes) > (b.totalFlashBytes + b.totalRamBytes);
+    });
+
+    return entries;
 }
 
 // Framebuffer calculations (with DMA alignment)

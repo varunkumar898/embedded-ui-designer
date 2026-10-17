@@ -37,6 +37,10 @@ public:
     bool isLiveTestMode() const { return m_liveTestMode; }
     void onComponentClicked(UIComponent* component);
 
+    /// Selects the component and scrolls it into the viewport
+    /// (used by Problems panel navigation).
+    void revealComponent(UIComponent* component);
+
 public slots:
     void setLiveTestMode(bool enabled);
 

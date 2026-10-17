@@ -3,21 +3,134 @@
   "devices": [
     {
       "name": "STM32H745",
-      "ram_kb": 512,
-      "flash_kb": 2048,
+      "family": "STM32H7",
+      "vendor": "STMicroelectronics",
+      "cores": ["Cortex-M7 (480 MHz)", "Cortex-M4 (240 MHz)"],
       "cpu_speed_mhz": 480,
+      "ram_kb": 1056,
+      "ram": {
+        "total_kb": 1056,
+        "regions": [
+          { "name": "AXI SRAM (D1)", "kb": 512, "usable_for_framebuffer": true },
+          { "name": "SRAM1 (D2)", "kb": 128, "usable_for_framebuffer": null },
+          { "name": "SRAM2 (D2)", "kb": 128, "usable_for_framebuffer": null },
+          { "name": "SRAM3 (D2)", "kb": 32, "usable_for_framebuffer": null },
+          { "name": "SRAM4 (D3)", "kb": 64, "usable_for_framebuffer": null },
+          { "name": "ITCM (M7)", "kb": 64, "usable_for_framebuffer": false },
+          { "name": "DTCM (M7)", "kb": 128, "usable_for_framebuffer": false }
+        ]
+      },
+      "flash_kb": 2048,
+      "flash": { "internal_kb": 2048, "external": false, "typical_external_kb": null },
       "peripherals": ["UART1", "UART2", "UART3", "SPI1", "SPI2", "SPI3", "I2C1", "I2C2", "CAN1"],
-      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl"],
-      "notes": "Dual-core Cortex-M7 (480MHz) + Cortex-M4 (240MHz)"
+      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl", "embedweb"],
+      "architecture": "Cortex-M7",
+      "required_toolchain": "arm-none-eabi-gcc",
+      "embedweb_adapter_status": "verified",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 1024,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 0,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 512,
+      "tcm_kb": 192,
+      "onchip_flash_kb": 2048,
+      "external_flash_kb": 0,
+      "module_variant": "Nucleo-H745ZI-Q",
+      "has_lcd_controller": true,
+      "notes": "CORRECTED (compiled-in profile had ram_kb=512): total SRAM is 1056 KB = ITCM 64 + DTCM 128 + AXI 512 + SRAM1 128 + SRAM2 128 + SRAM3 32 + SRAM4 64, plus 4 KB backup SRAM (DS12923 Rev 1). The datasheet headline is 'around 1 Mbyte of RAM'; internal_sram_kb is kept at the compiled-in 1024 to preserve existing behavior, while ram_kb now reflects the verified region sum. 2 MB dual-bank flash. LTDC + DMA2D available for TFT panels.",
+      "sources": [
+        "DS12923 Rev 1 - STM32H745xI/G datasheet, ST (https://www.st.com/resource/en/datasheet/stm32h745zg.pdf)",
+        "RM0399 - STM32H745/755 reference manual, ST",
+        "https://www.st.com/en/microcontrollers-microprocessors/stm32h745-755.html"
+      ],
+      "verified": true
     },
     {
       "name": "STM32H743",
-      "ram_kb": 512,
+      "family": "STM32H7",
+      "vendor": "STMicroelectronics",
+      "cores": ["Cortex-M7 (480 MHz)"],
+      "cpu_speed_mhz": 480,
+      "ram_kb": 1056,
+      "ram": {
+        "total_kb": 1056,
+        "regions": [
+          { "name": "AXI SRAM (D1)", "kb": 512, "usable_for_framebuffer": true },
+          { "name": "SRAM1 (D2)", "kb": 128, "usable_for_framebuffer": null },
+          { "name": "SRAM2 (D2)", "kb": 128, "usable_for_framebuffer": null },
+          { "name": "SRAM3 (D2)", "kb": 32, "usable_for_framebuffer": null },
+          { "name": "SRAM4 (D3)", "kb": 64, "usable_for_framebuffer": null },
+          { "name": "ITCM (M7)", "kb": 64, "usable_for_framebuffer": false },
+          { "name": "DTCM (M7)", "kb": 128, "usable_for_framebuffer": false }
+        ]
+      },
       "flash_kb": 2048,
-      "cpu_speed_mhz": 400,
+      "flash": { "internal_kb": 2048, "external": false, "typical_external_kb": null },
       "peripherals": ["UART1", "UART2", "SPI1", "SPI2", "I2C1", "I2C2"],
-      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl"],
-      "notes": "High-performance single-core Cortex-M7"
+      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl", "embedweb"],
+      "architecture": "Cortex-M7",
+      "required_toolchain": "arm-none-eabi-gcc",
+      "embedweb_adapter_status": "verified",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 1024,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 0,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 512,
+      "tcm_kb": 192,
+      "onchip_flash_kb": 2048,
+      "external_flash_kb": 0,
+      "module_variant": "Nucleo-H743ZI",
+      "has_lcd_controller": true,
+      "notes": "CORRECTED: cpu_speed_mhz was 400 in the compiled-in profile; DS12110 Rev 10 specifies 480 MHz for the Cortex-M7. ram_kb corrected from 512 to 1056 KB (same region layout as STM32H745: AXI 512 + SRAM1 128 + SRAM2 128 + SRAM3 32 + SRAM4 64 + ITCM 64 + DTCM 128, plus 4 KB backup). internal_sram_kb kept at the compiled-in 1024 (ST '1 Mbyte' headline). Has the LCD-TFT controller and the JPEG codec (both 'only available on STM32H743xI/G').",
+      "sources": [
+        "DS12110 Rev 10 - STM32H742xI/G, STM32H743xI/G datasheet, ST (https://www.st.com/resource/en/datasheet/stm32h743zi.pdf)",
+        "RM0433 - STM32H742/743/750/753 reference manual, ST"
+      ],
+      "verified": true
+    },
+    {
+      "name": "STM32H742",
+      "family": "STM32H7",
+      "vendor": "STMicroelectronics",
+      "cores": ["Cortex-M7 (480 MHz)"],
+      "cpu_speed_mhz": 480,
+      "ram_kb": 688,
+      "ram": {
+        "total_kb": 688,
+        "regions": [
+          { "name": "AXI SRAM (D1)", "kb": 384, "usable_for_framebuffer": null },
+          { "name": "SRAM1 (D2)", "kb": 32, "usable_for_framebuffer": null },
+          { "name": "SRAM2 (D2)", "kb": 16, "usable_for_framebuffer": null },
+          { "name": "SRAM4 (D3)", "kb": 64, "usable_for_framebuffer": null },
+          { "name": "ITCM (M7)", "kb": 64, "usable_for_framebuffer": false },
+          { "name": "DTCM (M7)", "kb": 128, "usable_for_framebuffer": false }
+        ]
+      },
+      "flash_kb": 2048,
+      "flash": { "internal_kb": 2048, "external": false, "typical_external_kb": null },
+      "peripherals": ["UART1", "UART2", "SPI1", "SPI2", "I2C1", "I2C2"],
+      "supported_frameworks": ["qt-for-mcus", "ugfx", "lvgl", "embedweb"],
+      "architecture": "Cortex-M7",
+      "required_toolchain": "arm-none-eabi-gcc",
+      "embedweb_adapter_status": "supported_untested",
+      "safety_margin_percent": 20.0,
+      "internal_sram_kb": 688,
+      "psram_kb": 0,
+      "bootloader_flash_kb": 0,
+      "dma_requires_internal_sram": 1,
+      "dma_sram_kb": 384,
+      "tcm_kb": 192,
+      "onchip_flash_kb": 2048,
+      "external_flash_kb": 0,
+      "has_lcd_controller": false,
+      "notes": "ADDED in Task 4 (device was missing from the compiled-in database): single-core Cortex-M7 line, pin-to-pin compatible with STM32H743. 688 KB SRAM total = ITCM 64 + DTCM 128 + AXI 384 + SRAM1 32 + SRAM2 16 + SRAM4 64 (no SRAM3), plus 4 KB backup. IMPORTANT: no LCD-TFT controller and no JPEG codec (DS12110 Rev 10: 'only available on STM32H743xI/G') - use displays with their own controller (SPI/parallel). 2 MB dual-bank flash.",
+      "sources": [
+        "DS12110 Rev 10 - STM32H742xI/G, STM32H743xI/G datasheet, ST (https://www.st.com/resource/en/datasheet/stm32h743zi.pdf)",
+        "RM0433 - STM32H742/743/750/753 reference manual, ST"
+      ],
+      "verified": true
     }
   ]
 }

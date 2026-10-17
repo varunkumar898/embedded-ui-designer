@@ -1,9 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MCUDeviceSeries",
+  "description": "Device series file for the MCU Capability Database (Task 4). Backward compatible: legacy flat keys (ram_kb / flash_kb / cpu_speed_mhz) are still accepted by the runtime loader and by this schema; the nested ram/flash objects and the provenance fields (sources / verified) are the preferred form. Values must come from the vendor documents listed in 'sources'; use null rather than guessing an unknown value.",
   "type": "object",
   "properties": {
-    "family": { "type": "string" },
+    "family": { "type": "string", "description": "Default family for all devices in this file (e.g. STM32H7)" },
     "devices": {
       "type": "array",
       "items": {
@@ -11,9 +12,45 @@
         "properties": {
           "name": { "type": "string" },
           "family": { "type": "string" },
-          "ram_kb": { "type": "integer" },
-          "flash_kb": { "type": "integer" },
-          "cpu_speed_mhz": { "type": "integer" },
+          "vendor": { "type": "string" },
+          "cores": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "cpu_speed_mhz": { "type": "integer", "minimum": 1 },
+          "ram_kb": { "type": "integer", "minimum": 1 },
+          "ram": {
+            "type": "object",
+            "properties": {
+              "total_kb": { "type": "integer", "minimum": 1 },
+              "regions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "kb": { "type": "integer", "minimum": 1 },
+                    "usable_for_framebuffer": { "type": ["boolean", "null"] }
+                  },
+                  "required": ["name", "kb"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["total_kb"],
+            "additionalProperties": false
+          },
+          "flash_kb": { "type": "integer", "minimum": 0 },
+          "flash": {
+            "type": "object",
+            "properties": {
+              "internal_kb": { "type": ["integer", "null"], "minimum": 0 },
+              "external": { "type": "boolean" },
+              "typical_external_kb": { "type": ["integer", "null"], "minimum": 0 }
+            },
+            "required": ["external"],
+            "additionalProperties": false
+          },
           "peripherals": {
             "type": "array",
             "items": { "type": "string" }
@@ -22,11 +59,32 @@
             "type": "array",
             "items": { "type": "string" }
           },
-          "notes": { "type": "string" }
+          "architecture": { "type": "string" },
+          "required_toolchain": { "type": "string" },
+          "embedweb_adapter_status": { "type": "string" },
+          "safety_margin_percent": { "type": "number", "minimum": 0 },
+          "internal_sram_kb": { "type": "integer", "minimum": 0 },
+          "psram_kb": { "type": "integer", "minimum": 0 },
+          "bootloader_flash_kb": { "type": "integer", "minimum": 0 },
+          "dma_requires_internal_sram": { "type": "integer", "minimum": 0 },
+          "dma_sram_kb": { "type": "integer", "minimum": 0 },
+          "tcm_kb": { "type": "integer", "minimum": 0 },
+          "onchip_flash_kb": { "type": "integer", "minimum": 0 },
+          "external_flash_kb": { "type": "integer", "minimum": 0 },
+          "module_variant": { "type": "string" },
+          "has_lcd_controller": { "type": ["boolean", "null"] },
+          "notes": { "type": "string" },
+          "sources": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "verified": { "type": "boolean" }
         },
-        "required": ["name", "ram_kb", "flash_kb", "cpu_speed_mhz"]
+        "required": ["name", "sources", "verified"],
+        "additionalProperties": false
       }
     }
   },
-  "required": ["family", "devices"]
+  "required": ["family", "devices"],
+  "additionalProperties": false
 }
