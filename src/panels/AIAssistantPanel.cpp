@@ -246,16 +246,42 @@ void AIAssistantPanel::onSendMessage() {
     // Prepare tools schema
     QJsonArray tools = AIToolRegistry::instance().universalTools();
 
-    // Streaming call
+    streamWithProvider(provider, tools, false);
+}
+
+void AIAssistantPanel::streamWithProvider(std::shared_ptr<AIProvider> provider, const QJsonArray& tools, bool isFallbackAttempt) {
     provider->streamMessage(
         m_conversation.messages(),
         tools,
-        [this](const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error) {
+        [this, provider, tools, isFallbackAttempt](const QString& deltaText, const QList<ToolCall>& toolCalls, bool finished, const AIUsage& usage, const QString& error) {
             if (!error.isEmpty()) {
+                QString cleanError = AIProvider::redactSecrets(error);
+
+                // Fallback provider on 429 or transport errors
+                if (!isFallbackAttempt) {
+                    auto fallback = AIProviderRegistry::instance().fallbackProvider();
+                    bool isEligibleForFallback = cleanError.contains("Rate limit", Qt::CaseInsensitive)
+                        || cleanError.contains("quota", Qt::CaseInsensitive)
+                        || cleanError.contains("Cannot reach server", Qt::CaseInsensitive)
+                        || cleanError.contains("timed out", Qt::CaseInsensitive)
+                        || cleanError.contains("Network Error", Qt::CaseInsensitive)
+                        || cleanError.contains("Unavailable", Qt::CaseInsensitive)
+                        || cleanError.contains("429");
+
+                    if (fallback && fallback->providerId() != provider->providerId() && fallback->isConfigured() && isEligibleForFallback) {
+                        appendChatMessage(AIRole::System,
+                            QString("⚠️ %1 encountered an error: %2. Automatically switching to fallback provider (%3)...")
+                                .arg(provider->displayName(), cleanError, fallback->displayName()));
+                        m_currentAssistantStream.clear();
+                        streamWithProvider(fallback, tools, true);
+                        return;
+                    }
+                }
+
                 m_isStreaming = false;
                 m_sendButton->setEnabled(true);
                 m_stopButton->setEnabled(false);
-                m_chatHistory->append(QString("<div class='error'><b>Error:</b> %1</div>").arg(error.toHtmlEscaped()));
+                m_chatHistory->append(QString("<div class='error'><b>Error:</b> %1</div>").arg(cleanError.toHtmlEscaped()));
                 return;
             }
 

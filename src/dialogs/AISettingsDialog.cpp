@@ -88,6 +88,7 @@ QWidget* AISettingsDialog::createProviderTab(const QString& providerId) {
     auto p = registry.getProvider(providerId);
 
     ProviderWidgets widgets;
+    widgets.savedApiKey = p ? p->apiKey() : QString();
 
     // Status label
     widgets.statusLabel = new QLabel(page);
@@ -100,7 +101,7 @@ QWidget* AISettingsDialog::createProviderTab(const QString& providerId) {
     }
     layout->addRow(widgets.statusLabel);
 
-    // API Key field (masked)
+    // API Key field (masked - shows only last 4 characters of saved key)
     if (providerId != "mock") {
         auto* keyRow = new QWidget(page);
         auto* keyLayout = new QHBoxLayout(keyRow);
@@ -108,7 +109,9 @@ QWidget* AISettingsDialog::createProviderTab(const QString& providerId) {
 
         widgets.apiKeyEdit = new QLineEdit(page);
         widgets.apiKeyEdit->setEchoMode(QLineEdit::Password);
-        if (p) widgets.apiKeyEdit->setText(p->apiKey());
+        if (!widgets.savedApiKey.isEmpty()) {
+            widgets.apiKeyEdit->setText(AI::AIProvider::maskedKeyDisplay(widgets.savedApiKey));
+        }
 
         auto* toggleBtn = new QPushButton("Show", keyRow);
         toggleBtn->setFixedWidth(60);
@@ -127,12 +130,32 @@ QWidget* AISettingsDialog::createProviderTab(const QString& providerId) {
         layout->addRow("API Key:", keyRow);
     }
 
-    // Base URL field for custom/local endpoints
+    // Base URL field for custom/local endpoints + presets
     if (providerId == "custom" || providerId == "openai") {
         widgets.baseUrlEdit = new QLineEdit(page);
         if (p) widgets.baseUrlEdit->setText(p->baseUrl());
-        widgets.baseUrlEdit->setPlaceholderText(providerId == "custom" ? "http://localhost:11434/v1" : "https://api.openai.com/v1 (default)");
+        widgets.baseUrlEdit->setPlaceholderText(providerId == "custom" ? "http://127.0.0.1:1234/v1" : "https://api.openai.com/v1 (default)");
         layout->addRow("Base URL:", widgets.baseUrlEdit);
+
+        if (providerId == "custom") {
+            auto* presetRow = new QWidget(page);
+            auto* presetLayout = new QHBoxLayout(presetRow);
+            presetLayout->setContentsMargins(0, 0, 0, 0);
+
+            presetLayout->addWidget(new QLabel("Presets:", presetRow));
+            auto* lmBtn = new QPushButton("LM Studio (127.0.0.1:1234)", presetRow);
+            connect(lmBtn, &QPushButton::clicked, this, [widgets]() {
+                if (widgets.baseUrlEdit) widgets.baseUrlEdit->setText("http://127.0.0.1:1234/v1");
+            });
+            auto* ollamaBtn = new QPushButton("Ollama (127.0.0.1:11434)", presetRow);
+            connect(ollamaBtn, &QPushButton::clicked, this, [widgets]() {
+                if (widgets.baseUrlEdit) widgets.baseUrlEdit->setText("http://127.0.0.1:11434/v1");
+            });
+            presetLayout->addWidget(lmBtn);
+            presetLayout->addWidget(ollamaBtn);
+            presetLayout->addStretch();
+            layout->addRow("", presetRow);
+        }
     }
 
     // Model selection combo
@@ -158,7 +181,7 @@ QWidget* AISettingsDialog::createProviderTab(const QString& providerId) {
 void AISettingsDialog::updateProviderStatus(const QString& providerId, const QString& statusText, const QString& colorHex) {
     if (m_providerWidgets.contains(providerId)) {
         auto* lbl = m_providerWidgets[providerId].statusLabel;
-        lbl->setText(QString("Status: %1").arg(statusText));
+        lbl->setText(QString("Status: %1").arg(AI::AIProvider::redactSecrets(statusText)));
         lbl->setStyleSheet(QString("font-weight: bold; color: %1;").arg(colorHex));
     }
 }
@@ -171,19 +194,31 @@ void AISettingsDialog::onTestConnection(const QString& providerId) {
     auto p = registry.getProvider(providerId);
     if (!p) return;
 
-    QString key = widgets.apiKeyEdit ? widgets.apiKeyEdit->text().trimmed() : "";
+    QString enteredKey = widgets.apiKeyEdit ? widgets.apiKeyEdit->text().trimmed() : "";
+    QString keyToUse = widgets.savedApiKey;
+    if (!enteredKey.isEmpty() && enteredKey != AI::AIProvider::maskedKeyDisplay(widgets.savedApiKey)) {
+        keyToUse = enteredKey;
+    } else if (enteredKey.isEmpty()) {
+        keyToUse = "";
+    }
+
     QString model = widgets.modelCombo ? widgets.modelCombo->currentText().trimmed() : "";
     QString baseUrl = widgets.baseUrlEdit ? widgets.baseUrlEdit->text().trimmed() : "";
 
-    p->configure(key, model, baseUrl);
+    p->configure(keyToUse, model, baseUrl);
 
     widgets.testButton->setEnabled(false);
     updateProviderStatus(providerId, "Testing connection...", Theme::Warning);
 
-    p->testConnection([this, providerId](const AI::ConnectionTestResult& result) {
+    p->testConnection([this, providerId, keyToUse](const AI::ConnectionTestResult& result) {
         if (!m_providerWidgets.contains(providerId)) return;
         auto& w = m_providerWidgets[providerId];
         w.testButton->setEnabled(true);
+
+        if (!keyToUse.isEmpty()) {
+            w.savedApiKey = keyToUse;
+            w.apiKeyEdit->setText(AI::AIProvider::maskedKeyDisplay(keyToUse));
+        }
 
         QString color = Theme::TextMuted;
         switch (result.status) {
@@ -207,9 +242,18 @@ void AISettingsDialog::onTestConnection(const QString& providerId) {
         updateProviderStatus(providerId, QString("%1 (%2)").arg(AI::connectionStatusToString(result.status), result.message), color);
 
         if (!result.detectedModels.isEmpty()) {
+            QString currentText = w.modelCombo->currentText();
             w.modelCombo->clear();
             w.modelCombo->addItems(result.detectedModels);
-            if (!result.detectedModels.isEmpty()) {
+            if (!currentText.isEmpty() && result.detectedModels.contains(currentText)) {
+                w.modelCombo->setCurrentText(currentText);
+            } else if (auto prov = AI::AIProviderRegistry::instance().getProvider(providerId)) {
+                if (!prov->currentModel().isEmpty() && result.detectedModels.contains(prov->currentModel())) {
+                    w.modelCombo->setCurrentText(prov->currentModel());
+                } else {
+                    w.modelCombo->setCurrentText(result.detectedModels.first());
+                }
+            } else {
                 w.modelCombo->setCurrentText(result.detectedModels.first());
             }
         }
@@ -228,10 +272,17 @@ void AISettingsDialog::onSaveClicked() {
         QString pid = it.key();
         auto p = registry.getProvider(pid);
         if (p) {
-            QString key = it.value().apiKeyEdit ? it.value().apiKeyEdit->text().trimmed() : p->apiKey();
+            QString enteredKey = it.value().apiKeyEdit ? it.value().apiKeyEdit->text().trimmed() : "";
+            QString keyToUse = it.value().savedApiKey;
+            if (!enteredKey.isEmpty() && enteredKey != AI::AIProvider::maskedKeyDisplay(it.value().savedApiKey)) {
+                keyToUse = enteredKey;
+            } else if (enteredKey.isEmpty()) {
+                keyToUse = "";
+            }
+
             QString model = it.value().modelCombo ? it.value().modelCombo->currentText().trimmed() : p->currentModel();
             QString baseUrl = it.value().baseUrlEdit ? it.value().baseUrlEdit->text().trimmed() : p->baseUrl();
-            p->configure(key, model, baseUrl);
+            p->configure(keyToUse, model, baseUrl);
         }
     }
 
@@ -248,6 +299,7 @@ void AISettingsDialog::onClearCredentialsClicked() {
         auto& registry = AI::AIProviderRegistry::instance();
         registry.clearAllCredentials();
         for (auto it = m_providerWidgets.begin(); it != m_providerWidgets.end(); ++it) {
+            it.value().savedApiKey.clear();
             if (it.value().apiKeyEdit) it.value().apiKeyEdit->clear();
             updateProviderStatus(it.key(), "Not configured", Theme::TextMuted);
         }

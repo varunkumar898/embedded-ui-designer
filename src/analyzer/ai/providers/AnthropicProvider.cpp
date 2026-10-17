@@ -203,10 +203,16 @@ void AnthropicProvider::sendMessage(const QList<AIMessage>& messages,
         }
 
         if (reply->error() != QNetworkReply::NoError) {
+            int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             QByteArray errData = reply->readAll();
             QJsonDocument errDoc = QJsonDocument::fromJson(errData);
             QString msg = errDoc.object()["error"].toObject()["message"].toString();
-            if (msg.isEmpty()) msg = reply->errorString();
+            if (msg.isEmpty()) {
+                auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://api.anthropic.com/v1/messages", displayName());
+                msg = classified.message;
+            } else {
+                msg = redactSecrets(msg, m_apiKey);
+            }
             callback(AIMessage(), AIUsage(), msg);
             return;
         }
@@ -329,7 +335,9 @@ void AnthropicProvider::streamMessage(const QList<AIMessage>& messages,
         }
 
         if (reply->error() != QNetworkReply::NoError) {
-            callback("", {}, true, *usage, reply->errorString());
+            int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://api.anthropic.com/v1/messages", displayName());
+            callback("", {}, true, *usage, classified.message);
             return;
         }
 
@@ -367,37 +375,18 @@ void AnthropicProvider::testConnection(std::function<void(const ConnectionTestRe
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
         reply->deleteLater();
-        ConnectionTestResult res;
-
         int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
         if (reply->error() == QNetworkReply::NoError && httpStatus == 200) {
+            ConnectionTestResult res;
             res.status = ConnectionStatus::Connected;
             res.message = "Successfully connected to Anthropic Claude.";
             res.detectedModels = m_cachedModels;
+            callback(res);
         } else {
-            if (httpStatus == 401) {
-                res.status = ConnectionStatus::AuthenticationFailed;
-                res.message = "Authentication Failed: Invalid Anthropic API key.";
-            } else if (httpStatus == 404) {
-                res.status = ConnectionStatus::InvalidModel;
-                res.message = QString("Invalid Model: Specified Anthropic model '%1' not recognized.").arg(m_currentModel);
-            } else if (httpStatus == 429) {
-                res.status = ConnectionStatus::RateLimited;
-                res.message = "Rate Limited: Anthropic usage limit exceeded.";
-            } else if (httpStatus >= 500) {
-                res.status = ConnectionStatus::ProviderUnavailable;
-                res.message = QString("Provider Unavailable: Anthropic service error (HTTP %1).").arg(httpStatus);
-            } else if (reply->error() == QNetworkReply::HostNotFoundError || reply->error() == QNetworkReply::TimeoutError) {
-                res.status = ConnectionStatus::NetworkError;
-                res.message = QString("Network Error: %1").arg(reply->errorString());
-            } else {
-                res.status = ConnectionStatus::AuthenticationFailed;
-                res.message = QString("Connection failed: %1 (HTTP %2)").arg(reply->errorString()).arg(httpStatus);
-            }
+            auto res = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://api.anthropic.com/v1/messages", displayName());
+            callback(res);
         }
-
-        callback(res);
     });
 }
 

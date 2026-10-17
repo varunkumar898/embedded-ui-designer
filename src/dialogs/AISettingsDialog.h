@@ -40,6 +40,7 @@ private:
         QLineEdit* baseUrlEdit = nullptr;
         QComboBox* modelCombo = nullptr;
         QPushButton* testButton = nullptr;
+        QString savedApiKey;
     };
 
     QMap<QString, ProviderWidgets> m_providerWidgets;

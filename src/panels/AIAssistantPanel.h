@@ -41,6 +41,7 @@ private:
     void updateStreamingText(const QString& delta);
     void executeToolCalls(const QList<ToolCall>& toolCalls);
     bool confirmHardwareAction(const ToolCall& call);
+    void streamWithProvider(std::shared_ptr<AIProvider> provider, const QJsonArray& tools, bool isFallbackAttempt);
 
     DesignerController* m_controller = nullptr;
     Project* m_project = nullptr;

@@ -12,6 +12,7 @@ public:
     ~CustomOpenAICompatibleProvider() override = default;
 
     QString providerId() const override { return "custom"; }
+    QString displayName() const override { return "Custom / Local (OpenAI-compatible)"; }
     static const QString PresetLMStudio;
     static const QString PresetOllama;
 
