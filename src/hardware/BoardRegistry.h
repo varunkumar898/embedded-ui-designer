@@ -142,6 +142,7 @@ public:
 
     bool isOnboardingCompleted() const;
     void setOnboardingCompleted(bool completed);
+    void ensureFamilyPinDefaults(BoardDef& b);
 
 signals:
     void activeBoardChanged(const BoardDef& board);
@@ -154,7 +155,6 @@ private:
     BoardRegistry& operator=(const BoardRegistry&) = delete;
 
     QString presetsFilePath() const;
-    void ensureFamilyPinDefaults(BoardDef& b);
 
     QList<BoardDef> m_boards;
     QMap<QString, BoardDef> m_boardMap;

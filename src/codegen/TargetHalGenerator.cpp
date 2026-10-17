@@ -1,16 +1,129 @@
 #include "TargetHalGenerator.h"
+#include "analyzer/CapabilityDatabase.h"
+#include "driverpack/DriverPackRegistry.h"
+#include <algorithm>
 
 namespace CodeGen {
 
-QString TargetHalGenerator::generateHalHeader(const Project* project) {
-    BoardDef activeBoard = BoardRegistry::instance().activeBoard();
-    if (project && !project->hardwareConfig().boardId.isEmpty()) {
-        BoardDef pb = BoardRegistry::instance().board(project->hardwareConfig().boardId);
-        if (pb.isValid()) activeBoard = pb;
+namespace {
+
+struct TargetResolution {
+    bool hasTarget = false;
+    bool isDefaultF030 = false;
+    bool hasDriverPack = false;
+    QString deviceName;
+    QString boardDisplayName;
+    QString family;
+    QMap<QString, PinDef> pinMap;
+    QMap<QString, QStringList> protocols;
+};
+
+TargetResolution resolveTarget(const Project* project, const QString& targetMcu = QString()) {
+    TargetResolution res;
+    QString boardId = project ? project->hardwareConfig().boardId.trimmed() : QString();
+    QString deviceId = project ? project->hardwareConfig().deviceId.trimmed() : QString();
+    if (deviceId.isEmpty() && !targetMcu.isEmpty()) {
+        deviceId = targetMcu.trimmed();
+    }
+    DeviceProfile prof = project ? project->getDeviceProfile() : DeviceProfile();
+    if (deviceId.isEmpty()) {
+        deviceId = prof.name.trimmed();
     }
 
-    QString fam = (project && !project->hardwareConfig().family.isEmpty()) ? project->hardwareConfig().family : (!activeBoard.family.isEmpty() ? activeBoard.family : "STM32");
-    QString board = !activeBoard.displayName.isEmpty() ? activeBoard.displayName : (project && !project->hardwareConfig().boardId.isEmpty() ? project->hardwareConfig().boardId : "Generic");
+    if (boardId.isEmpty() && deviceId.isEmpty()) {
+        res.hasTarget = false;
+        res.isDefaultF030 = true;
+        res.hasDriverPack = true;
+        res.deviceName = "STM32F030R8";
+        res.family = "STM32";
+        res.boardDisplayName = "STM32 NUCLEO-F030R8";
+        BoardDef nucleo = BoardRegistry::instance().board("nucleo_f030r8");
+        if (nucleo.isValid()) {
+            res.pinMap = nucleo.pinMap;
+            res.protocols = nucleo.protocols;
+        } else {
+            res.pinMap = BoardRegistry::instance().activeBoard().pinMap;
+            res.protocols = BoardRegistry::instance().activeBoard().protocols;
+        }
+        return res;
+    }
+
+    res.hasTarget = true;
+    BoardDef boardDef;
+    if (!boardId.isEmpty()) {
+        boardDef = BoardRegistry::instance().board(boardId);
+    }
+
+    if (boardDef.isValid()) {
+        res.boardDisplayName = !boardDef.displayName.isEmpty() ? boardDef.displayName : boardDef.id;
+        res.family = boardDef.family;
+        res.deviceName = !boardDef.mcu.isEmpty() ? boardDef.mcu : boardId;
+        res.pinMap = boardDef.pinMap;
+        res.protocols = boardDef.protocols;
+    } else {
+        res.deviceName = !deviceId.isEmpty() ? deviceId : prof.name;
+        res.family = !prof.family.isEmpty() ? prof.family : (project ? project->hardwareConfig().family : QString());
+        if (res.deviceName == "STM32F030R8") {
+            res.boardDisplayName = "STM32 NUCLEO-F030R8";
+        } else {
+            res.boardDisplayName = res.deviceName;
+        }
+    }
+
+    if (res.family.isEmpty()) {
+        if (res.deviceName.startsWith("STM32", Qt::CaseInsensitive)) res.family = "STM32";
+        else if (res.deviceName.startsWith("ESP32", Qt::CaseInsensitive)) res.family = "ESP32";
+        else if (res.deviceName.contains("RP2040", Qt::CaseInsensitive) || res.deviceName.contains("Pico", Qt::CaseInsensitive)) res.family = "RP2040";
+        else if (res.deviceName.contains("RT10", Qt::CaseInsensitive) || res.deviceName.contains("MIMX", Qt::CaseInsensitive)) res.family = "i.MX RT";
+        else if (res.deviceName.contains("nRF", Qt::CaseInsensitive) || res.deviceName.contains("52840", Qt::CaseInsensitive)) res.family = "Nordic";
+        else res.family = "Generic";
+    }
+
+    if (res.pinMap.isEmpty()) {
+        BoardDef synthetic;
+        synthetic.family = res.family;
+        BoardRegistry::instance().ensureFamilyPinDefaults(synthetic);
+        res.pinMap = synthetic.pinMap;
+    }
+
+    if (res.protocols.isEmpty()) {
+        res.protocols["GPIO"] = {"GPIO"};
+        res.protocols["UART"] = {"UART1"};
+        res.protocols["SPI"] = {"SPI1"};
+        res.protocols["I2C"] = {"I2C1"};
+        res.protocols["ADC"] = {"ADC1"};
+        res.protocols["PWM"] = {"PWM1"};
+    }
+
+    if (res.deviceName == "STM32F030R8" || (boardDef.isValid() && boardDef.id == "nucleo_f030r8")) {
+        res.isDefaultF030 = true;
+        res.boardDisplayName = "STM32 NUCLEO-F030R8";
+        res.family = "STM32";
+        if (!boardDef.isValid()) {
+            BoardDef nucleo = BoardRegistry::instance().board("nucleo_f030r8");
+            if (nucleo.isValid()) {
+                res.pinMap = nucleo.pinMap;
+                res.protocols = nucleo.protocols;
+            }
+        }
+    }
+
+    auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(res.deviceName.toStdString());
+    res.hasDriverPack = (pack != nullptr);
+
+    return res;
+}
+
+} // namespace
+
+QString TargetHalGenerator::generateHalHeader(const Project* project, const QString& targetMcu) {
+    TargetResolution target = resolveTarget(project, targetMcu);
+    if (!target.hasDriverPack && !target.isDefaultF030) {
+        return QString(); // Unsupported device -> no HAL output
+    }
+
+    QString fam = target.family;
+    QString board = target.boardDisplayName;
 
     QString code;
     code += "/**\n";
@@ -22,20 +135,43 @@ QString TargetHalGenerator::generateHalHeader(const Project* project) {
     code += "#ifndef TARGET_HAL_H\n";
     code += "#define TARGET_HAL_H\n\n";
     code += "#include <stdint.h>\n";
-    code += "#include <stdbool.h>\n\n";
-    code += "#ifdef __cplusplus\n";
+    code += "#include <stdbool.h>\n";
+
+    if (target.isDefaultF030) {
+        // Keep byte-identical to golden STM32F030R8 baseline
+    } else if (fam == "ESP32") {
+        code += "#include \"driver/gpio.h\"\n";
+        code += "#include \"esp_timer.h\"\n";
+    } else if (fam == "RP2040") {
+        code += "#include \"pico/stdlib.h\"\n";
+        code += "#include \"hardware/gpio.h\"\n";
+    } else if (fam == "STM32") {
+        if (target.deviceName.contains("F401", Qt::CaseInsensitive)) {
+            code += "#include \"stm32f4xx_hal.h\"\n";
+        } else {
+            code += "#include \"stm32_hal.h\"\n";
+        }
+    } else if (fam == "i.MX RT") {
+        code += "#include \"fsl_gpio.h\"\n";
+        code += "#include \"fsl_common.h\"\n";
+    } else if (fam == "Nordic") {
+        code += "#include <zephyr/kernel.h>\n";
+        code += "#include <zephyr/drivers/gpio.h>\n";
+    }
+
+    code += "\n#ifdef __cplusplus\n";
     code += "extern \"C\" {\n";
     code += "#endif\n\n";
 
     code += "/* Target Board Pin Definitions */\n";
-    for (auto it = activeBoard.pinMap.begin(); it != activeBoard.pinMap.end(); ++it) {
+    for (auto it = target.pinMap.begin(); it != target.pinMap.end(); ++it) {
         code += QString("#define PIN_%1 \"%1\" /* %2%3 */\n")
             .arg(it.key(), it.value().function,
                  it.value().strapping ? " [Strapping]" : (it.value().reserved ? " [Reserved]" : ""));
     }
 
     code += "\n/* Supported Hardware Protocols */\n";
-    for (auto it = activeBoard.protocols.begin(); it != activeBoard.protocols.end(); ++it) {
+    for (auto it = target.protocols.begin(); it != target.protocols.end(); ++it) {
         code += QString("#define PROTOCOL_HAS_%1 1 /* %2 */\n").arg(it.key(), it.value().join(", "));
     }
 
@@ -90,6 +226,10 @@ QString TargetHalGenerator::generateDriverInitCode(const BoardDef& board,
             code += "    /* spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO); */\n";
         } else if (fam.contains("RP2040", Qt::CaseInsensitive)) {
             code += QString("    /* spi_init(spi0, 1000 * 1000); gpio_set_function(%1, GPIO_FUNC_SPI); */\n").arg(sck);
+        } else if (fam.contains("i.MX", Qt::CaseInsensitive) || fam.compare("NXP", Qt::CaseInsensitive) == 0) {
+            code += "    /* CLOCK_EnableClock(kCLOCK_Lpspi1); */\n";
+        } else if (fam.contains("Nordic", Qt::CaseInsensitive) || fam.contains("nRF", Qt::CaseInsensitive)) {
+            code += "    /* nrfx_spim_init(&spim_instance, &spim_config, NULL, NULL); */\n";
         }
         code += "}\n";
     } else if (p == "I2C") {
@@ -104,6 +244,12 @@ QString TargetHalGenerator::generateDriverInitCode(const BoardDef& board,
             code += QString("    /* __HAL_RCC_%1_CLK_ENABLE(); */\n").arg(bus);
         } else if (fam.contains("ESP32", Qt::CaseInsensitive)) {
             code += QString("    /* i2c_config_t conf = {.scl_io_num = %1, .sda_io_num = %2}; */\n").arg(scl, sda);
+        } else if (fam.contains("RP2040", Qt::CaseInsensitive)) {
+            code += QString("    /* i2c_init(i2c0, 100 * 1000); gpio_set_function(%1, GPIO_FUNC_I2C); */\n").arg(sda);
+        } else if (fam.contains("i.MX", Qt::CaseInsensitive) || fam.compare("NXP", Qt::CaseInsensitive) == 0) {
+            code += "    /* LPI2C_MasterInit(LPI2C1, &masterConfig, CLOCK_GetFreq(kCLOCK_OscClk)); */\n";
+        } else if (fam.contains("Nordic", Qt::CaseInsensitive) || fam.contains("nRF", Qt::CaseInsensitive)) {
+            code += "    /* nrfx_twim_init(&twim_instance, &twim_config, NULL, NULL); */\n";
         }
         code += "}\n";
     } else if (p == "PWM") {
@@ -137,15 +283,21 @@ QString TargetHalGenerator::generateDriverInitCode(const BoardDef& board,
     return code;
 }
 
-QString TargetHalGenerator::generateHalSource(const Project* project) {
-    BoardDef activeBoard = BoardRegistry::instance().activeBoard();
-    if (project && !project->hardwareConfig().boardId.isEmpty()) {
-        BoardDef pb = BoardRegistry::instance().board(project->hardwareConfig().boardId);
-        if (pb.isValid()) activeBoard = pb;
+QString TargetHalGenerator::generateHalSource(const Project* project, const QString& targetMcu) {
+    TargetResolution target = resolveTarget(project, targetMcu);
+    if (!target.hasDriverPack && !target.isDefaultF030) {
+        return QString(); // Unsupported device -> no HAL output
     }
 
-    QString fam = (project && !project->hardwareConfig().family.isEmpty()) ? project->hardwareConfig().family : (!activeBoard.family.isEmpty() ? activeBoard.family : "STM32");
-    QString board = !activeBoard.displayName.isEmpty() ? activeBoard.displayName : (project && !project->hardwareConfig().boardId.isEmpty() ? project->hardwareConfig().boardId : "Generic");
+    QString fam = target.family;
+    QString board = target.boardDisplayName;
+
+    BoardDef activeBoard;
+    activeBoard.family = fam;
+    activeBoard.displayName = board;
+    activeBoard.id = target.deviceName;
+    activeBoard.pinMap = target.pinMap;
+    activeBoard.protocols = target.protocols;
 
     QString code;
     code += "/**\n";
@@ -189,6 +341,18 @@ QString TargetHalGenerator::generateHalSource(const Project* project) {
     } else if (fam.compare("ESP32", Qt::CaseInsensitive) == 0) {
         code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";
         code += "    printf(\"[HAL: ESP32] gpio_set_level(%s, %d)\\n\", pin_name, high ? 1 : 0);\n";
+        code += "}\n\n";
+    } else if (fam.compare("RP2040", Qt::CaseInsensitive) == 0) {
+        code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";
+        code += "    printf(\"[HAL: RP2040] gpio_put(%s, %d)\\n\", pin_name, high ? 1 : 0);\n";
+        code += "}\n\n";
+    } else if (fam.contains("i.MX", Qt::CaseInsensitive) || fam.compare("NXP", Qt::CaseInsensitive) == 0) {
+        code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";
+        code += "    printf(\"[HAL: i.MX RT] GPIO_PinWrite(%s, %d)\\n\", pin_name, high ? 1 : 0);\n";
+        code += "}\n\n";
+    } else if (fam.contains("Nordic", Qt::CaseInsensitive) || fam.contains("nRF", Qt::CaseInsensitive)) {
+        code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";
+        code += "    printf(\"[HAL: Nordic] gpio_pin_set(dev, %s, %d)\\n\", pin_name, high ? 1 : 0);\n";
         code += "}\n\n";
     } else {
         code += "void hal_write_digital_pin(const char* pin_name, bool high) {\n";

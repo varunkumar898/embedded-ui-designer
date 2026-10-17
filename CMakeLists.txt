@@ -236,6 +236,26 @@ set(COMMON_SOURCES
     src/codegen/FirmwareExportManager.cpp
     src/codegen/FirmwareExportManager.h
 
+    # MCU Driver Packs
+    src/driverpack/IMcuDriverPack.h
+    src/driverpack/McuDeviceSpec.h
+    src/driverpack/DriverDependency.cpp
+    src/driverpack/DriverDependency.h
+    src/driverpack/Stm32DriverPack.cpp
+    src/driverpack/Stm32DriverPack.h
+    src/driverpack/Esp32DriverPack.cpp
+    src/driverpack/Esp32DriverPack.h
+    src/driverpack/Rp2040DriverPack.cpp
+    src/driverpack/Rp2040DriverPack.h
+    src/driverpack/NxpDriverPack.cpp
+    src/driverpack/NxpDriverPack.h
+    src/driverpack/NordicDriverPack.cpp
+    src/driverpack/NordicDriverPack.h
+    src/driverpack/DriverPackRegistry.cpp
+    src/driverpack/DriverPackRegistry.h
+    src/driverpack/McuProjectGenerator.cpp
+    src/driverpack/McuProjectGenerator.h
+
     # Track 4: Hardware Device Monitor with Live Telemetry
     src/telemetry/TelemetryProtocol.cpp
     src/telemetry/TelemetryProtocol.h
@@ -682,6 +702,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
 )
 
 # Target Link Libraries
@@ -781,6 +802,7 @@ target_include_directories(test_all_cases PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
     ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
 )
 
 target_link_libraries(test_all_cases PRIVATE
@@ -1514,6 +1536,7 @@ target_include_directories(test_export_validation PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/components/lvgl
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
 )
 
 target_link_libraries(test_export_validation PRIVATE

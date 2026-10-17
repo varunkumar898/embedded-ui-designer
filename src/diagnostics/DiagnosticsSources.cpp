@@ -11,6 +11,8 @@
 #include "codegen/BackendRegistry.h"
 #include "codegen/GeneratorContext.h"
 #include "models/DiagnosticsEngine.h"
+#include "driverpack/DriverPackRegistry.h"
+#include "hardware/BoardRegistry.h"
 
 #include <QFileInfo>
 
@@ -234,6 +236,46 @@ QVector<Diagnostic> backendSource(const Project* project) {
     return out;
 }
 
+QVector<Diagnostic> driverPackSource(const Project* project) {
+    QVector<Diagnostic> out;
+    if (!project) return out;
+
+    QString boardId = project->hardwareConfig().boardId.trimmed();
+    QString deviceId = project->hardwareConfig().deviceId.trimmed();
+    QString devName;
+    if (!boardId.isEmpty()) {
+        BoardDef bd = BoardRegistry::instance().board(boardId);
+        if (bd.isValid()) {
+            devName = !bd.mcu.isEmpty() ? bd.mcu : boardId;
+        } else {
+            devName = boardId;
+        }
+    } else if (!deviceId.isEmpty()) {
+        devName = deviceId;
+    } else {
+        devName = project->getDeviceProfile().name.trimmed();
+    }
+
+    if (devName.isEmpty()) {
+        Diagnostic diagnostic;
+        diagnostic.severity = Diagnostic::Severity::Info;
+        diagnostic.message = QStringLiteral("No device selected; using default STM32F030R8 baseline.");
+        diagnostic.source = QStringLiteral("DriverPack");
+        out.append(diagnostic);
+        return out;
+    }
+
+    auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(devName.toStdString());
+    if (!pack) {
+        Diagnostic diagnostic;
+        diagnostic.severity = Diagnostic::Severity::Error;
+        diagnostic.message = QString("No driver pack for %1; import one").arg(devName);
+        diagnostic.source = QStringLiteral("DriverPack");
+        out.append(diagnostic);
+    }
+    return out;
+}
+
 } // namespace
 
 void registerBuiltinSources(DiagnosticsService& service) {
@@ -243,6 +285,7 @@ void registerBuiltinSources(DiagnosticsService& service) {
     service.registerSource(QStringLiteral("Layout"), layoutSource);
     service.registerSource(QStringLiteral("BoardDisplay"), boardDisplaySource);
     service.registerSource(QStringLiteral("Backend"), backendSource);
+    service.registerSource(QStringLiteral("DriverPack"), driverPackSource);
 }
 
 } // namespace DiagnosticsSources

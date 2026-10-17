@@ -1,5 +1,6 @@
 #include "Esp32DriverPack.h"
 #include <sstream>
+#include <algorithm>
 
 namespace driverpack {
 
@@ -52,8 +53,22 @@ std::vector<McuDeviceSpec> Esp32DriverPack::supportedDevices() const {
 }
 
 const McuDeviceSpec* Esp32DriverPack::findDevice(const std::string& partNumber) const {
+    std::string upper = partNumber;
+    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
     for (const auto& dev : devices) {
-        if (dev.partNumber == partNumber) return &dev;
+        std::string devUpper = dev.partNumber;
+        std::transform(devUpper.begin(), devUpper.end(), devUpper.begin(), ::toupper);
+        if (devUpper == upper) return &dev;
+    }
+    if (upper.find("ESP32-S3") != std::string::npos || upper.find("ESP32S3") != std::string::npos) {
+        for (const auto& dev : devices) {
+            if (dev.partNumber == "ESP32-S3") return &dev;
+        }
+    }
+    if (upper == "ESP32" || upper.find("ESP32_DEVKIT") != std::string::npos || upper.find("WROOM") != std::string::npos) {
+        for (const auto& dev : devices) {
+            if (dev.partNumber == "ESP32") return &dev;
+        }
     }
     return nullptr;
 }

@@ -13,8 +13,8 @@ namespace CodeGen {
  */
 class TargetHalGenerator {
 public:
-    static QString generateHalHeader(const Project* project);
-    static QString generateHalSource(const Project* project);
+    static QString generateHalHeader(const Project* project, const QString& targetMcu = QString());
+    static QString generateHalSource(const Project* project, const QString& targetMcu = QString());
     static QString generateDriverInitCode(const BoardDef& board,
                                          const QString& protocol,
                                          const QMap<QString, QString>& pinAssignments = {});

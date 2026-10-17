@@ -29,6 +29,8 @@
 #include "codegen/LvglGenerator.h"
 #include "codegen/UgfxGenerator.h"
 #include "codegen/QtMcuGenerator.h"
+#include "codegen/TargetHalGenerator.h"
+#include "driverpack/DriverPackRegistry.h"
 #include "dialogs/ExportDialog.h"
 
 class TestExportValidation : public QObject {
@@ -48,6 +50,7 @@ private slots:
     void testRegressionGeneratorOutputUnchanged();
     void testEstimationBaselinesDefaultsAuthoritative();
     void testEmptyFolderExportForAllDatabaseDevices();
+    void testGoldenF030OutputUnchanged();
 };
 
 void TestExportValidation::initTestCase() {
@@ -453,11 +456,14 @@ void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
     CapabilityDatabase db;
     QStringList devices = db.listAllDevices();
     FirmwareExportManager exportMgr;
+    driverpack::DriverPackRegistry& dpReg = driverpack::DriverPackRegistry::instance();
 
-    qDebug() << "\n=== EMPTY-FOLDER EXPORT TEST FOR ALL DATABASE DEVICES ===";
+    qDebug() << "\n=== INVERTED EMPTY-FOLDER EXPORT TEST FOR ALL 17 DATABASE DEVICES ===";
     qDebug() << "Total devices to test:" << devices.size();
 
-    int f030LeakageCount = 0;
+    int blockedCount = 0;
+    int supportedCount = 0;
+
     for (const QString& devName : devices) {
         CanvasScene scene;
         Project project(&scene);
@@ -466,7 +472,6 @@ void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
         Hardware::HardwareConfig hw;
         hw.deviceId = devName;
         hw.targetType = "device";
-        // Also get family from profile if available
         DeviceProfile prof = db.getDeviceProfile(devName);
         hw.family = prof.family;
         project.setHardwareConfig(hw);
@@ -481,36 +486,157 @@ void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
         opts.targetMcu = devName;
 
         ExportResult res = exportMgr.exportProject(&project, opts);
-        QVERIFY(res.success);
 
-        // Scan all generated files for F030R8-specific strings
-        QStringList f030Matches;
-        QDirIterator it(tempDir.path(), QDir::Files, QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            QString filePath = it.next();
-            QFile f(filePath);
-            if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QString content = QString::fromUtf8(f.readAll());
-                QString relPath = QDir(tempDir.path()).relativeFilePath(filePath);
-                if (content.contains("STM32F030", Qt::CaseInsensitive) ||
-                    content.contains("F030R8", Qt::CaseInsensitive) ||
-                    content.contains("NUCLEO-F030R8", Qt::CaseInsensitive) ||
-                    content.contains("nucleo_f030r8", Qt::CaseInsensitive)) {
-                    f030Matches.append(relPath);
+        auto* pack = dpReg.findPackForDevice(devName.toStdString());
+        if (!pack) {
+            // Unsupported device: export MUST be blocked with error diagnostic
+            QVERIFY2(!res.success, qPrintable(QString("Device %1 is unsupported but export succeeded!").arg(devName)));
+            QVERIFY2(res.errorMessage.contains("No driver pack for") && res.errorMessage.contains("import one"),
+                     qPrintable(QString("Expected 'No driver pack for %1; import one', got '%2'").arg(devName, res.errorMessage)));
+
+            // No HAL files must be produced
+            QVERIFY(!QFile::exists(QDir(tempDir.path()).filePath("generated/target/target_hal.h")));
+            QVERIFY(!QFile::exists(QDir(tempDir.path()).filePath("generated/target/target_hal.c")));
+
+            blockedCount++;
+            qDebug() << "Unsupported device correctly blocked:" << devName << "->" << res.errorMessage;
+        } else {
+            // Supported device: export succeeds and HAL is generated per-family
+            QVERIFY2(res.success, qPrintable(QString("Device %1 has pack %2 but export failed: %3")
+                                             .arg(devName, QString::fromStdString(pack->familyId()), res.errorMessage)));
+            supportedCount++;
+
+            // Scan all generated files for foreign family leakage or F030 leakage
+            QStringList f030Matches;
+            QStringList foreignMatches;
+
+            QDirIterator it(tempDir.path(), QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                QString filePath = it.next();
+                QFile f(filePath);
+                if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QString content = QString::fromUtf8(f.readAll());
+                    QString relPath = QDir(tempDir.path()).relativeFilePath(filePath);
+
+                    if (devName != "STM32F030R8") {
+                        if (content.contains("STM32F030", Qt::CaseInsensitive) ||
+                            content.contains("F030R8", Qt::CaseInsensitive) ||
+                            content.contains("NUCLEO-F030R8", Qt::CaseInsensitive) ||
+                            content.contains("nucleo_f030r8", Qt::CaseInsensitive)) {
+                            f030Matches.append(relPath);
+                        }
+                    }
+
+                    // Check for cross-family leakage
+                    if (prof.family == "ESP32") {
+                        if (content.contains("pico/stdlib.h") || content.contains("fsl_gpio.h") || content.contains("zephyr/kernel.h") || content.contains("stm32f0xx") || content.contains("stm32_hal")) {
+                            foreignMatches.append(relPath + " (foreign header)");
+                        }
+                    } else if (prof.family == "RP2040") {
+                        if (content.contains("driver/gpio.h") || content.contains("fsl_gpio.h") || content.contains("zephyr/kernel.h") || content.contains("stm32f0xx") || content.contains("stm32_hal")) {
+                            foreignMatches.append(relPath + " (foreign header)");
+                        }
+                    } else if (prof.family == "i.MX RT") {
+                        if (content.contains("driver/gpio.h") || content.contains("pico/stdlib.h") || content.contains("zephyr/kernel.h") || content.contains("stm32f0xx") || content.contains("stm32_hal")) {
+                            foreignMatches.append(relPath + " (foreign header)");
+                        }
+                    } else if (prof.family == "nRF52" || prof.family == "Nordic") {
+                        if (content.contains("driver/gpio.h") || content.contains("pico/stdlib.h") || content.contains("fsl_gpio.h") || content.contains("stm32f0xx") || content.contains("stm32_hal")) {
+                            foreignMatches.append(relPath + " (foreign header)");
+                        }
+                    } else if (prof.family == "STM32F4") {
+                        if (content.contains("stm32f0xx") || content.contains("driver/gpio.h") || content.contains("pico/stdlib.h") || content.contains("fsl_gpio.h") || content.contains("zephyr/kernel.h")) {
+                            foreignMatches.append(relPath + " (foreign header)");
+                        }
+                    }
                 }
             }
-        }
 
-        if (devName == "STM32F030R8") {
-            qDebug() << "Device:" << devName << "(baseline) -> expected F030 matches in:" << f030Matches;
-        } else if (!f030Matches.isEmpty()) {
-            f030LeakageCount++;
-            qDebug() << "LEAK DETECTED for device:" << devName << "in files:" << f030Matches;
-        } else {
-            qDebug() << "Clean device (no F030 leakage):" << devName;
+            QVERIFY2(f030Matches.isEmpty(), qPrintable(QString("F030 leakage in non-F030 device %1: %2").arg(devName, f030Matches.join(", "))));
+            QVERIFY2(foreignMatches.isEmpty(), qPrintable(QString("Cross-family leakage in device %1: %2").arg(devName, foreignMatches.join(", "))));
+            qDebug() << "Supported device verified clean (0 leaks):" << devName << "(Pack:" << QString::fromStdString(pack->familyId()) << ")";
         }
     }
-    qDebug() << "Summary: devices with F030 leakage:" << f030LeakageCount << "/" << (devices.size() - 1);
+
+    qDebug() << "Test summary: Total devices:" << devices.size()
+             << "| Supported:" << supportedCount
+             << "| Unsupported (blocked):" << blockedCount;
+    QCOMPARE(supportedCount + blockedCount, devices.size());
+}
+
+void TestExportValidation::testGoldenF030OutputUnchanged() {
+    FirmwareExportManager exportMgr;
+
+    // 1. Export with explicit STM32F030R8
+    CanvasScene scene1;
+    Project projectF030(&scene1);
+    projectF030.setProjectName("GoldenF030");
+    Hardware::HardwareConfig hw1;
+    hw1.deviceId = "STM32F030R8";
+    hw1.family = "STM32";
+    projectF030.setHardwareConfig(hw1);
+
+    QTemporaryDir dirF030;
+    QVERIFY(dirF030.isValid());
+    ExportOptions opts1;
+    opts1.outputDirectory = dirF030.path();
+    opts1.targetFramework = "lvgl";
+    opts1.forceExport = true;
+    opts1.targetMcu = "STM32F030R8";
+
+    ExportResult resF030 = exportMgr.exportProject(&projectF030, opts1);
+    QVERIFY(resF030.success);
+
+    // 2. Export with no device selected (legacy unconfigured baseline)
+    CanvasScene scene2;
+    Project projectNoDev(&scene2);
+    projectNoDev.setProjectName("GoldenF030");
+
+    QTemporaryDir dirNoDev;
+    QVERIFY(dirNoDev.isValid());
+    ExportOptions opts2;
+    opts2.outputDirectory = dirNoDev.path();
+    opts2.targetFramework = "lvgl";
+    opts2.forceExport = true;
+
+    ExportResult resNoDev = exportMgr.exportProject(&projectNoDev, opts2);
+    QVERIFY(resNoDev.success);
+    QVERIFY(resNoDev.warnings.contains("Info: No device selected; using default STM32F030R8 baseline."));
+
+    // 3. Read generated HAL headers and sources
+    QFile f030H(QDir(dirF030.path()).filePath("generated/target/target_hal.h"));
+    QVERIFY(f030H.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString f030HContent = QString::fromUtf8(f030H.readAll());
+    f030H.close();
+
+    QFile f030C(QDir(dirF030.path()).filePath("generated/target/target_hal.c"));
+    QVERIFY(f030C.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString f030CContent = QString::fromUtf8(f030C.readAll());
+    f030C.close();
+
+    QFile noDevH(QDir(dirNoDev.path()).filePath("generated/target/target_hal.h"));
+    QVERIFY(noDevH.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString noDevHContent = QString::fromUtf8(noDevH.readAll());
+    noDevH.close();
+
+    QFile noDevC(QDir(dirNoDev.path()).filePath("generated/target/target_hal.c"));
+    QVERIFY(noDevC.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString noDevCContent = QString::fromUtf8(noDevC.readAll());
+    noDevC.close();
+
+    // Verify unconfigured export is byte-identical to explicit F030R8
+    QCOMPARE(noDevHContent, f030HContent);
+    QCOMPARE(noDevCContent, f030CContent);
+
+    // Verify golden markers
+    QVERIFY(f030HContent.contains("Target Family: STM32 | Target Board: STM32 NUCLEO-F030R8"));
+    QVERIFY(f030HContent.contains("#define PIN_PA0"));
+    QVERIFY(f030HContent.contains("#define PROTOCOL_HAS_SPI 1"));
+    QVERIFY(f030HContent.contains("void target_hal_init(void);"));
+
+    QVERIFY(f030CContent.contains("[HAL: STM32] Initializing target board: STM32 NUCLEO-F030R8"));
+    QVERIFY(f030CContent.contains("[HAL: STM32] Atomic BSRR Write pin %s -> %s"));
+    QVERIFY(f030CContent.contains("GPIOA->BSRR"));
 }
 
 QTEST_MAIN(TestExportValidation)

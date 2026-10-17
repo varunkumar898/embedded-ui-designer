@@ -1,5 +1,6 @@
 #include "NxpDriverPack.h"
 #include <sstream>
+#include <algorithm>
 
 namespace driverpack {
 
@@ -32,8 +33,15 @@ std::vector<McuDeviceSpec> NxpDriverPack::supportedDevices() const {
 }
 
 const McuDeviceSpec* NxpDriverPack::findDevice(const std::string& partNumber) const {
+    std::string upper = partNumber;
+    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
     for (const auto& dev : devices) {
-        if (dev.partNumber == partNumber) return &dev;
+        std::string devUpper = dev.partNumber;
+        std::transform(devUpper.begin(), devUpper.end(), devUpper.begin(), ::toupper);
+        if (devUpper == upper) return &dev;
+    }
+    if (upper.find("RT106") != std::string::npos || upper.find("MIMXRT106") != std::string::npos) {
+        if (!devices.empty()) return &devices[0];
     }
     return nullptr;
 }

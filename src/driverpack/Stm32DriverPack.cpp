@@ -74,8 +74,22 @@ std::vector<McuDeviceSpec> Stm32DriverPack::supportedDevices() const {
 }
 
 const McuDeviceSpec* Stm32DriverPack::findDevice(const std::string& partNumber) const {
+    std::string upper = partNumber;
+    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
     for (const auto& dev : devices) {
-        if (dev.partNumber == partNumber) return &dev;
+        std::string devUpper = dev.partNumber;
+        std::transform(devUpper.begin(), devUpper.end(), devUpper.begin(), ::toupper);
+        if (devUpper == upper) return &dev;
+    }
+    if (upper.find("F030") != std::string::npos) {
+        for (const auto& dev : devices) {
+            if (dev.partNumber == "STM32F030R8") return &dev;
+        }
+    }
+    if (upper.find("F401") != std::string::npos) {
+        for (const auto& dev : devices) {
+            if (dev.partNumber == "STM32F401RE") return &dev;
+        }
     }
     return nullptr;
 }

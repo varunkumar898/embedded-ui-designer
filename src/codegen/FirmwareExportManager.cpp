@@ -7,6 +7,8 @@
 #include "codegen/TargetHalGenerator.h"
 #include "codegen/EmbedWebGenerator.h"
 #include "analyzer/ResourceEstimator.h"
+#include "driverpack/DriverPackRegistry.h"
+#include "hardware/BoardRegistry.h"
 #include <QFile>
 #include <QTextStream>
 #include <QFileInfo>
@@ -40,6 +42,39 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         if (analysis.status == ResourceAnalysis::CRITICAL && !options.forceExport) {
             result.success = false;
             result.errorMessage = QString("Export blocked: %1").arg(analysis.summary.isEmpty() ? "Design exceeds device limits. Optimize or select a larger MCU." : analysis.summary);
+            return result;
+        }
+    }
+
+    // Target device and driver pack validation
+    QString boardId = project->hardwareConfig().boardId.trimmed();
+    QString deviceId = project->hardwareConfig().deviceId.trimmed();
+    if (deviceId.isEmpty() && !options.targetMcu.isEmpty()) {
+        deviceId = options.targetMcu.trimmed();
+    }
+    if (deviceId.isEmpty()) {
+        deviceId = dev.name.trimmed();
+    }
+
+    QString targetDevice;
+    if (!boardId.isEmpty()) {
+        BoardDef bd = BoardRegistry::instance().board(boardId);
+        if (bd.isValid()) {
+            targetDevice = !bd.mcu.isEmpty() ? bd.mcu : boardId;
+        } else {
+            targetDevice = boardId;
+        }
+    } else if (!deviceId.isEmpty()) {
+        targetDevice = deviceId;
+    }
+
+    if (targetDevice.isEmpty()) {
+        result.warnings.append(QStringLiteral("Info: No device selected; using default STM32F030R8 baseline."));
+    } else {
+        auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(targetDevice.toStdString());
+        if (!pack) {
+            result.success = false;
+            result.errorMessage = QString("No driver pack for %1; import one").arg(targetDevice);
             return result;
         }
     }
@@ -247,20 +282,26 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
 
     // 3. Generate Hardware HAL (generated/target/)
     QDir targetDir(genDir.filePath("target"));
-    QFile halH(targetDir.filePath("target_hal.h"));
-    if (halH.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&halH);
-        out << CodeGen::TargetHalGenerator::generateHalHeader(project);
-        halH.close();
-        result.generatedFiles.append("generated/target/target_hal.h");
+    QString halHContent = CodeGen::TargetHalGenerator::generateHalHeader(project, options.targetMcu);
+    if (!halHContent.isEmpty()) {
+        QFile halH(targetDir.filePath("target_hal.h"));
+        if (halH.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&halH);
+            out << halHContent;
+            halH.close();
+            result.generatedFiles.append("generated/target/target_hal.h");
+        }
     }
 
-    QFile halC(targetDir.filePath("target_hal.c"));
-    if (halC.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&halC);
-        out << CodeGen::TargetHalGenerator::generateHalSource(project);
-        halC.close();
-        result.generatedFiles.append("generated/target/target_hal.c");
+    QString halCContent = CodeGen::TargetHalGenerator::generateHalSource(project, options.targetMcu);
+    if (!halCContent.isEmpty()) {
+        QFile halC(targetDir.filePath("target_hal.c"));
+        if (halC.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&halC);
+            out << halCContent;
+            halC.close();
+            result.generatedFiles.append("generated/target/target_hal.c");
+        }
     }
 
     // 4. Generate Assets Header (generated/assets/)
