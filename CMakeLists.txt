@@ -255,6 +255,20 @@ set(COMMON_SOURCES
     src/driverpack/DriverPackRegistry.h
     src/driverpack/McuProjectGenerator.cpp
     src/driverpack/McuProjectGenerator.h
+    src/driverpack/CustomPackModel.cpp
+    src/driverpack/CustomPackModel.h
+    src/driverpack/CmsisSvdImporter.cpp
+    src/driverpack/CmsisSvdImporter.h
+    src/driverpack/SdkReferenceChecker.cpp
+    src/driverpack/SdkReferenceChecker.h
+    src/driverpack/PinTableParser.cpp
+    src/driverpack/PinTableParser.h
+    src/driverpack/CustomDriverPack.cpp
+    src/driverpack/CustomDriverPack.h
+    src/driverpack/CustomPackManager.cpp
+    src/driverpack/CustomPackManager.h
+    src/dialogs/CustomPackImportDialog.cpp
+    src/dialogs/CustomPackImportDialog.h
 
     # Track 4: Hardware Device Monitor with Live Telemetry
     src/telemetry/TelemetryProtocol.cpp
