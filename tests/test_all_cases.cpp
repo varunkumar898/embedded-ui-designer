@@ -14,6 +14,8 @@
 #include <QToolButton>
 #include <QToolBar>
 #include <QMenuBar>
+#include <QTcpServer>
+#include <QTcpSocket>
 
 // Models
 #include "ButtonComponent.h"
@@ -323,6 +325,11 @@ private slots:
     void testPhase6ProviderFailureHandlingAndFallbackSwitching();
     void testPhase6OfflineModeZeroAIConfiguration();
     void testPhase6AISettingsDialogUI();
+    void testPhase6AIKeySecurityAndRedaction();
+    void testPhase6AIModelFilteringAndStaleReplacement();
+    void testPhase6AIErrorClassificationAndConnectionRefused();
+    void testPhase6AIMockHttpServerGeminiAndOpenAI();
+    void testPhase6AIOptionalLiveTests();
 
     // 29. Phase 1 Option B Data Source Abstraction (CAN, UART, Modbus, Variables)
     void testPhase1CanSignalExtractionAndEncoding();
@@ -5383,6 +5390,584 @@ void TestAllCases::testPhase6AISettingsDialogUI() {
         QCOMPARE(res.status, AI::ConnectionStatus::Connected);
     });
     QVERIFY(callbackCalled);
+}
+
+void TestAllCases::testPhase6AIKeySecurityAndRedaction() {
+    using namespace AI;
+
+    const QString fakeGeminiKey = "AIzaSyFakeKeySecret1234567890ABCD";
+    const QString fakeOpenAIKey = "sk-proj-supersecretkey9999ABCD";
+    const QString fakeAnthropicKey = "sk-ant-api03-topsecret1234567890ABCD";
+
+    // 1. Masked Key Display (only last 4 chars revealed)
+    QCOMPARE(AIProvider::maskedKeyDisplay(fakeGeminiKey), QString("••••••••••••ABCD"));
+    QCOMPARE(AIProvider::maskedKeyDisplay(fakeOpenAIKey), QString("••••••••••••ABCD"));
+    QCOMPARE(AIProvider::maskedKeyDisplay("123"), QString("****"));
+    QCOMPARE(AIProvider::maskedKeyDisplay(""), QString(""));
+
+    // 2. Secret Redaction: Direct Known Key
+    QString text1 = QString("Network transfer failed with key %1 in response").arg(fakeGeminiKey);
+    QString red1 = AIProvider::redactSecrets(text1, fakeGeminiKey);
+    QVERIFY(!red1.contains(fakeGeminiKey));
+    QVERIFY(red1.contains("***"));
+
+    // 3. Secret Redaction: URL Query Parameter (?key= and &key=)
+    QString url1 = QString("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5:streamGenerateContent?alt=sse&key=%1").arg(fakeGeminiKey);
+    QString redUrl1 = AIProvider::redactSecrets(url1);
+    QVERIFY(!redUrl1.contains(fakeGeminiKey));
+    QVERIFY(redUrl1.contains("key=***"));
+
+    QString url2 = QString("https://example.com/api?key=%1&format=json").arg(fakeGeminiKey);
+    QString redUrl2 = AIProvider::redactSecrets(url2);
+    QVERIFY(!redUrl2.contains(fakeGeminiKey));
+    QVERIFY(redUrl2.contains("key=***"));
+
+    // 4. Secret Redaction: HTTP Headers
+    QString authHeader = QString("Authorization: Bearer %1").arg(fakeOpenAIKey);
+    QString redAuth = AIProvider::redactSecrets(authHeader);
+    QVERIFY(!redAuth.contains(fakeOpenAIKey));
+    QVERIFY(redAuth.contains("Bearer ***"));
+
+    QString googHeader = QString("x-goog-api-key: %1").arg(fakeGeminiKey);
+    QString redGoog = AIProvider::redactSecrets(googHeader);
+    QVERIFY(!redGoog.contains(fakeGeminiKey));
+    QVERIFY(redGoog.contains("x-goog-api-key: ***"));
+
+    QString antHeader = QString("x-api-key: %1").arg(fakeAnthropicKey);
+    QString redAnt = AIProvider::redactSecrets(antHeader);
+    QVERIFY(!redAnt.contains(fakeAnthropicKey));
+    QVERIFY(redAnt.contains("x-api-key: ***"));
+
+    // 5. Secret Redaction in classifyReplyError
+    auto classErr = AIProvider::classifyReplyError(404, QNetworkReply::ContentNotFoundError, "Not Found", url1, "Gemini");
+    QVERIFY(!classErr.message.contains(fakeGeminiKey));
+    QVERIFY(classErr.message.contains("key=***"));
+
+    // 6. Secure CredentialManager Storage (encrypted payload)
+    auto& credMgr = Security::CredentialManager::instance();
+    bool stored = credMgr.storeCredential("ai_unit_test", "gemini", fakeGeminiKey);
+    QVERIFY(stored);
+    QString retrieved = credMgr.retrieveCredential("ai_unit_test", "gemini");
+    QCOMPARE(retrieved, fakeGeminiKey);
+    credMgr.deleteCredential("ai_unit_test", "gemini");
+    QVERIFY(!credMgr.hasCredential("ai_unit_test", "gemini"));
+}
+
+void TestAllCases::testPhase6AIModelFilteringAndStaleReplacement() {
+    using namespace AI;
+
+    // 1. Gemini Chat Model Filter
+    QJsonObject validGemini{
+        {"name", "models/gemini-2.0-flash"},
+        {"supportedGenerationMethods", QJsonArray{"generateContent", "streamGenerateContent"}}
+    };
+    QString geminiId;
+    QVERIFY(GeminiProvider::isSuitableChatModel(validGemini, &geminiId));
+    QCOMPARE(geminiId, QString("gemini-2.0-flash"));
+
+    // Reject computer-use preview
+    QJsonObject cuObj{
+        {"name", "models/gemini-2.5-computer-use-preview-10-2025"},
+        {"supportedGenerationMethods", QJsonArray{"generateContent"}}
+    };
+    QVERIFY(!GeminiProvider::isSuitableChatModel(cuObj));
+
+    // Reject embedding
+    QJsonObject embObj{
+        {"name", "models/text-embedding-004"},
+        {"supportedGenerationMethods", QJsonArray{"embedContent"}}
+    };
+    QVERIFY(!GeminiProvider::isSuitableChatModel(embObj));
+
+    // Reject imagen
+    QJsonObject imgObj{
+        {"name", "models/imagen-3.0-generate-002"},
+        {"supportedGenerationMethods", QJsonArray{"predict"}}
+    };
+    QVERIFY(!GeminiProvider::isSuitableChatModel(imgObj));
+
+    // Reject audio / live / tts / aqa
+    QJsonObject audioObj{{"name", "models/gemini-2.0-flash-live-audio"}};
+    QVERIFY(!GeminiProvider::isSuitableChatModel(audioObj));
+    QJsonObject ttsObj{{"name", "models/tts-1"}};
+    QVERIFY(!GeminiProvider::isSuitableChatModel(ttsObj));
+    QJsonObject aqaObj{{"name", "models/aqa"}};
+    QVERIFY(!GeminiProvider::isSuitableChatModel(aqaObj));
+
+    // Best chat model selection
+    QCOMPARE(GeminiProvider::selectBestChatModel({"gemini-1.5-pro", "gemini-2.0-flash"}), QString("gemini-2.0-flash"));
+    QCOMPARE(GeminiProvider::selectBestChatModel({}), GeminiProvider::FallbackDefaultModel);
+
+    // 2. OpenAI Model Filter
+    OpenAIProvider openai;
+    QVERIFY(openai.isSuitableModel("gpt-4o"));
+    QVERIFY(openai.isSuitableModel("gpt-4o-mini"));
+    QVERIFY(openai.isSuitableModel("o1"));
+    QVERIFY(openai.isSuitableModel("o3-mini"));
+    QVERIFY(!openai.isSuitableModel("text-embedding-3-small"));
+    QVERIFY(!openai.isSuitableModel("whisper-1"));
+    QVERIFY(!openai.isSuitableModel("tts-1"));
+    QVERIFY(!openai.isSuitableModel("dall-e-3"));
+
+    // 3. Custom OpenAI-compatible Model Filter
+    CustomOpenAICompatibleProvider custom;
+    QVERIFY(custom.isSuitableModel("qwen2.5-coder-7b-instruct"));
+    QVERIFY(custom.isSuitableModel("llama-3.2-3b-instruct"));
+    QVERIFY(custom.isSuitableModel("deepseek-r1-distill-qwen-7b"));
+    QVERIFY(!custom.isSuitableModel("bge-large-en-v1.5"));
+    QVERIFY(!custom.isSuitableModel("text-embedding-nomic-v1"));
+    QVERIFY(!custom.isSuitableModel("bge-reranker-large"));
+
+    // Base URL normalization for custom provider
+    QCOMPARE(AIProvider::normalizeBaseUrl("http://localhost:1234", true), QString("http://localhost:1234/v1"));
+    QCOMPARE(AIProvider::normalizeBaseUrl("http://localhost:1234/v1", true), QString("http://localhost:1234/v1"));
+    QCOMPARE(AIProvider::normalizeBaseUrl("localhost:11434", true), QString("http://localhost:11434/v1"));
+    QCOMPARE(AIProvider::normalizeBaseUrl("127.0.0.1:1234/v1/", false), QString("http://127.0.0.1:1234/v1"));
+}
+
+void TestAllCases::testPhase6AIErrorClassificationAndConnectionRefused() {
+    using namespace AI;
+
+    // 1. Connection Refused on localhost MUST NOT say "Authentication Failed"
+    auto resRefused = AIProvider::classifyReplyError(0, QNetworkReply::ConnectionRefusedError, "Connection refused", "http://127.0.0.1:1234/v1", "Custom OpenAI-Compatible");
+    QCOMPARE(resRefused.status, ConnectionStatus::NetworkError);
+    QVERIFY(resRefused.message.contains("Cannot reach server at http://127.0.0.1:1234/v1. Is it running?"));
+    QVERIFY(!resRefused.message.contains("Authentication Failed"));
+
+    // 2. Host Not Found & Timeout
+    auto resHost = AIProvider::classifyReplyError(0, QNetworkReply::HostNotFoundError, "Host not found", "http://badhost.local/v1", "Custom");
+    QCOMPARE(resHost.status, ConnectionStatus::NetworkError);
+    QVERIFY(resHost.message.contains("DNS lookup failed") || resHost.message.contains("not found"));
+
+    auto resTimeout = AIProvider::classifyReplyError(0, QNetworkReply::TimeoutError, "Operation timed out", "http://127.0.0.1:1234/v1", "Custom");
+    QCOMPARE(resTimeout.status, ConnectionStatus::NetworkError);
+    QVERIFY(resTimeout.message.contains("timed out"));
+
+    // 3. HTTP 401 & 403 Authentication Failed
+    auto res401 = AIProvider::classifyReplyError(401, QNetworkReply::AuthenticationRequiredError, "Unauthorized", "https://api.openai.com/v1", "OpenAI");
+    QCOMPARE(res401.status, ConnectionStatus::AuthenticationFailed);
+    QVERIFY(res401.message.contains("Authentication Failed"));
+
+    auto res403 = AIProvider::classifyReplyError(403, QNetworkReply::ContentAccessDenied, "Forbidden", "https://api.openai.com/v1", "OpenAI");
+    QCOMPARE(res403.status, ConnectionStatus::AuthenticationFailed);
+
+    // 4. HTTP 404 Model Not Available
+    auto res404 = AIProvider::classifyReplyError(404, QNetworkReply::ContentNotFoundError, "Not Found", "https://generativelanguage.googleapis.com/v1beta/models", "Gemini");
+    QCOMPARE(res404.status, ConnectionStatus::InvalidModel);
+    QVERIFY(res404.message.contains("not found"));
+
+    // 5. HTTP 429 Rate Limit
+    auto res429 = AIProvider::classifyReplyError(429, 0, "Too Many Requests", "https://generativelanguage.googleapis.com/v1beta/models", "Gemini");
+    QCOMPARE(res429.status, ConnectionStatus::RateLimited);
+    QVERIFY(res429.message.contains("Rate limit"));
+
+    // 6. HTTP 500 / 503 Provider Unavailable
+    auto res500 = AIProvider::classifyReplyError(500, QNetworkReply::InternalServerError, "Internal Server Error", "https://api.openai.com/v1", "OpenAI");
+    QCOMPARE(res500.status, ConnectionStatus::ProviderUnavailable);
+    QVERIFY(res500.message.contains("server error"));
+}
+
+void TestAllCases::testPhase6AIMockHttpServerGeminiAndOpenAI() {
+    using namespace AI;
+
+    struct LocalMockServer {
+        QTcpServer server;
+        int port = 0;
+        QString lastMethod;
+        QString lastPath;
+        QMap<QString, QString> lastHeaders;
+        QByteArray lastBody;
+        int requestCount = 0;
+        std::function<void(QTcpSocket* sock, const QString& method, const QString& path, const QMap<QString, QString>& headers, const QByteArray& body)> handler;
+
+        bool start() {
+            if (!server.listen(QHostAddress::LocalHost, 0)) {
+                return false;
+            }
+            port = server.serverPort();
+            QObject::connect(&server, &QTcpServer::newConnection, [this]() {
+                while (server.hasPendingConnections()) {
+                    QTcpSocket* sock = server.nextPendingConnection();
+                    QObject::connect(sock, &QTcpSocket::readyRead, [this, sock]() {
+                        QByteArray raw = sock->readAll();
+                        QList<QByteArray> lines = raw.split('\n');
+                        if (!lines.isEmpty()) {
+                            QByteArray reqLine = lines[0].trimmed();
+                            QList<QByteArray> parts = reqLine.split(' ');
+                            if (parts.size() >= 2) {
+                                lastMethod = QString::fromUtf8(parts[0]);
+                                lastPath = QString::fromUtf8(parts[1]);
+                            }
+                        }
+                        lastHeaders.clear();
+                        int bodyStart = -1;
+                        for (int i = 1; i < lines.size(); ++i) {
+                            QByteArray line = lines[i].trimmed();
+                            if (line.isEmpty()) {
+                                bodyStart = i + 1;
+                                break;
+                            }
+                            int c = line.indexOf(':');
+                            if (c > 0) {
+                                QString k = QString::fromUtf8(line.left(c).trimmed()).toLower();
+                                QString v = QString::fromUtf8(line.mid(c + 1).trimmed());
+                                lastHeaders[k] = v;
+                            }
+                        }
+                        if (bodyStart >= 0 && bodyStart < lines.size()) {
+                            lastBody = lines.mid(bodyStart).join('\n');
+                        } else {
+                            lastBody.clear();
+                        }
+                        requestCount++;
+
+                        if (handler) {
+                            handler(sock, lastMethod, lastPath, lastHeaders, lastBody);
+                        } else {
+                            QByteArray resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: 2\r\n\r\n{}";
+                            sock->write(resp);
+                            sock->flush();
+                            sock->disconnectFromHost();
+                        }
+                    });
+                }
+            });
+            return true;
+        }
+
+        void stop() {
+            server.close();
+        }
+
+        QString baseUrl() const {
+            return QString("http://127.0.0.1:%1").arg(port);
+        }
+    };
+
+    LocalMockServer mock;
+    QVERIFY(mock.start());
+
+    // --- Subtest A: Gemini listModels filters models & replaces stale model ---
+    {
+        mock.handler = [](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            QByteArray json = R"({
+                "models": [
+                    {
+                        "name": "models/gemini-2.0-flash",
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    },
+                    {
+                        "name": "models/gemini-2.5-computer-use-preview-10-2025",
+                        "supportedGenerationMethods": ["generateContent"]
+                    },
+                    {
+                        "name": "models/text-embedding-004",
+                        "supportedGenerationMethods": ["embedContent"]
+                    }
+                ]
+            })";
+            QByteArray resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: " +
+                              QByteArray::number(json.size()) + "\r\n\r\n" + json;
+            sock->write(resp);
+            sock->flush();
+            sock->disconnectFromHost();
+        };
+
+        GeminiProvider gemini;
+        gemini.configure("fake_key_gemini_1234", "stale-preview-model", mock.baseUrl());
+
+        bool listDone = false;
+        QStringList detectedModels;
+        QString listWarn;
+        gemini.listModels([&](const QStringList& models, const QString& err) {
+            listDone = true;
+            detectedModels = models;
+            listWarn = err;
+        });
+
+        int waitCount = 0;
+        while (!listDone && waitCount++ < 100) {
+            QTest::qWait(20);
+        }
+        QVERIFY(listDone);
+        // Only gemini-2.0-flash is accepted, computer-use and embedding are rejected!
+        QCOMPARE(detectedModels, QStringList{"gemini-2.0-flash"});
+        // Stale model replaced with default
+        QCOMPARE(gemini.currentModel(), QString("gemini-2.0-flash"));
+        QVERIFY(listWarn.contains("Model not available; choose another"));
+    }
+
+    // --- Subtest B: Gemini streaming with Header-only auth (NO key in URL) ---
+    {
+        const QString fakeKey = "AIzaSyFakeKeyHeaderOnly9988";
+        mock.handler = [fakeKey](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            QByteArray chunk1 = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello \"}]}}]}\n\n";
+            QByteArray chunk2 = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"World!\"}]}}]}\n\n";
+            QByteArray chunkDone = "data: [DONE]\n\n";
+
+            QByteArray resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream; charset=utf-8\r\nConnection: close\r\n\r\n" +
+                              chunk1 + chunk2 + chunkDone;
+            sock->write(resp);
+            sock->flush();
+            sock->disconnectFromHost();
+        };
+
+        GeminiProvider gemini;
+        gemini.configure(fakeKey, "gemini-2.0-flash", mock.baseUrl());
+
+        bool streamFinished = false;
+        QString accumulated;
+        QString streamErr;
+
+        gemini.streamMessage({AIMessage(AIRole::User, "Hi")}, {},
+            [&](const QString& delta, const QList<ToolCall>&, bool fin, const AIUsage&, const QString& err) {
+                accumulated += delta;
+                if (fin) streamFinished = true;
+                if (!err.isEmpty()) streamErr = err;
+            });
+
+        int waitCount = 0;
+        while (!streamFinished && waitCount++ < 100) {
+            QTest::qWait(20);
+        }
+
+        QVERIFY(streamFinished);
+        QCOMPARE(accumulated, QString("Hello World!"));
+        QVERIFY(streamErr.isEmpty());
+
+        // CRITICAL CHECK: Key is sent ONLY in header, NEVER in URL
+        QVERIFY(!mock.lastPath.contains("key="));
+        QVERIFY(!mock.lastPath.contains(fakeKey));
+        QCOMPARE(mock.lastHeaders.value("x-goog-api-key"), fakeKey);
+    }
+
+    // --- Subtest C: OpenAI streaming & [DONE] chunk parsing ---
+    {
+        mock.handler = [](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            QByteArray chunk1 = "data: {\"choices\":[{\"delta\":{\"content\":\"OpenAI \"}}]}\n\n";
+            QByteArray chunk2 = "data: {\"choices\":[{\"delta\":{\"content\":\"Stream\"}}]}\n\n";
+            QByteArray chunkDone = "data: [DONE]\n\n";
+
+            QByteArray resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" +
+                              chunk1 + chunk2 + chunkDone;
+            sock->write(resp);
+            sock->flush();
+            sock->disconnectFromHost();
+        };
+
+        OpenAIProvider openai;
+        openai.configure("sk-test-fake-key", "gpt-4o-mini", mock.baseUrl());
+
+        bool streamFinished = false;
+        QString accumulated;
+        openai.streamMessage({AIMessage(AIRole::User, "Hello")}, {},
+            [&](const QString& delta, const QList<ToolCall>&, bool fin, const AIUsage&, const QString&) {
+                accumulated += delta;
+                if (fin) streamFinished = true;
+            });
+
+        int waitCount = 0;
+        while (!streamFinished && waitCount++ < 100) {
+            QTest::qWait(20);
+        }
+        QVERIFY(streamFinished);
+        QCOMPARE(accumulated, QString("OpenAI Stream"));
+    }
+
+    // --- Subtest D: 429 Rate Limit with Retry-After Header ---
+    {
+        int attempt = 0;
+        mock.handler = [&attempt](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            attempt++;
+            if (attempt == 1) {
+                QByteArray body = "{\"error\":{\"message\":\"Rate limit exceeded\"}}";
+                QByteArray resp = "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 1\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: " +
+                                  QByteArray::number(body.size()) + "\r\n\r\n" + body;
+                sock->write(resp);
+                sock->flush();
+                sock->disconnectFromHost();
+            } else {
+                QByteArray body = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Success after 429 retry\"}]}}]}\n\ndata: [DONE]\n\n";
+                QByteArray resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" + body;
+                sock->write(resp);
+                sock->flush();
+                sock->disconnectFromHost();
+            }
+        };
+
+        GeminiProvider gemini;
+        gemini.configure("fake_key_gemini_retry", "gemini-2.0-flash", mock.baseUrl());
+
+        bool recovered = false;
+        QString recoveredText;
+        gemini.streamMessage({AIMessage(AIRole::User, "Retry test")}, {},
+            [&](const QString& delta, const QList<ToolCall>&, bool fin, const AIUsage&, const QString&) {
+                recoveredText += delta;
+                if (fin) recovered = true;
+            });
+
+        // Wait up to 3 seconds for 1-second backoff and retry
+        int waitCount = 0;
+        while (!recovered && waitCount++ < 150) {
+            QTest::qWait(20);
+        }
+        QVERIFY(attempt >= 2);
+        QVERIFY(recovered);
+        QCOMPARE(recoveredText, QString("Success after 429 retry"));
+    }
+
+    // --- Subtest E: 401 Unauthorized Response ---
+    {
+        mock.handler = [](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            QByteArray body = "{\"error\":{\"message\":\"API key not valid\"}}";
+            QByteArray resp = "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: " +
+                              QByteArray::number(body.size()) + "\r\n\r\n" + body;
+            sock->write(resp);
+            sock->flush();
+            sock->disconnectFromHost();
+        };
+
+        GeminiProvider gemini;
+        gemini.configure("invalid_key", "gemini-2.0-flash", mock.baseUrl());
+
+        bool testDone = false;
+        ConnectionTestResult result;
+        gemini.testConnection([&](const ConnectionTestResult& res) {
+            testDone = true;
+            result = res;
+        });
+
+        int waitCount = 0;
+        while (!testDone && waitCount++ < 100) {
+            QTest::qWait(20);
+        }
+        QVERIFY(testDone);
+        QCOMPARE(result.status, ConnectionStatus::AuthenticationFailed);
+        QVERIFY(result.message.contains("Authentication Failed"));
+    }
+
+    // --- Subtest F: 404 Model Not Found ---
+    {
+        mock.handler = [](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            QByteArray body = "{\"error\":{\"message\":\"Model not found\"}}";
+            QByteArray resp = "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: " +
+                              QByteArray::number(body.size()) + "\r\n\r\n" + body;
+            sock->write(resp);
+            sock->flush();
+            sock->disconnectFromHost();
+        };
+
+        OpenAIProvider openai;
+        openai.configure("sk-test-key", "non-existent-model", mock.baseUrl());
+
+        bool done = false;
+        ConnectionTestResult result;
+        openai.testConnection([&](const ConnectionTestResult& res) {
+            done = true;
+            result = res;
+        });
+
+        int waitCount = 0;
+        while (!done && waitCount++ < 100) {
+            QTest::qWait(20);
+        }
+        QVERIFY(done);
+        QCOMPARE(result.status, ConnectionStatus::InvalidModel);
+    }
+
+    // --- Subtest G: Malformed SSE & Mid-stream Error Handling ---
+    {
+        mock.handler = [](QTcpSocket* sock, const QString&, const QString&, const QMap<QString, QString>&, const QByteArray&) {
+            // Malformed chunk followed by mid-stream error payload
+            QByteArray payload = "Garbage non-SSE line\n\ndata: {unclosed json\n\ndata: {\"error\":{\"message\":\"Mid-stream quota error with key AIzaSyFakeSecretKey123\"}}\n\n";
+            QByteArray resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" + payload;
+            sock->write(resp);
+            sock->flush();
+            sock->disconnectFromHost();
+        };
+
+        GeminiProvider gemini;
+        gemini.configure("AIzaSyFakeSecretKey123", "gemini-2.0-flash", mock.baseUrl());
+
+        bool streamDone = false;
+        QString streamError;
+        gemini.streamMessage({AIMessage(AIRole::User, "Malformed test")}, {},
+            [&](const QString&, const QList<ToolCall>&, bool fin, const AIUsage&, const QString& err) {
+                if (!err.isEmpty()) streamError = err;
+                if (fin) streamDone = true;
+            });
+
+        int waitCount = 0;
+        while (!streamDone && waitCount++ < 100) {
+            QTest::qWait(20);
+        }
+        QVERIFY(streamDone);
+        QVERIFY(!streamError.isEmpty());
+        // Verify key was redacted from the mid-stream error!
+        QVERIFY(!streamError.contains("AIzaSyFakeSecretKey123"));
+        QVERIFY(streamError.contains("***"));
+    }
+
+    mock.stop();
+}
+
+void TestAllCases::testPhase6AIOptionalLiveTests() {
+    using namespace AI;
+
+    bool hasGeminiKey = qEnvironmentVariableIsSet("GEMINI_API_KEY");
+    bool hasTestBaseUrl = qEnvironmentVariableIsSet("AI_TEST_BASE_URL");
+
+    if (!hasGeminiKey && !hasTestBaseUrl) {
+        qInfo() << "LIVE AI TESTS SKIPPED: Neither GEMINI_API_KEY nor AI_TEST_BASE_URL is set in environment.";
+        QVERIFY(true);
+        return;
+    }
+
+    if (hasGeminiKey) {
+        QString apiKey = qEnvironmentVariable("GEMINI_API_KEY");
+        qInfo() << "LIVE TEST RUNNING: GeminiProvider against live Google Gemini API endpoint...";
+        GeminiProvider gemini;
+        gemini.configure(apiKey);
+
+        bool testFinished = false;
+        ConnectionTestResult testRes;
+        gemini.testConnection([&](const ConnectionTestResult& res) {
+            testFinished = true;
+            testRes = res;
+        });
+
+        int waitCount = 0;
+        while (!testFinished && waitCount++ < 200) {
+            QTest::qWait(50);
+        }
+
+        QVERIFY(testFinished);
+        // Verify no leak of live key in message
+        QVERIFY(!testRes.message.contains(apiKey));
+        qInfo() << "LIVE TEST COMPLETED: GeminiProvider status:" << static_cast<int>(testRes.status) << testRes.message;
+    }
+
+    if (hasTestBaseUrl) {
+        QString baseUrl = qEnvironmentVariable("AI_TEST_BASE_URL");
+        qInfo() << "LIVE TEST RUNNING: CustomOpenAICompatibleProvider against custom baseUrl:" << baseUrl;
+        CustomOpenAICompatibleProvider custom;
+        custom.configure("", "", baseUrl);
+
+        bool testFinished = false;
+        ConnectionTestResult testRes;
+        custom.testConnection([&](const ConnectionTestResult& res) {
+            testFinished = true;
+            testRes = res;
+        });
+
+        int waitCount = 0;
+        while (!testFinished && waitCount++ < 200) {
+            QTest::qWait(50);
+        }
+
+        QVERIFY(testFinished);
+        qInfo() << "LIVE TEST COMPLETED: Custom provider status:" << static_cast<int>(testRes.status) << testRes.message;
+    }
 }
 
 // ============================================================================

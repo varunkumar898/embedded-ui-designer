@@ -18,11 +18,11 @@ public:
 
     bool isConfigured() const override;
 
+    bool isSuitableModel(const QString& modelId) const override;
     void testConnection(std::function<void(const ConnectionTestResult& result)> callback) override;
 
 protected:
     QString effectiveBaseUrl() const override;
-    bool isSuitableModel(const QString& modelId) const override;
 };
 
 } // namespace AI

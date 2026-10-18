@@ -39,7 +39,9 @@ QString GeminiProvider::effectiveEndpoint(const QString& action) const {
     if (model.startsWith("models/")) {
         model = model.mid(7);
     }
-    return QString("https://generativelanguage.googleapis.com/v1beta/models/%1:%2").arg(model, action);
+    QString base = m_baseUrl.isEmpty() ? "https://generativelanguage.googleapis.com" : m_baseUrl;
+    while (base.endsWith('/')) base.chop(1);
+    return QString("%1/v1beta/models/%2:%3").arg(base, model, action);
 }
 
 void GeminiProvider::setupAuthHeaders(QNetworkRequest& req) const {
@@ -240,18 +242,20 @@ void GeminiProvider::listModels(std::function<void(const QStringList& models, co
         return;
     }
 
-    QUrl url("https://generativelanguage.googleapis.com/v1beta/models");
+    QString base = m_baseUrl.isEmpty() ? "https://generativelanguage.googleapis.com" : m_baseUrl;
+    while (base.endsWith('/')) base.chop(1);
+    QUrl url(QString("%1/v1beta/models").arg(base));
     QNetworkRequest req(url);
     setupAuthHeaders(req);
 
     QNetworkReply* reply = m_net.get(req);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, callback, url]() {
         reply->deleteLater();
         int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
         if (reply->error() != QNetworkReply::NoError) {
-            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://generativelanguage.googleapis.com/v1beta/models", displayName());
+            auto classified = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
             callback(m_cachedModels, classified.message);
             return;
         }
@@ -519,13 +523,15 @@ void GeminiProvider::testConnection(std::function<void(const ConnectionTestResul
         return;
     }
 
-    QUrl url("https://generativelanguage.googleapis.com/v1beta/models");
+    QString base = m_baseUrl.isEmpty() ? "https://generativelanguage.googleapis.com" : m_baseUrl;
+    while (base.endsWith('/')) base.chop(1);
+    QUrl url(QString("%1/v1beta/models").arg(base));
     QNetworkRequest req(url);
     setupAuthHeaders(req);
 
     QNetworkReply* reply = m_net.get(req);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, callback, url]() {
         reply->deleteLater();
         int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
@@ -557,7 +563,7 @@ void GeminiProvider::testConnection(std::function<void(const ConnectionTestResul
             }
             callback(res);
         } else {
-            auto res = classifyReplyError(httpStatus, reply->error(), reply->errorString(), "https://generativelanguage.googleapis.com/v1beta/models", displayName());
+            auto res = classifyReplyError(httpStatus, reply->error(), reply->errorString(), url.toString(), displayName());
             callback(res);
         }
     });

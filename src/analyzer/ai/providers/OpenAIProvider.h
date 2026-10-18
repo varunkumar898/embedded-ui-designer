@@ -36,10 +36,12 @@ public:
     static QJsonArray formatMessagesForOpenAI(const QList<AIMessage>& messages);
     static QJsonObject parseOpenAIResponse(const QByteArray& data, AIMessage& outMsg, AIUsage& outUsage);
 
+    // Model filter predicate
+    virtual bool isSuitableModel(const QString& modelId) const;
+
 protected:
     virtual QString effectiveBaseUrl() const;
     virtual void setupAuthHeaders(QNetworkRequest& req) const;
-    virtual bool isSuitableModel(const QString& modelId) const;
 
     void sendMessageInternal(const QList<AIMessage>& messages,
                              const QJsonArray& tools,
