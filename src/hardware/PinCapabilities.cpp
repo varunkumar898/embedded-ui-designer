@@ -12,7 +12,7 @@ namespace Hardware {
 
 QStringList PeripheralFacts::allSources() const {
     QStringList all = availableSources;
-    all << registerBase.sources << clock.sources;
+    all << registerBase.sources << clock.sources << maxClockHz.sources;
     for (const IrqFact& irq : irqs) all << irq.sources;
     return all;
 }
@@ -34,6 +34,16 @@ const AfFact* PinCapabilities::afFact(const QString& pin, const QString& signal)
         if (fact.signal.compare(signal, Qt::CaseInsensitive) == 0) return &fact;
     }
     return nullptr;
+}
+
+bool PinCapabilities::signalDocumentedElsewhere(const QString& signal, const QString& exceptPin) const {
+    for (auto it = m_alternateFunctions.constBegin(); it != m_alternateFunctions.constEnd(); ++it) {
+        if (it.key().compare(exceptPin, Qt::CaseInsensitive) == 0) continue;
+        for (const AfFact& fact : it.value()) {
+            if (fact.signal.compare(signal, Qt::CaseInsensitive) == 0) return true;
+        }
+    }
+    return false;
 }
 
 const PortFacts* PinCapabilities::port(const QString& portName) const {
@@ -165,10 +175,34 @@ bool PinCapabilities::parse(const QJsonObject& root, QString* error) {
         facts.registerBase = parseSourcedValue(pObj.value(QStringLiteral("registerBase")).toObject());
         facts.clockBus = pObj.value(QStringLiteral("clockBus")).toObject().value(QStringLiteral("value")).toString();
         facts.clock = parseClock(pObj.value(QStringLiteral("clockEnable")).toObject());
+        facts.maxClockHz = parseSourcedValue(pObj.value(QStringLiteral("maxClockHz")).toObject());
         for (const QJsonValue& irq : pObj.value(QStringLiteral("irqs")).toArray()) {
             facts.irqs.append(parseIrq(irq.toObject()));
         }
         m_peripherals.insert(facts.name, facts);
+    }
+
+    const QJsonObject timing = root.value(QStringLiteral("peripheralTiming")).toObject();
+    for (auto it = timing.constBegin(); it != timing.constEnd(); ++it) {
+        QVector<TimingExampleFact> examples;
+        for (const QJsonValue& entry : it.value().toObject().value(QStringLiteral("examples")).toArray()) {
+            const QJsonObject o = entry.toObject();
+            TimingExampleFact fact;
+            fact.clockMhz = o.value(QStringLiteral("clockMhz")).toInt(-1);
+            fact.speedHz = o.value(QStringLiteral("speedHz")).toInt(-1);
+            fact.presc = o.value(QStringLiteral("presc")).toInt(-1);
+            fact.scll = o.value(QStringLiteral("scll")).toInt(-1);
+            fact.sclh = o.value(QStringLiteral("sclh")).toInt(-1);
+            fact.sdadel = o.value(QStringLiteral("sdadel")).toInt(-1);
+            fact.scldel = o.value(QStringLiteral("scldel")).toInt(-1);
+            for (const QJsonValue& src : o.value(QStringLiteral("sources")).toArray()) {
+                if (src.isString()) fact.sources << src.toString();
+            }
+            fact.license = o.value(QStringLiteral("license")).toString();
+            fact.verified = o.value(QStringLiteral("verified")).toBool(false);
+            if (fact.known()) examples.append(fact);
+        }
+        m_timing.insert(it.key(), examples);
     }
 
     const QJsonObject system = root.value(QStringLiteral("system")).toObject();

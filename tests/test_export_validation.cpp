@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QProcess>
+#include <QStandardPaths>
 
 #include "analyzer/ResourceAnalysis.h"
 #include "analyzer/ResourceEstimator.h"
@@ -39,6 +40,134 @@
 #include "dialogs/ExportDialog.h"
 #include "diagnostics/DiagnosticsService.h"
 #include "diagnostics/DiagnosticsSources.h"
+
+namespace {
+
+// ---- Phase C1 (plan-driven HAL) test helpers -------------------------------
+
+Hardware::PinConfiguration makePinConfig(const QString& pin, const QString& mode,
+                                         const QString& alternateFunction = QString()) {
+    Hardware::PinConfiguration p;
+    p.pin = pin;
+    p.gpio = pin;
+    p.mode = mode;
+    p.alternateFunction = alternateFunction;
+    p.pull = mode == "AlternateFunction" ? "PullUp" : "NoPull";
+    p.speed = mode == "AlternateFunction" ? "VeryHigh" : "Medium";
+    p.outputType = "PushPull";
+    p.initialOutput = "Low";
+    return p;
+}
+
+Hardware::PeripheralConfiguration makePeripheralConfig(const QString& name, const QString& type,
+                                                       const QMap<QString, QString>& pins,
+                                                       const QMap<QString, QVariant>& params) {
+    Hardware::PeripheralConfiguration per;
+    per.name = name;
+    per.type = type;
+    per.enabled = true;
+    per.assignedPins = pins;
+    per.parameters = params;
+    return per;
+}
+
+void setFullClock(Hardware::HardwareConfig& hw, int mhz) {
+    hw.clock.sysClockMhz = mhz;
+    hw.clock.hclkMhz = mhz;
+    hw.clock.apb1Mhz = mhz;
+    hw.clock.apb2Mhz = mhz;
+    hw.clock.oscSource = "Internal";
+}
+
+// Probe A: PA5 output (high) + USART1 TX/RX on PA9/PA10 @ 230400.
+Hardware::HardwareConfig probeAConfig() {
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    setFullClock(hw, 48);
+
+    Hardware::PinConfiguration led = makePinConfig("PA5", "GPIO_Output");
+    led.initialOutput = "High";
+    hw.pins.insert("PA5", led);
+    hw.pins.insert("PA9", makePinConfig("PA9", "AlternateFunction", "USART1_TX"));
+    hw.pins.insert("PA10", makePinConfig("PA10", "AlternateFunction", "USART1_RX"));
+    hw.peripherals.insert("USART1", makePeripheralConfig(
+        "USART1", "USART",
+        QMap<QString, QString>{{"TX", "PA9"}, {"RX", "PA10"}},
+        QMap<QString, QVariant>{{"baudRate", 230400}}));
+    return hw;
+}
+
+// Probe B: PC13 output (low) + USART1 on PB6/PB7 @ 9600 + I2C1 on PB10/PB11
+// (an invalid placement on this device: I2C1 lives on PB6-PB9).
+Hardware::HardwareConfig probeBConfig() {
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    setFullClock(hw, 48);
+
+    Hardware::PinConfiguration led = makePinConfig("PC13", "GPIO_Output");
+    led.initialOutput = "Low";
+    led.speed = "Low";
+    hw.pins.insert("PC13", led);
+    hw.pins.insert("PB6", makePinConfig("PB6", "AlternateFunction", "USART1_TX"));
+    hw.pins.insert("PB7", makePinConfig("PB7", "AlternateFunction", "USART1_RX"));
+    Hardware::PinConfiguration scl = makePinConfig("PB10", "AlternateFunction", "I2C1_SCL");
+    scl.pull = "PullUp";
+    scl.speed = "High";
+    scl.outputType = "OpenDrain";
+    hw.pins.insert("PB10", scl);
+    Hardware::PinConfiguration sda = makePinConfig("PB11", "AlternateFunction", "I2C1_SDA");
+    sda.pull = "PullUp";
+    sda.speed = "High";
+    sda.outputType = "OpenDrain";
+    hw.pins.insert("PB11", sda);
+
+    hw.peripherals.insert("USART1", makePeripheralConfig(
+        "USART1", "USART",
+        QMap<QString, QString>{{"TX", "PB6"}, {"RX", "PB7"}},
+        QMap<QString, QVariant>{{"baudRate", 9600}}));
+    hw.peripherals.insert("I2C1", makePeripheralConfig(
+        "I2C1", "I2C",
+        QMap<QString, QString>{{"SCL", "PB10"}, {"SDA", "PB11"}},
+        QMap<QString, QVariant>{{"clockSpeedHz", 400000}}));
+    return hw;
+}
+
+bool exportConfigTo(FirmwareExportManager& mgr, CanvasScene& scene, Project& project,
+                    const Hardware::HardwareConfig& hw, const QString& dir, ExportResult* out) {
+    project.setHardwareConfig(hw);
+    ExportOptions opts;
+    opts.outputDirectory = dir;
+    opts.targetFramework = "lvgl";
+    opts.targetMcu = "STM32F030R8";
+    opts.forceExport = true;
+    *out = mgr.exportProject(&project, opts);
+    return out->success;
+}
+
+QString readTextFile(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return QString();
+    return QString::fromUtf8(f.readAll());
+}
+
+QString sha256OfFile(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return QString();
+    return QString::fromLatin1(
+        QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256).toHex());
+}
+
+bool warningsContain(const QStringList& warnings, const QString& needleA,
+                     const QString& needleB = QString()) {
+    for (const QString& w : warnings) {
+        if (w.contains(needleA) && (needleB.isEmpty() || w.contains(needleB))) return true;
+    }
+    return false;
+}
+
+} // namespace
 
 class TestExportValidation : public QObject {
     Q_OBJECT
@@ -65,6 +194,16 @@ private slots:
     void testUiExportWorksForUnsupportedDeviceWithoutHal();
     void testManifestSafetyRejectsPathTraversalAndExternalSymlinks();
     void testCompileCheckArmGccSyntax();
+
+    // Phase C1: plan-driven HAL generation (configured STM32F030R8 projects)
+    void testPlanHalGoldenEmptyConfigHashes();
+    void testPlanHalProbeAMatchesConfig();
+    void testPlanHalProbeBMatchesConfigAndWarnsI2c();
+    void testPlanHalProbeAAndBDiffer();
+    void testPlanHalValidSpiI2cUartAndCompileCheck();
+    void testPlanHalConflictedPinAndPeripheralSkippedWithErrors();
+    void testPlanHalUnknownClockAssumptionInfo();
+    void testPlanHalNoInterruptCode();
 };
 
 void TestExportValidation::initTestCase() {
@@ -1268,6 +1407,361 @@ void TestExportValidation::testCompileCheckArmGccSyntax() {
     // UI files must still be produced for the unverified device
     QVERIFY(QFile::exists(QDir(dirF4.path()).filePath("generated/ui/ui.h")));
     QVERIFY(QFile::exists(QDir(dirF4.path()).filePath("generated/ui/ui.c")));
+}
+
+void TestExportValidation::testPlanHalGoldenEmptyConfigHashes() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    project.setProjectName("GoldenHashes");
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    project.setHardwareConfig(hw);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportOptions opts;
+    opts.outputDirectory = dir.path();
+    opts.targetFramework = "lvgl";
+    opts.targetMcu = "STM32F030R8";
+    opts.forceExport = true;
+    ExportResult res = exportMgr.exportProject(&project, opts);
+    QVERIFY(res.success);
+
+    const QString cPath = QDir(dir.path()).filePath("generated/target/target_hal.c");
+    const QString hPath = QDir(dir.path()).filePath("generated/target/target_hal.h");
+    QVERIFY(QFile::exists(cPath));
+    QVERIFY(QFile::exists(hPath));
+
+    // Byte-identical to the pre-Phase-C baseline: an empty hardware
+    // configuration always takes the template path, never the plan path.
+    QCOMPARE(sha256OfFile(cPath), QStringLiteral("289cfeb2cfae39d05ac00edd7e9842711e9417cd58bda05c314e9e7b074a3219"));
+    QCOMPARE(sha256OfFile(hPath), QStringLiteral("5bc23bdda8d8671112f26b3f48f75955a67b14f4c4ec3482eb624105666219c0"));
+}
+
+void TestExportValidation::testPlanHalProbeAMatchesConfig() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportResult res;
+    QVERIFY(exportConfigTo(exportMgr, scene, project, probeAConfig(), dir.path(), &res));
+
+    const QString cPath = QDir(dir.path()).filePath("generated/target/target_hal.c");
+    const QString hPath = QDir(dir.path()).filePath("generated/target/target_hal.h");
+    const QString content = readTextFile(cPath);
+    QVERIFY(!content.isEmpty());
+
+    // Pins, clock enables and the USART1 baud divisor derived from 48 MHz.
+    QVERIFY(content.contains("RCC->AHBENR |= RCC_AHBENR_GPIOAEN;"));
+    QVERIFY(content.contains("RCC->APB2ENR |= RCC_APB2ENR_USART1EN;"));
+    QVERIFY(content.contains("USART1->BRR = 208u;"));
+    QVERIFY(content.contains("USART_CR1_TE | USART_CR1_RE | USART_CR1_UE"));
+    QVERIFY(content.contains("GPIOA->BSRR = (1u << 5u); /* initial output: high */"));
+    QVERIFY(content.contains("| (1u << ((9u - 8u) * 4u));"));
+    QVERIFY(content.contains("| (1u << ((10u - 8u) * 4u));"));
+
+    // No template leftovers, no interrupt or other-family code.
+    QVERIFY(!content.contains("115200"));
+    QVERIFY(!content.contains("SCK="));
+    QVERIFY(!content.contains("MOSI"));
+    QVERIFY(!content.contains("EXTI"));
+    QVERIFY(!content.contains("NVIC"));
+    QVERIFY(!content.contains("SYSCFG"));
+    QVERIFY(!content.contains("ESP32"));
+    QVERIFY(!content.contains("stm32f401"));
+    QVERIFY(!content.contains("gpio_set_function"));
+
+    const QString header = readTextFile(hPath);
+    QVERIFY(header.contains("#define PIN_PA5 \"PA5\""));
+    QVERIFY(header.contains("#define PROTOCOL_HAS_GPIO 1"));
+    QVERIFY(header.contains("#define PROTOCOL_HAS_UART 1 /* USART1 */"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_SPI"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_I2C"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_ADC"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_PWM"));
+
+    // A fully resolvable configuration produces no skip diagnostics.
+    for (const QString& w : res.warnings) {
+        QVERIFY2(!w.contains("init not generated"), qPrintable(w));
+    }
+}
+
+void TestExportValidation::testPlanHalProbeBMatchesConfigAndWarnsI2c() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ExportResult res;
+    QVERIFY(exportConfigTo(exportMgr, scene, project, probeBConfig(), dir.path(), &res));
+
+    const QString cPath = QDir(dir.path()).filePath("generated/target/target_hal.c");
+    const QString hPath = QDir(dir.path()).filePath("generated/target/target_hal.h");
+    const QString content = readTextFile(cPath);
+    QVERIFY(!content.isEmpty());
+
+    QVERIFY(content.contains("RCC->AHBENR |= RCC_AHBENR_GPIOCEN;"));
+    QVERIFY(content.contains("GPIOC->MODER = (GPIOC->MODER & ~(3u << (13u * 2u))) | (1u << (13u * 2u));"));
+    QVERIFY(content.contains("GPIOC->BSRR = (1u << (13u + 16u)); /* initial output: low */"));
+    QVERIFY(content.contains("USART1->BRR = 5000u;"));
+    QVERIFY(content.contains("| (0u << (6u * 4u));"));
+    QVERIFY(content.contains("| (0u << (7u * 4u));"));
+    QVERIFY(!content.contains("USART1->BRR = 208u;"));
+
+    // I2C1 on PB10/PB11 is not resolvable on STM32F030R8: no I2C code at all.
+    QVERIFY(!content.contains("I2C1->"));
+    QVERIFY(!content.contains("TIMINGR"));
+    QVERIFY(!content.contains("hal_i2c1_init"));
+
+    const QString header = readTextFile(hPath);
+    QVERIFY(header.contains("#define PROTOCOL_HAS_UART 1 /* USART1 */"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_I2C"));
+    QVERIFY(!header.contains("PIN_PB10"));
+
+    QVERIFY2(warningsContain(res.warnings, "I2C1 init not generated", "PB10"),
+             qPrintable(res.warnings.join(QStringLiteral(" | "))));
+    QVERIFY2(warningsContain(res.warnings, "PB10", "no verified AF number"),
+             qPrintable(res.warnings.join(QStringLiteral(" | "))));
+}
+
+void TestExportValidation::testPlanHalProbeAAndBDiffer() {
+    FirmwareExportManager exportMgr;
+    CanvasScene sceneA;
+    Project projectA(&sceneA);
+    QTemporaryDir dirA;
+    QTemporaryDir dirB;
+    QVERIFY(dirA.isValid());
+    QVERIFY(dirB.isValid());
+
+    ExportResult resA;
+    QVERIFY(exportConfigTo(exportMgr, sceneA, projectA, probeAConfig(), dirA.path(), &resA));
+
+    CanvasScene sceneB;
+    Project projectB(&sceneB);
+    ExportResult resB;
+    QVERIFY(exportConfigTo(exportMgr, sceneB, projectB, probeBConfig(), dirB.path(), &resB));
+
+    const QString a = readTextFile(QDir(dirA.path()).filePath("generated/target/target_hal.c"));
+    const QString b = readTextFile(QDir(dirB.path()).filePath("generated/target/target_hal.c"));
+    QVERIFY(!a.isEmpty());
+    QVERIFY(!b.isEmpty());
+    QVERIFY2(a != b, "configured probe A and probe B must not share the same generated HAL");
+
+    QVERIFY(a.contains("USART1->BRR = 208u;"));
+    QVERIFY(!a.contains("USART1->BRR = 5000u;"));
+    QVERIFY(b.contains("USART1->BRR = 5000u;"));
+    QVERIFY(!b.contains("USART1->BRR = 208u;"));
+
+    QVERIFY(a.contains("GPIOA->AFR[1]"));
+    QVERIFY(!a.contains("GPIOA->AFR[0]"));
+    QVERIFY(b.contains("GPIOB->AFR[0]"));
+}
+
+void TestExportValidation::testPlanHalValidSpiI2cUartAndCompileCheck() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    setFullClock(hw, 48);
+    hw.pins.insert("PA2", makePinConfig("PA2", "AlternateFunction", "USART2_TX"));
+    hw.pins.insert("PA3", makePinConfig("PA3", "AlternateFunction", "USART2_RX"));
+    hw.pins.insert("PA5", makePinConfig("PA5", "AlternateFunction", "SPI1_SCK"));
+    hw.pins.insert("PA6", makePinConfig("PA6", "AlternateFunction", "SPI1_MISO"));
+    hw.pins.insert("PA7", makePinConfig("PA7", "AlternateFunction", "SPI1_MOSI"));
+    hw.pins.insert("PB6", makePinConfig("PB6", "AlternateFunction", "I2C1_SCL"));
+    hw.pins.insert("PB7", makePinConfig("PB7", "AlternateFunction", "I2C1_SDA"));
+    hw.peripherals.insert("USART2", makePeripheralConfig(
+        "USART2", "USART",
+        QMap<QString, QString>{{"TX", "PA2"}, {"RX", "PA3"}},
+        QMap<QString, QVariant>{{"baudRate", 9600}}));
+    hw.peripherals.insert("SPI1", makePeripheralConfig(
+        "SPI1", "SPI",
+        QMap<QString, QString>{{"SCK", "PA5"}, {"MISO", "PA6"}, {"MOSI", "PA7"}},
+        QMap<QString, QVariant>{{"clockSpeedHz", 8000000}}));
+    hw.peripherals.insert("I2C1", makePeripheralConfig(
+        "I2C1", "I2C",
+        QMap<QString, QString>{{"SCL", "PB6"}, {"SDA", "PB7"}},
+        QMap<QString, QVariant>{{"clockSpeedHz", 400000}}));
+
+    ExportResult res;
+    QVERIFY(exportConfigTo(exportMgr, scene, project, hw, dir.path(), &res));
+
+    const QString cPath = QDir(dir.path()).filePath("generated/target/target_hal.c");
+    const QString hPath = QDir(dir.path()).filePath("generated/target/target_hal.h");
+    const QString content = readTextFile(cPath);
+    QVERIFY(!content.isEmpty());
+
+    QVERIFY(content.contains("RCC->APB1ENR |= RCC_APB1ENR_USART2EN;"));
+    QVERIFY(content.contains("USART2->BRR = 5000u;"));
+    QVERIFY(content.contains("RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;"));
+    QVERIFY(content.contains("(2u << SPI_CR1_BR_Pos)"));
+    QVERIFY(content.contains("SPI_CR1_SSM | SPI_CR1_SSI"));
+    QVERIFY(content.contains("SPI1->CR1 |= SPI_CR1_SPE;"));
+    QVERIFY(content.contains("RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;"));
+    QVERIFY(content.contains("I2C1->TIMINGR = 0x53300309u;"));
+    QVERIFY(content.contains("I2C1->CR1 |= I2C_CR1_PE;"));
+
+    const QString header = readTextFile(hPath);
+    QVERIFY(header.contains("#define PROTOCOL_HAS_UART 1 /* USART2 */"));
+    QVERIFY(header.contains("#define PROTOCOL_HAS_SPI 1 /* SPI1 */"));
+    QVERIFY(header.contains("#define PROTOCOL_HAS_I2C 1 /* I2C1 */"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_ADC"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_PWM"));
+
+    // Requested 8 MHz is quantized to 6 MHz by the SPI prescaler (BR=2):
+    // the adjustment must be reported, not silently ignored.
+    QVERIFY2(warningsContain(res.warnings, "SPI1", "adjusted"),
+             qPrintable(res.warnings.join(QStringLiteral(" | "))));
+
+    // Compile the generated HAL against the real ST CMSIS device header when
+    // the toolchain and headers are available; otherwise skip with a message.
+    const QString cmsisDev = QStringLiteral(
+        "/home/cherry/STM32Cube/Repository/STM32Cube_FW_F0_V1.11.6/Drivers/CMSIS/Device/ST/STM32F0xx/Include");
+    const QString cmsisCore = QStringLiteral(
+        "/home/cherry/STM32Cube/Repository/STM32Cube_FW_F0_V1.11.6/Drivers/CMSIS/Include");
+    if (QStandardPaths::findExecutable("arm-none-eabi-gcc").isEmpty()
+        || !QDir(cmsisDev).exists() || !QDir(cmsisCore).exists()) {
+        QSKIP("arm-none-eabi-gcc or ST CMSIS headers unavailable; compile check skipped");
+    }
+    const QString objPath = QDir(dir.path()).filePath("target_hal_c1.o");
+    QProcess proc;
+    const QStringList args = {
+        "-mcpu=cortex-m0", "-mthumb", "-std=c11", "-Wall", "-Wextra",
+        "-DSTM32F030x8", "-c", cPath, "-o", objPath,
+        "-I" + QDir(dir.path()).filePath("generated/target"),
+        "-I" + cmsisDev,
+        "-I" + cmsisCore,
+    };
+    proc.start("arm-none-eabi-gcc", args);
+    QVERIFY(proc.waitForFinished(30000));
+    QCOMPARE(proc.exitStatus(), QProcess::NormalExit);
+    QVERIFY2(proc.exitCode() == 0, proc.readAllStandardError().constData());
+    QVERIFY(QFile::exists(objPath));
+}
+
+void TestExportValidation::testPlanHalConflictedPinAndPeripheralSkippedWithErrors() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    setFullClock(hw, 48);
+    Hardware::PinConfiguration led = makePinConfig("PA5", "GPIO_Output");
+    led.initialOutput = "High";
+    hw.pins.insert("PA5", led);
+    hw.pins.insert("PA9", makePinConfig("PA9", "AlternateFunction", "USART1_TX"));
+    hw.pins.insert("PA10", makePinConfig("PA10", "AlternateFunction", "USART1_RX"));
+    // USART1 TX points at PA5, which is configured as a GPIO output: conflict.
+    hw.peripherals.insert("USART1", makePeripheralConfig(
+        "USART1", "USART",
+        QMap<QString, QString>{{"TX", "PA5"}, {"RX", "PA10"}},
+        QMap<QString, QVariant>{{"baudRate", 9600}}));
+
+    ExportResult res;
+    QVERIFY(exportConfigTo(exportMgr, scene, project, hw, dir.path(), &res));
+
+    const QString cPath = QDir(dir.path()).filePath("generated/target/target_hal.c");
+    const QString content = readTextFile(cPath);
+    QVERIFY(!content.isEmpty());
+
+    // The conflicted pin and its peripheral are skipped entirely.
+    QVERIFY(!content.contains("(5u * 2u)"));
+    QVERIFY(!content.contains("hal_usart1_init"));
+    QVERIFY(!content.contains("USART1->BRR"));
+    // Unaffected pins are still configured (PA9 keeps its AF1 nibble).
+    QVERIFY(content.contains("| (1u << ((9u - 8u) * 4u));"));
+    // Never fall back to the template when a configuration is present.
+    QVERIFY(!content.contains("115200"));
+    QVERIFY(!content.contains("SCK="));
+
+    QVERIFY2(warningsContain(res.warnings, "USART1 init not generated", "multiple functions"),
+             qPrintable(res.warnings.join(QStringLiteral(" | "))));
+    bool sawError = false;
+    for (const QString& w : res.warnings) {
+        if (w.startsWith(QStringLiteral("Error:"))) sawError = true;
+    }
+    QVERIFY2(sawError, qPrintable(res.warnings.join(QStringLiteral(" | "))));
+}
+
+void TestExportValidation::testPlanHalUnknownClockAssumptionInfo() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    // No clock configuration at all: 8 MHz HSI reset default is assumed.
+    hw.pins.insert("PA2", makePinConfig("PA2", "AlternateFunction", "USART2_TX"));
+    hw.pins.insert("PA3", makePinConfig("PA3", "AlternateFunction", "USART2_RX"));
+    hw.peripherals.insert("USART2", makePeripheralConfig(
+        "USART2", "USART",
+        QMap<QString, QString>{{"TX", "PA2"}, {"RX", "PA3"}},
+        QMap<QString, QVariant>{{"baudRate", 9600}}));
+
+    ExportResult res;
+    QVERIFY(exportConfigTo(exportMgr, scene, project, hw, dir.path(), &res));
+
+    const QString content = readTextFile(QDir(dir.path()).filePath("generated/target/target_hal.c"));
+    QVERIFY(!content.isEmpty());
+
+    // 8 MHz / 9600 = 833 (the same worked example as RM0360 Rev 5 sec 23.4.4).
+    QVERIFY(content.contains("USART2->BRR = 833u;"));
+    QVERIFY(content.contains("assuming the 8 MHz HSI reset default"));
+
+    QVERIFY2(warningsContain(res.warnings, "USART2", "8 MHz HSI reset default"),
+             qPrintable(res.warnings.join(QStringLiteral(" | "))));
+}
+
+void TestExportValidation::testPlanHalNoInterruptCode() {
+    FirmwareExportManager exportMgr;
+    CanvasScene scene;
+    Project project(&scene);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    Hardware::HardwareConfig hw;
+    hw.deviceId = "STM32F030R8";
+    hw.family = "STM32";
+    setFullClock(hw, 48);
+    Hardware::PinConfiguration button = makePinConfig("PA0", "GPIO_Input");
+    button.interrupt = "RisingEdge";
+    hw.pins.insert("PA0", button);
+
+    ExportResult res;
+    QVERIFY(exportConfigTo(exportMgr, scene, project, hw, dir.path(), &res));
+
+    const QString cPath = QDir(dir.path()).filePath("generated/target/target_hal.c");
+    const QString hPath = QDir(dir.path()).filePath("generated/target/target_hal.h");
+    const QString content = readTextFile(cPath);
+    QVERIFY(!content.isEmpty());
+
+    // C1 scope: no NVIC/EXTI/SYSCFG generation; the interrupt is reported.
+    QVERIFY(!content.contains("EXTI"));
+    QVERIFY(!content.contains("NVIC"));
+    QVERIFY(!content.contains("SYSCFG"));
+    QVERIFY(content.contains("strcmp(pin_name, \"PA0\")"));
+
+    const QString header = readTextFile(hPath);
+    QVERIFY(header.contains("#define PROTOCOL_HAS_GPIO 1"));
+    QVERIFY(!header.contains("PROTOCOL_HAS_UART"));
+
+    QVERIFY2(warningsContain(res.warnings, "PA0", "interrupt"),
+             qPrintable(res.warnings.join(QStringLiteral(" | "))));
 }
 
 QTEST_MAIN(TestExportValidation)

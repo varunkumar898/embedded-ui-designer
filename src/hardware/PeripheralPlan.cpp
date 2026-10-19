@@ -131,4 +131,26 @@ PeripheralPlan PeripheralPlan::fromConfig(const HardwareConfig& config, const Pi
     return plan;
 }
 
+BusClockResolution resolveBusClock(const ClockConfiguration& clock, const QString& busName) {
+    BusClockResolution out;
+    const QString bus = busName.trimmed().toUpper();
+    int mhz = 0;
+    if (bus == QStringLiteral("APB1")) mhz = clock.apb1Mhz;
+    else if (bus == QStringLiteral("APB2")) mhz = clock.apb2Mhz;
+    else if (bus == QStringLiteral("AHB")) mhz = clock.hclkMhz;
+
+    if (mhz > 0) {
+        out.mhz = mhz;
+        return out;
+    }
+    if (clock.sysClockMhz > 0) {
+        out.mhz = clock.sysClockMhz;
+        out.assumedApbIsSys = true;
+        return out;
+    }
+    out.mhz = 8;
+    out.assumedHsi = true;
+    return out;
+}
+
 } // namespace Hardware

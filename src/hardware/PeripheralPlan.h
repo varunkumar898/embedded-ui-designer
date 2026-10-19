@@ -70,6 +70,24 @@ struct PlannedPin {
     int extiLine = -1;          // set when interrupt != "None" and pin is known
 };
 
+/**
+ * Resolved clock of one bus ("APB1"/"APB2"/"AHB") for rate calculations.
+ *
+ * Resolution rules (Phase C1): the bus value from the project clock
+ * configuration is used when present. When the bus value is missing, SYSCLK is
+ * used (APB prescaler 1 assumption); when the configuration contains no clock
+ * information at all, the documented reset default is assumed. Both fallbacks
+ * are reported so generators can state them in generated comments and emit
+ * diagnostics instead of silently guessing.
+ */
+struct BusClockResolution {
+    int mhz = 0;                   // resolved frequency in MHz
+    bool assumedHsi = false;       // nothing configured: 8 MHz HSI reset default (RM0360 Rev 5 sec 7.2.6)
+    bool assumedApbIsSys = false;  // bus value missing: assumed equal to SYSCLK
+};
+
+BusClockResolution resolveBusClock(const ClockConfiguration& clock, const QString& busName);
+
 class PeripheralPlan {
 public:
     // Builds the plan from the project's hardware configuration. `caps` may be

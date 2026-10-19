@@ -390,7 +390,15 @@
           "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
           "verified": true
         }
-      ]
+      ],
+      "maxClockHz": {
+        "value": 1000000,
+        "sources": [
+          "RM0360 Rev 5, Table 68 (STM32F0x0 I2C implementation), STM32F030x8 column: Fast-mode Plus (up to 1 Mbit/s) supported by I2C1"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
     },
     "I2C2": {
       "available": {
@@ -440,7 +448,15 @@
           "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
           "verified": true
         }
-      ]
+      ],
+      "maxClockHz": {
+        "value": 400000,
+        "sources": [
+          "RM0360 Rev 5, Table 68 (STM32F0x0 I2C implementation), STM32F030x8 column: Fast-mode up to 400 kbit/s; Fast-mode Plus not supported by I2C2"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
     },
     "ADC1": {
       "available": {
@@ -1896,5 +1912,179 @@
         "verified": true
       }
     ]
+  },
+  "peripheralTiming": {
+    "I2C": {
+      "examples": [
+        {
+          "clockMhz": 8,
+          "speedHz": 10000,
+          "presc": 1,
+          "scll": 199,
+          "sclh": 195,
+          "sdadel": 2,
+          "scldel": 4,
+          "sources": [
+            "RM0360 Rev 5, Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 8,
+          "speedHz": 100000,
+          "presc": 1,
+          "scll": 19,
+          "sclh": 15,
+          "sdadel": 2,
+          "scldel": 4,
+          "sources": [
+            "RM0360 Rev 5, Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 8,
+          "speedHz": 400000,
+          "presc": 0,
+          "scll": 9,
+          "sclh": 3,
+          "sdadel": 1,
+          "scldel": 3,
+          "sources": [
+            "RM0360 Rev 5, Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 8,
+          "speedHz": 500000,
+          "presc": 0,
+          "scll": 6,
+          "sclh": 3,
+          "sdadel": 0,
+          "scldel": 1,
+          "sources": [
+            "RM0360 Rev 5, Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 16,
+          "speedHz": 10000,
+          "presc": 3,
+          "scll": 199,
+          "sclh": 195,
+          "sdadel": 2,
+          "scldel": 4,
+          "sources": [
+            "RM0360 Rev 5, Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 16,
+          "speedHz": 100000,
+          "presc": 3,
+          "scll": 19,
+          "sclh": 15,
+          "sdadel": 2,
+          "scldel": 4,
+          "sources": [
+            "RM0360 Rev 5, Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 16,
+          "speedHz": 400000,
+          "presc": 1,
+          "scll": 9,
+          "sclh": 3,
+          "sdadel": 2,
+          "scldel": 3,
+          "sources": [
+            "RM0360 Rev 5, Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 16,
+          "speedHz": 1000000,
+          "presc": 0,
+          "scll": 4,
+          "sclh": 2,
+          "sdadel": 0,
+          "scldel": 2,
+          "sources": [
+            "RM0360 Rev 5, Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 48,
+          "speedHz": 10000,
+          "presc": 11,
+          "scll": 199,
+          "sclh": 195,
+          "sdadel": 2,
+          "scldel": 4,
+          "sources": [
+            "RM0360 Rev 5, Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 48,
+          "speedHz": 100000,
+          "presc": 11,
+          "scll": 19,
+          "sclh": 15,
+          "sdadel": 2,
+          "scldel": 4,
+          "sources": [
+            "RM0360 Rev 5, Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 48,
+          "speedHz": 400000,
+          "presc": 5,
+          "scll": 9,
+          "sclh": 3,
+          "sdadel": 3,
+          "scldel": 3,
+          "sources": [
+            "RM0360 Rev 5, Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "clockMhz": 48,
+          "speedHz": 1000000,
+          "presc": 5,
+          "scll": 3,
+          "sclh": 1,
+          "sdadel": 0,
+          "scldel": 1,
+          "sources": [
+            "RM0360 Rev 5, Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    }
   }
 }

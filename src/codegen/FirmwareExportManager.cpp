@@ -453,6 +453,11 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
     }
 
     QString halCContent = CodeGen::TargetHalGenerator::generateHalSource(project, options.targetMcu);
+    // Phase C1: surface plan-driven diagnostics (skipped pins/peripherals,
+    // clock assumptions) in the export result.
+    for (const QString& diagnostic : CodeGen::TargetHalGenerator::planDiagnostics()) {
+        result.warnings.append(diagnostic);
+    }
     if (!halCContent.isEmpty()) {
         if (!writeGeneratedFile("generated/target/target_hal.c", halCContent, rootDir, oldManifest, backupTimestamp, result)) return false;
     }

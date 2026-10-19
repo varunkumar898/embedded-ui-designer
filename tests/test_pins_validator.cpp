@@ -112,6 +112,13 @@ HardwareConfig probeConfig()
     cfg.deviceId = "STM32F030R8";
     cfg.family = "STM32";
 
+    // Probe A shape (Phase C1): the real probe carries a full 48 MHz clock, so
+    // rate-based generation never has to assume a fallback frequency.
+    cfg.clock.sysClockMhz = 48;
+    cfg.clock.hclkMhz = 48;
+    cfg.clock.apb1Mhz = 48;
+    cfg.clock.apb2Mhz = 48;
+
     PinConfiguration led;
     led.pin = "PA5";
     led.gpio = "PA5";
@@ -179,6 +186,10 @@ private slots:
     void testValidatorInterruptResolvesExtiLine();
     void testValidatorWithoutDataIsInfo();
     void testDeviceDatabaseUnaffectedByPinDataFile();
+
+    // Phase C1 additions
+    void testValidatorMissingClockIsInfo();
+    void testI2cTimingExamplesMatchCitedTables();
 
     void testDiagnosticsPinsSourceRegistered();
 
@@ -528,6 +539,11 @@ void TestPinsValidator::testValidatorProbeBMisplacedI2cSignals()
     // and as peripheral pins.
     HardwareConfig cfg;
     cfg.deviceId = "STM32F030R8";
+    // Probe B shape: 48 MHz clock as in the real probe file.
+    cfg.clock.sysClockMhz = 48;
+    cfg.clock.hclkMhz = 48;
+    cfg.clock.apb1Mhz = 48;
+    cfg.clock.apb2Mhz = 48;
 
     const std::pair<const char*, const char*> afPins[] = {
         { "PB6",  "USART1_TX" },
@@ -720,6 +736,11 @@ void TestPinsValidator::testDiagnosticsPinsSourceRegistered()
     // pin pair on STM32F030R8. The "Pins" source must surface a Warning.
     HardwareConfig cfg;
     cfg.deviceId = "STM32F030R8";
+    // Probe B shape: 48 MHz clock as in the real probe file.
+    cfg.clock.sysClockMhz = 48;
+    cfg.clock.hclkMhz = 48;
+    cfg.clock.apb1Mhz = 48;
+    cfg.clock.apb2Mhz = 48;
 
     PinConfiguration scl;
     scl.pin = "PB10";
@@ -756,6 +777,62 @@ void TestPinsValidator::testDiagnosticsPinsSourceRegistered()
         }
     }
     QVERIFY2(pinsWarnings >= 1, "expected a Pins Warning for I2C1_SCL on PB10");
+}
+
+void TestPinsValidator::testValidatorMissingClockIsInfo()
+{
+    // Phase C1: rate-based driver code (USART baud, SPI/I2C timing) needs the
+    // bus clock. Without any clock configuration, generation falls back to the
+    // documented 8 MHz HSI reset default (RM0360 Rev 5 sec 7.2.6); the
+    // validator must surface that assumption as an Info instead of silence.
+    HardwareConfig cfg = probeConfig();
+    cfg.clock = ClockConfiguration();
+
+    const QVector<PinIssue> issues = PinsValidator::validate(cfg, m_caps);
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.first().severity, PinIssue::Severity::Info);
+    QCOMPARE(issues.first().peripheral, QString("USART1"));
+    QVERIFY(issues.first().message.contains("USART1"));
+    QVERIFY(issues.first().message.contains("8 MHz HSI reset default"));
+}
+
+void TestPinsValidator::testI2cTimingExamplesMatchCitedTables()
+{
+    // TIMINGR example points transcribed from RM0360 Rev 5 Tables 75-77.
+    const QVector<TimingExampleFact> examples = m_caps->timingExamples("I2C");
+    QCOMPARE(examples.size(), 12);
+
+    auto findExample = [&examples](int mhz, int hz) -> const TimingExampleFact* {
+        for (const TimingExampleFact& ex : examples) {
+            if (ex.clockMhz == mhz && ex.speedHz == hz) return &ex;
+        }
+        return nullptr;
+    };
+
+    const TimingExampleFact* f8 = findExample(8, 100000);     // Table 75
+    QVERIFY(f8 != nullptr);
+    QVERIFY(f8->verified);
+    QVERIFY(!f8->license.isEmpty());
+    // PRESC=1 SCLL=0x13 SCLH=0x0F SDADEL=2 SCLDEL=4
+    QCOMPARE(f8->timingr(), quint32(0x14200F13));
+
+    const TimingExampleFact* f48 = findExample(48, 400000);   // Table 77
+    QVERIFY(f48 != nullptr);
+    // PRESC=5 SCLL=9 SCLH=3 SDADEL=3 SCLDEL=3
+    QCOMPARE(f48->timingr(), quint32(0x53300309));
+    bool citesTable = false;
+    for (const QString& s : f48->sources) {
+        if (s.contains("Table 77")) citesTable = true;
+    }
+    QVERIFY(citesTable);
+
+    // Documented bus clock maxima: I2C1 supports Fast-mode Plus (1 MHz),
+    // I2C2 does not (RM0360 Rev 5 Table 68, STM32F030x8 column).
+    QVERIFY(m_caps->peripheral("I2C1") != nullptr);
+    QCOMPARE(m_caps->peripheral("I2C1")->maxClockHz.asInt(), 1000000);
+    QVERIFY(m_caps->peripheral("I2C2") != nullptr);
+    QCOMPARE(m_caps->peripheral("I2C2")->maxClockHz.asInt(), 400000);
+    QVERIFY(m_caps->peripheral("I2C1")->maxClockHz.verified);
 }
 
 QTEST_MAIN(TestPinsValidator)

@@ -63,6 +63,34 @@ struct AfFact {
     bool known() const { return af >= 0; }
 };
 
+/**
+ * One documented peripheral timing example (Phase C1): for a given peripheral
+ * clock (MHz) and target bus speed (Hz), the register field values transcribed
+ * from the reference manual's I2C_TIMINGR configuration example tables.
+ */
+struct TimingExampleFact {
+    int clockMhz = -1;      // peripheral clock in MHz, e.g. 48
+    int speedHz = -1;       // bus speed in Hz, e.g. 400000
+    int presc = -1;         // TIMINGR PRESC[3:0]
+    int scll = -1;          // TIMINGR SCLL[7:0]
+    int sclh = -1;          // TIMINGR SCLH[7:0]
+    int sdadel = -1;        // TIMINGR SDADEL[3:0]
+    int scldel = -1;        // TIMINGR SCLDEL[3:0]
+    QStringList sources;
+    QString license;
+    bool verified = false;
+
+    bool known() const {
+        return clockMhz > 0 && speedHz > 0 && presc >= 0 && scll >= 0 && sclh >= 0
+            && sdadel >= 0 && scldel >= 0;
+    }
+    quint32 timingr() const {
+        return (quint32(presc & 0xF) << 28) | (quint32(scldel & 0xF) << 24)
+            | (quint32(sdadel & 0xF) << 20) | (quint32(sclh & 0xFF) << 8)
+            | quint32(scll & 0xFF);
+    }
+};
+
 struct PortFacts {
     QString name;               // "GPIOA"
     SourcedValue registerBase;  // "0x48000000"
@@ -83,6 +111,7 @@ struct PeripheralFacts {
     SourcedValue registerBase;  // "0x40013800"
     QString clockBus;           // "APB2"
     ClockEnableFact clock;
+    SourcedValue maxClockHz;    // documented maximum bus clock of the peripheral
     QVector<IrqFact> irqs;
 
     QStringList allSources() const;
@@ -135,6 +164,17 @@ public:
     QVector<AfFact> afFacts(const QString& pin) const { return m_alternateFunctions.value(pin); }
     const AfFact* afFact(const QString& pin, const QString& signal) const;
 
+    // True when `signal` is a documented alternate function of some pin other
+    // than `exceptPin` (used to distinguish "documented elsewhere" from
+    // "not covered by the data" in diagnostics).
+    bool signalDocumentedElsewhere(const QString& signal, const QString& exceptPin) const;
+
+    // Documented timing examples for a peripheral kind ("I2C"), empty when the
+    // data file carries none.
+    QVector<TimingExampleFact> timingExamples(const QString& kind) const {
+        return m_timing.value(kind);
+    }
+
     const PortFacts* port(const QString& portName) const;
     const PortFacts* portForPin(const QString& pin) const;
 
@@ -164,6 +204,7 @@ private:
     QMap<QString, QVector<AfFact>> m_alternateFunctions;
     QMap<QString, PortFacts> m_ports;
     QMap<QString, PeripheralFacts> m_peripherals;
+    QMap<QString, QVector<TimingExampleFact>> m_timing;
     SystemFacts m_system;
 };
 

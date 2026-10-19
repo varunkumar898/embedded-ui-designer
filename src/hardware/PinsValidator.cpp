@@ -36,12 +36,7 @@ bool isKnownInterrupt(const QString& interrupt) {
 
 bool signalDocumentedElsewhere(const PinCapabilities* caps, const QString& signal,
                                const QString& exceptPin) {
-    if (!caps) return false;
-    for (const QString& pin : caps->gpioPins()) {
-        if (pin == exceptPin) continue;
-        if (caps->afFact(pin, signal)) return true;
-    }
-    return false;
+    return caps && caps->signalDocumentedElsewhere(signal, exceptPin);
 }
 
 // Shared diagnostic for "alternate function cannot be resolved" cases.
@@ -193,6 +188,40 @@ QVector<PinIssue> PinsValidator::validate(const HardwareConfig& config, const Pi
                 QStringLiteral("Pin '%1' is assigned to multiple functions (%2); resolve the conflict.")
                     .arg(it.key(), distinct.join(QStringLiteral(", "))), it.key()));
         }
+    }
+
+    // Clock configuration: rate-based driver code (UART baud, SPI/I2C timing)
+    // needs the bus clock of each peripheral. When the configuration has no
+    // usable value, C1 generation falls back to the documented reset default
+    // (RM0360 Rev 5 sec 7.2.6) or to SYSCLK; surface that assumption as Info
+    // instead of guessing silently.
+    QSet<QString> reportedClock;
+    for (const PlannedPeripheral& peripheral : plan.peripherals) {
+        if (!peripheral.factsKnown) {
+            continue; // no verified data: already reported above, bus unknown
+        }
+        const QString type = peripheral.type.toUpper();
+        if (type != QStringLiteral("USART") && type != QStringLiteral("UART")
+            && type != QStringLiteral("SPI") && type != QStringLiteral("I2C")) {
+            continue;
+        }
+        const BusClockResolution bus = resolveBusClock(config.clock, peripheral.clockBus);
+        QString message;
+        if (bus.assumedHsi) {
+            message = QStringLiteral("Peripheral '%1' has no clock configuration; driver timing "
+                                     "assumes the 8 MHz HSI reset default (RM0360 Rev 5 sec 7.2.6).")
+                          .arg(peripheral.name);
+        } else if (bus.assumedApbIsSys) {
+            message = QStringLiteral("Peripheral '%1': %2 clock is not configured; driver timing "
+                                     "assumes %2 = SYSCLK (%3 MHz).")
+                          .arg(peripheral.name, peripheral.clockBus)
+                          .arg(bus.mhz);
+        }
+        if (message.isEmpty() || reportedClock.contains(message)) {
+            continue;
+        }
+        reportedClock.insert(message);
+        out.append(makeIssue(PinIssue::Severity::Info, message, QString(), peripheral.name));
     }
 
     return out;
