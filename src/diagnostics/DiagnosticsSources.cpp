@@ -276,6 +276,15 @@ QVector<Diagnostic> driverPackSource(const Project* project) {
         diagnostic.message = QString("No driver pack for %1; import one").arg(devName);
         diagnostic.source = QStringLiteral("DriverPack");
         out.append(diagnostic);
+    } else {
+        const auto* spec = pack->findDevice(devName.toStdString());
+        if (spec && !spec->driverDataVerified) {
+            Diagnostic diagnostic;
+            diagnostic.severity = Diagnostic::Severity::Error;
+            diagnostic.message = QString("%1: driver data unverified — native HAL generation is disabled until every value is sourced from vendor documents/SVD.").arg(devName);
+            diagnostic.source = QStringLiteral("DriverPack");
+            out.append(diagnostic);
+        }
     }
     return out;
 }

@@ -4076,11 +4076,10 @@ void TestAllCases::testPhase4TargetHalAndBindingLayerGeneration() {
     Project proj(&scene);
     proj.newProject("HalGenApp", 480, 320);
 
-    // 1. STM32 HAL Adapter Generation
+    // 1. STM32 HAL Adapter Generation (verified device: STM32F030R8)
     Hardware::HardwareConfig hwStm;
     hwStm.family = "STM32";
-    hwStm.deviceId = "STM32F407VG";
-    hwStm.boardId = "STM32F407G-DISC1";
+    hwStm.deviceId = "STM32F030R8";
     proj.setHardwareConfig(hwStm);
 
     QString halH = TargetHalGenerator::generateHalHeader(&proj);
@@ -4089,6 +4088,15 @@ void TestAllCases::testPhase4TargetHalAndBindingLayerGeneration() {
     QVERIFY(halH.contains("hal_read_adc_normalized"));
     QVERIFY(halC.contains("STM32"));
     QVERIFY(halC.contains("BSRR"));
+
+    // 1b. Unverified STM32F407VG: native HAL stays blocked until data is sourced
+    Hardware::HardwareConfig hwF407;
+    hwF407.family = "STM32";
+    hwF407.deviceId = "STM32F407VG";
+    hwF407.boardId = "STM32F407G-DISC1";
+    proj.setHardwareConfig(hwF407);
+    QVERIFY(TargetHalGenerator::generateHalHeader(&proj).isEmpty());
+    QVERIFY(TargetHalGenerator::generateHalSource(&proj).isEmpty());
 
     // 2. ESP32 HAL Adapter Generation
     Hardware::HardwareConfig hwEsp;
@@ -7610,11 +7618,19 @@ void TestAllCases::testPhase4BoardPinBindingAndDiffPreview() {
     QVERIFY(resolved2[0].keepAsCustom);
     QCOMPARE(resolved2[0].remappedPin, QString("PA0"));
 
-    // 5. Generated code uses active board's pin map and protocol selections
+    // 5. Generated code follows the project's hardware configuration, not the
+    //    registry's active board. An empty project yields the F030 baseline.
     Project prj(&scene);
+    QString halEmpty = CodeGen::TargetHalGenerator::generateHalHeader(&prj);
+    QVERIFY(halEmpty.contains("NUCLEO-F030R8"));
+    QVERIFY(!halEmpty.contains("ESP32"));
+
+    Hardware::HardwareConfig hwEspProj;
+    hwEspProj.family = "ESP32";
+    hwEspProj.deviceId = "ESP32-S3";
+    prj.setHardwareConfig(hwEspProj);
     QString halH = CodeGen::TargetHalGenerator::generateHalHeader(&prj);
     QVERIFY(halH.contains("ESP32"));
-    QVERIFY(halH.contains("PIN_GPIO15"));
 
     QString halC = CodeGen::TargetHalGenerator::generateHalSource(&prj);
     QVERIFY(halC.contains("ESP32"));

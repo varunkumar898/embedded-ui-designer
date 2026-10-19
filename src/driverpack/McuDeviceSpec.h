@@ -51,7 +51,13 @@ struct McuDeviceSpec {
     std::string startupFileName;    // e.g. "startup_stm32f030x8.s"
     std::string linkerFileName;     // e.g. "STM32F030R8Tx_FLASH.ld"
     std::string sourceProvenance;   // e.g. "STMicroelectronics RM0360 Reference Manual Rev 5"
-    
+
+    // Native-HAL generation gate. When false, no target HAL/project code is
+    // emitted for this device; an Error diagnostic ("driver data unverified")
+    // is reported instead until sourced data replaces the hand-written values.
+    bool driverDataVerified = true;
+    std::string driverDataNote;     // human-readable reason shown in diagnostics
+
     bool hasPeripheral(const std::string& periph) const {
         return supportedPeripherals.find(periph) != supportedPeripherals.end();
     }

@@ -439,10 +439,18 @@ void TestExportValidation::testEstimationBaselinesDefaultsAuthoritative() {
     QCOMPARE(buttonBefore.ram, uint32_t(80));
     QCOMPARE(buttonBefore.cpu_percent, 1.5f);
 
-    // Locate the JSON snapshot in the repository (build dir is inside the repo).
-    QDir dir(QCoreApplication::applicationDirPath());
+    // Locate the JSON snapshot in the repository. Prefer the working directory
+    // (ctest runs tests from the repository root) and fall back to walking up
+    // from the binary for in-repo build dirs; independent of build location.
     QString jsonPath;
-    for (int i = 0; i < 6; ++i) {
+    {
+        const QString cwdCandidate = QDir::current().filePath("resources/estimation_baselines.json");
+        if (QFileInfo::exists(cwdCandidate)) {
+            jsonPath = cwdCandidate;
+        }
+    }
+    QDir dir(QCoreApplication::applicationDirPath());
+    for (int i = 0; i < 6 && jsonPath.isEmpty(); ++i) {
         const QString candidate = dir.filePath("resources/estimation_baselines.json");
         if (QFileInfo::exists(candidate)) {
             jsonPath = candidate;
@@ -502,17 +510,23 @@ void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
         ExportResult res = exportMgr.exportProject(&project, opts);
 
         auto* pack = dpReg.findPackForDevice(devName.toStdString());
-        if (!pack) {
-            // Unsupported device: UI export succeeds, native HAL is blocked with warning in warnings
+        const driverpack::McuDeviceSpec* devSpec = pack ? pack->findDevice(devName.toStdString()) : nullptr;
+        const bool driverDataUnverified = (pack != nullptr) && (devSpec != nullptr) && !devSpec->driverDataVerified;
+        if (!pack || driverDataUnverified) {
+            // Unsupported/unverified device: UI export succeeds, native HAL is blocked with warning in warnings
             QVERIFY2(res.success, qPrintable(QString("Device %1 is unsupported but UI export failed: %2").arg(devName, res.errorMessage)));
             bool hasPackWarning = false;
             for (const QString& w : res.warnings) {
-                if (w.contains(QString("No driver pack for %1; import one").arg(devName))) {
+                if (!pack && w.contains(QString("No driver pack for %1; import one").arg(devName))) {
+                    hasPackWarning = true;
+                    break;
+                }
+                if (driverDataUnverified && w.contains(QString("driver data unverified"))) {
                     hasPackWarning = true;
                     break;
                 }
             }
-            QVERIFY2(hasPackWarning, qPrintable(QString("Expected warning 'No driver pack for %1; import one' in warnings").arg(devName)));
+            QVERIFY2(hasPackWarning, qPrintable(QString("Expected block warning for %1 in warnings").arg(devName)));
 
             // No HAL files must be produced
             QVERIFY(!QFile::exists(QDir(tempDir.path()).filePath("generated/target/target_hal.h")));
@@ -523,7 +537,8 @@ void TestExportValidation::testEmptyFolderExportForAllDatabaseDevices() {
             QVERIFY(QFile::exists(QDir(tempDir.path()).filePath("generated/ui/ui.c")));
 
             blockedCount++;
-            qDebug() << "Unsupported device native HAL correctly blocked (UI exported):" << devName;
+            qDebug() << (pack ? "Unverified driver data: native HAL correctly blocked (UI exported):"
+                              : "Unsupported device native HAL correctly blocked (UI exported):") << devName;
         } else {
             // Supported device: export succeeds and HAL is generated per-family
             QVERIFY2(res.success, qPrintable(QString("Device %1 has pack %2 but export failed: %3")
@@ -1219,7 +1234,7 @@ void TestExportValidation::testCompileCheckArmGccSyntax() {
     QCOMPARE(procF0.exitStatus(), QProcess::NormalExit);
     QCOMPARE(procF0.exitCode(), 0);
 
-    // 2. STM32F401 (Cortex-M4)
+    // 2. STM32F401 (Cortex-M4) — driver data unverified: native HAL blocked
     CanvasScene sceneF4;
     Project projF4(&sceneF4);
     projF4.setProjectName("F401_Syntax");
@@ -1231,11 +1246,6 @@ void TestExportValidation::testCompileCheckArmGccSyntax() {
     QTemporaryDir dirF4;
     QVERIFY(dirF4.isValid());
     QDir targetDirF4(QDir(dirF4.path()).filePath("generated/target"));
-    targetDirF4.mkpath(".");
-    QFile shimF4(targetDirF4.filePath("stm32f4xx_hal.h"));
-    QVERIFY(shimF4.open(QIODevice::WriteOnly | QIODevice::Text));
-    shimF4.write("#pragma once\n#include <stdint.h>\n");
-    shimF4.close();
 
     ExportOptions optsF4;
     optsF4.outputDirectory = dirF4.path();
@@ -1245,19 +1255,19 @@ void TestExportValidation::testCompileCheckArmGccSyntax() {
     ExportResult resF4 = exportMgr.exportProject(&projF4, optsF4);
     QVERIFY(resF4.success);
 
-    QString f4CPath = targetDirF4.filePath("target_hal.c");
-    QVERIFY(QFile::exists(f4CPath));
+    // No native HAL may be produced while the F401 driver data is unverified
+    QVERIFY2(!QFile::exists(targetDirF4.filePath("target_hal.c")),
+             "F401 native HAL must stay blocked until its data is verified");
+    QVERIFY(!QFile::exists(targetDirF4.filePath("target_hal.h")));
+    bool sawUnverified = false;
+    for (const QString& w : resF4.warnings) {
+        if (w.contains("driver data unverified")) { sawUnverified = true; break; }
+    }
+    QVERIFY2(sawUnverified, "F401 export must warn that driver data is unverified");
 
-    QProcess procF4;
-    QStringList argsF4 = {
-        "-mcpu=cortex-m4", "-mthumb", "-fsyntax-only",
-        f4CPath,
-        "-I" + targetDirF4.absolutePath()
-    };
-    procF4.start("arm-none-eabi-gcc", argsF4);
-    QVERIFY(procF4.waitForFinished(10000));
-    QCOMPARE(procF4.exitStatus(), QProcess::NormalExit);
-    QCOMPARE(procF4.exitCode(), 0);
+    // UI files must still be produced for the unverified device
+    QVERIFY(QFile::exists(QDir(dirF4.path()).filePath("generated/ui/ui.h")));
+    QVERIFY(QFile::exists(QDir(dirF4.path()).filePath("generated/ui/ui.c")));
 }
 
 QTEST_MAIN(TestExportValidation)

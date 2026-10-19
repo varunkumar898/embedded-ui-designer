@@ -105,12 +105,6 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
 
     // Target device and driver pack validation
     QString boardId = project->hardwareConfig().boardId.trimmed();
-    if (boardId.isEmpty()) {
-        BoardPreset preset = BoardRegistry::instance().activePreset();
-        if (!preset.boardId.isEmpty()) {
-            boardId = preset.boardId;
-        }
-    }
     QString deviceId = project->hardwareConfig().deviceId.trimmed();
     if (deviceId.isEmpty()) {
         deviceId = dev.name.trimmed();
@@ -140,6 +134,11 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         if (!pack) {
             result.warnings.append(QString("No driver pack for %1; import one").arg(targetDevice));
             result.warnings.append(QString("Native HAL export blocked for unsupported device %1; UI export proceeding.").arg(targetDevice));
+        } else {
+            const auto* devSpec = pack->findDevice(targetDevice.toStdString());
+            if (devSpec && !devSpec->driverDataVerified) {
+                result.warnings.append(QString("%1: driver data unverified; native HAL export blocked. UI export proceeding.").arg(targetDevice));
+            }
         }
     }
 

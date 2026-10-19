@@ -245,8 +245,11 @@ bool LvglGenerator::generate(const QString& outputDirectory) {
     if (!writeFile(outDir.filePath("ui.c"), generateUiSource())) return false;
 
     // 4b. Target HAL Adapter (target_hal.h / target_hal.c)
-    if (!writeFile(outDir.filePath("target_hal.h"), CodeGen::TargetHalGenerator::generateHalHeader(m_project))) return false;
-    if (!writeFile(outDir.filePath("target_hal.c"), CodeGen::TargetHalGenerator::generateHalSource(m_project))) return false;
+    // Empty content means the device has no verified native HAL data: emit nothing.
+    const QString halHeader = CodeGen::TargetHalGenerator::generateHalHeader(m_project);
+    if (!halHeader.isEmpty() && !writeFile(outDir.filePath("target_hal.h"), halHeader)) return false;
+    const QString halSource = CodeGen::TargetHalGenerator::generateHalSource(m_project);
+    if (!halSource.isEmpty() && !writeFile(outDir.filePath("target_hal.c"), halSource)) return false;
 
     // 4c. Data Binding Layer (ui_bindings.h / ui_bindings.c)
     if (!writeFile(outDir.filePath("ui_bindings.h"), CodeGen::BindingLayerGenerator::generateBindingsHeader(m_project))) return false;

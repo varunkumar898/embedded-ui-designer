@@ -22,12 +22,6 @@ struct TargetResolution {
 TargetResolution resolveTarget(const Project* project, const QString& targetMcu = QString()) {
     TargetResolution res;
     QString boardId = project ? project->hardwareConfig().boardId.trimmed() : QString();
-    if (boardId.isEmpty()) {
-        BoardPreset preset = BoardRegistry::instance().activePreset();
-        if (!preset.boardId.isEmpty()) {
-            boardId = preset.boardId;
-        }
-    }
     QString deviceId = project ? project->hardwareConfig().deviceId.trimmed() : QString();
     DeviceProfile prof = project ? project->getDeviceProfile() : DeviceProfile();
     if (deviceId.isEmpty()) {
@@ -51,8 +45,18 @@ TargetResolution resolveTarget(const Project* project, const QString& targetMcu 
             res.pinMap = nucleo.pinMap;
             res.protocols = nucleo.protocols;
         } else {
-            res.pinMap = BoardRegistry::instance().activeBoard().pinMap;
-            res.protocols = BoardRegistry::instance().activeBoard().protocols;
+            BoardDef synthetic;
+            synthetic.family = res.family;
+            BoardRegistry::instance().ensureFamilyPinDefaults(synthetic);
+            res.pinMap = synthetic.pinMap;
+        }
+        if (res.protocols.isEmpty()) {
+            res.protocols["GPIO"] = {"GPIO"};
+            res.protocols["UART"] = {"UART1"};
+            res.protocols["SPI"] = {"SPI1"};
+            res.protocols["I2C"] = {"I2C1"};
+            res.protocols["ADC"] = {"ADC1"};
+            res.protocols["PWM"] = {"PWM1"};
         }
         return res;
     }
@@ -61,10 +65,6 @@ TargetResolution resolveTarget(const Project* project, const QString& targetMcu 
     BoardDef boardDef;
     if (!boardId.isEmpty()) {
         boardDef = BoardRegistry::instance().board(boardId);
-        BoardDef active = BoardRegistry::instance().activeBoard();
-        if (active.isValid() && active.id == boardId) {
-            boardDef = active;
-        }
     }
 
     if (boardDef.isValid()) {
@@ -139,7 +139,12 @@ TargetResolution resolveTarget(const Project* project, const QString& targetMcu 
     }
 
     auto* pack = driverpack::DriverPackRegistry::instance().findPackForDevice(res.deviceName.toStdString());
-    res.hasDriverPack = (pack != nullptr);
+    bool driverDataVerified = true;
+    if (pack) {
+        const auto* devSpec = pack->findDevice(res.deviceName.toStdString());
+        if (devSpec) driverDataVerified = devSpec->driverDataVerified;
+    }
+    res.hasDriverPack = (pack != nullptr) && driverDataVerified;
 
     return res;
 }

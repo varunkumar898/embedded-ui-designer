@@ -779,6 +779,17 @@ option(BUILD_TESTING "Build the testing tree." ON)
 if(BUILD_TESTING)
     enable_testing()
 
+    # Application data (data/, config/, resources/) is resolved relative to the
+    # repository root by the runtime loaders. Run every ctest test with the
+    # repository root as working directory so out-of-tree build dirs behave
+    # exactly like in-tree ones and no test depends on the caller's CWD.
+    function(eud_add_test)
+        add_test(${ARGN})
+        if(ARGV0 STREQUAL "NAME")
+            set_tests_properties(${ARGV1} PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+        endif()
+    endfunction()
+
 if(HAVE_QT6)
 
 if(COMMAND qt_add_executable)
@@ -836,7 +847,7 @@ endif()
 
 set_target_properties(test_all_cases PROPERTIES WIN32_EXECUTABLE FALSE)
 
-add_test(NAME AllCases COMMAND test_all_cases)
+eud_add_test(NAME AllCases COMMAND test_all_cases)
 
 # Functional Validation Runner
 if(COMMAND qt_add_executable)
@@ -997,7 +1008,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_board_hal PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME test_board_hal COMMAND test_board_hal)
+eud_add_test(NAME test_board_hal COMMAND test_board_hal)
 
 
 # Hardening Milestone Unit & Integration Test Suite
@@ -1052,7 +1063,7 @@ endif()
 
 set_target_properties(test_hardening PROPERTIES WIN32_EXECUTABLE FALSE)
 
-add_test(NAME Hardening COMMAND test_hardening)
+eud_add_test(NAME Hardening COMMAND test_hardening)
 
 # Phase 3 Unit Tests: IR Serialization
 if(COMMAND qt_add_executable)
@@ -1106,7 +1117,7 @@ if(Qt6SerialPort_FOUND)
     target_link_libraries(test_ir_serialization PRIVATE Qt6::SerialPort)
 endif()
 set_target_properties(test_ir_serialization PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME IRSerialization COMMAND test_ir_serialization)
+eud_add_test(NAME IRSerialization COMMAND test_ir_serialization)
 
 # Phase 3 Unit Tests: IR Adapter
 if(COMMAND qt_add_executable)
@@ -1160,7 +1171,7 @@ if(Qt6SerialPort_FOUND)
     target_link_libraries(test_ir_adapter PRIVATE Qt6::SerialPort)
 endif()
 set_target_properties(test_ir_adapter PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME IRAdapter COMMAND test_ir_adapter)
+eud_add_test(NAME IRAdapter COMMAND test_ir_adapter)
 
 # Phase 3 Unit Tests: HTML/CSS Importer
 if(COMMAND qt_add_executable)
@@ -1214,7 +1225,7 @@ if(Qt6SerialPort_FOUND)
     target_link_libraries(test_html_css_importer PRIVATE Qt6::SerialPort)
 endif()
 set_target_properties(test_html_css_importer PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME HtmlCssImporter COMMAND test_html_css_importer)
+eud_add_test(NAME HtmlCssImporter COMMAND test_html_css_importer)
 
 # Stage 4.1-4.5 Unit Tests: Isolated EmbedWeb Runtime Prototype & Hydration & Multi-MCU Adapters
 if(COMMAND qt_add_executable)
@@ -1268,7 +1279,7 @@ target_link_libraries(test_embedweb_runtime PRIVATE
     Qt6::Test
 )
 set_target_properties(test_embedweb_runtime PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME EmbedWebRuntime COMMAND test_embedweb_runtime)
+eud_add_test(NAME EmbedWebRuntime COMMAND test_embedweb_runtime)
 endif() # HAVE_QT6
 
 # Standalone EmbedWeb Desktop Simulator Harness (Stage 4.4)
@@ -1308,7 +1319,7 @@ else()
 endif()
 
 set_target_properties(embedweb_simulator PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME EmbedWebSimulatorHarness COMMAND embedweb_simulator --test-interaction)
+eud_add_test(NAME EmbedWebSimulatorHarness COMMAND embedweb_simulator --test-interaction)
 
 # Work Stream 1 & 2: Project Model & Frontend API Integration Tests
 add_executable(test_project_model
@@ -1328,7 +1339,7 @@ target_link_libraries(test_project_model PRIVATE
     ${JSONCPP_TARGET}
 )
 set_target_properties(test_project_model PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME ProjectModelAcceptanceTests COMMAND test_project_model)
+eud_add_test(NAME ProjectModelAcceptanceTests COMMAND test_project_model)
 
 # Work Stream 1, 2 & 3: Multi-Language Code Generators Tests (C / C++ / Rust)
 add_executable(test_codegen_multi_language
@@ -1351,12 +1362,12 @@ target_link_libraries(test_codegen_multi_language PRIVATE
     ${JSONCPP_TARGET}
 )
 set_target_properties(test_codegen_multi_language PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME MultiLanguageCodegenAcceptanceTests COMMAND test_codegen_multi_language)
+eud_add_test(NAME MultiLanguageCodegenAcceptanceTests COMMAND test_codegen_multi_language)
 
 # Work Stream 1, 2 & 3: Frontend Integration & Verification Tests (Weeks 7-8)
 find_program(NODE_EXECUTABLE node)
 if(NODE_EXECUTABLE)
-    add_test(NAME FrontendIntegrationAcceptanceTests COMMAND ${NODE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/tests/integration_runner.js)
+    eud_add_test(NAME FrontendIntegrationAcceptanceTests COMMAND ${NODE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/tests/integration_runner.js)
 endif()
 
 # Work Stream 1, 2 & 3: Security Hardening & Performance Optimization Tests (Weeks 9-10)
@@ -1385,7 +1396,7 @@ target_include_directories(test_security_performance PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 set_target_properties(test_security_performance PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME SecurityPerformanceAcceptanceTests COMMAND test_security_performance)
+eud_add_test(NAME SecurityPerformanceAcceptanceTests COMMAND test_security_performance)
 
 # Work Stream 1, 2 & 3: Documentation, CI/CD, Compliance & Observability Tests (Weeks 11-12)
 add_executable(test_compliance_observability
@@ -1403,7 +1414,7 @@ target_include_directories(test_compliance_observability PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 set_target_properties(test_compliance_observability PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME DocumentationComplianceAcceptanceTests COMMAND test_compliance_observability)
+eud_add_test(NAME DocumentationComplianceAcceptanceTests COMMAND test_compliance_observability)
 
 # MCU-Specific Driver Library and Capability-Aware Project Structure Tests
 add_executable(test_mcu_driver_packs
@@ -1429,7 +1440,7 @@ target_include_directories(test_mcu_driver_packs PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 set_target_properties(test_mcu_driver_packs PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME McuDriverPackAcceptanceTests COMMAND test_mcu_driver_packs)
+eud_add_test(NAME McuDriverPackAcceptanceTests COMMAND test_mcu_driver_packs)
 
 set_tests_properties(
     EmbedWebSimulatorHarness
@@ -1505,7 +1516,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_workspace_widgets PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME WorkspaceWidgetsAcceptanceTests COMMAND test_workspace_widgets)
+eud_add_test(NAME WorkspaceWidgetsAcceptanceTests COMMAND test_workspace_widgets)
 
 # Task 1 Export Validation Integration Acceptance Tests
 if(COMMAND qt_add_executable)
@@ -1570,7 +1581,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_export_validation PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME ExportValidationAcceptanceTests COMMAND test_export_validation)
+eud_add_test(NAME ExportValidationAcceptanceTests COMMAND test_export_validation)
 
 # Phase C Custom Board / MCU Pack Acceptance Tests
 if(COMMAND qt_add_executable)
@@ -1635,7 +1646,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_custom_packs PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME CustomPacksAcceptanceTests COMMAND test_custom_packs)
+eud_add_test(NAME CustomPacksAcceptanceTests COMMAND test_custom_packs)
 
 # Task 2 Resource Analyzer + Live Test Integration Acceptance Tests
 if(COMMAND qt_add_executable)
@@ -1699,7 +1710,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_live_test_resources PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME LiveTestResourceAnalyzerTests COMMAND test_live_test_resources)
+eud_add_test(NAME LiveTestResourceAnalyzerTests COMMAND test_live_test_resources)
 
 # Task 3 Diagnostics Service + Problems Panel Acceptance Tests
 if(COMMAND qt_add_executable)
@@ -1763,7 +1774,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_problems_diagnostics PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME ProblemsDiagnosticsAcceptanceTests COMMAND test_problems_diagnostics)
+eud_add_test(NAME ProblemsDiagnosticsAcceptanceTests COMMAND test_problems_diagnostics)
 
 # Task 4 MCU Capability Database Acceptance Tests
 if(COMMAND qt_add_executable)
@@ -1827,7 +1838,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_mcu_capabilities PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME McuCapabilityDatabaseTests COMMAND test_mcu_capabilities)
+eud_add_test(NAME McuCapabilityDatabaseTests COMMAND test_mcu_capabilities)
 
 # Task 5 Board & Display Dock Acceptance Tests
 if(COMMAND qt_add_executable)
@@ -1891,7 +1902,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_board_display_dock PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME BoardDisplayDockAcceptanceTests COMMAND test_board_display_dock)
+eud_add_test(NAME BoardDisplayDockAcceptanceTests COMMAND test_board_display_dock)
 
 # Task 6 Target Backend selector + widget support matrix acceptance tests
 if(COMMAND qt_add_executable)
@@ -1955,7 +1966,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_target_backend PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME TargetBackendAcceptanceTests COMMAND test_target_backend)
+eud_add_test(NAME TargetBackendAcceptanceTests COMMAND test_target_backend)
 
 # Temporary reproduction harness: select board/device then Next in the wizard.
 if(COMMAND qt_add_executable)
@@ -2018,7 +2029,7 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_wizard_repro PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME WizardSelectThenNextRepro COMMAND test_wizard_repro)
+eud_add_test(NAME WizardSelectThenNextRepro COMMAND test_wizard_repro)
 endif() # HAVE_QT6
 
 
