@@ -2,7 +2,8 @@
 
 Source of truth: `data/hardware_packs/stmicroelectronics/stm32f030r8_pin_data.json`.
 Every row below is derived from the `sources` / `license` / `verified` fields of that file;
-the table is an audit view of the pin capability data (Phase B), kept in the repository so
+the table is an audit view of the pin capability data (Phase B, extended in Phase C1 with
+I2C TIMINGR example points and documented bus clock maxima), kept in the repository so
 each generated value can be traced to a document, revision and table/section.
 
 License codes:  
@@ -102,7 +103,7 @@ License codes:
 | PB15: TIM1_CH3N = AF2 | DS9773 | Rev 5 (Nov 2021) | Table 13 (GPIOB_AFR alternate functions), pin PB15 | L1 |
 | PB15: TIM15_CH1N = AF3 | DS9773 | Rev 5 (Nov 2021) | Table 13 (GPIOB_AFR alternate functions), pin PB15 | L1 |
 
-## Ports, peripherals, system facts (98 entries)
+## Ports, peripherals, system facts (112 entries)
 
 | Value | Document | Rev | Table / page or register macro | License |
 |---|---|---|---|---|
@@ -139,11 +140,13 @@ License codes:
 | I2C1 base | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro I2C1_BASE (+ also: macro APBPERIPH_BASE; Table 17 (peripheral register boundary addresses)) | L2 |
 | I2C1 clock bus: APB1 | DS9773 | Rev 5 (Nov 2021) | Table 2 (device features and peripheral counts), STM32F030R8 column | L1 |
 | I2C1 clock enable (RCC_APB1ENR bit 21) | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro RCC_APB1ENR_I2C1EN_Pos | L3 |
+| I2C1 maximum bus clock: 1000000 Hz | RM0360 | Rev 5 (May 2023) | Table 68 (STM32F0x0 I2C implementation), STM32F030x8 column: Fast-mode Plus (up to 1 Mbit/s) supported by I2C1 | L1 |
 | I2C1 IRQ I2C1 = 23 | RM0360 | Rev 5 (May 2023) | Table 31 (vector table) (+ also: macro IRQn_Type I2C1_IRQn) | L1 |
 | I2C2 present on device | DS9773 | Rev 5 (Nov 2021) | Table 2 (device features and peripheral counts), STM32F030R8 column | L1 |
 | I2C2 base | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro I2C2_BASE (+ also: macro APBPERIPH_BASE; Table 17 (peripheral register boundary addresses)) | L2 |
 | I2C2 clock bus: APB1 | DS9773 | Rev 5 (Nov 2021) | Table 2 (device features and peripheral counts), STM32F030R8 column | L1 |
 | I2C2 clock enable (RCC_APB1ENR bit 22) | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro RCC_APB1ENR_I2C2EN_Pos | L3 |
+| I2C2 maximum bus clock: 400000 Hz | RM0360 | Rev 5 (May 2023) | Table 68 (STM32F0x0 I2C implementation), STM32F030x8 column: Fast-mode up to 400 kbit/s; Fast-mode Plus not supported by I2C2 | L1 |
 | I2C2 IRQ I2C2 = 24 | RM0360 | Rev 5 (May 2023) | Table 31 (vector table) (+ also: macro IRQn_Type I2C2_IRQn) | L1 |
 | ADC1 present on device | DS9773 | Rev 5 (Nov 2021) | Table 2 (device features and peripheral counts), STM32F030R8 column | L1 |
 | ADC1 base | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro ADC1_BASE (+ also: macro APBPERIPH_BASE; Table 17 (peripheral register boundary addresses)) | L2 |
@@ -186,6 +189,18 @@ License codes:
 | TIM17 clock bus: APB2 | DS9773 | Rev 5 (Nov 2021) | Table 2 (device features and peripheral counts), STM32F030R8 column | L1 |
 | TIM17 clock enable (RCC_APB2ENR bit 18) | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro RCC_APB2ENR_TIM17EN_Pos | L3 |
 | TIM17 IRQ TIM17 = 22 | RM0360 | Rev 5 (May 2023) | Table 31 (vector table) (+ also: macro IRQn_Type TIM17_IRQn) | L1 |
+| I2C TIMINGR 8 MHz -> 10000 Hz: PRESC=0x1 SCLL=0xC7 SCLH=0xC3 SDADEL=0x2 SCLDEL=0x4 (0x1420C3C7) | RM0360 | Rev 5 (May 2023) | Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz) | L1 |
+| I2C TIMINGR 8 MHz -> 100000 Hz: PRESC=0x1 SCLL=0x13 SCLH=0xF SDADEL=0x2 SCLDEL=0x4 (0x14200F13) | RM0360 | Rev 5 (May 2023) | Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz) | L1 |
+| I2C TIMINGR 8 MHz -> 400000 Hz: PRESC=0x0 SCLL=0x9 SCLH=0x3 SDADEL=0x1 SCLDEL=0x3 (0x03100309) | RM0360 | Rev 5 (May 2023) | Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz) | L1 |
+| I2C TIMINGR 8 MHz -> 500000 Hz: PRESC=0x0 SCLL=0x6 SCLH=0x3 SDADEL=0x0 SCLDEL=0x1 (0x01000306) | RM0360 | Rev 5 (May 2023) | Table 75 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 8 MHz) | L1 |
+| I2C TIMINGR 16 MHz -> 10000 Hz: PRESC=0x3 SCLL=0xC7 SCLH=0xC3 SDADEL=0x2 SCLDEL=0x4 (0x3420C3C7) | RM0360 | Rev 5 (May 2023) | Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz) | L1 |
+| I2C TIMINGR 16 MHz -> 100000 Hz: PRESC=0x3 SCLL=0x13 SCLH=0xF SDADEL=0x2 SCLDEL=0x4 (0x34200F13) | RM0360 | Rev 5 (May 2023) | Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz) | L1 |
+| I2C TIMINGR 16 MHz -> 400000 Hz: PRESC=0x1 SCLL=0x9 SCLH=0x3 SDADEL=0x2 SCLDEL=0x3 (0x13200309) | RM0360 | Rev 5 (May 2023) | Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz) | L1 |
+| I2C TIMINGR 16 MHz -> 1000000 Hz: PRESC=0x0 SCLL=0x4 SCLH=0x2 SDADEL=0x0 SCLDEL=0x2 (0x02000204) | RM0360 | Rev 5 (May 2023) | Table 76 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 16 MHz) | L1 |
+| I2C TIMINGR 48 MHz -> 10000 Hz: PRESC=0xB SCLL=0xC7 SCLH=0xC3 SDADEL=0x2 SCLDEL=0x4 (0xB420C3C7) | RM0360 | Rev 5 (May 2023) | Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz) | L1 |
+| I2C TIMINGR 48 MHz -> 100000 Hz: PRESC=0xB SCLL=0x13 SCLH=0xF SDADEL=0x2 SCLDEL=0x4 (0xB4200F13) | RM0360 | Rev 5 (May 2023) | Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz) | L1 |
+| I2C TIMINGR 48 MHz -> 400000 Hz: PRESC=0x5 SCLL=0x9 SCLH=0x3 SDADEL=0x3 SCLDEL=0x3 (0x53300309) | RM0360 | Rev 5 (May 2023) | Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz) | L1 |
+| I2C TIMINGR 48 MHz -> 1000000 Hz: PRESC=0x5 SCLL=0x3 SCLH=0x1 SDADEL=0x0 SCLDEL=0x1 (0x51000103) | RM0360 | Rev 5 (May 2023) | Table 77 (I2C_TIMINGR register configuration examples: examples of timing settings for fI2CCLK = 48 MHz) | L1 |
 | NVIC available | DS9773 | Rev 5 (Nov 2021) | features: 32 maskable interrupt channels (+ also: 11.1 Nested vectored interrupt controller (NVIC)) | L1 |
 | SYSCFG base | stm32f030x8.h (CMSIS) | Cube FW_F0 V1.11.6 | macro SYSCFG_BASE (+ also: Table 17 (peripheral register boundary addresses)) | L2 |
 | SYSCFG EXTI config registers | RM0360 | Rev 5 (May 2023) | 9.1.2-9.1.5 (SYSCFG_EXTICR1..4) | L1 |
