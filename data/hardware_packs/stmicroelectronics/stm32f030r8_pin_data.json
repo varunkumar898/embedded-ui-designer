@@ -1,0 +1,1900 @@
+{
+  "schemaVersion": "1.0",
+  "kind": "pinCapabilities",
+  "identity": {
+    "device": "STM32F030R8",
+    "family": "STM32F0",
+    "vendor": "STMicroelectronics",
+    "package": "LQFP64",
+    "subFamily": "STM32F030x8"
+  },
+  "provenance": {
+    "verified": true,
+    "license": "Mixed: CMSIS header facts Apache-2.0; vendor-document facts transcribed with citation. No vendor tables or code redistributed.",
+    "sources": [
+      "DS9773 Rev 5 (Nov 2021) - STM32F030x4/x6/x8/xC datasheet",
+      "RM0360 Rev 5 (May 2023) - STM32F030x4/x6/x8/xC and STM32F070x6/xB reference manual",
+      "stm32f030x8.h - CMSIS device header, STM32Cube_FW_F0_V1.11.6 (Apache-2.0)"
+    ],
+    "notes": "Every entry below carries sources/license/verified. Entries absent here are unknown, not assumed: consumers must emit an Info diagnostic and omit configuration."
+  },
+  "gpioPins": [
+    "PA0",
+    "PA1",
+    "PA2",
+    "PA3",
+    "PA4",
+    "PA5",
+    "PA6",
+    "PA7",
+    "PA8",
+    "PA9",
+    "PA10",
+    "PA11",
+    "PA12",
+    "PA13",
+    "PA14",
+    "PA15",
+    "PB0",
+    "PB1",
+    "PB2",
+    "PB3",
+    "PB4",
+    "PB5",
+    "PB6",
+    "PB7",
+    "PB8",
+    "PB9",
+    "PB10",
+    "PB11",
+    "PB12",
+    "PB13",
+    "PB14",
+    "PB15",
+    "PC13",
+    "PC14",
+    "PC15"
+  ],
+  "ports": {
+    "GPIOA": {
+      "registerBase": {
+        "value": "0x48000000",
+        "sources": [
+          "CMSIS stm32f030x8.h (GPIOA_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_AHBENR",
+        "bit": 17,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_AHBENR_GPIOAEN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "afrAvailable": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR registers for port A)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    },
+    "GPIOB": {
+      "registerBase": {
+        "value": "0x48000400",
+        "sources": [
+          "CMSIS stm32f030x8.h (GPIOB_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_AHBENR",
+        "bit": 18,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_AHBENR_GPIOBEN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "afrAvailable": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR registers for port B)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    },
+    "GPIOC": {
+      "registerBase": {
+        "value": "0x48000800",
+        "sources": [
+          "CMSIS stm32f030x8.h (GPIOC_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_AHBENR",
+        "bit": 19,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_AHBENR_GPIOCEN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "afrAvailable": {
+        "value": false,
+        "sources": [
+          "DS9773 Rev 5, Table 14 (GPIOC), note 2: STM32F030x4/x6/x8 do not have the GPIOC_AFR registers"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    }
+  },
+  "peripherals": {
+    "USART1": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40013800",
+        "sources": [
+          "CMSIS stm32f030x8.h (USART1_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 14,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_USART1EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "USART1",
+          "number": 27,
+          "handler": "USART1_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type USART1_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "USART2": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40004400",
+        "sources": [
+          "CMSIS stm32f030x8.h (USART2_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 17,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_USART2EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "USART2",
+          "number": 28,
+          "handler": "USART2_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type USART2_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "SPI1": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40013000",
+        "sources": [
+          "CMSIS stm32f030x8.h (SPI1_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 12,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_SPI1EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "SPI1",
+          "number": 25,
+          "handler": "SPI1_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type SPI1_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "SPI2": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40003800",
+        "sources": [
+          "CMSIS stm32f030x8.h (SPI2_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 14,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_SPI2EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "SPI2",
+          "number": 26,
+          "handler": "SPI2_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type SPI2_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "I2C1": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40005400",
+        "sources": [
+          "CMSIS stm32f030x8.h (I2C1_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 21,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_I2C1EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "I2C1",
+          "number": 23,
+          "handler": "I2C1_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type I2C1_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "I2C2": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40005800",
+        "sources": [
+          "CMSIS stm32f030x8.h (I2C2_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 22,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_I2C2EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "I2C2",
+          "number": 24,
+          "handler": "I2C2_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type I2C2_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "ADC1": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40012400",
+        "sources": [
+          "CMSIS stm32f030x8.h (ADC1_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 9,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_ADCEN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "ADC1",
+          "number": 12,
+          "handler": "ADC1_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type ADC1_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM1": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40012C00",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM1_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 11,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_TIM1EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM1_BRK_UP_TRG_COM",
+          "number": 13,
+          "handler": "TIM1_BRK_UP_TRG_COM_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM1_BRK_UP_TRG_COM_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "name": "TIM1_CC",
+          "number": 14,
+          "handler": "TIM1_CC_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM1_CC_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM3": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40000400",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM3_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 1,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_TIM3EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM3",
+          "number": 16,
+          "handler": "TIM3_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM3_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM6": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40001000",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM6_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 4,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_TIM6EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM6",
+          "number": 17,
+          "handler": "TIM6_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM6_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM14": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40002000",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM14_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB1",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB1ENR",
+        "bit": 8,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB1ENR_TIM14EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM14",
+          "number": 19,
+          "handler": "TIM14_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM14_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM15": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40014000",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM15_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 16,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_TIM15EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM15",
+          "number": 20,
+          "handler": "TIM15_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM15_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM16": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40014400",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM16_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 17,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_TIM16EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM16",
+          "number": 21,
+          "handler": "TIM16_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM16_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "TIM17": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40014800",
+        "sources": [
+          "CMSIS stm32f030x8.h (TIM17_BASE)",
+          "CMSIS stm32f030x8.h (APBPERIPH_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "clockBus": {
+        "value": "APB2",
+        "sources": [
+          "DS9773 Rev 5, Table 2 (device features and peripheral counts), STM32F030R8 column"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 18,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_TIM17EN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "TIM17",
+          "number": 22,
+          "handler": "TIM17_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type TIM17_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    }
+  },
+  "system": {
+    "nvic": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, features: 32 maskable interrupt channels",
+          "RM0360 Rev 5, 11.1 Nested vectored interrupt controller (NVIC)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    },
+    "syscfg": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (STM32F030R8 column)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40010000",
+        "sources": [
+          "CMSIS stm32f030x8.h (SYSCFG_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "extiConfigRegisters": {
+        "value": [
+          "SYSCFG_EXTICR1",
+          "SYSCFG_EXTICR2",
+          "SYSCFG_EXTICR3",
+          "SYSCFG_EXTICR4"
+        ],
+        "sources": [
+          "RM0360 Rev 5, 9.1.2-9.1.5 (SYSCFG_EXTICR1..4)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_APB2ENR",
+        "bit": 0,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_APB2ENR_SYSCFGCOMPEN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      }
+    },
+    "exti": {
+      "available": {
+        "value": true,
+        "sources": [
+          "RM0360 Rev 5, 11.2 Extended interrupts and events controller (EXTI)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40010400",
+        "sources": [
+          "CMSIS stm32f030x8.h (EXTI_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "lines": {
+        "value": "0-15 map to Px0-Px15 via SYSCFG_EXTICR",
+        "sources": [
+          "RM0360 Rev 5, 11.2 (EXTI line assignment), 9.1.2-9.1.5 (EXTICR)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "EXTI0_1",
+          "number": 5,
+          "handler": "EXTI0_1_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type EXTI0_1_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "name": "EXTI2_3",
+          "number": 6,
+          "handler": "EXTI2_3_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type EXTI2_3_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "name": "EXTI4_15",
+          "number": 7,
+          "handler": "EXTI4_15_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type EXTI4_15_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    },
+    "dma": {
+      "available": {
+        "value": true,
+        "sources": [
+          "DS9773 Rev 5, Table 2 (STM32F030R8: 5-channel DMA controller)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "controller": {
+        "value": "DMA1",
+        "sources": [
+          "RM0360 Rev 5, 10 (Direct memory access controller: one instance, 5 channels)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "registerBase": {
+        "value": "0x40020000",
+        "sources": [
+          "CMSIS stm32f030x8.h (DMA1_BASE)",
+          "DS9773 Rev 5, Table 17 (peripheral register boundary addresses)"
+        ],
+        "license": "Apache-2.0 (CMSIS stm32f030x8.h) + vendor-document fact, transcribed with citation",
+        "verified": true
+      },
+      "channels": {
+        "value": 5,
+        "sources": [
+          "RM0360 Rev 5, 10 (one instance of DMA with 5 channels)"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      "clockEnable": {
+        "register": "RCC_AHBENR",
+        "bit": 0,
+        "sources": [
+          "CMSIS stm32f030x8.h (RCC_AHBENR_DMAEN_Pos)"
+        ],
+        "license": "Apache-2.0 (stm32f030x8.h, STM32Cube_FW_F0_V1.11.6 per License.md)",
+        "verified": true
+      },
+      "irqs": [
+        {
+          "name": "DMA1_Channel1",
+          "number": 9,
+          "handler": "DMA1_Channel1_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type DMA1_Channel1_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "name": "DMA1_Channel2_3",
+          "number": 10,
+          "handler": "DMA1_Channel2_3_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type DMA1_Channel2_3_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        },
+        {
+          "name": "DMA1_Channel4_5",
+          "number": 11,
+          "handler": "DMA1_Channel4_5_IRQHandler",
+          "sources": [
+            "RM0360 Rev 5, Table 31 (vector table)",
+            "CMSIS stm32f030x8.h (IRQn_Type DMA1_Channel4_5_IRQn)"
+          ],
+          "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+          "verified": true
+        }
+      ]
+    }
+  },
+  "alternateFunctions": {
+    "PA0": [
+      {
+        "signal": "USART2_CTS",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA0"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA1": [
+      {
+        "signal": "EVENTOUT",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA1"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART2_RTS",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA1"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA2": [
+      {
+        "signal": "TIM15_CH1",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA2"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART2_TX",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA2"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA3": [
+      {
+        "signal": "TIM15_CH2",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA3"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART2_RX",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA3"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA4": [
+      {
+        "signal": "SPI1_NSS",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA4"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART2_CK",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA4"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM14_CH1",
+        "af": 3,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA4"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA5": [
+      {
+        "signal": "SPI1_SCK",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA5"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA6": [
+      {
+        "signal": "SPI1_MISO",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM3_CH1",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_BKIN",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM16_CH1",
+        "af": 5,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 6,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA7": [
+      {
+        "signal": "SPI1_MOSI",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM3_CH2",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH1N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM14_CH1",
+        "af": 4,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM17_CH1",
+        "af": 5,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 6,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA8": [
+      {
+        "signal": "MCO",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA8"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART1_CK",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA8"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH1",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA8"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 3,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA8"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA9": [
+      {
+        "signal": "TIM15_BKIN",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART1_TX",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH2",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA10": [
+      {
+        "signal": "TIM17_BKIN",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA10"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART1_RX",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA10"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH3",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA10"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA11": [
+      {
+        "signal": "EVENTOUT",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA11"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART1_CTS",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA11"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH4",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA11"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA12": [
+      {
+        "signal": "EVENTOUT",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA12"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART1_RTS",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA12"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_ETR",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA12"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA13": [
+      {
+        "signal": "SWDIO",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA13"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "IR_OUT",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA13"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA14": [
+      {
+        "signal": "SWCLK",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA14"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART2_TX",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA14"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PA15": [
+      {
+        "signal": "SPI1_NSS",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "USART2_RX",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 3,
+        "sources": [
+          "DS9773 Rev 5, Table 12 (GPIOA_AFR alternate functions), pin PA15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB0": [
+      {
+        "signal": "EVENTOUT",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB0"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM3_CH3",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB0"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH2N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB0"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB1": [
+      {
+        "signal": "TIM14_CH1",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB1"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM3_CH4",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB1"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH3N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB1"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB2": [],
+    "PB3": [
+      {
+        "signal": "SPI1_SCK",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB3"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB3"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB4": [
+      {
+        "signal": "SPI1_MISO",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB4"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM3_CH1",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB4"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB4"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB5": [
+      {
+        "signal": "SPI1_MOSI",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB5"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM3_CH2",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB5"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM16_BKIN",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB5"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "I2C1_SMBA",
+        "af": 3,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB5"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB6": [
+      {
+        "signal": "USART1_TX",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "I2C1_SCL",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM16_CH1N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB6"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB7": [
+      {
+        "signal": "USART1_RX",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "I2C1_SDA",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM17_CH1N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB7"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB8": [
+      {
+        "signal": "I2C1_SCL",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB8"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM16_CH1",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB8"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB9": [
+      {
+        "signal": "IR_OUT",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "I2C1_SDA",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM17_CH1",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 3,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB9"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB10": [
+      {
+        "signal": "I2C2_SCL",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB10"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB11": [
+      {
+        "signal": "EVENTOUT",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB11"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "I2C2_SDA",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB11"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB12": [
+      {
+        "signal": "SPI2_NSS",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB12"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "EVENTOUT",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB12"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_BKIN",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB12"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB13": [
+      {
+        "signal": "SPI2_SCK",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB13"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH1N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB13"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB14": [
+      {
+        "signal": "SPI2_MISO",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB14"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM15_CH1",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB14"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH2N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB14"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ],
+    "PB15": [
+      {
+        "signal": "SPI2_MOSI",
+        "af": 0,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM15_CH2",
+        "af": 1,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM1_CH3N",
+        "af": 2,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      },
+      {
+        "signal": "TIM15_CH1N",
+        "af": 3,
+        "sources": [
+          "DS9773 Rev 5, Table 13 (GPIOB_AFR alternate functions), pin PB15"
+        ],
+        "license": "Vendor-document fact, transcribed with citation (no vendor content redistributed)",
+        "verified": true
+      }
+    ]
+  }
+}
