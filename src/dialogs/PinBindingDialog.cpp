@@ -637,6 +637,20 @@ void PinBindingDialog::refreshTable() {
 
         for (UIComponent* comp : candidateComps) {
             if (!comp) continue;
+            // H1b compatibility: only offer components whose needs match the pin.
+            const QString ctype = comp->componentType().toLower();
+            bool compatible = true;
+            if (ctype.contains("switch") || ctype.contains("button")) {
+                compatible = prof.supportedModes.contains(PinMode::DigitalOut) || prof.supportedModes.contains(PinMode::OpenDrainOut);
+            } else if (ctype.contains("indicator") || ctype.contains("led")) {
+                compatible = prof.supportedModes.contains(PinMode::DigitalIn) || prof.supportedModes.contains(PinMode::DigitalOut);
+            } else if (ctype.contains("gauge") || ctype.contains("progress") || ctype.contains("label")) {
+                compatible = prof.supportedModes.contains(PinMode::AnalogIn) || prof.supportedModes.contains(PinMode::DigitalIn);
+            } else if (ctype.contains("slider")) {
+                compatible = prof.supportedModes.contains(PinMode::PwmOutput);
+            }
+            if (!compatible) continue;
+
             const QString compText = QString("%1 (%2)").arg(comp->componentId(), comp->componentType());
             compCombo->addItem(compText, comp->componentId());
             if (!boundCompId.isEmpty() && comp->componentId() == boundCompId) {
