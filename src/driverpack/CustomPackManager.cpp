@@ -66,6 +66,14 @@ bool CustomPackManager::installPack(const CustomPackDef& pack, CapabilityDatabas
         return false;
     }
 
+    // Reject packs whose device name or part number collides with a built-in device.
+    if (capDb) {
+        if (capDb->deviceExists(pack.name) || capDb->deviceExists(pack.partNumber)) {
+            if (error) *error = QString("Pack device name/part number collides with a built-in device: %1").arg(pack.name);
+            return false;
+        }
+    }
+
     QDir dir(m_customPacksDir);
     if (!dir.exists()) {
         dir.mkpath(".");
@@ -89,7 +97,12 @@ bool CustomPackManager::installPack(const CustomPackDef& pack, CapabilityDatabas
     // Register into CapabilityDatabase
     DeviceProfile prof = createDeviceProfile(pack);
     if (capDb) {
-        capDb->addDeviceProfile(prof);
+        if (!capDb->addDeviceProfile(prof)) {
+            QFile::remove(filePath);
+            m_packs.remove(pack.name);
+            if (error) *error = QString("Failed to register device profile (built-in collision?): %1").arg(pack.name);
+            return false;
+        }
     }
 
     // Register into DriverPackRegistry
@@ -102,20 +115,40 @@ bool CustomPackManager::installPack(const CustomPackDef& pack, CapabilityDatabas
 bool CustomPackManager::uninstallPack(const QString& deviceName, CapabilityDatabase* capDb) {
     if (!m_packs.contains(deviceName)) return false;
 
-    QDir dir(m_customPacksDir);
-    const QString filePath = dir.filePath(deviceName + ".json");
-    if (QFile::exists(filePath)) {
-        QFile::remove(filePath);
+    // Build the target path inside the custom_packs directory and verify
+    // (including symlink resolution) that it cannot escape that directory.
+    QDir baseDir(m_customPacksDir);
+    baseDir.mkpath(".");
+    const QString baseCanonical = baseDir.canonicalPath();
+    const QString targetPath = baseDir.filePath(deviceName + ".json");
+    const QString targetCanonical = QFileInfo(targetPath).canonicalFilePath();
+    if (targetCanonical.isEmpty() || !targetCanonical.startsWith(baseCanonical + "/")) {
+        qWarning() << "Refusing to uninstall: resolved path escapes custom_packs directory:" << targetPath;
+        return false;
+    }
+
+    if (QFile::exists(targetPath)) {
+        QFile::remove(targetPath);
     }
 
     m_packs.remove(deviceName);
-    Q_UNUSED(capDb);
+    DriverPackRegistry::instance().unregisterPack("custom:" + deviceName.toStdString());
+
+    if (capDb) {
+        capDb->removeDeviceProfile(deviceName);
+    }
 
     emit packUninstalled(deviceName);
     return true;
 }
 
 void CustomPackManager::loadInstalledPacks(CapabilityDatabase* capDb) {
+    // Unregister any previously loaded custom packs so reload never leaves
+    // duplicate entries in the registry.
+    for (const QString& name : m_packs.keys()) {
+        DriverPackRegistry::instance().unregisterPack("custom:" + name.toStdString());
+    }
+
     m_packs.clear();
     QDir dir(m_customPacksDir);
     if (!dir.exists()) return;
