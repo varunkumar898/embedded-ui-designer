@@ -78,3 +78,10 @@ node_modules/
 report.txt
 *.elf
 *.bin
+
+# Test-generated screenshots (do not commit)
+screenshots/verify_*.png
+screenshots/task*.png
+
+# Test capture output
+tests/output/
