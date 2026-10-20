@@ -1,5 +1,6 @@
 #include "SerialDeviceLink.h"
-#include <QSerialPortInfo>
+#include "agent/dl_codec.h"
+#include <QtSerialPort/QSerialPortInfo>
 #include <QDebug>
 
 namespace Hardware {
@@ -92,6 +93,50 @@ void SerialDeviceLink::onTimeout() {
         emit stateChanged(m_state, m_reason);
         emit errorOccurred(m_reason);
     }
+}
+
+
+QByteArray SerialDeviceLink::buildHelloFrame() {
+    dl_frame_t f; memset(&f, 0, sizeof(f));
+    f.version = 1; f.type = 0x01; f.req_id = 1; f.length = 0;
+    uint8_t buf[DL_MAX_FRAME];
+    size_t n = dl_encode(&f, buf, sizeof(buf));
+    return QByteArray((const char*)buf, (int)n);
+}
+
+DeviceIdentity SerialDeviceLink::parseIdentify(const QByteArray& response,
+                                              quint32 expectedTableHash,
+                                              uint8_t expectedProtoVersion,
+                                              QString* reason) {
+    dl_frame_t frame; memset(&frame, 0, sizeof(frame));
+    if (dl_decode((const uint8_t*)response.constData(), response.size(), &frame) != 0) {
+        if (reason) *reason = "malformed IDENTIFY frame";
+        return DeviceIdentity();
+    }
+    if (frame.type != 0x02) {
+        if (reason) *reason = "not an IDENTIFY response";
+        return DeviceIdentity();
+    }
+    if (frame.version != expectedProtoVersion) {
+        if (reason) *reason = QString("protocol version mismatch (got %1, expected %2)").arg(frame.version).arg(expectedProtoVersion);
+        return DeviceIdentity();
+    }
+    char chipBuf[17]; memset(chipBuf, 0, sizeof(chipBuf));
+    memcpy(chipBuf, frame.payload, 16);
+    QString chipId = QString::fromUtf8(chipBuf).trimmed();
+    quint32 tableHash = ((quint32)frame.payload[20] << 24) | ((quint32)frame.payload[21] << 16) |
+                       ((quint32)frame.payload[22] << 8) | (quint32)frame.payload[23];
+    if (tableHash != expectedTableHash && expectedTableHash != 0) {
+        if (reason) *reason = QString("signal-table hash mismatch (got 0x%1, expected 0x%2)").arg(tableHash, 8, 16, QChar('0')).arg(expectedTableHash, 8, 16, QChar('0'));
+        return DeviceIdentity();
+    }
+    DeviceIdentity id;
+    id.chipId = chipId;
+    id.family = chipId;
+    id.protocolVersion = QString::number(frame.version);
+    id.signalTableHash = tableHash;
+    if (reason) reason->clear();
+    return id;
 }
 
 } // namespace Hardware

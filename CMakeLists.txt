@@ -1735,13 +1735,15 @@ add_executable(test_device_link
     src/hardware/MockDeviceLink.cpp
     src/hardware/MockDeviceLink.h
     src/hardware/DeviceLink.h
+    src/hardware/SerialDeviceLink.cpp
+    src/hardware/SerialDeviceLink.h
     src/agent/MockAgent.cpp
     src/agent/MockAgent.h
     src/agent/dl_codec.c
     src/agent/dl_codec.h
 )
 target_include_directories(test_device_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(test_device_link PRIVATE Qt6::Core Qt6::Test)
+target_link_libraries(test_device_link PRIVATE Qt6::Core Qt6::Test Qt6::SerialPort)
 set_target_properties(test_device_link PROPERTIES WIN32_EXECUTABLE FALSE)
 eud_add_test(NAME DeviceLinkMockTests COMMAND test_device_link)
 
@@ -1753,6 +1755,16 @@ add_executable(test_dl_codec
 target_include_directories(test_dl_codec PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/agent ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(test_dl_codec PROPERTIES WIN32_EXECUTABLE FALSE)
 eud_add_test(NAME DeviceLinkCodecTests COMMAND test_dl_codec)
+
+# Codec standalone compile check with arm-none-eabi-gcc (if available)
+find_program(ARM_GCC arm-none-eabi-gcc)
+if(ARM_GCC)
+    add_test(NAME CodecArmGccCheck
+             COMMAND ${ARM_GCC} -std=c99 -Wall -Wextra -Werror -ffreestanding -c
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/agent/dl_codec.c
+                     -I ${CMAKE_CURRENT_SOURCE_DIR}/src/agent
+                     -o /tmp/codec_arm.o)
+endif()
 
 eud_add_test(NAME CustomPacksAcceptanceTests COMMAND test_custom_packs)
 

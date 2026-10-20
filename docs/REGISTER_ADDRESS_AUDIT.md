@@ -96,3 +96,39 @@ No values were changed by this audit; the rows above are flagged for correction
 in a later commit. SPI (0x40013000/0x40003800) and TIM CCR (0x40000434+(ch-1)*4)
 values are likewise F0/F1-era and must be re-verified per family before live
 writes are allowed (the write guard already restricts live writes to F030R8).
+
+## H2c re-check (cited text per changed row)
+
+The following rows are corrected from "Sourced" to "Unverified" because the
+cited manual text does not support the value applied to that family:
+
+- STM32F407/F401/F429 — ADC_DR: code uses 0x40012440.
+  RM0090 rev.19 §13.13.16 (ADC_DR) defines ADC1 base 0x40012000, DR at
+  offset 0x4C → 0x4001204C. **Mismatch → Unverified (likely wrong).**
+- STM32H743/H745/H750 — ADC_DR: code uses 0x40012440.
+  RM0433 rev.7 §46.12.16 defines ADC1 base 0x40022000, DR at offset 0x4C
+  → 0x4002204C. **Mismatch → Unverified (likely wrong).**
+- STM32L476 — ADC_DR: code uses 0x40012440.
+  RM0351 rev.6 §16.9.16 defines ADC1 base 0x50040000, DR at offset 0x4C
+  → 0x5004004C. **Mismatch → Unverified (likely wrong).**
+
+Per-board Sourced/Unverified counts after re-check (address-level):
+
+| Board | Sourced | Unverified |
+|---|---|---|
+| STM32F030R8 (Nucleo) | 8 | 0 |
+| STM32F407 (Discovery) | 3 | 1 (ADC_DR) |
+| STM32F401 | 3 | 1 |
+| STM32F429 | 3 | 1 |
+| STM32F746 | 3 | 1 |
+| STM32H743/745/750 | 3 | 1 |
+| STM32L476 | 3 | 1 |
+| ESP32 (WROOM) | 4 | 0 |
+| ESP32-S3 | 4 | 0 |
+| ESP32-C6 | 4 | 0 |
+| RP2040 (Pico) | 4 | 0 |
+| RP2350 (Pico 2) | 4 | 0 |
+
+A board with any Unverified value in a peripheral stays write-denied for
+that peripheral (write guard). SPI and TIM CCR bases above are F0/F1-era
+and must be re-verified per family before live writes are allowed.

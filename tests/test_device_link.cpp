@@ -2,7 +2,10 @@
 #include <QSignalSpy>
 #include "hardware/DeviceLink.h"
 #include "hardware/MockDeviceLink.h"
+#include "hardware/SerialDeviceLink.h"
 #include "agent/MockAgent.h"
+#include "agent/dl_codec.h"
+#include <cstring>
 
 using namespace Hardware;
 
@@ -125,6 +128,75 @@ private slots:
         }
         QVERIFY(got == 1);
         QCOMPARE(parsed.type, (uint8_t)0x13); // PING echo
+    }
+
+    void testSerialHandshakeSuccess() {
+        MockAgent agent;
+        agent.setChipId("STM32F030R8");
+        agent.setSignalTableHash(0xABCDEF01);
+        agent.setProtocolVersion(1);
+
+        QByteArray hello = SerialDeviceLink::buildHelloFrame();
+        QVERIFY(!hello.isEmpty());
+        QByteArray resp = agent.handleBytes(hello);
+        QVERIFY(!resp.isEmpty());
+
+        QString reason;
+        DeviceIdentity id = SerialDeviceLink::parseIdentify(resp, 0xABCDEF01, 1, &reason);
+        QVERIFY(id.chipId == "STM32F030R8");
+        QVERIFY(reason.isEmpty());
+    }
+
+    void testSerialHandshakeWrongChip() {
+        MockAgent agent;
+        agent.setChipId("ESP32");
+        agent.setSignalTableHash(0xABCDEF01);
+        agent.setProtocolVersion(1);
+
+        QByteArray hello = SerialDeviceLink::buildHelloFrame();
+        QByteArray resp = agent.handleBytes(hello);
+        QString reason;
+        DeviceIdentity id = SerialDeviceLink::parseIdentify(resp, 0xABCDEF01, 1, &reason);
+        // chip id differs from expected (caller compares); parseIdentify itself
+        // succeeds at protocol level. The Mismatch is determined by the caller
+        // comparing id.chipId to the selected board. Here we just ensure parse works.
+        QVERIFY(!id.chipId.isEmpty());
+    }
+
+    void testSerialHandshakeWrongTableHash() {
+        MockAgent agent;
+        agent.setChipId("STM32F030R8");
+        agent.setSignalTableHash(0x11111111);
+        agent.setProtocolVersion(1);
+
+        QByteArray hello = SerialDeviceLink::buildHelloFrame();
+        QByteArray resp = agent.handleBytes(hello);
+        QString reason;
+        DeviceIdentity id = SerialDeviceLink::parseIdentify(resp, 0xABCDEF01, 1, &reason);
+        QVERIFY(id.chipId.isEmpty());
+        QVERIFY(reason.contains("hash mismatch"));
+    }
+
+    void testSerialHandshakeWrongProtoVersion() {
+        MockAgent agent;
+        agent.setChipId("STM32F030R8");
+        agent.setSignalTableHash(0xABCDEF01);
+        agent.setProtocolVersion(2);
+
+        QByteArray hello = SerialDeviceLink::buildHelloFrame();
+        QByteArray resp = agent.handleBytes(hello);
+        QString reason;
+        DeviceIdentity id = SerialDeviceLink::parseIdentify(resp, 0xABCDEF01, 1, &reason);
+        QVERIFY(id.chipId.isEmpty());
+        QVERIFY(reason.contains("protocol version mismatch"));
+    }
+
+    void testSerialHandshakeGarbage() {
+        QByteArray garbage("not a frame at all \x00\x01\x02", 24);
+        QString reason;
+        DeviceIdentity id = SerialDeviceLink::parseIdentify(garbage, 0xABCDEF01, 1, &reason);
+        QVERIFY(id.chipId.isEmpty());
+        QVERIFY(!reason.isEmpty());
     }
 
 QTEST_MAIN(TestDeviceLink)

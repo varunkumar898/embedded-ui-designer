@@ -79,3 +79,13 @@ byte and re-scans. Buffers are bounded (266 bytes); no unbounded allocation.
   has no auth (physical access assumed).
 - The agent only exposes signals present in its signal table; any other
   signal id returns UNKNOWN_SIGNAL.
+## Larger transfers (chunking)
+
+I2C and SPI payloads may exceed the 256-byte frame limit. The host splits
+them into chunks of at most 256 bytes; each chunk is a separate I2C_XFER /
+SPI_XFER request with a `flags` bit (`0x01` = first chunk, `0x02` = last
+chunk, `0x04` = more data follows). The agent reassembles chunks by
+request id and acknowledges each. A chunk with `len == 0` is invalid and
+returns ERROR_BAD_FRAME. Total transfer size is bounded by the agent's
+buffer (max 4096 bytes); larger transfers return ERROR_TOO_LARGE. CAN frames
+are fixed at up to 8 bytes (CAN 2.0) and are never chunked.

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "DeviceLink.h"
-#include <QSerialPort>
+#include <QtSerialPort/QSerialPort>
 #include <QTimer>
 
 namespace Hardware {
@@ -11,6 +11,13 @@ class SerialDeviceLink : public DeviceLink {
 public:
     explicit SerialDeviceLink(const QString& portName, QObject* parent = nullptr);
     ~SerialDeviceLink() override;
+
+    // Pure helpers (testable without hardware).
+    static QByteArray buildHelloFrame();
+    static DeviceIdentity parseIdentify(const QByteArray& response,
+                                       quint32 expectedTableHash,
+                                       uint8_t expectedProtoVersion,
+                                       QString* reason);
 
     void connectDevice() override;
     void disconnectDevice() override;
