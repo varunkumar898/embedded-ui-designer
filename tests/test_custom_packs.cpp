@@ -53,6 +53,18 @@ private slots:
     // 7. Unsupported device export behavior
     void testExportUnsupportedDeviceUnchanged();
 
+    // Part 1 housekeeping (2026-10-19)
+    void testPackNameSanitization();
+    void testCompilationReadyRequiresCompileCheck();
+    void testUninstallRemovesPackAndUnregisters();
+    void testReloadDoesNotRegisterDuplicates();
+
+    // Part 1 corrections (2026-10-19)
+    void testMaliciousToolchainRejected();
+    void testRegistryCustomPackCannotReplaceBuiltIn();
+    void testDeviceNameCollisionRejected();
+    void testUninstallSymlinkEscape();
+
 private:
     QTemporaryDir m_tempDir;
 };
@@ -423,6 +435,279 @@ void TestCustomPacks::testExportUnsupportedDeviceUnchanged() {
     // Native HAL is omitted and warned
     QVERIFY(!QFile::exists(outDir + "/generated/target/target_hal.c"));
     QVERIFY(!res.warnings.isEmpty());
+}
+
+/* Part 1 tests (2026-10-19) */
+
+void TestCustomPacks::testPackNameSanitization() {
+    const QStringList bad = {
+        "..", "a/b", "a\\b", "C:\\x", "CON", "com1", "LPT9", "NUL",
+        "AUX", ".hidden", "trailing ", "overlong-" + QString(60, 'x'),
+        "name..", QString(QChar(0x01)) + "bad"
+    };
+    for (const QString& n : bad) {
+        CustomPackDef pack;
+        pack.name = n;
+        pack.vendor = "V";
+        pack.partNumber = "P";
+        pack.family = "F";
+        pack.core = "C";
+        CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+        pack.memoryRegions.append(m);
+        pack.provenance.importerVersion = "1.0.0";
+        pack.provenance.generatedBy = "importer";
+        pack.provenance.verified = false;
+        QVERIFY2(!pack.isValid(), qPrintable(n + " should be invalid"));
+    }
+    const QStringList good = {"STM32G071RB", "My Board v2", "esp32-c3", "NUCLEO_F030", "board-1"};
+    for (const QString& n : good) {
+        CustomPackDef pack;
+        pack.name = n;
+        pack.vendor = "V";
+        pack.partNumber = "P";
+        pack.family = "F";
+        pack.core = "C";
+        CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+        pack.memoryRegions.append(m);
+        pack.provenance.importerVersion = "1.0.0";
+        pack.provenance.generatedBy = "importer";
+        pack.provenance.verified = false;
+        QVERIFY2(pack.isValid(), qPrintable(n + " should be valid"));
+    }
+
+    QString testPacksDir = m_tempDir.filePath("sanitize_install");
+    CustomPackManager::instance().setCustomPacksDirectory(testPacksDir);
+    CustomPackDef badPack;
+    badPack.name = "a/b";
+    badPack.vendor = "V";
+    badPack.partNumber = "P";
+    badPack.family = "F";
+    badPack.core = "C";
+    CustomMemoryRegion mm; mm.name="M"; mm.type="flash"; mm.startAddress="0x08000000"; mm.sizeKb=1;
+    badPack.memoryRegions.append(mm);
+    badPack.provenance.importerVersion = "1.0.0";
+    badPack.provenance.generatedBy = "importer";
+    badPack.provenance.verified = false;
+    QString err;
+    bool ok = CustomPackManager::instance().installPack(badPack, nullptr, &err);
+    QVERIFY(!ok);
+    QVERIFY(!err.isEmpty());
+    QVERIFY(!QFile::exists(QDir(testPacksDir).filePath("a/b.json")));
+}
+
+void TestCustomPacks::testCompilationReadyRequiresCompileCheck() {
+    CustomPackDef pack;
+    pack.name = "CompileCheckPack";
+    pack.vendor = "V";
+    pack.partNumber = "P";
+    pack.family = "F";
+    pack.core = "C";
+    pack.toolchain = "definitely-not-a-toolchain-xyz42";
+    CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+    pack.memoryRegions.append(m);
+    pack.provenance.importerVersion = "1.0.0";
+    pack.provenance.generatedBy = "importer";
+    pack.provenance.verified = false;
+
+    CustomPeripheralDef gpioa; gpioa.name="GPIOA"; gpioa.baseAddress="0x50000000"; gpioa.type="GPIO";
+    CustomRegisterDef moder; moder.name="MODER"; moder.offset="0x00";
+    gpioa.registers.append(moder);
+    pack.peripherals.append(gpioa);
+    CustomPinDef pin; pin.pin="PA5"; pin.function="GPIO_Output"; pin.peripheral="GPIOA";
+    pack.pinTable.append(pin);
+
+    CustomDriverPack driver(pack);
+    GeneratedProject proj = driver.generateProjectTree(driver.supportedDevices().front(), {}, "Export");
+    QVERIFY(!proj.compilationReady);
+
+    QString note;
+    QVERIFY(!driver.runCompileCheck(proj, &note));
+    QVERIFY(!proj.compilationReady);
+    QVERIFY(note.contains("not allowlisted") || note.contains("not found") || note.contains("not run"));
+
+    if (!QStandardPaths::findExecutable("arm-none-eabi-gcc").isEmpty()) {
+        pack.toolchain = "arm-none-eabi-gcc";
+        CustomDriverPack driver2(pack);
+        GeneratedProject proj2 = driver2.generateProjectTree(driver2.supportedDevices().front(), {}, "Export");
+        QVERIFY(!proj2.compilationReady);
+        QVERIFY(driver2.runCompileCheck(proj2));
+        QVERIFY(proj2.compilationReady);
+    }
+}
+
+void TestCustomPacks::testUninstallRemovesPackAndUnregisters() {
+    QString testPacksDir = m_tempDir.filePath("uninstall_packs");
+    CustomPackManager::instance().setCustomPacksDirectory(testPacksDir);
+
+    CustomPackDef pack;
+    pack.name = "UninstallPack";
+    pack.vendor = "V";
+    pack.partNumber = "P";
+    pack.family = "F";
+    pack.core = "C";
+    CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+    pack.memoryRegions.append(m);
+    pack.provenance.importerVersion = "1.0.0";
+    pack.provenance.generatedBy = "importer";
+    pack.provenance.verified = false;
+
+    CapabilityDatabase capDb;
+    QString err;
+    QVERIFY(CustomPackManager::instance().installPack(pack, &capDb, &err));
+    QVERIFY(QFile::exists(QDir(testPacksDir).filePath("UninstallPack.json")));
+    QVERIFY(DriverPackRegistry::instance().findPackForDevice("UninstallPack") != nullptr);
+    QVERIFY(capDb.deviceExists("UninstallPack"));
+
+    QVERIFY(CustomPackManager::instance().uninstallPack("UninstallPack", &capDb));
+    QVERIFY(!QFile::exists(QDir(testPacksDir).filePath("UninstallPack.json")));
+    QVERIFY(!CustomPackManager::instance().isCustomDevice("UninstallPack"));
+    QVERIFY(DriverPackRegistry::instance().findPackForDevice("UninstallPack") == nullptr);
+    QVERIFY(!capDb.deviceExists("UninstallPack"));
+
+    QVERIFY(!CustomPackManager::instance().uninstallPack("UninstallPack", &capDb));
+}
+
+void TestCustomPacks::testReloadDoesNotRegisterDuplicates() {
+    QString testPacksDir = m_tempDir.filePath("reload_packs");
+    CustomPackManager::instance().setCustomPacksDirectory(testPacksDir);
+    QDir().mkpath(testPacksDir);
+    CustomPackManager::instance().loadInstalledPacks(nullptr);
+
+    for (const QString& name : {"ReloadA", "ReloadB"}) {
+        CustomPackDef pack;
+        pack.name = name;
+        pack.vendor = "V";
+        pack.partNumber = "P";
+        pack.family = "F";
+        pack.core = "C";
+        CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+        pack.memoryRegions.append(m);
+        pack.provenance.importerVersion = "1.0.0";
+        pack.provenance.generatedBy = "importer";
+        pack.provenance.verified = false;
+        CapabilityDatabase capDb;
+        QString err;
+        QVERIFY(CustomPackManager::instance().installPack(pack, &capDb, &err));
+    }
+
+    auto countCustom = [&]() {
+        int n = 0;
+        for (const std::string& id : DriverPackRegistry::instance().getAllFamilyIds())
+            if (id.rfind("custom:", 0) == 0) ++n;
+        return n;
+    };
+    QCOMPARE(countCustom(), 2);
+
+    CustomPackManager::instance().loadInstalledPacks(nullptr);
+    QCOMPARE(countCustom(), 2);
+    CustomPackManager::instance().loadInstalledPacks(nullptr);
+    QCOMPARE(countCustom(), 2);
+    QVERIFY(DriverPackRegistry::instance().findPackForDevice("ReloadA") != nullptr);
+    QVERIFY(DriverPackRegistry::instance().findPackForDevice("ReloadB") != nullptr);
+}
+
+void TestCustomPacks::testMaliciousToolchainRejected() {
+    CustomPackDef pack;
+    pack.name = "MaliciousToolchainPack";
+    pack.vendor = "V";
+    pack.partNumber = "P";
+    pack.family = "F";
+    pack.core = "C";
+    pack.toolchain = "rm -rf /";
+    CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+    pack.memoryRegions.append(m);
+    pack.provenance.importerVersion = "1.0.0";
+    pack.provenance.generatedBy = "importer";
+    pack.provenance.verified = false;
+
+    CustomPeripheralDef gpioa; gpioa.name="GPIOA"; gpioa.baseAddress="0x50000000"; gpioa.type="GPIO";
+    CustomRegisterDef moder; moder.name="MODER"; moder.offset="0x00";
+    gpioa.registers.append(moder);
+    pack.peripherals.append(gpioa);
+    CustomPinDef pin; pin.pin="PA5"; pin.function="GPIO_Output"; pin.peripheral="GPIOA";
+    pack.pinTable.append(pin);
+
+    CustomDriverPack driver(pack);
+    GeneratedProject proj = driver.generateProjectTree(driver.supportedDevices().front(), {}, "Export");
+    QVERIFY(!proj.compilationReady);
+
+    QString note;
+    QVERIFY(!driver.runCompileCheck(proj, &note));
+    QVERIFY(!proj.compilationReady);
+    QVERIFY(note.contains("not allowlisted") || note.contains("not found") || note.contains("not run"));
+}
+
+void TestCustomPacks::testRegistryCustomPackCannotReplaceBuiltIn() {
+    struct FakeBuiltInPack : public IMcuDriverPack {
+        std::string familyId() const override { return "STM32"; }
+        std::string familyName() const override { return "Fake"; }
+        std::string vendor() const override { return "Fake"; }
+        std::vector<McuDeviceSpec> supportedDevices() const override { return {}; }
+        const McuDeviceSpec* findDevice(const std::string&) const override { return nullptr; }
+        bool validateHardwareRequirements(const McuDeviceSpec&, const std::set<std::string>&, std::string&) const override { return true; }
+        GeneratedProject generateProjectTree(const McuDeviceSpec&, const std::set<std::string>&, const std::string&) const override { return {}; }
+    };
+    IMcuDriverPack* before = DriverPackRegistry::instance().findPackByFamily("STM32");
+    QVERIFY(before != nullptr);
+    DriverPackRegistry::instance().registerPack(std::make_shared<FakeBuiltInPack>());
+    IMcuDriverPack* after = DriverPackRegistry::instance().findPackByFamily("STM32");
+    QVERIFY(after == before);
+}
+
+void TestCustomPacks::testDeviceNameCollisionRejected() {
+    CapabilityDatabase capDb;
+    capDb.loadBuiltinDatabase();
+    DeviceProfile prof;
+    prof.name = "STM32F030R8";
+    prof.family = "STM32F0";
+    QVERIFY(!capDb.addDeviceProfile(prof));
+    capDb.removeDeviceProfile("STM32F030R8");
+    QVERIFY(capDb.deviceExists("STM32F030R8"));
+
+    QString testPacksDir = m_tempDir.filePath("collision_packs");
+    CustomPackManager::instance().setCustomPacksDirectory(testPacksDir);
+    CustomPackDef pack;
+    pack.name = "STM32F030R8";
+    pack.vendor = "V";
+    pack.partNumber = "STM32F030R8T6";
+    pack.family = "STM32F0";
+    pack.core = "Cortex-M0";
+    CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+    pack.memoryRegions.append(m);
+    pack.provenance.importerVersion = "1.0.0";
+    pack.provenance.generatedBy = "importer";
+    pack.provenance.verified = false;
+    QString err;
+    QVERIFY(!CustomPackManager::instance().installPack(pack, &capDb, &err));
+    QVERIFY(!err.isEmpty());
+}
+
+void TestCustomPacks::testUninstallSymlinkEscape() {
+    QString testPacksDir = m_tempDir.filePath("symlink_escape");
+    CustomPackManager::instance().setCustomPacksDirectory(testPacksDir);
+    QDir().mkpath(testPacksDir);
+
+    CustomPackDef pack;
+    pack.name = "EscapePack";
+    pack.vendor = "V";
+    pack.partNumber = "P";
+    pack.family = "F";
+    pack.core = "C";
+    CustomMemoryRegion m; m.name="M"; m.type="flash"; m.startAddress="0x08000000"; m.sizeKb=1;
+    pack.memoryRegions.append(m);
+    pack.provenance.importerVersion = "1.0.0";
+    pack.provenance.generatedBy = "importer";
+    pack.provenance.verified = false;
+    CapabilityDatabase capDb;
+    QString err;
+    QVERIFY(CustomPackManager::instance().installPack(pack, &capDb, &err));
+
+    QString outside = m_tempDir.filePath("outside.txt");
+    QFile of(outside); QVERIFY(of.open(QIODevice::WriteOnly)); of.write("x"); of.close();
+    QString linkPath = QDir(testPacksDir).filePath("EscapePack.json");
+    QFile::remove(linkPath);
+    QVERIFY(QFile::link(outside, linkPath));
+    QVERIFY(!CustomPackManager::instance().uninstallPack("EscapePack", &capDb));
 }
 
 QTEST_MAIN(TestCustomPacks)

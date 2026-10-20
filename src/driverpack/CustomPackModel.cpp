@@ -9,12 +9,40 @@ bool CustomPackValidator::isValidHexAddress(const QString& hex) {
     return hexRegex.match(hex.trimmed()).hasMatch();
 }
 
+bool CustomPackValidator::isValidPackName(const QString& name, QString* reason) {
+    auto fail = [reason](const char* msg) -> bool { if (reason) *reason = QString::fromLatin1(msg); return false; };
+    if (name.trimmed().isEmpty()) return fail("name is empty");
+    if (name.length() > 64) return fail("name is longer than 64 characters");
+    if (name.startsWith('/')) return fail("absolute paths are not allowed");
+    if (name.startsWith('\\')) return fail("absolute paths are not allowed");
+    if (name.contains('/') || name.contains('\\')) return fail("path separators are not allowed");
+    if (name.contains("..")) return fail("'..' sequences are not allowed");
+    if (name.startsWith('.')) return fail("leading dot is not allowed");
+    if (name.endsWith('.') || name.endsWith(' ')) return fail("trailing dot or space is not allowed");
+    for (const QChar& c : name) {
+        if (c.unicode() < 0x20) return fail("control characters are not allowed");
+    }
+    static const QSet<QString> reserved = {
+        ".", "..",
+        "CON", "PRN", "AUX", "NUL",
+        "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+        "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
+    };
+    if (reserved.contains(name.toUpper())) return fail("name is reserved");
+    return true;
+}
+
 bool CustomPackValidator::validateJson(const QJsonObject& json, QStringList& errors) {
     if (!json.contains("device_identity") || !json["device_identity"].isObject()) {
         errors.append("Missing required object 'device_identity'");
     } else {
         QJsonObject id = json["device_identity"].toObject();
         if (id.value("name").toString().trimmed().isEmpty()) errors.append("device_identity.name cannot be empty");
+        else {
+            QString reason;
+            if (!CustomPackValidator::isValidPackName(id.value("name").toString(), &reason))
+                errors.append("device_identity.name '" + id.value("name").toString() + "' is not usable as a pack filename: " + reason);
+        }
         if (id.value("vendor").toString().trimmed().isEmpty()) errors.append("device_identity.vendor cannot be empty");
         if (id.value("part_number").toString().trimmed().isEmpty()) errors.append("device_identity.part_number cannot be empty");
     }

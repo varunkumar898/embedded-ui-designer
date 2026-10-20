@@ -95,6 +95,9 @@ public:
     static bool validateJson(const QJsonObject& json, QStringList& errors);
     static bool validatePack(const CustomPackDef& pack, QStringList& errors);
     static bool isValidHexAddress(const QString& hex);
+    // Name must be safe to use directly as a filename (no separators, no
+    // traversal, no reserved names, no overlong names).
+    static bool isValidPackName(const QString& name, QString* reason = nullptr);
 };
 
 } // namespace driverpack
