@@ -437,6 +437,9 @@ set(COMMON_SOURCES
     src/hardware/FlashController.h
     src/hardware/OpenOcdManager.cpp
     src/hardware/OpenOcdManager.h
+    src/hardware/DeviceLink.h
+    src/hardware/MockDeviceLink.cpp
+    src/hardware/MockDeviceLink.h
     src/hardware/OpenOCDManager.cpp
     src/hardware/OpenOCDManager.h
     src/hardware/OpenOCDWorker.cpp
@@ -1717,6 +1720,18 @@ if(Qt6SerialPort_FOUND)
 endif()
 
 set_target_properties(test_custom_packs PROPERTIES WIN32_EXECUTABLE FALSE)
+# Device Link mock transport tests (H2)
+add_executable(test_device_link
+    tests/test_device_link.cpp
+    src/hardware/MockDeviceLink.cpp
+    src/hardware/MockDeviceLink.h
+    src/hardware/DeviceLink.h
+)
+target_include_directories(test_device_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_device_link PRIVATE Qt6::Core Qt6::Test)
+set_target_properties(test_device_link PROPERTIES WIN32_EXECUTABLE FALSE)
+eud_add_test(NAME DeviceLinkMockTests COMMAND test_device_link)
+
 eud_add_test(NAME CustomPacksAcceptanceTests COMMAND test_custom_packs)
 
 # Task 2 Resource Analyzer + Live Test Integration Acceptance Tests
