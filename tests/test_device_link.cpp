@@ -2,6 +2,7 @@
 #include <QSignalSpy>
 #include "hardware/DeviceLink.h"
 #include "hardware/MockDeviceLink.h"
+#include "agent/MockAgent.h"
 
 using namespace Hardware;
 
@@ -81,6 +82,50 @@ private slots:
         QVERIFY(link.ping());
     }
 };
+
+    void testMockAgentHelloIdentify() {
+        MockAgent agent;
+        agent.setChipId("Simulated device");
+        agent.setSignalTableHash(0x12345678);
+        agent.setProtocolVersion(1);
+
+        // Build HELLO frame
+        dl_frame_t hello; memset(&hello, 0, sizeof(hello));
+        hello.version = 1; hello.type = 0x01; hello.req_id = 0x0001; hello.length = 0;
+        uint8_t buf[DL_MAX_FRAME];
+        size_t n = dl_encode(&hello, buf, sizeof(buf));
+        QVERIFY(n > 0);
+
+        QByteArray resp = agent.handleBytes(QByteArray((const char*)buf, (int)n));
+        QVERIFY(!resp.isEmpty());
+
+        dl_parser_t p; dl_parser_init(&p);
+        dl_frame_t parsed; memset(&parsed, 0, sizeof(parsed));
+        int got = 0;
+        for (int i = 0; i < resp.size(); i++) {
+            if (dl_parser_feed(&p, (uint8_t)resp[i], &parsed)) { got = 1; break; }
+        }
+        QVERIFY(got == 1);
+        QCOMPARE(parsed.type, (uint8_t)0x02); // IDENTIFY
+    }
+
+    void testMockAgentPing() {
+        MockAgent agent;
+        dl_frame_t ping; memset(&ping, 0, sizeof(ping));
+        ping.version = 1; ping.type = 0x13; ping.req_id = 0x0002; ping.length = 0;
+        uint8_t buf[DL_MAX_FRAME];
+        size_t n = dl_encode(&ping, buf, sizeof(buf));
+        QByteArray resp = agent.handleBytes(QByteArray((const char*)buf, (int)n));
+        QVERIFY(!resp.isEmpty());
+        dl_parser_t p; dl_parser_init(&p);
+        dl_frame_t parsed; memset(&parsed, 0, sizeof(parsed));
+        int got = 0;
+        for (int i = 0; i < resp.size(); i++) {
+            if (dl_parser_feed(&p, (uint8_t)resp[i], &parsed)) { got = 1; break; }
+        }
+        QVERIFY(got == 1);
+        QCOMPARE(parsed.type, (uint8_t)0x13); // PING echo
+    }
 
 QTEST_MAIN(TestDeviceLink)
 #include "test_device_link.moc"
