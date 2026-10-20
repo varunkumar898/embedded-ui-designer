@@ -18,13 +18,15 @@
 #include <QDateTime>
 #include <QFileDialog>
 #include <QApplication>
+#include <QSettings>
 #include <QSplitter>
 #include <QInputDialog>
 #include "InvalidBindingsDialog.h"
 
-PinBindingDialog::PinBindingDialog(CanvasScene* scene, QWidget* parent)
+PinBindingDialog::PinBindingDialog(CanvasScene* scene, Project* project, QWidget* parent)
     : QDialog(parent)
     , m_scene(scene)
+    , m_project(project)
     , m_bridge(HardwareBridge::instance())
 {
     setWindowTitle("Hardware Pin Configuration & Universal Connection Manager");
@@ -251,6 +253,19 @@ void PinBindingDialog::setupUi() {
 
     filterLayout->addSpacing(8);
 
+    m_advancedPinsToggle = new QCheckBox("Advanced: show all board pins", this);
+    m_advancedPinsToggle->setObjectName("advancedPinsToggle");
+    QSettings _s("EmbeddedUIDesigner", "PinBindingDialog");
+    m_advancedPinsToggle->setChecked(_s.value("showAllBoardPins", false).toBool());
+    connect(m_advancedPinsToggle, &QCheckBox::toggled, this, [this](bool on) {
+        QSettings s("EmbeddedUIDesigner", "PinBindingDialog");
+        s.setValue("showAllBoardPins", on);
+        refreshTable();
+    });
+    filterLayout->addWidget(m_advancedPinsToggle);
+
+    filterLayout->addSpacing(8);
+
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setObjectName("pinSearchEdit");
     m_searchEdit->setPlaceholderText("Search pin, peripheral, or mode...");
@@ -443,6 +458,23 @@ void PinBindingDialog::refreshTable() {
     if (boardPins.isEmpty() || (!m_bridge.currentBoardId().isEmpty() && m_bridge.currentBoardId() == curId)) {
         boardPins = m_bridge.availablePins();
     }
+
+    // H1: when not in advanced mode, offer only the pins that have a signal
+    // derived from the project's pin/peripheral plan.
+    QSettings settings("EmbeddedUIDesigner", "PinBindingDialog");
+    bool advanced = settings.value("showAllBoardPins", false).toBool();
+    if (m_advancedPinsToggle) advanced = m_advancedPinsToggle->isChecked();
+    QStringList signalPins;
+    if (m_project) {
+        Hardware::HardwareConfig hc = m_project->hardwareConfig();
+        if (hc.signalList.isEmpty()) hc.deriveSignals();
+        for (const Hardware::Signal& s : hc.signalList) if (!s.pin.isEmpty() && !signalPins.contains(s.pin)) signalPins.append(s.pin);
+    }
+    if (!advanced && !signalPins.isEmpty()) {
+        boardPins = signalPins;
+    }
+
+    // No signals -> show a "Configure pins first" message.
 
     QStringList filteredPins;
     for (const QString& pin : boardPins) {

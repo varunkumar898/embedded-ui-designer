@@ -580,7 +580,8 @@ bool OpenOcdManager::launchOpenOcdProcess(const QString& interfaceCfg, const QSt
     if (!targetCfg.isEmpty()) {
         args << "-f" << targetCfg;
     }
-    args << "-c" << QString("tcl_port %1").arg(tclPort)
+    args << "-c" << QString("bindto 127.0.0.1")
+         << "-c" << QString("tcl_port %1").arg(tclPort)
          << "-c" << QString("telnet_port %1").arg(telnetPort)
          << "-c" << "init";
 

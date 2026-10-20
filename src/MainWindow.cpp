@@ -1632,7 +1632,7 @@ void MainWindow::onSerialMonitor() {
 }
 
 void MainWindow::onPinConfiguration() {
-    PinBindingDialog dialog(m_scene, this);
+    PinBindingDialog dialog(m_scene, m_project, this);
     dialog.exec();
 }
 
@@ -2492,10 +2492,19 @@ void MainWindow::onConnectToBoard() {
         testSocket.disconnectFromHost();
     } else {
         qWarning() << "✗ Pre-check FAILED: OpenOCD not responding on 127.0.0.1:4444";
+        QString sel = m_mcuSelectComboBox ? m_mcuSelectComboBox->currentText() : QString();
+        QString cfg = "target/stm32f0x.cfg";
+        if (sel.contains("ESP32-S3", Qt::CaseInsensitive)) cfg = "target/esp32s3.cfg";
+        else if (sel.contains("ESP32", Qt::CaseInsensitive)) cfg = "target/esp32.cfg";
+        else if (sel.contains("RP2040", Qt::CaseInsensitive) || sel.contains("Pico", Qt::CaseInsensitive)) cfg = "target/rp2040.cfg";
+        else if (sel.contains("STM32", Qt::CaseInsensitive)) cfg = "target/stm32f0x.cfg";
         QMessageBox::critical(this, "OpenOCD Not Running",
             "Cannot connect to OpenOCD on 127.0.0.1:4444\n\n"
-            "Make sure OpenOCD is running in another terminal:\n"
-            "  openocd -f target/esp32.cfg");
+            "OpenOCD must be running and needs a debug probe (ST-Link, CMSIS-DAP,\n"
+            "ESP-Prog/USB-JTAG, etc.). A plain USB-serial ESP board cannot be\n"
+            "reached this way yet.\n\n"
+            "Start OpenOCD in another terminal, e.g.:\n"
+            "  openocd -f interface/stlink.cfg -f " + cfg);
         return;
     }
 
