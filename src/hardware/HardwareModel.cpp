@@ -306,6 +306,32 @@ PinConfiguration PinConfiguration::fromJson(const QJsonObject& obj) {
 
 // ── PeripheralConfiguration ──
 
+QJsonObject Signal::toJson() const {
+    QJsonObject obj;
+    if (!id.isEmpty()) obj["id"] = id;
+    if (!name.isEmpty()) obj["name"] = name;
+    if (!pin.isEmpty()) obj["pin"] = pin;
+    if (!direction.isEmpty()) obj["direction"] = direction;
+    if (!kind.isEmpty()) obj["kind"] = kind;
+    if (!peripheral.isEmpty()) obj["peripheral"] = peripheral;
+    if (!instance.isEmpty()) obj["instance"] = instance;
+    if (!source.isEmpty()) obj["source"] = source;
+    return obj;
+}
+
+Signal Signal::fromJson(const QJsonObject& obj) {
+    Signal s;
+    s.id = obj.value("id").toString();
+    s.name = obj.value("name").toString();
+    s.pin = obj.value("pin").toString();
+    s.direction = obj.value("direction").toString();
+    s.kind = obj.value("kind").toString();
+    s.peripheral = obj.value("peripheral").toString();
+    s.instance = obj.value("instance").toString();
+    s.source = obj.value("source").toString();
+    return s;
+}
+
 QJsonObject PeripheralConfiguration::toJson() const {
     QJsonObject obj;
     obj["name"] = name;
@@ -401,6 +427,7 @@ void HardwareConfig::clear() {
     ramBytes = 0;
     pins.clear();
     peripherals.clear();
+    signalList.clear();
     clock = ClockConfiguration();
     toolchain = ToolchainConfiguration();
 }
@@ -430,6 +457,10 @@ QJsonObject HardwareConfig::toJson() const {
         perObj[it.key()] = it.value().toJson();
     }
     obj["peripherals"] = perObj;
+
+    QJsonArray sigArr;
+    for (const auto& s : signalList) sigArr.append(s.toJson());
+    obj["signals"] = sigArr;
 
     obj["clock"] = clock.toJson();
     obj["toolchain"] = toolchain.toJson();
@@ -462,9 +493,78 @@ HardwareConfig HardwareConfig::fromJson(const QJsonObject& obj) {
         cfg.peripherals[it.key()] = PeripheralConfiguration::fromJson(it.value().toObject());
     }
 
+    QJsonArray sigArr = obj.value("signals").toArray();
+    bool hadSignals = !sigArr.isEmpty();
+    for (const QJsonValue& v : sigArr) {
+        cfg.signalList.append(Signal::fromJson(v.toObject()));
+    }
+    if (!hadSignals) {
+        cfg.deriveSignals();
+    }
+
     cfg.clock = ClockConfiguration::fromJson(obj.value("clock").toObject());
     cfg.toolchain = ToolchainConfiguration::fromJson(obj.value("toolchain").toObject());
     return cfg;
+}
+
+void HardwareConfig::deriveSignals() {
+    if (!signalList.isEmpty()) return;
+    for (auto it = pins.begin(); it != pins.end(); ++it) {
+        const PinConfiguration& pc = it.value();
+        Signal s;
+        s.id = QStringLiteral("sig_") + pc.pin;
+        s.name = pc.label.isEmpty() ? pc.pin : pc.label;
+        s.pin = pc.pin;
+        QString mode = pc.mode;
+        if (mode == "GPIO_Output") { s.direction = "out"; s.kind = "digital"; }
+        else if (mode.startsWith("GPIO_Input") || mode.startsWith("Input")) { s.direction = "in"; s.kind = "digital"; }
+        else if (mode == "Analog") { s.direction = "in"; s.kind = "adc"; }
+        else if (mode == "AlternateFunction") {
+            s.direction = "inout";
+            if (pc.alternateFunction.contains("TIM")) s.kind = "pwm";
+            else if (pc.alternateFunction.contains("SPI") || pc.alternateFunction.contains("I2C") ||
+                     pc.alternateFunction.contains("USART") || pc.alternateFunction.contains("UART"))
+                s.kind = "bus";
+            else s.kind = "digital";
+            s.peripheral = pc.alternateFunction.section('_', 0, 0);
+            s.instance = pc.alternateFunction;
+        } else {
+            s.direction = "inout"; s.kind = "digital";
+        }
+        if (s.peripheral.isEmpty() && !pc.alternateFunction.isEmpty())
+            s.peripheral = pc.alternateFunction.section('_', 0, 0);
+        if (s.instance.isEmpty() && !pc.alternateFunction.isEmpty())
+            s.instance = pc.alternateFunction;
+        s.source = "derived";
+        signalList.append(s);
+    }
+    for (auto it = peripherals.begin(); it != peripherals.end(); ++it) {
+        const PeripheralConfiguration& pc = it.value();
+        if (!pc.enabled) continue;
+        bool exists = false;
+        for (const Signal& s : signalList) if (s.peripheral == pc.name) { exists = true; break; }
+        if (exists) continue;
+        Signal s;
+        s.id = QStringLiteral("sig_") + pc.name;
+        s.name = pc.name;
+        s.pin.clear();
+        s.direction = "inout";
+        s.kind = "bus";
+        s.peripheral = pc.name;
+        s.instance = pc.name;
+        s.source = "derived";
+        signalList.append(s);
+    }
+}
+
+Signal HardwareConfig::signalById(const QString& id) const {
+    for (const Signal& s : signalList) if (s.id == id) return s;
+    return Signal();
+}
+
+bool HardwareConfig::hasSignal(const QString& id) const {
+    for (const Signal& s : signalList) if (s.id == id) return true;
+    return false;
 }
 
 } // namespace Hardware
