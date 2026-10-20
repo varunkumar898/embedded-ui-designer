@@ -1,5 +1,6 @@
 #include "OpenOCDManager.h"
 #include "HardwareBridge.h"
+#include "WriteGuard.h"
 #include "BoardFactory.h"
 #include "BoardRegistry.h"
 
@@ -338,6 +339,13 @@ bool OpenOCDManager::sendRawSocket(const QString& line) {
 }
 
 bool OpenOCDManager::writeMemoryWord(quint32 address, quint32 value) {
+    QString reason;
+    if (!Hardware::WriteGuard::allow(address, HardwareBridge::instance().allowedWriteAddresses(),
+                                    HardwareBridge::instance().isLiveWriteAllowed(),
+                                    false, &reason)) {
+        qWarning() << "[OpenOCDManager] write rejected:" << reason;
+        return false;
+    }
     // Write via HardwareBridge OpenOcdManager
     bool ok = HardwareBridge::instance().openOcdManager().writeMemoryWord(address, value);
 

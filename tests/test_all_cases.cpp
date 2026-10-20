@@ -1946,7 +1946,7 @@ void TestAllCases::testBoardConfigImportIoc() {
     BoardProfile bp = res.toBoardProfile();
     QVERIFY(HardwareBridge::instance().addBoard(bp));
     QVERIFY(HardwareBridge::instance().setBoard(bp.id));
-    QCOMPARE(HardwareBridge::instance().currentBoardId(), bp.id);
+    QCOMPARE(HardwareBridge::instance().currentBoard().id, bp.id);
 
     // Verify in PinBindingDialog UI & Capture Screenshot
     CanvasScene scene;
@@ -2019,7 +2019,7 @@ void TestAllCases::testBoardConfigImportSdkConfig() {
     BoardProfile bp = res.toBoardProfile();
     QVERIFY(HardwareBridge::instance().addBoard(bp));
     QVERIFY(HardwareBridge::instance().setBoard(bp.id));
-    QCOMPARE(HardwareBridge::instance().currentBoardId(), bp.id);
+    QCOMPARE(HardwareBridge::instance().currentBoard().id, bp.id);
 
     // Verify in PinBindingDialog UI & Capture Screenshot
     CanvasScene scene;
@@ -6039,10 +6039,10 @@ void TestAllCases::testUniversalPinConfigurationTaskAAndB() {
     QVERIFY(!savedState.isEmpty());
 
     bridge.setBoard("esp32s3_devkitc1");
-    QCOMPARE(bridge.currentBoardId(), QString("esp32s3_devkitc1"));
+    QCOMPARE(bridge.currentBoard().id, QString("esp32s3_devkitc1"));
 
     QVERIFY(bridge.loadHardwareStateFromJson(savedState));
-    QCOMPARE(bridge.currentBoardId(), QString("stm32f030r8"));
+    QCOMPARE(bridge.currentBoard().id, QString("stm32f030r8"));
     QCOMPARE(bridge.taskPinMode("PA0", "Task A"), PinMode::AnalogIn);
     QCOMPARE(bridge.taskPinMode("PA1", "Task B"), PinMode::DigitalOut);
 }

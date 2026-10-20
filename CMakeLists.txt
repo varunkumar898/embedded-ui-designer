@@ -427,6 +427,8 @@ set(COMMON_SOURCES
     # Hardware Bridge & Flashing Subsystem
     src/hardware/HardwareBridge.cpp
     src/hardware/HardwareBridge.h
+    src/hardware/WriteGuard.cpp
+    src/hardware/WriteGuard.h
     src/hardware/BoardRegistry.cpp
     src/hardware/BoardRegistry.h
     src/hardware/BoardConfigParser.cpp
@@ -440,6 +442,8 @@ set(COMMON_SOURCES
     src/hardware/DeviceLink.h
     src/hardware/MockDeviceLink.cpp
     src/hardware/MockDeviceLink.h
+    src/hardware/OpenOcdDeviceLink.cpp
+    src/hardware/OpenOcdDeviceLink.h
     src/hardware/OpenOCDManager.cpp
     src/hardware/OpenOCDManager.h
     src/hardware/OpenOCDWorker.cpp

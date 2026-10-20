@@ -132,7 +132,8 @@ public:
     bool setBoard(const QString& boardId);
     bool addBoard(const BoardProfile& profile);
     bool hasBoard(const QString& boardId) const;
-    QString currentBoardId() const { return m_currentBoardId; }
+    bool isLiveWriteAllowed() const;
+    QSet<quint32> allowedWriteAddresses() const;
 
     // Pin Capability & Mode Inspection
     QStringList availablePins() const;

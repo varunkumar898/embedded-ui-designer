@@ -1,4 +1,6 @@
 #include "OpenOcdManager.h"
+#include "HardwareBridge.h"
+#include "WriteGuard.h"
 
 #include <QDir>
 #include <QFile>
@@ -628,6 +630,13 @@ bool OpenOcdManager::executeTclCommand(const QString& cmd, QString* outResponse)
 }
 
 bool OpenOcdManager::writeMemoryWord(quint32 address, quint32 value) {
+    QString reason;
+    if (!Hardware::WriteGuard::allow(address, HardwareBridge::instance().allowedWriteAddresses(),
+                                    HardwareBridge::instance().isLiveWriteAllowed(),
+                                    false, &reason)) {
+        qWarning() << "[OpenOcdManager] write rejected:" << reason;
+        return false;
+    }
     m_writeHistory.append({address, value});
     m_simulatedMemory[address] = value;
 

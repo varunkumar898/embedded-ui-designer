@@ -1365,3 +1365,21 @@ bool HardwareBridge::loadHardwareStateFromJson(const QJsonObject& json) {
     }
     return true;
 }
+
+bool HardwareBridge::isLiveWriteAllowed() const {
+    return m_currentBoardId == "stm32f030r8" || m_currentBoardId.contains("f030", Qt::CaseInsensitive);
+}
+
+QSet<quint32> HardwareBridge::allowedWriteAddresses() const {
+    QSet<quint32> s;
+    if (!m_boards.contains(m_currentBoardId)) return s;
+    const BoardProfile& bp = m_boards[m_currentBoardId];
+    s.insert(bp.gpioBase + bp.bsrrOffset);
+    for (auto it = bp.pins.begin(); it != bp.pins.end(); ++it) {
+        const PinProfile& p = it.value();
+        if (p.adc.available) { if (p.adc.dataReg) s.insert(p.adc.dataReg); if (p.adc.triggerReg) s.insert(p.adc.triggerReg); }
+        if (p.pwm.available) { if (p.pwm.ccrReg) s.insert(p.pwm.ccrReg); }
+        if (p.spi.available) { if (p.spi.cr1Reg) s.insert(p.spi.cr1Reg); if (p.spi.drReg) s.insert(p.spi.drReg); if (p.spi.srReg) s.insert(p.spi.srReg); }
+    }
+    return s;
+}
