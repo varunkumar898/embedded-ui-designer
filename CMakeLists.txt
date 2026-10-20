@@ -444,6 +444,11 @@ set(COMMON_SOURCES
     src/hardware/MockDeviceLink.h
     src/hardware/OpenOcdDeviceLink.cpp
     src/hardware/OpenOcdDeviceLink.h
+    src/hardware/SerialDeviceLink.cpp
+    src/hardware/SerialDeviceLink.h
+    src/agent/MockAgent.cpp
+    src/agent/dl_codec.c
+    src/agent/MockAgent.h
     src/hardware/OpenOCDManager.cpp
     src/hardware/OpenOCDManager.h
     src/hardware/OpenOCDWorker.cpp
@@ -1735,6 +1740,15 @@ target_include_directories(test_device_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_device_link PRIVATE Qt6::Core Qt6::Test)
 set_target_properties(test_device_link PROPERTIES WIN32_EXECUTABLE FALSE)
 eud_add_test(NAME DeviceLinkMockTests COMMAND test_device_link)
+
+# Device Link codec (portable C99) tests
+add_executable(test_dl_codec
+    tests/test_dl_codec.c
+    src/agent/dl_codec.c
+)
+target_include_directories(test_dl_codec PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/agent ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(test_dl_codec PROPERTIES WIN32_EXECUTABLE FALSE)
+eud_add_test(NAME DeviceLinkCodecTests COMMAND test_dl_codec)
 
 eud_add_test(NAME CustomPacksAcceptanceTests COMMAND test_custom_packs)
 
