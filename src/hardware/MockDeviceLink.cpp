@@ -9,13 +9,8 @@ MockDeviceLink::MockDeviceLink(QObject* parent) : DeviceLink(parent) {
 }
 
 void MockDeviceLink::setSimulatedConnected(bool on, const QString& probeName) {
-    m_probeName = probeName.isEmpty() ? "Simulated" : probeName;
-    // Never show a real board name in simulated mode.
-    if (m_probeName.contains("ST-LINK", Qt::CaseInsensitive) ||
-        m_probeName.contains("STM32", Qt::CaseInsensitive) ||
-        m_probeName.contains("ESP", Qt::CaseInsensitive)) {
-        m_probeName = "Simulated";
-    }
+    Q_UNUSED(probeName);
+    m_probeName = "Simulated device";
     if (on) {
         m_connected = true;
         m_state = DeviceLinkState::DeviceFound;

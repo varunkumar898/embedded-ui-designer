@@ -1735,6 +1735,10 @@ add_executable(test_device_link
     src/hardware/MockDeviceLink.cpp
     src/hardware/MockDeviceLink.h
     src/hardware/DeviceLink.h
+    src/agent/MockAgent.cpp
+    src/agent/MockAgent.h
+    src/agent/dl_codec.c
+    src/agent/dl_codec.h
 )
 target_include_directories(test_device_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_device_link PRIVATE Qt6::Core Qt6::Test)

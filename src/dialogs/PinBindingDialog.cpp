@@ -90,7 +90,7 @@ void PinBindingDialog::setupUi() {
             m_boardCombo->addItem(QString("%1 (%2)").arg(bp.name.isEmpty() ? bp.id : bp.name, bp.mcuFamily), bp.id);
         }
     }
-    QString activeId = !m_bridge.currentBoardId().isEmpty() ? m_bridge.currentBoardId() : BoardRegistry::instance().activeBoard().id;
+    QString activeId = !m_bridge.currentBoard().id.isEmpty() ? m_bridge.currentBoard().id : BoardRegistry::instance().activeBoard().id;
     int curIdx = m_boardCombo->findData(activeId);
     if (curIdx < 0) curIdx = m_boardCombo->findData(BoardRegistry::instance().activeBoard().id);
     if (curIdx >= 0) m_boardCombo->setCurrentIndex(curIdx);
@@ -449,13 +449,13 @@ void PinBindingDialog::updateConflictBanner() {
 
 void PinBindingDialog::refreshTable() {
     BoardDef activeBoard = BoardRegistry::instance().activeBoard();
-    QString curId = m_boardCombo ? m_boardCombo->currentData().toString() : m_bridge.currentBoardId();
+    QString curId = m_boardCombo ? m_boardCombo->currentData().toString() : m_bridge.currentBoard().id;
     if (!curId.isEmpty() && curId != activeBoard.id) {
         BoardDef b = BoardRegistry::instance().board(curId);
         if (b.isValid()) activeBoard = b;
     }
     QStringList boardPins = activeBoard.pinNames();
-    if (boardPins.isEmpty() || (!m_bridge.currentBoardId().isEmpty() && m_bridge.currentBoardId() == curId)) {
+    if (boardPins.isEmpty() || (!m_bridge.currentBoard().id.isEmpty() && m_bridge.currentBoard().id == curId)) {
         boardPins = m_bridge.availablePins();
     }
 
