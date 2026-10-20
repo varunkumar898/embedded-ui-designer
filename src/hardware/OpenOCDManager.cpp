@@ -342,10 +342,12 @@ bool OpenOCDManager::writeMemoryWord(quint32 address, quint32 value) {
     QString reason;
     if (!Hardware::WriteGuard::allow(address, HardwareBridge::instance().allowedWriteAddresses(),
                                     HardwareBridge::instance().isLiveWriteAllowed(),
-                                    false, &reason)) {
+                                    HardwareBridge::instance().writeOverride(), &reason)) {
         qWarning() << "[OpenOCDManager] write rejected:" << reason;
+        HardwareBridge::instance().logWrite(address, value, false, "OpenOCDManager");
         return false;
     }
+    HardwareBridge::instance().logWrite(address, value, true, "OpenOCDManager");
     // Write via HardwareBridge OpenOcdManager
     bool ok = HardwareBridge::instance().openOcdManager().writeMemoryWord(address, value);
 

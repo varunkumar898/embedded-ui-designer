@@ -1383,3 +1383,15 @@ QSet<quint32> HardwareBridge::allowedWriteAddresses() const {
     }
     return s;
 }
+
+void HardwareBridge::logWrite(quint32 address, quint32 value, bool ok, const QString& trigger) {
+    QDir dir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+    dir.mkpath(".");
+    QFile f(dir.filePath("write_log.txt"));
+    if (f.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream ts(&f);
+        ts << QDateTime::currentDateTime().toString(Qt::ISODate) << " addr=0x" << QString::number(address, 16)
+           << " value=0x" << QString::number(value, 16) << " result=" << (ok ? "OK" : "REJECTED")
+           << " trigger=" << trigger << "\n";
+    }
+}

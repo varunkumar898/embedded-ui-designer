@@ -253,6 +253,21 @@ void PinBindingDialog::setupUi() {
 
     filterLayout->addSpacing(8);
 
+    m_overrideGuardBtn = new QPushButton("Override write guard (session)", this);
+    m_overrideGuardBtn->setObjectName("overrideGuardBtn");
+    connect(m_overrideGuardBtn, &QPushButton::clicked, this, [this]() {
+        auto reply = QMessageBox::warning(this, "Override write guard",
+            "This enables live register writes for boards whose addresses are\n"
+            "unverified. Writes will be logged. Continue?",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (reply == QMessageBox::Yes) {
+            HardwareBridge::instance().setWriteOverride(true);
+        }
+    });
+    filterLayout->addWidget(m_overrideGuardBtn);
+
+    filterLayout->addSpacing(8);
+
     m_advancedPinsToggle = new QCheckBox("Advanced: show all board pins", this);
     m_advancedPinsToggle->setObjectName("advancedPinsToggle");
     QSettings _s("EmbeddedUIDesigner", "PinBindingDialog");

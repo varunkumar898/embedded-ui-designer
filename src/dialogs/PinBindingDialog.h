@@ -74,6 +74,7 @@ private:
     QPushButton* m_allTasksBtn = nullptr;
     QComboBox* m_portFilterCombo = nullptr;
     QCheckBox* m_advancedPinsToggle = nullptr;
+    QPushButton* m_overrideGuardBtn = nullptr;
     QLineEdit* m_searchEdit = nullptr;
     QLabel* m_conflictBanner = nullptr;
 
