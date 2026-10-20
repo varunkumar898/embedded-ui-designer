@@ -444,6 +444,8 @@ set(COMMON_SOURCES
     src/hardware/MockDeviceLink.h
     src/hardware/OpenOcdDeviceLink.cpp
     src/hardware/OpenOcdDeviceLink.h
+    src/toolchain/ToolchainManager.cpp
+    src/toolchain/ToolchainManager.h
     src/hardware/SerialDeviceLink.cpp
     src/hardware/SerialDeviceLink.h
     src/agent/MockAgent.cpp
@@ -1755,6 +1757,17 @@ add_executable(test_dl_codec
 target_include_directories(test_dl_codec PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/agent ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(test_dl_codec PROPERTIES WIN32_EXECUTABLE FALSE)
 eud_add_test(NAME DeviceLinkCodecTests COMMAND test_dl_codec)
+
+# Toolchain manager tests
+add_executable(test_toolchain_manager
+    tests/test_toolchain_manager.cpp
+    src/toolchain/ToolchainManager.cpp
+    src/toolchain/ToolchainManager.h
+)
+target_include_directories(test_toolchain_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_toolchain_manager PRIVATE Qt6::Core Qt6::Test Qt6::Network)
+set_target_properties(test_toolchain_manager PROPERTIES WIN32_EXECUTABLE FALSE)
+eud_add_test(NAME ToolchainManagerTests COMMAND test_toolchain_manager)
 
 # Codec standalone compile check with arm-none-eabi-gcc (if available)
 find_program(ARM_GCC arm-none-eabi-gcc)
