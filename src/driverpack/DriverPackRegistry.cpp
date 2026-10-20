@@ -26,9 +26,34 @@ void DriverPackRegistry::registerBuiltInPacks() {
 }
 
 void DriverPackRegistry::registerPack(std::shared_ptr<IMcuDriverPack> pack) {
-    if (pack) {
-        packs.push_back(pack);
+    if (!pack) return;
+    const std::string id = pack->familyId();
+    const bool incomingCustom = (id.rfind("custom:", 0) == 0);
+    for (auto& existing : packs) {
+        if (existing && existing->familyId() == id) {
+            const bool existingCustom = (existing->familyId().rfind("custom:", 0) == 0);
+            if (!existingCustom) {
+                // Never let a custom (or any) pack replace a built-in family pack.
+                return;
+            }
+            if (!incomingCustom) {
+                // A non-custom pack must not replace an existing custom pack either.
+                return;
+            }
+            existing = pack; // custom replaces custom
+            return;
+        }
     }
+    packs.push_back(pack);
+}
+
+void DriverPackRegistry::unregisterPack(const std::string& familyId) {
+    packs.erase(
+        std::remove_if(packs.begin(), packs.end(),
+            [&familyId](const std::shared_ptr<IMcuDriverPack>& p) {
+                return p && p->familyId() == familyId;
+            }),
+        packs.end());
 }
 
 IMcuDriverPack* DriverPackRegistry::findPackByFamily(const std::string& familyId) const {

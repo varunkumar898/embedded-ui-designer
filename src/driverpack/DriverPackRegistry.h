@@ -10,8 +10,12 @@ class DriverPackRegistry {
 public:
     static DriverPackRegistry& instance();
 
-    // Register a driver pack
+    // Register a driver pack (replaces an existing pack with the same
+    // family id, so reload never creates duplicates).
     void registerPack(std::shared_ptr<IMcuDriverPack> pack);
+
+    // Remove all packs with the given family id (used by uninstall/reload).
+    void unregisterPack(const std::string& familyId);
 
     // Lookups
     IMcuDriverPack* findPackByFamily(const std::string& familyId) const;
