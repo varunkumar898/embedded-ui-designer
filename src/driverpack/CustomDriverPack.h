@@ -30,6 +30,9 @@ public:
         const std::string& projectName
     ) const override;
 
+    // Explicit "Run compile check" action. Never runs automatically on import.
+    bool runCompileCheck(GeneratedProject& project, QString* note = nullptr) const;
+
     const CustomPackDef& packDef() const { return m_packDef; }
 
 private:

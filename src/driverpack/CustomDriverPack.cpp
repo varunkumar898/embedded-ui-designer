@@ -1,7 +1,65 @@
 #include "CustomDriverPack.h"
+#include <QProcess>
+#include <QStandardPaths>
+#include <QTemporaryDir>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
+#include <QSet>
 #include <sstream>
 
 namespace driverpack {
+
+namespace {
+bool performCompileCheck(const std::map<std::string, std::string>& files,
+                     const QString& toolchain, std::string& note) {
+    const QString exe = QStandardPaths::findExecutable(toolchain);
+    if (exe.isEmpty()) {
+        note += std::string("\ncompile check not run: toolchain '") + toolchain.toStdString() + std::string("' not found");
+        return false;
+    }
+    QTemporaryDir tmp;
+    if (!tmp.isValid()) {
+        note += std::string("\ncompile check not run: no temporary directory");
+        return false;
+    }
+    for (const auto& kv : files) {
+        const QString rel = QString::fromStdString(kv.first);
+        const QString full = tmp.path() + "/" + rel;
+        QDir().mkpath(QFileInfo(full).absolutePath());
+        QFile f(full);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) return false;
+        QTextStream ts(&f);
+        ts << QString::fromStdString(kv.second);
+        f.close();
+    }
+    const QStringList sources = {"Core/Src/main.c", "Drivers/Src/target_hal.c"};
+    const QString incCore = tmp.path() + "/Core/Inc";
+    const QString incDrivers = tmp.path() + "/Drivers/Inc";
+    for (const QString& src : sources) {
+        QProcess proc;
+        proc.setWorkingDirectory(tmp.path());
+        QStringList args;
+        args << "-c" << src
+             << "-I" << incCore << "-I" << incDrivers
+             << "-o" << (tmp.path() + "/" + src + ".o");
+        proc.start(exe, args);
+        if (!proc.waitForFinished(30000)) {
+            proc.kill();
+            note += std::string("\ncompile check failed: ") + src.toStdString() + std::string(" timed out");
+            return false;
+        }
+        if (proc.exitCode() != 0) {
+            const QString err = QString::fromUtf8(proc.readAllStandardError()).left(400);
+            note += std::string("\ncompile check failed: ") + src.toStdString() + std::string(" -> ") + err.toStdString();
+            return false;
+        }
+    }
+    note += std::string("\ncompile check passed (") + toolchain.toStdString() + std::string(")");
+    return true;
+}
+} // namespace
 
 CustomDriverPack::CustomDriverPack(const CustomPackDef& packDef)
     : m_packDef(packDef)
@@ -44,7 +102,7 @@ void CustomDriverPack::initializeSpec() {
 }
 
 std::string CustomDriverPack::familyId() const {
-    return "CUSTOM_" + m_packDef.name.toUpper().toStdString();
+    return "custom:" + m_packDef.name.toStdString();
 }
 
 std::string CustomDriverPack::familyName() const {
@@ -189,10 +247,46 @@ GeneratedProject CustomDriverPack::generateProjectTree(
     proj.files["Makefile"] = makefile.str();
 
     proj.buildCommands = {"make -j4"};
-    proj.compilationReady = true;
+    proj.compilationReady = false;
     proj.notes = "Custom driver pack for " + m_packDef.name.toStdString() + " with SVD-validated registers.";
 
     return proj;
+}
+
+bool CustomDriverPack::runCompileCheck(GeneratedProject& project, QString* note) const {
+    static const QSet<QString> allowed = {
+        "arm-none-eabi-gcc", "gcc", "clang", "clang++",
+        "riscv32-esp-elf-gcc", "riscv64-esp-elf-gcc",
+        "xtensa-esp32-elf-gcc", "xtensa-esp32s2-elf-gcc", "xtensa-esp32s3-elf-gcc",
+        "riscv32-unknown-elf-gcc"
+    };
+    QString n;
+    QString tool = m_packDef.toolchain;
+    const QString base = QFileInfo(tool).fileName();
+    if (!allowed.contains(base)) {
+        n = QString("compile check not run: compiler '%1' is not allowlisted").arg(tool);
+        project.compilationReady = false;
+        if (note) *note = n;
+        if (!project.notes.empty()) project.notes += "\n";
+        project.notes += n.toStdString();
+        return false;
+    }
+    const QString exe = QStandardPaths::findExecutable(base);
+    if (exe.isEmpty()) {
+        n = QString("compile check not run: compiler '%1' not found on PATH").arg(base);
+        project.compilationReady = false;
+        if (note) *note = n;
+        if (!project.notes.empty()) project.notes += "\n";
+        project.notes += n.toStdString();
+        return false;
+    }
+    std::string perfNote;
+    bool ok = performCompileCheck(project.files, exe, perfNote);
+    project.compilationReady = ok;
+    if (note) *note = QString::fromStdString(perfNote);
+    if (!project.notes.empty()) project.notes += "\n";
+    project.notes += perfNote;
+    return ok;
 }
 
 } // namespace driverpack

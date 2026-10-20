@@ -18,7 +18,7 @@ struct GeneratedProject {
     std::vector<std::string> directories;     // list of folder paths
     std::set<std::string> includedDrivers;    // e.g. {"RCC_Driver", "GPIO_Driver", "USART_Driver"}
     std::vector<std::string> buildCommands;   // e.g. ["make -j4", "arm-none-eabi-gcc ..."]
-    bool compilationReady = true;
+    bool compilationReady = false;
     std::string notes;
 
     bool hasFile(const std::string& relativePath) const {
