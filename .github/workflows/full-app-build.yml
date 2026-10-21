@@ -1,0 +1,79 @@
+name: Full Application Build
+
+# Rapporteur job (non-blocking): builds EVERY CMake target including the
+# desktop application on the three CI OS families. Failures are reported,
+# not fixed here - findings go back to the tracker as issues.
+on:
+  push:
+    branches:
+      - main
+      - 'ci/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  full-app-build:
+    name: Full build (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: true # non-blocking by design
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+          - os: macOS
+            runner: macos-latest
+          - os: Windows
+            runner: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential cmake ninja-build libjsoncpp-dev \
+            qt6-base-dev qt6-dev qt6-tools-dev-tools libqt6serialport6-dev \
+            libqt6xml6 libqt6network6 libgl1-mesa-dev
+
+      - name: Install Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja qt jsoncpp
+
+      - name: Install Dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install cmake ninja qtbase -y --no-progress
+          echo "CMAKE_PREFIX_PATH=C:/ProgramData/chocolatey/lib/qtbase;C:/Qt" >> $env:GITHUB_ENV
+
+      - name: Configure (all targets)
+        shell: bash
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DENABLE_TESTS=ON \
+            -DENABLE_SECURITY_HARDENING=ON \
+            -DENABLE_OBSERVABILITY=ON \
+            ${{ runner.os == 'Linux' && '' || (runner.os == 'macOS' && '-DFORCE_FETCH_JSONCPP=ON' || '') }}
+
+      - name: Build ALL targets (app included)
+        shell: bash
+        run: cmake --build build -j2 --config Release
+
+      - name: Build summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f build/EmbeddedUIDesigner ] || [ -f build/EmbeddedUIDesigner.exe ] ||
+             [ -f build/bin/EmbeddedUIDesigner ] || [ -f build/bin/Release/EmbeddedUIDesigner.exe ] ||
+             [ -f build/*/EmbeddedUIDesigner* ]; then
+            echo "Application target produced a binary."
+          else
+            echo "No application binary found in build output."
+          fi
+          cmake --build build -t help 2>/dev/null | grep -c "^" || true
