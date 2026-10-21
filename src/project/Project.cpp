@@ -797,16 +797,8 @@ QString Project::firmwareDirectory() const {
         return m_firmwareDir;
     }
 
-    // Auto-detection for existing bare-metal firmware project:
-    // 1. Direct match for user's existing bare-metal firmware at /home/cherry/file
-    if (QDir("/home/cherry/file").exists() &&
-        (QFile::exists("/home/cherry/file/Makefile") ||
-         QFile::exists("/home/cherry/file/scr/Main.c") ||
-         QFile::exists("/home/cherry/file/inc/GPIO_Driver.h"))) {
-        return "/home/cherry/file";
-    }
-
-    // 2. Look for nested firmware directory inside UI project
+    // Auto-detection for existing bare-metal firmware projects (project-relative):
+    // Nested firmware directory inside the UI project
     QString subFw = QDir(uiProjectDirectory()).filePath("firmware");
     if (QDir(subFw).exists()) {
         return subFw;
