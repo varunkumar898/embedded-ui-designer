@@ -1,0 +1,30 @@
+{
+    "device": "stm32f030r8",
+    "files": [
+        {
+            "file": "generated/assets/assets.h",
+            "sha256": "28eb227e2775c44b3e74e164aa2f10dc07199c9816dc00d78005b70fa4fa71a2"
+        },
+        {
+            "file": "generated/bindings/ui_bindings.c",
+            "sha256": "fd3a020f0019acff49ab28be39c64ed5445fd4cc0fd8abf3f7f44d8ffafedf24"
+        },
+        {
+            "file": "generated/bindings/ui_bindings.h",
+            "sha256": "3dd5d91f7fd1c176faee5e377aa606e62fa97fdbdea48404cdad206c8f14715f"
+        },
+        {
+            "file": "generated/target/target_hal.c",
+            "sha256": "289cfeb2cfae39d05ac00edd7e9842711e9417cd58bda05c314e9e7b074a3219"
+        },
+        {
+            "file": "generated/target/target_hal.h",
+            "sha256": "5bc23bdda8d8671112f26b3f48f75955a67b14f4c4ec3482eb624105666219c0"
+        },
+        {
+            "file": "generated/ui/MainScreen.qml",
+            "sha256": "5663161766ce0d5c4f6d354d72b16195d5470f829e372468bb99d4da2861403f"
+        }
+    ],
+    "generatorVersion": "1.0.0"
+}

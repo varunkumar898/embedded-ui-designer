@@ -36,8 +36,15 @@ while IFS= read -r -d '' file; do
   matches=$(grep -InE "$(printf '%s|' "${PATTERNS[@]}" | sed 's/|$//')" "$file" 2>/dev/null | grep -ivE "$EXCLUDE_LINES" || true)
   if [ -n "$matches" ]; then
     FOUND=1
+    # Redact: never print matched line content in CI logs (path + rule index only)
+    rule_no=0
     echo "Possible secret in: $file"
-    echo "$matches" | sed 's/\(.\{14\}\).*/\1[REDACTED]/'
+    while IFS= read -r line; do
+      rule_no=$((rule_no+1))
+      lineno="${line%%:*}"
+      echo "  $file:$lineno (rule #$rule_no)"
+      echo
+    done <<< "$matches"
     echo
   fi
 done < <(git ls-files -z)
