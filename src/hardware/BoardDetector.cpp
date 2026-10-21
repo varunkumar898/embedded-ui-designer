@@ -5,6 +5,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QDebug>
+#ifdef HAVE_QT_SERIALPORT
+#include <QSerialPortInfo>
+#endif
 
 const std::map<QString, QString> BoardDetector::ADAPTER_VIDS = {
     {"ST-Link", "0483"},
@@ -178,11 +181,30 @@ std::vector<UsbDevice> BoardDetector::parseLsusbOutput(const QString& output) {
 }
 
 std::vector<UsbDevice> BoardDetector::detectUsbDevices_Windows() {
+#ifdef HAVE_QT_SERIALPORT
+    // Portable USB-serial enumeration: QSerialPortInfo reports VID:PID and
+    // description for the adapters we own the catalog rows for (CP210x, CH340,
+    // ST-Link, native USB). Works identically on Windows and macOS.
+    std::vector<UsbDevice> devices;
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& info : ports) {
+        if (!info.hasVendorIdentifier() || !info.hasProductIdentifier()) continue;
+        UsbDevice dev;
+        dev.vendorId = QString::number(info.vendorIdentifier(), 16).rightJustified(4, u'0');
+        dev.productId = QString::number(info.productIdentifier(), 16).rightJustified(4, u'0');
+        dev.manufacturer = info.manufacturer();
+        dev.description = info.description().isEmpty() ? QString("USB serial device") : info.description();
+        dev.serialNumber = info.serialNumber();
+        devices.push_back(dev);
+    }
+    return devices;
+#else
     return {};
+#endif
 }
 
 std::vector<UsbDevice> BoardDetector::detectUsbDevices_Mac() {
-    return {};
+    return detectUsbDevices_Windows(); // identical portable QSerialPortInfo path
 }
 
 QString BoardDetector::identifyBoardType(const UsbDevice& device) {
@@ -276,10 +298,12 @@ DetectedBoardInfo BoardDetector::detectConnectedBoard() {
 
     return scanLsusb();
 #else
-    auto devices = detectUsbDevices();
+    // Portable path (macOS/Windows/other): drive the shared per-OS dispatcher
+    // and match the adapter against the catalog the same way Linux does.
+    const auto devices = getConnectedDevices();
     for (const auto& dev : devices) {
         if ((dev.vendorId == "0483" && (dev.productId == "374b" || dev.productId == "3748")) ||
-            dev.productName.contains("ST-LINK", Qt::CaseInsensitive)) {
+            dev.description.contains("ST-LINK", Qt::CaseInsensitive)) {
             DetectedBoardInfo info;
             info.detected = true;
             info.boardId = "nucleo_f030r8";
