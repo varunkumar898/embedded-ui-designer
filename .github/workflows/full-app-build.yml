@@ -43,14 +43,15 @@ jobs:
       - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake ninja jsoncpp
+          brew install cmake ninja jsoncpp qt
 
-      - name: Install Qt (macOS & Windows)
-        if: runner.os != 'Linux'
-        uses: jurplel/install-qt-action@v4
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: '6.7.*'
           modules: 'qtserialport qttools'
+          setup-python: false
           cache: true
 
       - name: Configure (all targets)
