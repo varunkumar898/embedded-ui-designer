@@ -20,7 +20,12 @@ struct AuditEntry {
 
 class AuditLogger {
 public:
-    AuditLogger(const std::string& logFilePath = "/tmp/embedded-ui-audit.log");
+    /// Cross-platform default log location (see AuditLogger.cpp):
+    /// $EUIDESIGNER_AUDIT_LOG override -> <AppLocalDataLocation>/embedded-ui-audit.log
+    /// -> OS temp dir.
+    static std::string defaultLogFilePath();
+
+    explicit AuditLogger(const std::string& logFilePath = defaultLogFilePath());
     
     void log(const AuditEntry& entry);
     bool flush();

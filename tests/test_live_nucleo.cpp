@@ -149,8 +149,8 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "  Successfully completed 12 consecutive cycles without error.\n";
 
-    // 8. Test OpenOCDManager High-Level Commands & Device Monitor Status
-    std::cout << "[Step 8] Testing OpenOCDManager commands (LED_ON, LED_OFF, gpio_status)...\n";
+    // 8. Test OcdTelnetManager High-Level Commands & Device Monitor Status
+    std::cout << "[Step 8] Testing OcdTelnetManager commands (LED_ON, LED_OFF, gpio_status)...\n";
     auto& openocd = window.openOcdManager();
     openocd.connect();
     std::cout << "  OpenOCD connected: " << (openocd.isConnected() ? "YES" : "NO") << "\n";

@@ -16,7 +16,7 @@
 #include "StylesPanel.h"
 #include "ScreensPanel.h"
 #include "Project.h"
-#include "OpenOCDManager.h"
+#include "OcdTelnetManager.h"
 #include "workspace/WorkspaceMode.h"
 #include "workspace/WorkspaceManager.h"
 #include "workspace/DesignWorkspace.h"
@@ -87,7 +87,7 @@ public:
     void stopLocalMcpServer();
 
     // Hardware-in-the-Loop & OpenOCD Controls
-    class OpenOCDManager& openOcdManager() { return m_openocd; }
+    class OcdTelnetManager& openOcdManager() { return m_openocd; }
     void createGpioControls();
 
     // Workspace Switching
@@ -249,7 +249,7 @@ private:
     ContextualTopToolbar* m_topToolbar = nullptr;
     QWidget* m_contextualToolbar = nullptr;
     FloatingSelectionToolbar* m_floatingToolbar = nullptr;
-    OpenOCDManager m_openocd;
+    OcdTelnetManager m_openocd;
 
     bool validateExportResources(const QString& targetFramework);
 

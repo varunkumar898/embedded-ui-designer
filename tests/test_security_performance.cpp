@@ -10,6 +10,7 @@
 #include "performance/PerformanceMetrics.h"
 
 #include <iostream>
+#include <filesystem>
 #include <cassert>
 #include <thread>
 #include <future>
@@ -146,7 +147,10 @@ void testSecurity_FirmwareSignatureVerification() {
 }
 
 void testSecurity_AuditLogging() {
-    AuditLogger logger("/tmp/test_audit.log");
+    const std::string auditPath =
+        (std::filesystem::temp_directory_path() / "euidesigner-test-audit.log").string();
+    std::remove(auditPath.c_str());
+    AuditLogger logger(auditPath);
     AuditEntry entry;
     entry.timestamp = std::chrono::system_clock::now();
     entry.severity = "WARNING";

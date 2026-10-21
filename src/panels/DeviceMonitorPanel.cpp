@@ -1,6 +1,6 @@
 #include "DeviceMonitorPanel.h"
 #include "project/Project.h"
-#include "OpenOCDManager.h"
+#include "OcdTelnetManager.h"
 #include "HardwareBridge.h"
 #include "theme/Theme.h"
 #include <QVBoxLayout>
@@ -15,7 +15,7 @@ DeviceMonitorPanel::DeviceMonitorPanel(Project* project, QWidget* parent)
     , m_project(project)
     , m_runtime(project, this)
 {
-    m_openocd = new OpenOCDManager(this);
+    m_openocd = new OcdTelnetManager(this);
 
     setupUi();
     setProject(project);
@@ -35,10 +35,10 @@ DeviceMonitorPanel::DeviceMonitorPanel(Project* project, QWidget* parent)
     connect(&HardwareBridge::instance(), &HardwareBridge::connectionStateChanged, this, [this](ConnectionState, const QString&) {
         updateConnectionStatus();
     });
-    connect(m_openocd, &OpenOCDManager::connectionChanged, this, [this](bool) {
+    connect(m_openocd, &OcdTelnetManager::connectionChanged, this, [this](bool) {
         updateConnectionStatus();
     });
-    connect(m_openocd, &OpenOCDManager::gpioStateChanged, this, [this](const QString&, bool) {
+    connect(m_openocd, &OcdTelnetManager::gpioStateChanged, this, [this](const QString&, bool) {
         updateConnectionStatus();
     });
 

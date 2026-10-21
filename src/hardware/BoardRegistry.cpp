@@ -197,8 +197,7 @@ bool BoardRegistry::loadFromBoardsJson(const QString& customPath) {
             "config/boards/boards.json",
             appDir + "/config/boards/boards.json",
             appDir + "/../config/boards/boards.json",
-            QDir::current().filePath("config/boards/boards.json"),
-            "/home/cherry/embedded-ui-designer/config/boards/boards.json"
+            QDir::current().filePath("config/boards/boards.json")
         };
         for (const QString& c : candidates) {
             if (QFile::exists(c)) {
