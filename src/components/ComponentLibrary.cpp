@@ -25,8 +25,7 @@ bool ComponentLibrary::loadLibrary(const QString& jsonPath) {
         QStringList candidates = {
             "config/components/lvgl_components.json",
             appDir + "/config/components/lvgl_components.json",
-            appDir + "/../config/components/lvgl_components.json",
-            "/home/cherry/embedded-ui-designer/config/components/lvgl_components.json"
+            appDir + "/../config/components/lvgl_components.json"
         };
         for (const QString& candidate : candidates) {
             if (QFile::exists(candidate)) {

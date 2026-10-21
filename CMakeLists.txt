@@ -423,8 +423,8 @@ set(COMMON_SOURCES
     src/hardware/FlashController.h
     src/hardware/OpenOcdManager.cpp
     src/hardware/OpenOcdManager.h
-    src/hardware/OpenOCDManager.cpp
-    src/hardware/OpenOCDManager.h
+    src/hardware/OcdTelnetManager.cpp
+    src/hardware/OcdTelnetManager.h
     src/hardware/OpenOCDWorker.cpp
     src/hardware/OpenOCDWorker.h
     src/hardware/BoardHAL.h

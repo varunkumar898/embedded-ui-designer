@@ -9,6 +9,7 @@ running C++ Qt EmbeddedUIDesigner application.
 """
 
 import sys
+import os
 import json
 import socket
 import argparse
@@ -18,6 +19,61 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("EmbeddedUIMCP")
 
 DEFAULT_PORT = 8765
+
+
+# ── Local MCP auth token discovery ────────────────────────────────────────
+# Canonical location, in sync with DesignerLocalServer::tokenFilePath():
+#   $EUIDESIGNER_MCP_TOKEN_FILE (env override)
+#   Linux   ~/.config/embedded-ui-designer/mcp_token
+#   Windows %APPDATA%\embedded-ui-designer\mcp_token
+#   macOS   ~/Library/Preferences/embedded-ui-designer/mcp_token
+# Legacy pre-hotfix locations are read as a fallback so upgrades keep working.
+_TOKEN_CANDIDATES = [
+    lambda: os.environ.get("EUIDESIGNER_MCP_TOKEN_FILE"),
+]
+_canonical_config_dir = (
+    os.environ.get("APPDATA", "")
+    if sys.platform.startswith("win")
+    else (
+        os.path.join(os.path.expanduser("~"), "Library", "Preferences")
+        if sys.platform == "darwin"
+        else (os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"))
+    )
+)
+_TOKEN_CANDIDATES.append(
+    lambda: os.path.join(_canonical_config_dir, "embedded-ui-designer", "mcp_token")
+)
+
+_TOKEN_LEGACY_CANDIDATES = [
+    lambda: os.path.expanduser("~/.config/EmbeddedDev/EmbeddedUIDesigner/mcp_token"),
+    lambda: os.path.expanduser("~/.config/embedded-ui-designer/mcp_token"),
+]
+
+
+def iter_token_file_paths():
+    """Yield candidate token file paths, most trustworthy first."""
+    for getter in _TOKEN_CANDIDATES:
+        path = getter()
+        if path:
+            yield path
+    for getter in _TOKEN_LEGACY_CANDIDATES:
+        path = getter()
+        if path:
+            yield path
+
+
+def load_mcp_token():
+    """Return the local MCP auth token, or None if no token file exists."""
+    for path in iter_token_file_paths():
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    token = f.read().strip()
+                if token:
+                    return token
+            except Exception:
+                pass
+    return None
 
 TOOLS_DEFINITION = [
     # ── PROJECT TOOLS ──
@@ -627,8 +683,6 @@ RESOURCES_DEFINITION = [
 ]
 
 
-import os
-
 class DesignerClient:
     def __init__(self, host="127.0.0.1", port=DEFAULT_PORT, token=None):
         self.host = host
@@ -636,14 +690,7 @@ class DesignerClient:
         self.token = token or self._load_token()
 
     def _load_token(self):
-        token_path = os.path.expanduser("~/.config/embedded-ui-designer/mcp_token")
-        if os.path.exists(token_path):
-            try:
-                with open(token_path, "r", encoding="utf-8") as f:
-                    return f.read().strip()
-            except Exception:
-                pass
-        return None
+        return load_mcp_token()
 
     def send_command(self, method: str, params: dict = None) -> dict:
         if params is None:

@@ -7,7 +7,7 @@
 #include "hardware/STM32HAL.h"
 #include "hardware/ESP32HAL.h"
 #include "hardware/BoardFactory.h"
-#include "hardware/OpenOCDManager.h"
+#include "hardware/OcdTelnetManager.h"
 #include "hardware/OpenOCDWorker.h"
 #include <QFile>
 #include <QThread>
@@ -161,10 +161,10 @@ int main(int argc, char* argv[]) {
     std::cout << "  Pin string parsing verified successfully.\n";
 
     // -------------------------------------------------------------------------
-    // Test 5: OpenOCDManager HAL Integration & Rapid Toggling
+    // Test 5: OcdTelnetManager HAL Integration & Rapid Toggling
     // -------------------------------------------------------------------------
-    std::cout << "[Test 5] Testing OpenOCDManager HAL Integration & Rapid Toggling...\n";
-    OpenOCDManager openocd;
+    std::cout << "[Test 5] Testing OcdTelnetManager HAL Integration & Rapid Toggling...\n";
+    OcdTelnetManager openocd;
     assert(openocd.getBoardHAL() != nullptr);
     assert(openocd.getDetectedBoardName() == "STM32F030R8");
 
@@ -192,7 +192,7 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "  ESP32 60 rapid toggles succeeded without error.\n";
 
-    // Verify invalid pin rejection in OpenOCDManager
+    // Verify invalid pin rejection in OcdTelnetManager
     assert(!openocd.gpioToggle(0, 6)); // GPIO6 on ESP32 is Flash reserved
     assert(openocd.gpioRead(0, 6) == -1);
 
@@ -238,7 +238,7 @@ int main(int argc, char* argv[]) {
     std::cout << "[Test 7] Testing OpenOCDWorker Background Thread, Timeout & Cancel...\n";
     {
         // 7a. Test user cancellation
-        OpenOCDManager testMgr;
+        OcdTelnetManager testMgr;
         OpenOCDWorker worker(&testMgr);
         bool failedEmitted = false;
         QString failureReason;
@@ -258,7 +258,7 @@ int main(int argc, char* argv[]) {
 
     {
         // 7b. Test timeout on unused port without hanging the thread
-        OpenOCDManager testMgr;
+        OcdTelnetManager testMgr;
         QThread workerThread;
         OpenOCDWorker worker(&testMgr);
         worker.moveToThread(&workerThread);

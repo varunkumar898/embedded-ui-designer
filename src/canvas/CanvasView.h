@@ -12,7 +12,7 @@
 #include "PathComponent.h"
 
 #include "BoardHAL.h"
-#include "OpenOCDManager.h"
+#include "OcdTelnetManager.h"
 class UIComponent;
 
 class CanvasView : public QGraphicsView {
@@ -33,7 +33,7 @@ public:
     class QUndoStack* undoStack() const { return m_undoStack; }
 
     // Live Test Mode & OpenOCD Hardware Control
-    void setOpenOCDManager(OpenOCDManager* openocd);
+    void setOcdTelnetManager(OcdTelnetManager* openocd);
     bool isLiveTestMode() const { return m_liveTestMode; }
     void onComponentClicked(UIComponent* component);
 
@@ -113,14 +113,14 @@ private:
     int m_lastLatency = 0;  // Track latency for Device Monitor
 
     // NEW: Pointer to OpenOCD manager
-    OpenOCDManager* m_openocd = nullptr;  // Will be set from MainWindow
+    OcdTelnetManager* m_openocd = nullptr;  // Will be set from MainWindow
 
     // NEW: Methods to handle GPIO toggle and selection
     void handleSwitchToggle(UIComponent* switchComponent);
     void selectComponent(UIComponent* component);
 
     /**
-     * @brief Get the board HAL from OpenOCDManager.
+     * @brief Get the board HAL from OcdTelnetManager.
      * Used to validate GPIO pins and get board-specific settings.
      */
     BoardHAL* getBoardHAL() const {
