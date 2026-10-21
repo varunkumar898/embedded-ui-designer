@@ -37,20 +37,20 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential cmake ninja-build libjsoncpp-dev \
-            qt6-base-dev qt6-dev qt6-tools-dev-tools libqt6serialport6-dev \
+            qt6-base-dev qt6-tools-dev-tools libqt6serialport6-dev \
             libqt6xml6 libqt6network6 libgl1-mesa-dev
 
       - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake ninja qt jsoncpp
+          brew install cmake ninja jsoncpp
 
-      - name: Install Dependencies (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install cmake ninja qtbase -y --no-progress
-          echo "CMAKE_PREFIX_PATH=C:/ProgramData/chocolatey/lib/qtbase;C:/Qt" >> $env:GITHUB_ENV
+      - name: Install Qt (macOS & Windows)
+        if: runner.os != 'Linux'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          cache: true
 
       - name: Configure (all targets)
         shell: bash
