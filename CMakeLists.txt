@@ -869,6 +869,43 @@ set_target_properties(test_all_cases PROPERTIES WIN32_EXECUTABLE FALSE)
 
 eud_add_test(NAME AllCases COMMAND test_all_cases)
 
+# Write guard enforcement on writes through OcdTelnetManager + OpenOcdManager
+if(COMMAND qt_add_executable)
+    qt_add_executable(test_write_guard_paths
+        tests/test_write_guard_paths.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+else()
+    add_executable(test_write_guard_paths
+        tests/test_write_guard_paths.cpp
+        ${COMMON_SOURCES}
+        ${RESOURCES}
+    )
+endif()
+
+target_include_directories(test_write_guard_paths PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/canvas
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+)
+target_link_libraries(test_write_guard_paths PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    Qt6::Network
+)
+if(Qt6SerialPort_FOUND)
+    target_link_libraries(test_write_guard_paths PRIVATE Qt6::SerialPort)
+    target_compile_definitions(test_write_guard_paths PRIVATE HAVE_QT_SERIALPORT)
+endif()
+set_target_properties(test_write_guard_paths PROPERTIES WIN32_EXECUTABLE FALSE)
+eud_add_test(NAME WriteGuardPaths COMMAND test_write_guard_paths)
+
 # Functional Validation Runner
 if(COMMAND qt_add_executable)
     qt_add_executable(test_functional_runner
