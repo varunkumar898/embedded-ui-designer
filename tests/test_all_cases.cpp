@@ -343,6 +343,7 @@ private slots:
     // 30. Phase 6 Hardening (MCP Security, Sandboxing, Credentials, Diagnostics, Git, CI/CD, GeneratorIR, Plugins)
     void testPhase6MCPAuthenticationAndTokens();
     void testPhase6MCPFileSandboxEnforcement();
+    void testPhase6McpTokenFileCanonicalPath();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -5827,6 +5828,39 @@ void TestAllCases::testPhase6MCPAuthenticationAndTokens() {
     QJsonObject res4 = server.processJsonRpcRequest(authHandshake);
     QVERIFY(res4.contains("result"));
     QVERIFY(res4["result"].toObject()["authenticated"].toBool());
+}
+
+// Regression: the MCP token file location is canonical, overridable via
+// EUIDESIGNER_MCP_TOKEN_FILE, and owner-only — and the Python proxy reads the
+// same location (mcp/embedded_ui_mcp.py::load_mcp_token).
+void TestAllCases::testPhase6McpTokenFileCanonicalPath() {
+    const QString tokenPath = m_tempDir.filePath("canonical/mcp_token");
+    QVERIFY(QFile::remove(tokenPath) || !QFile::exists(tokenPath));
+    qputenv("EUIDESIGNER_MCP_TOKEN_FILE", tokenPath.toUtf8());
+
+    {
+        MainWindow win;
+        DesignerController controller(&win);
+        DesignerLocalServer server(&controller);  // ctor generates the token
+
+        QVERIFY(server.sessionToken().length() >= 32);
+        QVERIFY(QFile::exists(tokenPath));
+
+        QFile file(tokenPath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(file.readAll()).trimmed(), server.sessionToken());
+        file.close();
+#if defined(Q_OS_UNIX)
+        QFileInfo info(tokenPath);
+        QVERIFY(info.permissions().testFlag(QFileDevice::ReadOwner));
+        QVERIFY(info.permissions().testFlag(QFileDevice::WriteOwner));
+        // No group/other access (chmod 600 semantics)
+        QVERIFY(!info.permissions().testFlag(QFileDevice::ReadGroup));
+        QVERIFY(!info.permissions().testFlag(QFileDevice::ReadOther));
+#endif
+    }
+
+    qunsetenv("EUIDESIGNER_MCP_TOKEN_FILE");
 }
 
 void TestAllCases::testPhase6MCPFileSandboxEnforcement() {

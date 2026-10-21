@@ -26,12 +26,50 @@ DesignerLocalServer::~DesignerLocalServer() {
     stop();
 }
 
+// Canonical local-auth token location, shared with the Python MCP proxy in
+// mcp/embedded_ui_mcp.py (load_token_candidates). Keep both in sync.
+//
+//   $EUIDESIGNER_MCP_TOKEN_FILE  (highest precedence, for tests/CI)
+//   GenericConfigLocation/embedded-ui-designer/mcp_token:
+//     Linux   ~/.config/embedded-ui-designer/mcp_token
+//     Windows %APPDATA%\embedded-ui-designer\mcp_token
+//     macOS   ~/Library/Preferences/embedded-ui-designer/mcp_token
+//   fallback  ~/.config/embedded-ui-designer/mcp_token
+//
+// Legacy locations are imported once so upgrades keep working
+// (see findLegacyTokenFiles()).
 QString DesignerLocalServer::tokenFilePath() const {
-    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    if (configDir.isEmpty()) {
-        configDir = QDir::homePath() + "/.config/embedded-ui-designer";
+    const QByteArray override = qgetenv("EUIDESIGNER_MCP_TOKEN_FILE");
+    if (!override.isEmpty()) {
+        return QString::fromUtf8(override);
     }
-    return QDir(configDir).filePath("mcp_token");
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    if (configDir.isEmpty()) {
+        configDir = QDir::homePath() + "/.config";
+    }
+    return QDir(configDir).filePath("embedded-ui-designer/mcp_token");
+}
+
+QStringList DesignerLocalServer::findLegacyTokenFiles() const {
+    QStringList candidates;
+    // Pre-hotfix location: QStandardPaths::AppConfigLocation (org-scoped Qt dir)
+    QString legacyConfig = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (!legacyConfig.isEmpty()) {
+        candidates << QDir(legacyConfig).filePath("mcp_token");
+    }
+    // Old home-dir layout some clients read
+    candidates << QDir::homePath() + "/.config/EmbeddedDev/EmbeddedUIDesigner/mcp_token";
+    // Historic shared path (was the Python proxy's only guess)
+    candidates << QDir::homePath() + "/.config/embedded-ui-designer/mcp_token";
+
+    QStringList found;
+    for (const QString& candidate : candidates) {
+        QFileInfo info(candidate);
+        if (info.exists() && info.isReadable()) {
+            found << candidate;
+        }
+    }
+    return found;
 }
 
 void DesignerLocalServer::ensureGeneratedAuthToken() {
@@ -46,6 +84,33 @@ void DesignerLocalServer::ensureGeneratedAuthToken() {
         fileIn.close();
         if (!existing.isEmpty()) {
             m_authToken = existing;
+            return;
+        }
+    }
+
+    // Migration: reuse an existing token from a legacy location so that a
+    // running Python proxy / stored credentials do not break after the update.
+    const QStringList legacyFiles = findLegacyTokenFiles();
+    for (const QString& legacy : legacyFiles) {
+        QFile legacyIn(legacy);
+        if (legacyIn.open(QIODevice::ReadOnly)) {
+            QString imported = QString::fromUtf8(legacyIn.readAll()).trimmed();
+            legacyIn.close();
+            if (imported.isEmpty()) {
+                continue;
+            }
+            m_authToken = imported;
+            QDir dir = QFileInfo(path).dir();
+            if (!dir.exists()) {
+                dir.mkpath(".");
+            }
+            QFile fileOut(path);
+            if (fileOut.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                fileOut.write(m_authToken.toUtf8());
+                fileOut.close();
+                fileOut.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+            }
+            qInfo() << "[DesignerLocalServer] imported MCP auth token from legacy location:" << legacy;
             return;
         }
     }
