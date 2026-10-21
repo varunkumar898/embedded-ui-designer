@@ -50,7 +50,7 @@ jobs:
         uses: jurplel/install-qt-action@v4.3.1
         with:
           version: '6.7.*'
-          modules: 'qtserialport qttools'
+          modules: 'qtserialport'
           setup-python: false
           cache: true
 
