@@ -2,10 +2,40 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <cstdlib>
+#if defined(QT_CORE_LIB)
+#include <QStandardPaths>
+#endif
 
 namespace security {
 
 AuditLogger::AuditLogger(const std::string& logFilePath) : logFilePath(logFilePath) {}
+
+/// Cross-platform default log location:
+///   <AppLocalDataLocation>/embedded-ui-audit.log
+///   (Linux ~/.local/share/..., Windows %APPDATA%\... or %LOCALAPPDATA%\...,
+///    macOS ~/Library/Application Support/...), falling back to the OS temp
+///   directory when the standard location cannot be determined.
+///   $EUIDESIGNER_AUDIT_LOG overrides the location for tests/CI.
+std::string AuditLogger::defaultLogFilePath() {
+    if (const char* envPath = std::getenv("EUIDESIGNER_AUDIT_LOG")) {
+        if (envPath[0] != '\0') {
+            return std::string(envPath);
+        }
+    }
+#if defined(QT_CORE_LIB) || defined(Q_MOC_RUN)
+    const QByteArray appData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation).toUtf8();
+    if (!appData.isEmpty()) {
+        return std::string(appData.constData(), static_cast<std::size_t>(appData.size())) + "/embedded-ui-audit.log";
+    }
+#endif
+    if (const char* temp = std::getenv("TMPDIR")) {
+        if (temp[0] != '\0') {
+            return std::string(temp) + "/embedded-ui-audit.log";
+        }
+    }
+    return std::string("/tmp/embedded-ui-audit.log");
+}
 
 void AuditLogger::log(const AuditEntry& entry) {
     buffer.push_back(entry);

@@ -9,6 +9,9 @@ import json
 import socket
 import time
 
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+from embedded_ui_mcp import load_mcp_token, iter_token_file_paths  # noqa: E402
+
 DEFAULT_PORT = 8765
 
 def send_rpc(sock, method, params=None):
@@ -62,15 +65,15 @@ def run_tests(port=8765):
 
     # Authenticate using local session token if available
     import os
-    token_path = os.path.expanduser("~/.config/embedded-ui-designer/mcp_token")
-    if os.path.exists(token_path):
+    token = load_mcp_token()
+    if token:
         try:
-            with open(token_path, "r", encoding="utf-8") as f:
-                token = f.read().strip()
-                auth_res = send_rpc(s, "authenticate", {"token": token})
-                assert_test("authenticate (session token)", auth_res.get("result", {}).get("authenticated") is True, "Token handshake succeeded")
+            auth_res = send_rpc(s, "authenticate", {"token": token})
+            assert_test("authenticate (session token)", auth_res.get("result", {}).get("authenticated") is True, "Token handshake succeeded")
         except Exception as e:
             print(f"  [WARN] Failed to read token: {e}")
+    else:
+        print("  [WARN] No MCP token file found (looked at: " + ", ".join(str(p) for p in iter_token_file_paths()) + ")")
 
     # 1. Component discovery
     res = send_rpc(s, "list_component_types")

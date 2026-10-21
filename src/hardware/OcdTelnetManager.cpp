@@ -1,4 +1,4 @@
-#include "OpenOCDManager.h"
+#include "OcdTelnetManager.h"
 #include "HardwareBridge.h"
 #include "BoardFactory.h"
 #include "BoardRegistry.h"
@@ -10,7 +10,7 @@
 
 static int simulatedStates[8][16] = {}; // 8 ports, 16 pins each
 
-OpenOCDManager::OpenOCDManager(QObject* parent)
+OcdTelnetManager::OcdTelnetManager(QObject* parent)
     : QObject(parent)
 {
     // Default fallback HAL from saved preset if available
@@ -19,11 +19,11 @@ OpenOCDManager::OpenOCDManager(QObject* parent)
     setBoard(boardToSet);
 }
 
-OpenOCDManager::~OpenOCDManager() {
+OcdTelnetManager::~OcdTelnetManager() {
     disconnect();
 }
 
-bool OpenOCDManager::createSocketConnection() {
+bool OcdTelnetManager::createSocketConnection() {
     // Create socket if not already created
     if (!m_telnetSocket) {
         if (thread() == QThread::currentThread()) {
@@ -66,7 +66,7 @@ bool OpenOCDManager::createSocketConnection() {
     return true;
 }
 
-bool OpenOCDManager::connectToTelnet(const QString& host, int port) {
+bool OcdTelnetManager::connectToTelnet(const QString& host, int port) {
     m_telnetHost = host;
     m_telnetPort = port;
 
@@ -78,9 +78,9 @@ bool OpenOCDManager::connectToTelnet(const QString& host, int port) {
     return ok;
 }
 
-bool OpenOCDManager::connect(const QString& host, int port) {
+bool OcdTelnetManager::connect(const QString& host, int port) {
     if (!connectToTelnet(host, port)) {
-        qWarning() << "[OpenOCDManager] OpenOCD connection failed on" << host << port;
+        qWarning() << "[OcdTelnetManager] OpenOCD connection failed on" << host << port;
         m_connected = false;
         return false;
     }
@@ -96,13 +96,13 @@ bool OpenOCDManager::connect(const QString& host, int port) {
     return true;
 }
 
-bool OpenOCDManager::connectToOpenOCD(const QString& config, int timeoutMs) {
+bool OcdTelnetManager::connectToOpenOCD(const QString& config, int timeoutMs) {
     Q_UNUSED(config);
     Q_UNUSED(timeoutMs);
     return connect(m_telnetHost, m_telnetPort);
 }
 
-void OpenOCDManager::autoDetectAndConnect() {
+void OcdTelnetManager::autoDetectAndConnect() {
     m_lastDetectedBoard = m_boardDetector.detectBoard();
 
     if (!m_lastDetectedBoard.boardName.isEmpty()) {
@@ -118,7 +118,7 @@ void OpenOCDManager::autoDetectAndConnect() {
     }
 }
 
-void OpenOCDManager::disconnect() {
+void OcdTelnetManager::disconnect() {
     if (m_telnetSocket) {
         if (m_telnetSocket->state() != QAbstractSocket::UnconnectedState) {
             m_telnetSocket->disconnectFromHost();
@@ -133,19 +133,19 @@ void OpenOCDManager::disconnect() {
     emit connectionChanged(false);
 }
 
-bool OpenOCDManager::isConnected() const {
+bool OcdTelnetManager::isConnected() const {
     if (m_telnetSocket) {
         return m_telnetSocket->state() == QAbstractSocket::ConnectedState;
     }
     return m_connected;
 }
 
-void OpenOCDManager::setConnected(bool connected) {
+void OcdTelnetManager::setConnected(bool connected) {
     m_connected = connected;
     emit connectionChanged(connected);
 }
 
-bool OpenOCDManager::autoDetectAndInitializeBoard() {
+bool OcdTelnetManager::autoDetectAndInitializeBoard() {
     if (!isConnected()) {
         qWarning() << "OpenOCD not connected. Cannot auto-detect board.";
         return false;
@@ -176,7 +176,7 @@ bool OpenOCDManager::autoDetectAndInitializeBoard() {
     return true;
 }
 
-bool OpenOCDManager::setBoard(const QString& boardName) {
+bool OcdTelnetManager::setBoard(const QString& boardName) {
     if (!BoardFactory::isSupported(boardName)) {
         if (!BoardRegistry::instance().board(boardName).id.isEmpty()) {
             BoardDef bd = BoardRegistry::instance().board(boardName);
@@ -204,9 +204,9 @@ bool OpenOCDManager::setBoard(const QString& boardName) {
     return true;
 }
 
-QString OpenOCDManager::sendCommand(const QString& cmd) {
+QString OcdTelnetManager::sendCommand(const QString& cmd) {
     QString trimmed = cmd.trimmed();
-    qDebug() << "[OpenOCDManager] Sending command:" << trimmed;
+    qDebug() << "[OcdTelnetManager] Sending command:" << trimmed;
 
     // 1. High-Level GPIO Control Commands
     if (trimmed.compare("LED_ON", Qt::CaseInsensitive) == 0) {
@@ -307,7 +307,7 @@ QString OpenOCDManager::sendCommand(const QString& cmd) {
     return response;
 }
 
-bool OpenOCDManager::sendCommand(const QString& cmd, QString* outResponse) {
+bool OcdTelnetManager::sendCommand(const QString& cmd, QString* outResponse) {
     QString resp = sendCommand(cmd);
     if (outResponse) {
         *outResponse = resp;
@@ -315,7 +315,7 @@ bool OpenOCDManager::sendCommand(const QString& cmd, QString* outResponse) {
     return !resp.isEmpty() && !resp.startsWith("ERR");
 }
 
-QString OpenOCDManager::readResponse() {
+QString OcdTelnetManager::readResponse() {
     if (!m_telnetSocket) return m_lastResponse;
 
     QByteArray response;
@@ -329,7 +329,7 @@ QString OpenOCDManager::readResponse() {
     return m_lastResponse;
 }
 
-bool OpenOCDManager::sendRawSocket(const QString& line) {
+bool OcdTelnetManager::sendRawSocket(const QString& line) {
     if (!m_telnetSocket || m_telnetSocket->state() != QAbstractSocket::ConnectedState) {
         return false;
     }
@@ -337,7 +337,7 @@ bool OpenOCDManager::sendRawSocket(const QString& line) {
     return m_telnetSocket->waitForBytesWritten(1000);
 }
 
-bool OpenOCDManager::writeMemoryWord(quint32 address, quint32 value) {
+bool OcdTelnetManager::writeMemoryWord(quint32 address, quint32 value) {
     // Write via HardwareBridge OpenOcdManager
     bool ok = HardwareBridge::instance().openOcdManager().writeMemoryWord(address, value);
 
@@ -349,16 +349,16 @@ bool OpenOCDManager::writeMemoryWord(quint32 address, quint32 value) {
     return ok;
 }
 
-bool OpenOCDManager::readMemoryWord(quint32 address, quint32* outValue) {
+bool OcdTelnetManager::readMemoryWord(quint32 address, quint32* outValue) {
     if (!outValue) return false;
     return HardwareBridge::instance().openOcdManager().readMemoryWord(address, outValue);
 }
 
-QString OpenOCDManager::gpioStatus() const {
+QString OcdTelnetManager::gpioStatus() const {
     quint32 odr = 0;
     bool high = false;
 
-    if (const_cast<OpenOCDManager*>(this)->readMemoryWord(0x48000014, &odr)) {
+    if (const_cast<OcdTelnetManager*>(this)->readMemoryWord(0x48000014, &odr)) {
         high = (odr & (1u << 4)) != 0;
     } else {
         high = m_ledState;
@@ -369,7 +369,7 @@ QString OpenOCDManager::gpioStatus() const {
         .arg(QString::number(odr, 16).toUpper().rightJustified(8, '0'));
 }
 
-bool OpenOCDManager::gpioToggle(uint8_t port, uint8_t pin) {
+bool OcdTelnetManager::gpioToggle(uint8_t port, uint8_t pin) {
     if (!m_boardHAL) {
         qWarning() << "Board HAL not initialized. Cannot toggle GPIO.";
         return false;  // Fallback to simulated state
@@ -407,7 +407,7 @@ bool OpenOCDManager::gpioToggle(uint8_t port, uint8_t pin) {
     return response.isEmpty() || response.contains("0 bytes") || response.contains("OK");
 }
 
-int OpenOCDManager::gpioRead(uint8_t port, uint8_t pin) {
+int OcdTelnetManager::gpioRead(uint8_t port, uint8_t pin) {
     if (!m_boardHAL) {
         qWarning() << "Board HAL not initialized. Using simulated state.";
         return (port < 8 && pin < 16) ? simulatedStates[port][pin] : 0;  // Fallback

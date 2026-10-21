@@ -1656,7 +1656,7 @@ public:
 
             // 6. Live Test GPIO Toggle across targets
             auto tGpio = std::chrono::high_resolution_clock::now();
-            OpenOCDManager& ocd = window.openOcdManager();
+            OcdTelnetManager& ocd = window.openOcdManager();
             bool gpioStmOk = ocd.setBoard("STM32F030R8");
             bool gpioToggleOk = ocd.gpioToggle(0, 5); // Toggle PA5
             bool gpioEspOk = ocd.setBoard("ESP32");

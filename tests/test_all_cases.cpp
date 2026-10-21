@@ -14,6 +14,9 @@
 #include <QToolButton>
 #include <QToolBar>
 #include <QMenuBar>
+#include <QStyleOptionGraphicsItem>
+#include <QPainter>
+#include <QPixmap>
 
 // Models
 #include "ButtonComponent.h"
@@ -175,6 +178,11 @@ class TestAllCases : public QObject {
 
 private slots:
     void initTestCase();
+    void init();
+    void cleanup();
+
+    // 0. Painter balance regression (Unbalanced save/restore guard)
+    void testPainterSaveRestoreBalance();
 
     // 1. Component Models
     void testAllComponentsCreationAndDefaults();
@@ -335,6 +343,8 @@ private slots:
     // 30. Phase 6 Hardening (MCP Security, Sandboxing, Credentials, Diagnostics, Git, CI/CD, GeneratorIR, Plugins)
     void testPhase6MCPAuthenticationAndTokens();
     void testPhase6MCPFileSandboxEnforcement();
+    void testPhase6McpTokenFileCanonicalPath();
+    void testPhase6FirmwareSyncRequiresConfiguredDirectory();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -396,6 +406,66 @@ private:
 
 void TestAllCases::initTestCase() {
     QVERIFY(m_tempDir.isValid());
+}
+
+// ── QPainter save/restore balance guard ─────────────────────────────────
+// Any "Unbalanced save/restore" warning raised by ANY test below fails
+// cleanup() (Qt runs init()/cleanup() around every test slot), so the whole
+// acceptance suite acts as the UI smoke net for painter imbalance.
+static int g_unbalancedPainterWarnings = 0;
+static QtMessageHandler g_prevPainterMessageHandler = nullptr;
+
+static void painterBreachMessageHandler(QtMsgType type, const QMessageLogContext& context,
+                                        const QString& message) {
+    if (message.contains(QLatin1String("Unbalanced save/restore"))) {
+        g_unbalancedPainterWarnings++;
+        return;
+    }
+    if (g_prevPainterMessageHandler) {
+        g_prevPainterMessageHandler(type, context, message);
+    }
+}
+
+void TestAllCases::init() {
+    g_unbalancedPainterWarnings = 0;
+    g_prevPainterMessageHandler = qInstallMessageHandler(painterBreachMessageHandler);
+}
+
+void TestAllCases::cleanup() {
+    qInstallMessageHandler(g_prevPainterMessageHandler);
+    g_prevPainterMessageHandler = nullptr;
+    QVERIFY2(g_unbalancedPainterWarnings == 0,
+             qPrintable(QString("%1 unbalanced painter save/restore warning(s) "
+                                "were emitted during this test").arg(g_unbalancedPainterWarnings)));
+}
+
+// Regression test for the "QPainter::restore: Unbalanced save/restore" spam:
+// UIComponent::paintSelectionHandles used to call painter->restore() without a
+// matching save(), once per selected item per repaint. Render a selected item
+// through both branches (unlocked + locked) and make sure the painter stays
+// balanced.
+void TestAllCases::testPainterSaveRestoreBalance() {
+    // Item on a plain pixmap painter (no widget needed) exercising the repaint
+    // path that produces selection handles.
+    QPixmap pixmap(220, 160);
+    pixmap.fill(Qt::white);
+    QPainter painter(&pixmap);
+    QVERIFY(painter.isActive());
+
+    LabelComponent* label = new LabelComponent();
+    label->setFlag(QGraphicsItem::ItemIsSelectable, true);
+    label->setSelected(true);
+    QVERIFY(label->isSelected());
+
+    QStyleOptionGraphicsItem option;
+    option.rect = label->boundingRect().toAlignedRect();
+    label->paint(&painter, &option, nullptr);  // unlocked, selected: uses the normal branch
+
+    label->setLocked(true);
+    label->paint(&painter, &option, nullptr);  // locked, selected: uses the early-return branch
+
+    painter.end();
+    QCOMPARE(g_unbalancedPainterWarnings, 0);
 }
 
 void TestAllCases::cleanupTestCase() {
@@ -5761,6 +5831,83 @@ void TestAllCases::testPhase6MCPAuthenticationAndTokens() {
     QVERIFY(res4["result"].toObject()["authenticated"].toBool());
 }
 
+// Regression: the MCP token file location is canonical, overridable via
+// EUIDESIGNER_MCP_TOKEN_FILE, and owner-only — and the Python proxy reads the
+// same location (mcp/embedded_ui_mcp.py::load_mcp_token).
+void TestAllCases::testPhase6McpTokenFileCanonicalPath() {
+    const QString tokenPath = m_tempDir.filePath("canonical/mcp_token");
+    QVERIFY(QFile::remove(tokenPath) || !QFile::exists(tokenPath));
+    qputenv("EUIDESIGNER_MCP_TOKEN_FILE", tokenPath.toUtf8());
+
+    {
+        MainWindow win;
+        DesignerController controller(&win);
+        DesignerLocalServer server(&controller);  // ctor generates the token
+
+        QVERIFY(server.sessionToken().length() >= 32);
+        QVERIFY(QFile::exists(tokenPath));
+
+        QFile file(tokenPath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(file.readAll()).trimmed(), server.sessionToken());
+        file.close();
+#if defined(Q_OS_UNIX)
+        QFileInfo info(tokenPath);
+        QVERIFY(info.permissions().testFlag(QFileDevice::ReadOwner));
+        QVERIFY(info.permissions().testFlag(QFileDevice::WriteOwner));
+        // No group/other access (chmod 600 semantics)
+        QVERIFY(!info.permissions().testFlag(QFileDevice::ReadGroup));
+        QVERIFY(!info.permissions().testFlag(QFileDevice::ReadOther));
+#endif
+    }
+
+    qunsetenv("EUIDESIGNER_MCP_TOKEN_FILE");
+}
+
+void TestAllCases::testPhase6FirmwareSyncRequiresConfiguredDirectory() {
+    // Regression: Project::firmwareDirectory() used to fall back to
+    // QDir::currentPath(), whose "src/|inc/|scr/ exists" heuristic also
+    // matched the application's own source tree. A firmware sync with no
+    // configured directory then exported the full scaffold (user/,
+    // generated/, top-level CMakeLists.txt) into the working directory,
+    // clobbering the repo's tracked root CMakeLists.txt.
+    CanvasScene scene;
+    Project project(&scene);
+
+    const QString snapshotRootCMake = QDir::currentPath() + "/CMakeLists.txt";
+    const qint64 rootCMakeBefore = QFileInfo(snapshotRootCMake).exists()
+        ? QFileInfo(snapshotRootCMake).size() : -1;
+
+    QString err;
+    QVERIFY(!project.syncFirmwareFiles(&err));
+    QVERIFY(err.contains("firmware directory", Qt::CaseInsensitive));
+    // Nothing may appear in the working directory or anywhere else.
+    // (Only assert absence for directories that did not exist before the
+    // sync attempt - the suite's build dir may contain legitimate debris
+    // from earlier runs.)
+    const QString userDir = QDir::currentPath() + "/user";
+    const QString manifestPath = QDir::currentPath() + "/generated/MANIFEST.json";
+    const bool userDirExistedBefore = QFileInfo(userDir).exists();
+    const bool generatedDirExistedBefore = QFileInfo(QFileInfo(manifestPath).absolutePath()).exists();
+    if (!userDirExistedBefore) {
+        QVERIFY(!QFileInfo::exists(userDir + "/main.c"));
+    }
+    if (!generatedDirExistedBefore) {
+        QVERIFY(!QFileInfo::exists(manifestPath));
+    }
+    if (rootCMakeBefore >= 0) {
+        QCOMPARE(QFileInfo(snapshotRootCMake).size(), rootCMakeBefore);
+    }
+
+    // An explicitly configured, existing firmware directory still syncs.
+    const QString fwDir = m_tempDir.filePath("fw_configured");
+    QVERIFY(QDir().mkpath(fwDir));
+    project.setFirmwareDirectory(fwDir);
+    QVERIFY2(project.syncFirmwareFiles(&err), qPrintable(err));
+    QVERIFY(QFileInfo::exists(fwDir + "/CMakeLists.txt"));
+    QVERIFY(QFileInfo::exists(fwDir + "/user/main.c"));
+}
+
 void TestAllCases::testPhase6MCPFileSandboxEnforcement() {
     MainWindow win;
     DesignerController controller(&win);
@@ -7476,8 +7623,8 @@ void TestAllCases::testPhase3FirstRunBoardSelection() {
     QVERIFY(win.boardBanner()->isHidden());
     QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
 
-    // 6. Verify OpenOCDManager picks up saved preset and logs preset name instead of hardcoded default
-    OpenOCDManager ocd;
+    // 6. Verify OcdTelnetManager picks up saved preset and logs preset name instead of hardcoded default
+    OcdTelnetManager ocd;
     QCOMPARE(reg.activePreset().name, QString("Nucleo Custom Preset"));
 
     // Clean up test preset
