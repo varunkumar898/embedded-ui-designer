@@ -344,6 +344,7 @@ private slots:
     void testPhase6MCPAuthenticationAndTokens();
     void testPhase6MCPFileSandboxEnforcement();
     void testPhase6McpTokenFileCanonicalPath();
+    void testPhase6FirmwareSyncRequiresConfiguredDirectory();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -5861,6 +5862,50 @@ void TestAllCases::testPhase6McpTokenFileCanonicalPath() {
     }
 
     qunsetenv("EUIDESIGNER_MCP_TOKEN_FILE");
+}
+
+void TestAllCases::testPhase6FirmwareSyncRequiresConfiguredDirectory() {
+    // Regression: Project::firmwareDirectory() used to fall back to
+    // QDir::currentPath(), whose "src/|inc/|scr/ exists" heuristic also
+    // matched the application's own source tree. A firmware sync with no
+    // configured directory then exported the full scaffold (user/,
+    // generated/, top-level CMakeLists.txt) into the working directory,
+    // clobbering the repo's tracked root CMakeLists.txt.
+    CanvasScene scene;
+    Project project(&scene);
+
+    const QString snapshotRootCMake = QDir::currentPath() + "/CMakeLists.txt";
+    const qint64 rootCMakeBefore = QFileInfo(snapshotRootCMake).exists()
+        ? QFileInfo(snapshotRootCMake).size() : -1;
+
+    QString err;
+    QVERIFY(!project.syncFirmwareFiles(&err));
+    QVERIFY(err.contains("firmware directory", Qt::CaseInsensitive));
+    // Nothing may appear in the working directory or anywhere else.
+    // (Only assert absence for directories that did not exist before the
+    // sync attempt - the suite's build dir may contain legitimate debris
+    // from earlier runs.)
+    const QString userDir = QDir::currentPath() + "/user";
+    const QString manifestPath = QDir::currentPath() + "/generated/MANIFEST.json";
+    const bool userDirExistedBefore = QFileInfo(userDir).exists();
+    const bool generatedDirExistedBefore = QFileInfo(QFileInfo(manifestPath).absolutePath()).exists();
+    if (!userDirExistedBefore) {
+        QVERIFY(!QFileInfo::exists(userDir + "/main.c"));
+    }
+    if (!generatedDirExistedBefore) {
+        QVERIFY(!QFileInfo::exists(manifestPath));
+    }
+    if (rootCMakeBefore >= 0) {
+        QCOMPARE(QFileInfo(snapshotRootCMake).size(), rootCMakeBefore);
+    }
+
+    // An explicitly configured, existing firmware directory still syncs.
+    const QString fwDir = m_tempDir.filePath("fw_configured");
+    QVERIFY(QDir().mkpath(fwDir));
+    project.setFirmwareDirectory(fwDir);
+    QVERIFY2(project.syncFirmwareFiles(&err), qPrintable(err));
+    QVERIFY(QFileInfo::exists(fwDir + "/CMakeLists.txt"));
+    QVERIFY(QFileInfo::exists(fwDir + "/user/main.c"));
 }
 
 void TestAllCases::testPhase6MCPFileSandboxEnforcement() {

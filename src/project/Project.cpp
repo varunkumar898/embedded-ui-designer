@@ -854,6 +854,19 @@ void Project::setProjectDirectory(const QString& dir) {
 }
 
 bool Project::syncFirmwareFiles(QString* errorMsg) {
+    // Regression guard: without an explicitly configured firmware directory
+    // the previous resolution chain ended at QDir::currentPath() and exported
+    // the entire firmware scaffold (user/, generated/, CMakeLists.txt) into
+    // whatever the app's working directory was - clobbering tracked files
+    // when the app/tests were run from a source tree. Require an existing,
+    // explicitly configured directory before exporting anything.
+    if (m_firmwareDir.isEmpty() || !QDir(m_firmwareDir).exists()) {
+        if (errorMsg) {
+            *errorMsg = "No firmware directory configured; firmware sync skipped. "
+                        "Set the project's firmware directory before synchronizing.";
+        }
+        return false;
+    }
     FirmwareExportManager mgr;
     ExportOptions opts;
     opts.outputDirectory = firmwareDirectory();
