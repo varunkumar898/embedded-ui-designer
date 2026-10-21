@@ -90,3 +90,7 @@ node_modules/
 report.txt
 *.elf
 *.bin
+
+# Python bytecode from MCP tooling run in-repo
+__pycache__/
+*.pyc
