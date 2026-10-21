@@ -451,8 +451,8 @@ set(COMMON_SOURCES
     src/agent/MockAgent.cpp
     src/agent/dl_codec.c
     src/agent/MockAgent.h
-    src/hardware/OpenOCDManager.cpp
-    src/hardware/OpenOCDManager.h
+    src/hardware/OcdTelnetManager.cpp
+    src/hardware/OcdTelnetManager.h
     src/hardware/OpenOCDWorker.cpp
     src/hardware/OpenOCDWorker.h
     src/hardware/BoardHAL.h

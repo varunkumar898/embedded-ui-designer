@@ -9,7 +9,7 @@
 #include "PathComponent.h"
 #include "CircleComponent.h"
 #include "SwitchComponent.h"
-#include "OpenOCDManager.h"
+#include "OcdTelnetManager.h"
 #include "AddComponentCommand.h"
 #include "DeleteComponentCommand.h"
 #include "MoveComponentCommand.h"
@@ -961,9 +961,9 @@ void CanvasView::setLiveTestMode(bool enabled) {
     qDebug() << "CanvasView Live Test Mode:" << (enabled ? "ON" : "OFF");
 }
 
-void CanvasView::setOpenOCDManager(OpenOCDManager* openocd) {
+void CanvasView::setOcdTelnetManager(OcdTelnetManager* openocd) {
     m_openocd = openocd;
-    qDebug() << "CanvasView OpenOCDManager set";
+    qDebug() << "CanvasView OcdTelnetManager set";
 }
 
 void CanvasView::handleSwitchToggle(UIComponent* switchComponent) {

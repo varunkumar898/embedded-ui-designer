@@ -47,7 +47,7 @@ private:
     DeviceMonitorRuntime m_runtime;
 
     // OpenOCD Hardware Controls
-    class OpenOCDManager* m_openocd = nullptr;
+    class OcdTelnetManager* m_openocd = nullptr;
     QLabel* m_statusLabel = nullptr;
     QLabel* m_gpioDisplay = nullptr;
     QPushButton* m_openocdConnectBtn = nullptr;

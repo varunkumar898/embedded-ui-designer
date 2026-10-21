@@ -49,6 +49,7 @@ private:
     void processLine(QTcpSocket* socket, const QByteArray& line);
     void ensureGeneratedAuthToken();
     QString tokenFilePath() const;
+    QStringList findLegacyTokenFiles() const;
 
     DesignerController* m_controller = nullptr;
     QTcpServer* m_tcpServer = nullptr;

@@ -43,8 +43,7 @@ bool BoardDatabase::loadDatabase(const QString& jsonPath) {
         QStringList candidates = {
             "config/boards/boards.json",
             appDir + "/config/boards/boards.json",
-            appDir + "/../config/boards/boards.json",
-            "/home/cherry/embedded-ui-designer/config/boards/boards.json"
+            appDir + "/../config/boards/boards.json"
         };
         for (const QString& candidate : candidates) {
             if (QFile::exists(candidate)) {

@@ -3,6 +3,8 @@ name: Security Scanning
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   schedule:
     - cron: '0 2 * * 0' # Weekly Sunday scan
 
@@ -37,3 +39,27 @@ jobs:
           path: ./
           extra_args: --debug --only-verified
         continue-on-error: true
+
+  secrets-gate:
+    name: Hardcoded Secrets Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Grep-based secret scan (failing)
+        run: |
+          chmod +x scripts/check-secrets.sh
+          scripts/check-secrets.sh
+
+  case-collision-gate:
+    name: Case Collision Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect tracked paths differing only by case
+        run: |
+          chmod +x scripts/check-case-collisions.sh
+          scripts/check-case-collisions.sh

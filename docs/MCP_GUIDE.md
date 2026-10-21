@@ -189,6 +189,24 @@ The MCP server exposes 5 read-only URI resources:
 
 ## 5. Setup & Launch Instructions
 
+### Authentication (local MCP token)
+The C++ app requires every JSON-RPC connection to authenticate with a session
+token stored **only on your machine** (file permissions 0600). Token file
+location, identical for the C++ app, the Python proxy and `mcp/test_mcp_client.py`:
+
+| Priority | Location |
+|---|---|
+| 1 (override) | `$EUIDESIGNER_MCP_TOKEN_FILE` |
+| 2 (canonical) | Linux: `~/.config/embedded-ui-designer/mcp_token` · Windows: `%APPDATA%\embedded-ui-designer\mcp_token` · macOS: `~/Library/Preferences/embedded-ui-designer/mcp_token` |
+| 3 (legacy, read-only fallback) | `~/.config/EmbeddedDev/EmbeddedUIDesigner/mcp_token` |
+
+- The token is auto-generated on first launch (64 hex chars). If a legacy
+  token file exists it is imported to the canonical path on the next launch.
+- The Python proxy (`mcp/embedded_ui_mcp.py`) reads the same locations via
+  `load_mcp_token()` and attaches the token to every request automatically —
+  no configuration needed.
+- Never commit the token file; the file's directory is git-ignored by design.
+
 ### Step 1: Launch Embedded UI Designer
 By default, the application automatically launches the local TCP control server on `127.0.0.1:8765`:
 

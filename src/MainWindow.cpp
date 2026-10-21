@@ -242,7 +242,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Pass OpenOCD manager to canvas
     if (m_canvasView) {
-        m_canvasView->setOpenOCDManager(&m_openocd);
+        m_canvasView->setOcdTelnetManager(&m_openocd);
     }
 
     // Connect Live Test mode toggle to canvas
