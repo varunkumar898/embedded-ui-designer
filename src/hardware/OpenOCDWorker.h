@@ -6,7 +6,7 @@
 #include <QString>
 #include <memory>
 
-class OpenOCDManager;
+class OcdTelnetManager;
 
 /**
  * @class OpenOCDWorker
@@ -22,7 +22,7 @@ class OpenOCDWorker : public QObject {
     Q_OBJECT
 
 public:
-    explicit OpenOCDWorker(OpenOCDManager* openocd);
+    explicit OpenOCDWorker(OcdTelnetManager* openocd);
     ~OpenOCDWorker() override;
 
     /**
@@ -68,7 +68,7 @@ private slots:
     void doConnect();
 
 private:
-    OpenOCDManager* m_openocd = nullptr;
+    OcdTelnetManager* m_openocd = nullptr;
     QString m_host = "127.0.0.1";
     int m_port = 4444;
     int m_timeoutSeconds = 5;

@@ -13,7 +13,7 @@
  * - Register offsets (BSRR, BRR, IDR, GPIO_OUT_W1TS, etc.)
  * - Register bit layouts
  * 
- * This interface abstracts those differences so OpenOCDManager
+ * This interface abstracts those differences so OcdTelnetManager
  * can work with any board via OpenOCD Telnet.
  */
 class BoardHAL {

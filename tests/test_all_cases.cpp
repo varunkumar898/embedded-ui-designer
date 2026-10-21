@@ -7476,8 +7476,8 @@ void TestAllCases::testPhase3FirstRunBoardSelection() {
     QVERIFY(win.boardBanner()->isHidden());
     QCOMPARE(reg.activeBoard().id, QString("nucleo_f030r8"));
 
-    // 6. Verify OpenOCDManager picks up saved preset and logs preset name instead of hardcoded default
-    OpenOCDManager ocd;
+    // 6. Verify OcdTelnetManager picks up saved preset and logs preset name instead of hardcoded default
+    OcdTelnetManager ocd;
     QCOMPARE(reg.activePreset().name, QString("Nucleo Custom Preset"));
 
     // Clean up test preset

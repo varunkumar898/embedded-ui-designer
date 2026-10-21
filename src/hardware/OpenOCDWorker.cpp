@@ -1,12 +1,12 @@
 #include "OpenOCDWorker.h"
-#include "OpenOCDManager.h"
+#include "OcdTelnetManager.h"
 #include "BoardRegistry.h"
 #include <QTimer>
 #include <QDebug>
 #include <QThread>
 #include <chrono>
 
-OpenOCDWorker::OpenOCDWorker(OpenOCDManager* openocd)
+OpenOCDWorker::OpenOCDWorker(OcdTelnetManager* openocd)
     : m_openocd(openocd) {
 }
 
@@ -34,7 +34,7 @@ void OpenOCDWorker::doConnect() {
     }
     
     if (!m_openocd) {
-        emit connectionFailed("OpenOCDManager instance is null");
+        emit connectionFailed("OcdTelnetManager instance is null");
         return;
     }
     

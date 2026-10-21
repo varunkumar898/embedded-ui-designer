@@ -17,12 +17,12 @@
  * Provides real-time command sending, GPIO control (LED_ON, LED_OFF, LED_TOGGLE, gpio_status),
  * register reading/writing, and response parsing.
  */
-class OpenOCDManager : public QObject {
+class OcdTelnetManager : public QObject {
     Q_OBJECT
 
 public:
-    explicit OpenOCDManager(QObject* parent = nullptr);
-    ~OpenOCDManager() override;
+    explicit OcdTelnetManager(QObject* parent = nullptr);
+    ~OcdTelnetManager() override;
 
     // OpenOCD Connection Management
     bool connect(const QString& host = "127.0.0.1", int port = 4444);
