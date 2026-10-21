@@ -86,6 +86,9 @@ build_linux/
 # Node.js dependencies
 node_modules/
 
+# OpenCode IDE/session state (never commit; may contain private history)
+.opencode/
+
 # Test outputs
 report.txt
 *.elf
