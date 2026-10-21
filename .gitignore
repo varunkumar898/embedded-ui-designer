@@ -69,7 +69,19 @@ desktop.ini
 *.tmp
 build2/
 build_linux/
+
+# Credentials and key material (never commit; load from environment instead)
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.private
+*.p12
+*.pfx
+*.keystore
+*_rsa
+*_ed25519
 
 # Node.js dependencies
 node_modules/
