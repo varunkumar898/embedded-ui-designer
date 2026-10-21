@@ -14,6 +14,9 @@
 #include <QToolButton>
 #include <QToolBar>
 #include <QMenuBar>
+#include <QStyleOptionGraphicsItem>
+#include <QPainter>
+#include <QPixmap>
 
 // Models
 #include "ButtonComponent.h"
@@ -175,6 +178,11 @@ class TestAllCases : public QObject {
 
 private slots:
     void initTestCase();
+    void init();
+    void cleanup();
+
+    // 0. Painter balance regression (Unbalanced save/restore guard)
+    void testPainterSaveRestoreBalance();
 
     // 1. Component Models
     void testAllComponentsCreationAndDefaults();
@@ -396,6 +404,66 @@ private:
 
 void TestAllCases::initTestCase() {
     QVERIFY(m_tempDir.isValid());
+}
+
+// ── QPainter save/restore balance guard ─────────────────────────────────
+// Any "Unbalanced save/restore" warning raised by ANY test below fails
+// cleanup() (Qt runs init()/cleanup() around every test slot), so the whole
+// acceptance suite acts as the UI smoke net for painter imbalance.
+static int g_unbalancedPainterWarnings = 0;
+static QtMessageHandler g_prevPainterMessageHandler = nullptr;
+
+static void painterBreachMessageHandler(QtMsgType type, const QMessageLogContext& context,
+                                        const QString& message) {
+    if (message.contains(QLatin1String("Unbalanced save/restore"))) {
+        g_unbalancedPainterWarnings++;
+        return;
+    }
+    if (g_prevPainterMessageHandler) {
+        g_prevPainterMessageHandler(type, context, message);
+    }
+}
+
+void TestAllCases::init() {
+    g_unbalancedPainterWarnings = 0;
+    g_prevPainterMessageHandler = qInstallMessageHandler(painterBreachMessageHandler);
+}
+
+void TestAllCases::cleanup() {
+    qInstallMessageHandler(g_prevPainterMessageHandler);
+    g_prevPainterMessageHandler = nullptr;
+    QVERIFY2(g_unbalancedPainterWarnings == 0,
+             qPrintable(QString("%1 unbalanced painter save/restore warning(s) "
+                                "were emitted during this test").arg(g_unbalancedPainterWarnings)));
+}
+
+// Regression test for the "QPainter::restore: Unbalanced save/restore" spam:
+// UIComponent::paintSelectionHandles used to call painter->restore() without a
+// matching save(), once per selected item per repaint. Render a selected item
+// through both branches (unlocked + locked) and make sure the painter stays
+// balanced.
+void TestAllCases::testPainterSaveRestoreBalance() {
+    // Item on a plain pixmap painter (no widget needed) exercising the repaint
+    // path that produces selection handles.
+    QPixmap pixmap(220, 160);
+    pixmap.fill(Qt::white);
+    QPainter painter(&pixmap);
+    QVERIFY(painter.isActive());
+
+    LabelComponent* label = new LabelComponent();
+    label->setFlag(QGraphicsItem::ItemIsSelectable, true);
+    label->setSelected(true);
+    QVERIFY(label->isSelected());
+
+    QStyleOptionGraphicsItem option;
+    option.rect = label->boundingRect().toAlignedRect();
+    label->paint(&painter, &option, nullptr);  // unlocked, selected: uses the normal branch
+
+    label->setLocked(true);
+    label->paint(&painter, &option, nullptr);  // locked, selected: uses the early-return branch
+
+    painter.end();
+    QCOMPARE(g_unbalancedPainterWarnings, 0);
 }
 
 void TestAllCases::cleanupTestCase() {

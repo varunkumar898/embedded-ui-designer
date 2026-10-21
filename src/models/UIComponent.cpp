@@ -109,6 +109,11 @@ void UIComponent::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
 }
 
 void UIComponent::paintSelectionHandles(QPainter* painter) {
+    // Pair with the restore() calls at the end of both exit paths below.
+    // (Previously this function called restore() without a matching save(),
+    // causing "QPainter::restore: Unbalanced save/restore" spam on every repaint
+    // of a selected item.)
+    painter->save();
     if (m_isLocked) {
         // Locked component: draw lock outline and lock badge
         QPen lockedPen(QColor(234, 88, 12), 1.5, Qt::DashLine); // Amber/orange lock color
