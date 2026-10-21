@@ -891,6 +891,21 @@ target_include_directories(test_write_guard_paths PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
     ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/simulator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/api
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/ai/providers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cicd
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/workspace
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/driverpack
 )
 target_link_libraries(test_write_guard_paths PRIVATE
     Qt6::Core
@@ -898,6 +913,8 @@ target_link_libraries(test_write_guard_paths PRIVATE
     Qt6::Widgets
     Qt6::Test
     Qt6::Network
+    Qt6::Xml
+    Clipper2
 )
 if(Qt6SerialPort_FOUND)
     target_link_libraries(test_write_guard_paths PRIVATE Qt6::SerialPort)

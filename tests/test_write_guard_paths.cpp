@@ -3,8 +3,7 @@
 #include "hardware/HardwareBridge.h"
 #include "hardware/OpenOcdManager.h"
 #include "hardware/OcdTelnetManager.h"
-
-using namespace Hardware;
+#include "hardware/WriteGuard.h"
 
 class TestWriteGuardPaths : public QObject {
     Q_OBJECT
