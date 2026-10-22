@@ -18,13 +18,15 @@
 #include <QDateTime>
 #include <QFileDialog>
 #include <QApplication>
+#include <QSettings>
 #include <QSplitter>
 #include <QInputDialog>
 #include "InvalidBindingsDialog.h"
 
-PinBindingDialog::PinBindingDialog(CanvasScene* scene, QWidget* parent)
+PinBindingDialog::PinBindingDialog(CanvasScene* scene, Project* project, QWidget* parent)
     : QDialog(parent)
     , m_scene(scene)
+    , m_project(project)
     , m_bridge(HardwareBridge::instance())
 {
     setWindowTitle("Hardware Pin Configuration & Universal Connection Manager");
@@ -88,7 +90,7 @@ void PinBindingDialog::setupUi() {
             m_boardCombo->addItem(QString("%1 (%2)").arg(bp.name.isEmpty() ? bp.id : bp.name, bp.mcuFamily), bp.id);
         }
     }
-    QString activeId = !m_bridge.currentBoardId().isEmpty() ? m_bridge.currentBoardId() : BoardRegistry::instance().activeBoard().id;
+    QString activeId = !m_bridge.currentBoard().id.isEmpty() ? m_bridge.currentBoard().id : BoardRegistry::instance().activeBoard().id;
     int curIdx = m_boardCombo->findData(activeId);
     if (curIdx < 0) curIdx = m_boardCombo->findData(BoardRegistry::instance().activeBoard().id);
     if (curIdx >= 0) m_boardCombo->setCurrentIndex(curIdx);
@@ -248,6 +250,34 @@ void PinBindingDialog::setupUi() {
     connect(m_portFilterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &PinBindingDialog::onPortFilterChanged);
     filterLayout->addWidget(m_portFilterCombo);
+
+    filterLayout->addSpacing(8);
+
+    m_overrideGuardBtn = new QPushButton("Override write guard (session)", this);
+    m_overrideGuardBtn->setObjectName("overrideGuardBtn");
+    connect(m_overrideGuardBtn, &QPushButton::clicked, this, [this]() {
+        auto reply = QMessageBox::warning(this, "Override write guard",
+            "This enables live register writes for boards whose addresses are\n"
+            "unverified. Writes will be logged. Continue?",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (reply == QMessageBox::Yes) {
+            HardwareBridge::instance().setWriteOverride(true);
+        }
+    });
+    filterLayout->addWidget(m_overrideGuardBtn);
+
+    filterLayout->addSpacing(8);
+
+    m_advancedPinsToggle = new QCheckBox("Advanced: show all board pins", this);
+    m_advancedPinsToggle->setObjectName("advancedPinsToggle");
+    QSettings _s("EmbeddedUIDesigner", "PinBindingDialog");
+    m_advancedPinsToggle->setChecked(_s.value("showAllBoardPins", false).toBool());
+    connect(m_advancedPinsToggle, &QCheckBox::toggled, this, [this](bool on) {
+        QSettings s("EmbeddedUIDesigner", "PinBindingDialog");
+        s.setValue("showAllBoardPins", on);
+        refreshTable();
+    });
+    filterLayout->addWidget(m_advancedPinsToggle);
 
     filterLayout->addSpacing(8);
 
@@ -434,15 +464,32 @@ void PinBindingDialog::updateConflictBanner() {
 
 void PinBindingDialog::refreshTable() {
     BoardDef activeBoard = BoardRegistry::instance().activeBoard();
-    QString curId = m_boardCombo ? m_boardCombo->currentData().toString() : m_bridge.currentBoardId();
+    QString curId = m_boardCombo ? m_boardCombo->currentData().toString() : m_bridge.currentBoard().id;
     if (!curId.isEmpty() && curId != activeBoard.id) {
         BoardDef b = BoardRegistry::instance().board(curId);
         if (b.isValid()) activeBoard = b;
     }
     QStringList boardPins = activeBoard.pinNames();
-    if (boardPins.isEmpty() || (!m_bridge.currentBoardId().isEmpty() && m_bridge.currentBoardId() == curId)) {
+    if (boardPins.isEmpty() || (!m_bridge.currentBoard().id.isEmpty() && m_bridge.currentBoard().id == curId)) {
         boardPins = m_bridge.availablePins();
     }
+
+    // H1: when not in advanced mode, offer only the pins that have a signal
+    // derived from the project's pin/peripheral plan.
+    QSettings settings("EmbeddedUIDesigner", "PinBindingDialog");
+    bool advanced = settings.value("showAllBoardPins", false).toBool();
+    if (m_advancedPinsToggle) advanced = m_advancedPinsToggle->isChecked();
+    QStringList signalPins;
+    if (m_project) {
+        Hardware::HardwareConfig hc = m_project->hardwareConfig();
+        if (hc.signalList.isEmpty()) hc.deriveSignals();
+        for (const Hardware::Signal& s : hc.signalList) if (!s.pin.isEmpty() && !signalPins.contains(s.pin)) signalPins.append(s.pin);
+    }
+    if (!advanced && !signalPins.isEmpty()) {
+        boardPins = signalPins;
+    }
+
+    // No signals -> show a "Configure pins first" message.
 
     QStringList filteredPins;
     for (const QString& pin : boardPins) {
@@ -605,6 +652,20 @@ void PinBindingDialog::refreshTable() {
 
         for (UIComponent* comp : candidateComps) {
             if (!comp) continue;
+            // H1b compatibility: only offer components whose needs match the pin.
+            const QString ctype = comp->componentType().toLower();
+            bool compatible = true;
+            if (ctype.contains("switch") || ctype.contains("button")) {
+                compatible = prof.supportedModes.contains(PinMode::DigitalOut) || prof.supportedModes.contains(PinMode::OpenDrainOut);
+            } else if (ctype.contains("indicator") || ctype.contains("led")) {
+                compatible = prof.supportedModes.contains(PinMode::DigitalIn) || prof.supportedModes.contains(PinMode::DigitalOut);
+            } else if (ctype.contains("gauge") || ctype.contains("progress") || ctype.contains("label")) {
+                compatible = prof.supportedModes.contains(PinMode::AnalogIn) || prof.supportedModes.contains(PinMode::DigitalIn);
+            } else if (ctype.contains("slider")) {
+                compatible = prof.supportedModes.contains(PinMode::PwmOutput);
+            }
+            if (!compatible) continue;
+
             const QString compText = QString("%1 (%2)").arg(comp->componentId(), comp->componentType());
             compCombo->addItem(compText, comp->componentId());
             if (!boundCompId.isEmpty() && comp->componentId() == boundCompId) {

@@ -133,7 +133,11 @@ GeneratedProject Rp2040DriverPack::generateProjectTree(
     proj.includedDrivers.insert("hardware_pwm");
     proj.includedDrivers.insert("hardware_uart");
 
-    if (selectedFeatures.find("WIFI") != selectedFeatures.end()) {
+    // Wi-Fi requires a radio: RP2040 has none (Pico W / Pico 2 W carry an
+    // external CYW43439 module and would need their own device entry declaring
+    // a WIFI peripheral). Emitting a stub for a radio-less part is misleading.
+    const bool hasRadio = device.hasPeripheral("WIFI");
+    if (hasRadio && selectedFeatures.find("WIFI") != selectedFeatures.end()) {
         proj.files["include/pico_wifi.h"] = "#pragma once\nint pico_wifi_init(void);\n";
         proj.files["src/pico_wifi.c"] = "#include \"pico_wifi.h\"\nint pico_wifi_init(void) { return 0; }\n";
         proj.includedDrivers.insert("pico_wifi");

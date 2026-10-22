@@ -91,6 +91,13 @@ report.txt
 *.elf
 *.bin
 
+# Test-generated screenshots (do not commit)
+screenshots/verify_*.png
+screenshots/task*.png
+
+# Test capture output
+tests/output/
+
 # Python bytecode from MCP tooling run in-repo
 __pycache__/
 *.pyc

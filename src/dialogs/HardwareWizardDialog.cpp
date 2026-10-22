@@ -1123,42 +1123,44 @@ void HardwareWizardDialog::onFinish() {
         }
     }
 
-    // Save as persistent preset and mark onboarding completed
-    QString pName = presetName();
-    QString bId = m_selectedBoard.id;
-    if (bId.isEmpty()) {
-        bId = m_selectedDevice.partNumber.isEmpty() ? "nucleo_f030r8" : m_selectedDevice.partNumber.toLower();
-    }
-    if (pName.isEmpty()) {
-        pName = m_selectedBoard.name.isEmpty() ? (bId + " Preset") : (m_selectedBoard.name + " Preset");
-    }
-
-    // Collect pin overrides and protocol assignments from the configured engine
-    QMap<QString, PinDef> pinOverrides;
-    Hardware::HardwareConfig cfgPinOverrides = m_engine.currentConfig();
-    for (auto it = cfgPinOverrides.pins.begin(); it != cfgPinOverrides.pins.end(); ++it) {
-        if (it.value().mode != "None" && it.value().mode != "Disabled") {
-            PinDef pd;
-            pd.function = it.value().mode;
-            pd.note = it.value().alternateFunction;
-            pinOverrides[it.key()] = pd;
+    // Persistent presets only make sense for real board targets: there is no
+    // board to attach pin/protocol overrides to when the user picked a bare
+    // device (a lowercased part number is not a board id and must never enter
+    // the registry). Device targets keep their configuration only in the
+    // project file's hardwareConfig().
+    if (!m_selectedBoard.id.isEmpty()) {
+        QString pName = presetName();
+        if (pName.isEmpty()) {
+            pName = m_selectedBoard.name.isEmpty() ? (m_selectedBoard.id + " Preset") : (m_selectedBoard.name + " Preset");
         }
-    }
 
-    QMap<QString, QStringList> protocolOverrides;
-    Hardware::HardwareConfig cfgProtoOverrides = m_engine.currentConfig();
-    for (auto it = cfgProtoOverrides.peripherals.begin(); it != cfgProtoOverrides.peripherals.end(); ++it) {
-        if (it.value().enabled) {
-            QStringList pList;
-            for (auto sit = it.value().assignedPins.begin(); sit != it.value().assignedPins.end(); ++sit) {
-                if (!sit.value().isEmpty()) pList.append(QString("%1=%2").arg(sit.key(), sit.value()));
+        // Collect pin overrides and protocol assignments from the configured engine
+        QMap<QString, PinDef> pinOverrides;
+        Hardware::HardwareConfig cfgPinOverrides = m_engine.currentConfig();
+        for (auto it = cfgPinOverrides.pins.begin(); it != cfgPinOverrides.pins.end(); ++it) {
+            if (it.value().mode != "None" && it.value().mode != "Disabled") {
+                PinDef pd;
+                pd.function = it.value().mode;
+                pd.note = it.value().alternateFunction;
+                pinOverrides[it.key()] = pd;
             }
-            protocolOverrides[it.key()] = pList;
         }
-    }
 
-    BoardRegistry::instance().savePreset(pName, bId, pinOverrides, protocolOverrides);
-    BoardRegistry::instance().setActiveBoard(bId);
+        QMap<QString, QStringList> protocolOverrides;
+        Hardware::HardwareConfig cfgProtoOverrides = m_engine.currentConfig();
+        for (auto it = cfgProtoOverrides.peripherals.begin(); it != cfgProtoOverrides.peripherals.end(); ++it) {
+            if (it.value().enabled) {
+                QStringList pList;
+                for (auto sit = it.value().assignedPins.begin(); sit != it.value().assignedPins.end(); ++sit) {
+                    if (!sit.value().isEmpty()) pList.append(QString("%1=%2").arg(sit.key(), sit.value()));
+                }
+                protocolOverrides[it.key()] = pList;
+            }
+        }
+
+        BoardRegistry::instance().savePreset(pName, m_selectedBoard.id, pinOverrides, protocolOverrides);
+        BoardRegistry::instance().setActiveBoard(m_selectedBoard.id);
+    }
     BoardRegistry::instance().setOnboardingCompleted(true);
 
     accept();

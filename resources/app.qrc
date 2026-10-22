@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>config/devices.json</file>
+        <file>schemas/custom_pack_schema.json</file>
         <file>devices/_schema.json</file>
         <file>devices/stm32h7_series.json</file>
         <file>devices/stm32f0_series.json</file>

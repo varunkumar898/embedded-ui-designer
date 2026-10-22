@@ -1,5 +1,6 @@
 #include "OcdTelnetManager.h"
 #include "HardwareBridge.h"
+#include "WriteGuard.h"
 #include "BoardFactory.h"
 #include "BoardRegistry.h"
 
@@ -338,6 +339,15 @@ bool OcdTelnetManager::sendRawSocket(const QString& line) {
 }
 
 bool OcdTelnetManager::writeMemoryWord(quint32 address, quint32 value) {
+    QString reason;
+    if (!Hardware::WriteGuard::allow(address, HardwareBridge::instance().allowedWriteAddresses(),
+                                    HardwareBridge::instance().isLiveWriteAllowed(),
+                                    HardwareBridge::instance().writeOverride(), &reason)) {
+        qWarning() << "[OcdTelnetManager] write rejected:" << reason;
+        HardwareBridge::instance().logWrite(address, value, false, "OcdTelnetManager");
+        return false;
+    }
+    HardwareBridge::instance().logWrite(address, value, true, "OcdTelnetManager");
     // Write via HardwareBridge OpenOcdManager
     bool ok = HardwareBridge::instance().openOcdManager().writeMemoryWord(address, value);
 

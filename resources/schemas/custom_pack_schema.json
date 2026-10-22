@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CustomMcuPack",
+  "description": "Embedded UI Designer Custom MCU / Board Pack Specification",
+  "type": "object",
+  "required": [
+    "device_identity",
+    "family",
+    "core",
+    "memory_regions",
+    "peripherals",
+    "pin_table",
+    "provenance"
+  ],
+  "properties": {
+    "device_identity": {
+      "type": "object",
+      "required": ["name", "vendor", "part_number"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "vendor": { "type": "string", "minLength": 1 },
+        "part_number": { "type": "string", "minLength": 1 }
+      }
+    },
+    "family": { "type": "string", "minLength": 1 },
+    "core": { "type": "string", "minLength": 1 },
+    "clock_speed_mhz": { "type": "integer", "minimum": 1 },
+    "memory_regions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "start_address", "size_kb"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "enum": ["flash", "sram", "psram", "tcm", "rom", "other"] },
+          "start_address": { "type": "string", "pattern": "^0x[0-9a-fA-F]+$" },
+          "size_kb": { "type": "integer", "minimum": 1 },
+          "usable_for_framebuffer": { "type": ["boolean", "null", "integer"] }
+        }
+      }
+    },
+    "peripherals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "base_address"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "base_address": { "type": "string", "pattern": "^0x[0-9a-fA-F]+$" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "registers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "offset"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "offset": { "type": "string", "pattern": "^0x[0-9a-fA-F]+$" },
+                "description": { "type": "string" },
+                "reset_value": { "type": ["string", "integer"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "pin_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pin", "function", "peripheral"],
+        "properties": {
+          "pin": { "type": "string", "minLength": 1 },
+          "function": { "type": "string", "minLength": 1 },
+          "peripheral": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "board_wiring": {
+      "type": "object",
+      "properties": {
+        "display_interface": { "type": "string" },
+        "display_pins": { "type": "object" },
+        "touch_pins": { "type": "object" },
+        "power_rails": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "sdk_reference": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "required_files": { "type": "array", "items": { "type": "string" } },
+        "detected": { "type": "boolean" }
+      }
+    },
+    "toolchain": { "type": "string" },
+    "templates_used": { "type": "array", "items": { "type": "string" } },
+    "provenance": {
+      "type": "object",
+      "required": ["importer_version", "generated_by", "verified"],
+      "properties": {
+        "source_files": { "type": "array", "items": { "type": "string" } },
+        "importer_version": { "type": "string" },
+        "generated_by": { "type": "string", "enum": ["user", "importer", "ai"] },
+        "verified": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

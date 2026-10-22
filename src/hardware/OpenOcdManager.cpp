@@ -1,4 +1,6 @@
 #include "OpenOcdManager.h"
+#include "HardwareBridge.h"
+#include "WriteGuard.h"
 
 #include <QDir>
 #include <QFile>
@@ -580,7 +582,8 @@ bool OpenOcdManager::launchOpenOcdProcess(const QString& interfaceCfg, const QSt
     if (!targetCfg.isEmpty()) {
         args << "-f" << targetCfg;
     }
-    args << "-c" << QString("tcl_port %1").arg(tclPort)
+    args << "-c" << QString("bindto 127.0.0.1")
+         << "-c" << QString("tcl_port %1").arg(tclPort)
          << "-c" << QString("telnet_port %1").arg(telnetPort)
          << "-c" << "init";
 
@@ -627,6 +630,15 @@ bool OpenOcdManager::executeTclCommand(const QString& cmd, QString* outResponse)
 }
 
 bool OpenOcdManager::writeMemoryWord(quint32 address, quint32 value) {
+    QString reason;
+    if (!Hardware::WriteGuard::allow(address, HardwareBridge::instance().allowedWriteAddresses(),
+                                    HardwareBridge::instance().isLiveWriteAllowed(),
+                                    HardwareBridge::instance().writeOverride(), &reason)) {
+        qWarning() << "[OpenOcdManager] write rejected:" << reason;
+        HardwareBridge::instance().logWrite(address, value, false, "OpenOcdManager");
+        return false;
+    }
+    HardwareBridge::instance().logWrite(address, value, true, "OpenOcdManager");
     m_writeHistory.append({address, value});
     m_simulatedMemory[address] = value;
 

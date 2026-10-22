@@ -3,6 +3,7 @@
 #include <QDialog>
 #include <QTableWidget>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QLineEdit>
 #include <QLabel>
 #include <QPushButton>
@@ -10,6 +11,7 @@
 #include <QGroupBox>
 #include <QHeaderView>
 #include "HardwareBridge.h"
+#include "project/Project.h"
 
 #include "hardware/PinoutViewWidget.h"
 #include "hardware/PinMuxEngine.h"
@@ -21,7 +23,7 @@ class PinBindingDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit PinBindingDialog(CanvasScene* scene, QWidget* parent = nullptr);
+    explicit PinBindingDialog(CanvasScene* scene, Project* project = nullptr, QWidget* parent = nullptr);
     ~PinBindingDialog() override = default;
 
     void refreshTable();
@@ -51,6 +53,7 @@ private:
     void updateRowLiveValue(int row, const QString& pinName, const PinProfile& prof);
 
     CanvasScene* m_scene = nullptr;
+    Project* m_project = nullptr;
     HardwareBridge& m_bridge;
 
     // Top Toolbar
@@ -70,6 +73,8 @@ private:
     QPushButton* m_taskBBtn = nullptr;
     QPushButton* m_allTasksBtn = nullptr;
     QComboBox* m_portFilterCombo = nullptr;
+    QCheckBox* m_advancedPinsToggle = nullptr;
+    QPushButton* m_overrideGuardBtn = nullptr;
     QLineEdit* m_searchEdit = nullptr;
     QLabel* m_conflictBanner = nullptr;
 

@@ -132,7 +132,11 @@ public:
     bool setBoard(const QString& boardId);
     bool addBoard(const BoardProfile& profile);
     bool hasBoard(const QString& boardId) const;
-    QString currentBoardId() const { return m_currentBoardId; }
+    bool isLiveWriteAllowed() const;
+    QSet<quint32> allowedWriteAddresses() const;
+    bool writeOverride() const { return m_writeOverride; }
+    void setWriteOverride(bool on) { m_writeOverride = on; }
+    void logWrite(quint32 address, quint32 value, bool ok, const QString& trigger);
 
     // Pin Capability & Mode Inspection
     QStringList availablePins() const;
@@ -245,6 +249,7 @@ private:
     void updateConnectionState(ConnectionState state, const QString& info = QString());
 
     QString m_currentBoardId = "stm32f030r8";
+    bool m_writeOverride = false;
     QString m_activeTask = "Task A"; // "Task A", "Task B", "All Tasks"
     QMap<QString, BoardProfile> m_boards;
 

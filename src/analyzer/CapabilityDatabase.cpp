@@ -421,6 +421,8 @@ bool CapabilityDatabase::loadFromDirectory(const QString& dirPath) {
 bool CapabilityDatabase::loadBuiltinDatabase() {
     initBuiltinDefaults();
     loadShippedDeviceDatabase();
+    m_builtinDeviceNames.clear();
+    for (const QString& key : m_devices.keys()) m_builtinDeviceNames.insert(key);
     return true;
 }
 
@@ -506,11 +508,20 @@ bool CapabilityDatabase::supportsFramework(const QString& device, const QString&
     return false;
 }
 
-void CapabilityDatabase::addDeviceProfile(const DeviceProfile& profile) {
-    if (profile.name.isEmpty()) return;
+bool CapabilityDatabase::addDeviceProfile(const DeviceProfile& profile) {
+    if (profile.name.isEmpty()) return false;
+    if (m_builtinDeviceNames.contains(profile.name)) return false;
     m_devices[profile.name] = profile;
+    return true;
+}
+
+void CapabilityDatabase::removeDeviceProfile(const QString& device_name) {
+    if (device_name.isEmpty()) return;
+    if (m_builtinDeviceNames.contains(device_name)) return; // never remove built-in
+    m_devices.remove(device_name);
 }
 
 void CapabilityDatabase::clear() {
     m_devices.clear();
+    m_builtinDeviceNames.clear();
 }

@@ -11,6 +11,7 @@ class QComboBox;
 class QSpinBox;
 class QLabel;
 class QTableWidget;
+class QPushButton;
 
 /**
  * @brief Task 5 - "Board & Display" dock.
@@ -73,6 +74,7 @@ signals:
 public slots:
     // Re-reads hardware / display / board-display state from the project.
     void refreshFromProject();
+    void openImportPackDialog();
 
 private slots:
     void onBackendChanged(int index);
@@ -112,6 +114,7 @@ private:
     // Target section
     QComboBox* m_backendCombo = nullptr;
     QComboBox* m_mcuCombo = nullptr;
+    QPushButton* m_importPackBtn = nullptr;
     QComboBox* m_boardCombo = nullptr;
     QLabel* m_targetSummary = nullptr;
     QTableWidget* m_regionsTable = nullptr;
