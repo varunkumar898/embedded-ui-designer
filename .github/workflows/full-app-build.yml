@@ -50,6 +50,11 @@ jobs:
         uses: jurplel/install-qt-action@v4.3.1
         with:
           version: '6.7.*'
+          # The Windows compile toolchain here is MinGW (g++ from
+          # C:\mingw64); Qt must be the matching win64_mingw build.
+          # The default MSVC-built Qt imports yield undefined
+          # qRegisterResourceData/qResourceFeatureZlib at link time.
+          arch: 'win64_mingw'
           modules: 'qtserialport'
           setup-python: false
           cache: true
