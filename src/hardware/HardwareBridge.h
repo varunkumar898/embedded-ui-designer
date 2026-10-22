@@ -118,6 +118,15 @@ struct BoardProfile {
     QMap<QString, PinProfile> pins;
     QStringList spiBusses;
     QStringList portGroups;
+
+    // R1.b: adapter/transport identity sourced from the board catalog
+    // (config/boards/board-specs/*.json "usb_adapter"). A serial transport is
+    // selected ONLY when a device with these USB ids is attached - never by
+    // "some tty exists".
+    QString adapterKind;             // "stlink", "esptool", "linux-gpio", "mock", "picotool", ...
+    QString adapterVid;              // normalized 4-hex, e.g. "0483"
+    QString adapterPid;              // e.g. "374b"
+    QStringList adapterAltVidPids;   // extra accepted "vid:pid" pairs
 };
 
 class HardwareBridge : public QObject {
@@ -132,6 +141,20 @@ public:
     bool setBoard(const QString& boardId);
     bool addBoard(const BoardProfile& profile);
     bool hasBoard(const QString& boardId) const;
+
+    // R1.b: catalog-driven transport/adapter selection (unit-testable helpers)
+    static QString normalizeUsbId(const QString& raw); // "0x0483"|"483"|"0483" -> "0483"
+    // ports: list of ((vid,pid), portName). Returns the name of the FIRST port
+    // whose vid:pid matches the profile's adapter ids, or "" when none does.
+    static QString matchSerialPort(const BoardProfile& profile,
+                                   const QList<QPair<QPair<QString,QString>,QString>>& usbSerialPorts,
+                                   QString* matchedAdapter = nullptr);
+    // Serial port paired by catalog match during connectHardware(). Port that
+    // downstream consumers (telemetry, flashing) must use: never the first tty.
+    QString lastSerialPortName() const { return m_lastSerialPortName; }
+    bool isSerialPortMatched() const { return !m_lastSerialPortName.isEmpty(); }
+    void setTestSerialPorts(const QList<QPair<QPair<QString,QString>,QString>>& ports);
+    void clearTestSerialPorts() { m_testPortsActive = false; m_testSerialPorts.clear(); }
     bool isLiveWriteAllowed() const;
     QSet<quint32> allowedWriteAddresses() const;
     bool writeOverride() const { return m_writeOverride; }
@@ -276,4 +299,10 @@ private:
     QTimer m_pollTimer;
     QElapsedTimer m_pwmThrottleTimer;
     double m_lastPwmDutyWritten = -1.0;
+
+    // R1.b: catalog-adapter probing state (see applyCatalogAdapter / matchSerialPort)
+    QList<QPair<QPair<QString,QString>,QString>> m_testSerialPorts;
+    bool m_testPortsActive = false;
+    QString m_lastSerialPortName;
+    void applyCatalogAdapter(BoardProfile& profile);
 };

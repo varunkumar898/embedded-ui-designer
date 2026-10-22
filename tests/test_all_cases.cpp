@@ -345,6 +345,10 @@ private slots:
     void testPhase6MCPFileSandboxEnforcement();
     void testPhase6McpTokenFileCanonicalPath();
     void testPhase6FirmwareSyncRequiresConfiguredDirectory();
+    // 31. Phase 7: R1.b transport from board catalog (adapter identity on profiles, tty matching)
+    void testPhase7AdapterTransportFromCatalog();
+    void testPhase7SerialPortMatchNormalization();
+    void testPhase7ConnectRequiresMatchingAdapterPort();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -5842,6 +5846,169 @@ void TestAllCases::testPhase6MCPAuthenticationAndTokens() {
 // Regression: the MCP token file location is canonical, overridable via
 // EUIDESIGNER_MCP_TOKEN_FILE, and owner-only — and the Python proxy reads the
 // same location (mcp/embedded_ui_mcp.py::load_mcp_token).
+void TestAllCases::testPhase7AdapterTransportFromCatalog() {
+    // R1.b: every board profile carries an adapter identity sourced from the
+    // board catalog (config/boards/boards.json "usb_adapter"), with
+    // deterministic family fallbacks for profiles without a catalog row.
+    HardwareBridge& bridge = HardwareBridge::instance();
+
+    bool foundF030 = false, foundStmFallback = false, foundEspFallback = false, foundCatalogJoin = false;
+    const auto boards = bridge.availableBoards();
+    // Catalog rows are the golden source: assert the profile values against
+    // the resolved catalog entry rather than guessed string literals
+    // (kind strings differ per board row, e.g. "ST-Link" vs "ST-Link/V2-1").
+    auto expectedFromCatalog = [](const BoardProfile& bp, BoardSpec* out) {
+        BoardSpec row = BoardDatabase::instance().findBoardById(bp.id);
+        if (!row.isValid()) {
+            auto skim = [](const QString& raw) {
+                return raw.toLower().remove(' ').remove('-').remove('/')
+                          .remove('(').remove(')');
+            };
+            const QString norm = skim(bp.name);
+            for (const BoardSpec& cand : BoardDatabase::instance().allBoards()) {
+                const QString rowNorm = skim(cand.name);
+                if (rowNorm == norm || norm.startsWith(rowNorm)) {
+                    row = cand;
+                    break;
+                }
+            }
+        }
+        *out = row;
+    };
+    BoardSpec catalogRow;
+    for (const auto& bp : boards) {
+        if (bp.id == "stm32f030r8") {
+            // Built-in id differs from the catalog row ("nucleo_f030r8");
+            // adapter identity must still resolve via the catalog.
+            expectedFromCatalog(bp, &catalogRow);
+            QVERIFY2(catalogRow.isValid() && !catalogRow.vid.isEmpty(),
+                     "catalog join failed for stm32f030r8");
+            QCOMPARE(bp.adapterVid, HardwareBridge::normalizeUsbId(catalogRow.vid));
+            QCOMPARE(bp.adapterPid, HardwareBridge::normalizeUsbId(catalogRow.pid));
+            if (!catalogRow.usbAdapterType.isEmpty()) {
+                QCOMPARE(bp.adapterKind, catalogRow.usbAdapterType);
+            }
+            foundF030 = true;
+        } else if (bp.id == "nucleo_f401re") {
+            // Exact-id catalog join: profile id matches the boards.json row.
+            expectedFromCatalog(bp, &catalogRow);
+            QVERIFY2(catalogRow.isValid() && !catalogRow.vid.isEmpty(),
+                     "catalogjoin failed for nucleo_f401re");
+            QCOMPARE(bp.adapterVid, HardwareBridge::normalizeUsbId(catalogRow.vid));
+            QCOMPARE(bp.adapterPid, HardwareBridge::normalizeUsbId(catalogRow.pid));
+            if (!catalogRow.usbAdapterType.isEmpty()) {
+                QCOMPARE(bp.adapterKind, catalogRow.usbAdapterType);
+            }
+            foundCatalogJoin = true;
+        } else if (bp.id == "stm32f469i" || bp.id == "stm32h747i") {
+            // No catalog row; family fallback must still resolve.
+            QCOMPARE(bp.connectionType, QString("openocd"));
+            QVERIFY(bp.adapterKind.contains("ST-Link"));
+            QCOMPARE(bp.adapterVid, QString("0483"));
+            QCOMPARE(bp.adapterPid, QString("374b"));
+            foundStmFallback = true;
+        } else if (bp.id == "esp32_devkitc") {
+            QCOMPARE(bp.adapterKind, QString("esptool"));
+            QCOMPARE(bp.adapterVid, QString("10c4"));
+            QCOMPARE(bp.adapterPid, QString("ea60"));
+            foundEspFallback = true;
+        }
+    }
+    QVERIFY2(foundF030, "stm32f030r8 profile missing (catalog-driven adapter test)");
+    QVERIFY2(foundCatalogJoin, "nucleo_f401re profile missing (catalog exact-id join test)");
+    QVERIFY2(foundStmFallback, "STM32 fallback profiles missing");
+    QVERIFY2(foundEspFallback, "ESP32 fallback profile missing");
+
+    // Imported boards: an ESP32 board config parser result must select the
+    // serial connection kind, carry the family adapter fallback through
+    // addBoard, and join the catalog when the parsed name rows a row.
+    const QString sdk = "CONFIG_IDF_TARGET=\"esp32\"\nCONFIG_GPIO_LED_PIN=2\n";
+    BoardConfigParser::ParseResult parsed = BoardConfigParser::parseContent(sdk, "sdkconfig");
+    QVERIFY2(parsed.success, qPrintable(parsed.errorMessage));
+    BoardProfile imported = parsed.toBoardProfile();
+    QCOMPARE(imported.connectionType, QString("serial"));
+
+    HardwareBridge& importedBridge = HardwareBridge::instance();
+    QVERIFY(importedBridge.addBoard(imported));
+    // Board profiles added through the bridge resolve the esptool family
+    // fallback when the join finds no catalog row.
+    BoardProfile stored;
+    bool storedFound = false;
+    for (const BoardProfile& b : importedBridge.availableBoards()) {
+        if (b.id == imported.id) {
+            stored = b;
+            storedFound = true;
+            break;
+        }
+    }
+    QVERIFY2(storedFound, "imported board not registered in hardware bridge");
+    QCOMPARE(stored.connectionType, QString("serial"));
+    QCOMPARE(stored.adapterKind, QString("esptool"));
+    QCOMPARE(stored.adapterVid, QString("10c4"));
+}
+
+void TestAllCases::testPhase7SerialPortMatchNormalization() {
+    // Pure matcher: accepts the catalog pair, alternates, case/0x format
+    // variance, and rejects non-matching ports (never "first tty wins").
+    BoardProfile bp;
+    bp.adapterKind = "esptool";
+    bp.adapterVid = "10c4";
+    bp.adapterPid = "ea60";
+    bp.adapterAltVidPids << "1a86:7523";
+
+    using Ports = QList<QPair<QPair<QString,QString>,QString>>;
+    Ports none = { {{ "0483","374b" }, "ttyACM0"}, {{ "0a5c","2763" }, "hci0"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, none), QString(""));
+
+    Ports mixed = { {{ "0x0A5C","2763" }, "hci"}, {{ "10C4","0x0EA60" }, "ttyUSB2"}, {{ "1A86","7523" }, "ttyUSB9"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, mixed), QString("ttyUSB2"));
+
+    Ports alt = { {{ "1a86","7523" }, "ttyUSB_CH340"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, alt), QString("ttyUSB_CH340"));
+
+    QString adapter;
+    Ports exact = { {{ "10c4","ea60" }, "ttyUSB0"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, exact, &adapter), QString("ttyUSB0"));
+    QCOMPARE(adapter, QString("10c4:ea60"));
+}
+
+void TestAllCases::testPhase7ConnectRequiresMatchingAdapterPort() {
+    // connectHardware (serial esp32 flow) is accepted only when a USB tty
+    // matches the board catalog adapter; no "/dev tty exists => connected".
+    HardwareBridge& bridge = HardwareBridge::instance();
+    const QString prevBoardId = bridge.currentBoard().id;
+    const bool prevSim = bridge.isSimulationMode();
+    QVERIFY(bridge.setBoard("esp32_devkitc"));
+    const BoardProfile bp = bridge.currentBoard();
+    QCOMPARE(bp.adapterKind, QString("esptool"));
+
+    // 1. Only a mismatched probe attached -> connect must FAIL with an
+    //    actionable adapter-mismatch error (not "Connected via ...").
+    bridge.setTestSerialPorts({ {{ "0483","374b" }, "ttyACM0"} });
+    bridge.setSimulationMode(false);
+    bridge.disconnectHardware();
+    QVERIFY(!bridge.connectHardware());
+    QVERIFY(bridge.lastConnectionError().contains("matching the board profile"));
+
+    // 2. Matched CP210x adapter -> connected + paired port recorded.
+    bridge.setTestSerialPorts({ {{ "0a5c","2763" }, "hci"}, {{ "10c4","ea60" }, "ttyUSB3"} });
+    QVERIFY(bridge.connectHardware());
+    QCOMPARE(bridge.lastSerialPortName(), QString("ttyUSB3"));
+    QVERIFY(bridge.isSerialPortMatched());
+    // 3. CH340 alt pair matches as well (disconnect first: connectHardware()
+    //    short-circuits while Connected - revalidation is R1.c C16).
+    bridge.disconnectHardware();
+    bridge.setTestSerialPorts({ {{ "1a86","7523" }, "ttyUSB7"} });
+    QVERIFY(bridge.connectHardware());
+    QCOMPARE(bridge.lastSerialPortName(), QString("ttyUSB7"));
+
+    bridge.disconnectHardware();
+    bridge.clearTestSerialPorts();
+    // Restore singleton state for later suite slots.
+    bridge.setBoard(prevBoardId);
+    bridge.setSimulationMode(prevSim);
+}
+
 void TestAllCases::testPhase6McpTokenFileCanonicalPath() {
     const QString tokenPath = m_tempDir.filePath("canonical/mcp_token");
     QVERIFY(QFile::remove(tokenPath) || !QFile::exists(tokenPath));

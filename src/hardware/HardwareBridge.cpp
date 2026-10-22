@@ -6,10 +6,12 @@
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
 #include "DeviceDatabase.h"
+#include "BoardDatabase.h"
 #include <QDebug>
 #include <QFile>
 #include <QDir>
 #include <QStandardPaths>
+#include <QSerialPortInfo>
 #include <algorithm>
 
 QString pinModeToString(PinMode mode) {
@@ -523,6 +525,125 @@ void HardwareBridge::initializeDefaultBoards() {
         custom.pins[name] = makePin(name, "GPIO", (i < 4), i, 12, (i >= 4 && i < 8), "TIM1", i - 3, 1, false, "", 0);
     }
     m_boards[custom.id] = custom;
+
+    // R1.b: every built-in profile inherits its adapter/transport identity
+    // from the board catalog (config/boards/board-specs/*.json "usb_adapter"),
+    // with deterministic family-level fallbacks when no catalog row exists.
+    for (auto it = m_boards.begin(); it != m_boards.end(); ++it) {
+        applyCatalogAdapter(it.value());
+    }
+}
+
+void HardwareBridge::applyCatalogAdapter(BoardProfile& profile) {
+    // 1. Catalog rows are authoritative when present (usb_adapter section).
+    //    Join by exact id first, then by normalized board name - built-in
+    //    profile ids may differ from catalog ids (e.g. profile
+    //    "stm32f030r8" vs catalog "nucleo_f030r8"), and built-in names may
+    //    carry suffixes ("STM32 Nucleo-F030R8 (STM32F030R8)").
+    BoardSpec spec = BoardDatabase::instance().findBoardById(profile.id);
+    if (!spec.isValid()) {
+        auto skim = [](const QString& raw) {
+            return raw.toLower().remove(' ').remove('-').remove('/')
+                      .remove('(').remove(')');
+        };        const QString normName = skim(profile.name);
+        for (const BoardSpec& row : BoardDatabase::instance().allBoards()) {
+            const QString rowNorm = skim(row.name);
+            if (rowNorm == normName || normName.startsWith(rowNorm)) {
+                spec = row;
+                break;
+            }
+        }
+    }
+    if (spec.isValid() && !spec.vid.isEmpty()) {
+        profile.adapterVid = normalizeUsbId(spec.vid);
+        profile.adapterPid = normalizeUsbId(spec.pid);
+        profile.adapterKind = spec.usbAdapterType.isEmpty() ? "stlink" : spec.usbAdapterType;
+        return;
+    }
+
+    // 2. Family fallbacks (built-in profiles without a catalog row):
+    if (profile.mcuFamily.startsWith("RP2")) {
+        // RP2040/RP2350 debug via CMSIS-DAP probe or BOOTSEL native USB
+        profile.adapterKind = "cmsis-dap";
+        profile.adapterVid = "0d28";
+        profile.adapterPid = "0204";
+        profile.adapterAltVidPids << "2e8a:0009" // RPi Debug Probe
+                                  << "2e8a:0003"; // Pico BOOTSEL (USB mass-storage)
+        return;
+    }
+    if (profile.mcuFamily.startsWith("STM32") ||
+        profile.connectionType == "openocd") {
+        profile.adapterKind = "ST-Link";
+        profile.adapterVid = "0483";
+        profile.adapterPid = "374b";
+        profile.adapterAltVidPids << "0483:3748";
+        return;
+    }
+    if (profile.mcuFamily.startsWith("ESP")) {
+        profile.adapterKind = "esptool";
+        // Accepted USB-to-UART bridges for the ESP32 dev-kit family
+        profile.adapterVid = "10c4";
+        profile.adapterPid = "ea60";
+        profile.adapterAltVidPids << "303a:1001" // ESP32-S3/C3 native USB-JTAG
+                                  << "1a86:7523" // CH340 variants
+                                  << "10c4:ea60";
+        return;
+    }
+    if (profile.id.startsWith("stc") || profile.connectionType == "stcisp") {
+        profile.adapterKind = "stc-isp";
+        profile.adapterVid = "1a86";
+        profile.adapterPid = "7523"; // CH340
+        return;
+    }
+    if (profile.connectionType == "linux") {
+        profile.adapterKind = "linux-gpio"; // no USB adapter: GPIO character device
+        return;
+    }
+    if (profile.connectionType == "linkserver") {
+        profile.adapterKind = "linkserver";
+        return;
+    }
+    profile.adapterKind = "mock";
+}
+
+void HardwareBridge::setTestSerialPorts(const QList<QPair<QPair<QString,QString>,QString>>& ports) {
+    m_testSerialPorts = ports;
+    m_testPortsActive = true;
+}
+
+QString HardwareBridge::normalizeUsbId(const QString& raw) {
+    QString v = raw.trimmed();
+    if (v.startsWith("0x", Qt::CaseInsensitive)) v.remove(0, 2);
+    bool ok = false;
+    quint32 num = v.toUInt(&ok, 16);
+    if (!ok || num > 0xFFFF) return v.toLower(); // leave as-is if not 16-bit hex
+    return QString::number(num, 16).rightJustified(4, u'0');
+}
+
+QString HardwareBridge::matchSerialPort(const BoardProfile& profile,
+                                        const QList<QPair<QPair<QString,QString>,QString>>& usbSerialPorts,
+                                        QString* matchedAdapter) {
+    if (matchedAdapter) matchedAdapter->clear();
+    QString primaryVid = normalizeUsbId(profile.adapterVid);
+    QString primaryPid = normalizeUsbId(profile.adapterPid);
+
+    QSet<QString> accepted;
+    if (!primaryVid.isEmpty() && !primaryPid.isEmpty()) accepted.insert(primaryVid + ':' + primaryPid);
+    for (const QString& alt : profile.adapterAltVidPids) {
+        const int colon = alt.indexOf(':');
+        if (colon <= 0 || colon + 1 >= alt.length()) continue;
+        accepted.insert(normalizeUsbId(alt.left(colon)) + ':' + normalizeUsbId(alt.mid(colon + 1)));
+    }
+    if (accepted.isEmpty()) return QString();
+
+    for (const auto& entry : usbSerialPorts) {
+        QString key = normalizeUsbId(entry.first.first) + ':' + normalizeUsbId(entry.first.second);
+        if (accepted.contains(key)) {
+            if (matchedAdapter) *matchedAdapter = key;
+            return entry.second;
+        }
+    }
+    return QString();
 }
 
 QList<BoardProfile> HardwareBridge::availableBoards() const {
@@ -551,7 +672,15 @@ bool HardwareBridge::setBoard(const QString& boardId) {
 
 bool HardwareBridge::addBoard(const BoardProfile& profile) {
     if (profile.id.isEmpty()) return false;
-    m_boards[profile.id] = profile;
+    // Imported/custom boards receive the same catalog-driven adapter
+    // identity as built-ins: exact-id/name join via BoardDatabase, else
+    // deterministic family fallback. Boards carrying explicit adapter
+    // data keep it (applyCatalogAdapter is not called for those).
+    BoardProfile enriched = profile;
+    if (enriched.adapterVid.isEmpty()) {
+        applyCatalogAdapter(enriched);
+    }
+    m_boards[enriched.id] = enriched;
     return true;
 }
 
@@ -942,18 +1071,42 @@ bool HardwareBridge::connectHardware() {
         return false;
     }
 
-    // 2. ESP32 / Serial Workflow
-    if (bp.connectionType == "serial" || bp.mcuFamily.contains("ESP32")) {
-        // Check if USB serial port exists
-        QDir devDir("/dev");
-        QStringList ttyPorts = devDir.entryList(QStringList() << "ttyUSB*" << "ttyACM*", QDir::System);
-        if (!ttyPorts.isEmpty()) {
-            updateConnectionState(ConnectionState::Connected, QString("ESP32 via /dev/%1").arg(ttyPorts.first()));
+    // 2. ESP32 / Serial Workflow (R1.b: transport comes from the board catalog)
+    if (bp.connectionType == "serial" || bp.mcuFamily.contains("ESP32") || bp.adapterKind.compare("esptool", Qt::CaseInsensitive) == 0) {
+        if (m_simulationMode) {
+            updateConnectionState(ConnectionState::Connected, "Simulated ESP32 (Virtual Target)");
             return true;
         }
-        m_lastConnectionError = "No ESP32 USB-Serial / JTAG device found (/dev/ttyUSB*, /dev/ttyACM*).";
-        updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
-        return false;
+        // Enumerate USB serial adapters and keep the ONE whose VID:PID matches
+        // the board profile's adapter identity. A bare "/dev/ttyUSB*" listing
+        // is never a connection.
+        QList<QPair<QPair<QString,QString>,QString>> usbSerial;
+        if (m_testPortsActive) {
+            usbSerial = m_testSerialPorts;
+        } else {
+            const auto portList = QSerialPortInfo::availablePorts();
+            for (const QSerialPortInfo& info : portList) {
+                if (!info.hasVendorIdentifier() || !info.hasProductIdentifier()) continue;
+                usbSerial.append({{QString::number(info.vendorIdentifier(), 16).rightJustified(4, u'0'),
+                                   QString::number(info.productIdentifier(), 16).rightJustified(4, u'0')},
+                                  info.portName()});
+            }
+        }
+
+        QString matchedAdapter;
+        const QString matchedPort = matchSerialPort(bp, usbSerial, &matchedAdapter);
+        if (matchedPort.isEmpty()) {
+            m_lastConnectionError = QString(
+                "No ESP32 USB-Serial adapter matching the board profile (%1 %2:%3) found. "
+                "Connect the adapter for %4 or select a different board.")
+                .arg(bp.adapterKind, bp.adapterVid, bp.adapterPid, bp.name);
+            updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
+            return false;
+        }
+        m_lastSerialPortName = matchedPort;
+        updateConnectionState(ConnectionState::Connected,
+                              QString("ESP32 via %1 (adapter %2 matched)").arg(matchedPort, matchedAdapter));
+        return true;
     }
 
     // 3. Linux GPIO SBC Workflow

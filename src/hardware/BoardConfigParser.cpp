@@ -1,4 +1,6 @@
 #include "BoardConfigParser.h"
+#include "HardwareBridge.h"
+#include "BoardDatabase.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
@@ -57,6 +59,22 @@ BoardProfile BoardConfigParser::ParseResult::toBoardProfile() const {
 
     if (!spiPins.isEmpty()) {
         bp.spiBusses.append(QString("SPI (%1)").arg(spiPins.join(", ")));
+    }
+
+    // R1.b: connection kind follows the MCU family (an ESP32 board connects
+    // over its USB-to-UART adapter, not OpenOCD), and the adapter/transport
+    // identity is joined from the board catalog when the board is known.
+    if (bp.mcuFamily.contains("ESP32", Qt::CaseInsensitive)) {
+        bp.connectionType = "serial";
+    }
+    BoardSpec spec = BoardDatabase::instance().findBoardById(bp.id);
+    if (!spec.isValid()) spec = BoardDatabase::instance().findBoardByName(bp.name);
+    if (spec.isValid() && !spec.vid.isEmpty()) {
+        bp.adapterVid = HardwareBridge::normalizeUsbId(spec.vid);
+        bp.adapterPid = HardwareBridge::normalizeUsbId(spec.pid);
+        if (!spec.usbAdapterType.isEmpty()) bp.adapterKind = spec.usbAdapterType;
+        else if (bp.mcuFamily.contains("ESP32", Qt::CaseInsensitive)) bp.adapterKind = "esptool";
+        else if (bp.mcuFamily.contains("RP2040", Qt::CaseInsensitive)) bp.adapterKind = "picotool";
     }
 
     return bp;
