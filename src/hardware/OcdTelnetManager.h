@@ -93,7 +93,6 @@ signals:
     void logMessage(const QString& msg);
 
 private:
-    void handleSocketData();
     bool sendRawSocket(const QString& line);
 
     // R1.e test hook: suites construct the manager to validate profile-driven
