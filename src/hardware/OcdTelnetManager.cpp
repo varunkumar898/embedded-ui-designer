@@ -8,8 +8,30 @@
 #include <QEventLoop>
 #include <QRegularExpression>
 #include <QThread>
+#include <QDateTime>
 
 static int simulatedStates[8][16] = {}; // 8 ports, 16 pins each
+
+namespace {
+// R1.e: the QTcpSocket belongs to the thread OcdTelnetManager was created
+// on. Foreign-thread callers (e.g. OpenOCDWorker) are marshalled onto that
+// thread with a blocking queued connection instead of using the socket
+// runtime from an unrelated thread (undefined behavior in Qt).
+template <typename F>
+auto runOnOwner(OcdTelnetManager* self, F&& fn) -> decltype(fn()) {
+    if (QThread::currentThread() == self->thread()) {
+        return fn();
+    }
+    using R = decltype(fn());
+    if constexpr (std::is_void_v<R>) {
+        QMetaObject::invokeMethod(self, std::forward<F>(fn), Qt::BlockingQueuedConnection);
+    } else {
+        R out{};
+        QMetaObject::invokeMethod(self, [&]() { out = fn(); }, Qt::BlockingQueuedConnection);
+        return out;
+    }
+}
+} // namespace
 
 OcdTelnetManager::OcdTelnetManager(QObject* parent)
     : QObject(parent)
@@ -25,13 +47,12 @@ OcdTelnetManager::~OcdTelnetManager() {
 }
 
 bool OcdTelnetManager::createSocketConnection() {
-    // Create socket if not already created
+    // Create socket if not already created. R1.e: the socket is ALWAYS
+    // parented to this manager (single ownership, owner-thread lifetime);
+    // the previous bare-new branch created unparented sockets on foreign
+    // threads, which the manager could not safely reach or delete.
     if (!m_telnetSocket) {
-        if (thread() == QThread::currentThread()) {
-            m_telnetSocket = new QTcpSocket(this);
-        } else {
-            m_telnetSocket = new QTcpSocket();
-        }
+        m_telnetSocket = new QTcpSocket(this);
     }
 
     // Close any existing connection
@@ -68,6 +89,14 @@ bool OcdTelnetManager::createSocketConnection() {
 }
 
 bool OcdTelnetManager::connectToTelnet(const QString& host, int port) {
+    // R1.e: foreign threads (OpenOCDWorker) must not touch the socket
+    // directly; marshal onto the owning thread.
+    return runOnOwner(this, [&]{
+        return connectToTelnetInternal(host, port);
+    });
+}
+
+bool OcdTelnetManager::connectToTelnetInternal(const QString& host, int port) {
     m_telnetHost = host;
     m_telnetPort = port;
 
@@ -120,18 +149,22 @@ void OcdTelnetManager::autoDetectAndConnect() {
 }
 
 void OcdTelnetManager::disconnect() {
-    if (m_telnetSocket) {
-        if (m_telnetSocket->state() != QAbstractSocket::UnconnectedState) {
-            m_telnetSocket->disconnectFromHost();
+    // R1.e: owner-thread marshal; this also covers the destructor on the
+    // owning thread and the worker-thread teardown path.
+    runOnOwner(this, [&]{
+        if (m_telnetSocket) {
             if (m_telnetSocket->state() != QAbstractSocket::UnconnectedState) {
-                m_telnetSocket->waitForDisconnected(1000);
+                m_telnetSocket->disconnectFromHost();
+                if (m_telnetSocket->state() != QAbstractSocket::UnconnectedState) {
+                    m_telnetSocket->waitForDisconnected(1000);
+                }
             }
+            m_telnetSocket->deleteLater();
+            m_telnetSocket = nullptr;
         }
-        m_telnetSocket->deleteLater();
-        m_telnetSocket = nullptr;
-    }
-    m_connected = false;
-    emit connectionChanged(false);
+        m_connected = false;
+        emit connectionChanged(false);
+    });
 }
 
 bool OcdTelnetManager::isConnected() const {
@@ -206,45 +239,108 @@ bool OcdTelnetManager::setBoard(const QString& boardName) {
 }
 
 QString OcdTelnetManager::sendCommand(const QString& cmd) {
+    // R1.e: foreign threads marshal onto the owning thread (socket runs there).
+    return runOnOwner(this, [&]{
+        return sendCommandInternal(cmd);
+    });
+}
+
+bool OcdTelnetManager::sendCommand(const QString& cmd, QString* outResponse) {
+    QString resp = sendCommand(cmd);
+    if (outResponse) {
+        *outResponse = resp;
+    }
+    return !resp.isEmpty() && !resp.startsWith("ERR");
+}
+
+bool OcdTelnetManager::ledBsrrAddress(quint32* outAddress, QString* errOut) {
+    // R1.e: the LED_* BSRR address comes from the current board profile
+    // (GPIO base + STM32-family BSRR offset 0x18) - never a hardcoded
+    // chip address. Non-STM32 profiles have no such register semantics.
+    const BoardProfile bp = HardwareBridge::instance().currentBoard();
+    const bool stmFamily = bp.mcuFamily.startsWith("STM32", Qt::CaseInsensitive)
+                           || bp.mcuFamily.compare("STM32F0", Qt::CaseInsensitive) == 0
+                           || bp.mcuFamily.contains("STM32", Qt::CaseInsensitive);
+    if (!outAddress) {
+        return false;
+    }
+    if (bp.gpioBase == 0 || !stmFamily || bp.connectionType == "serial"
+        || bp.connectionType == "mock") {
+        if (errOut) {
+            *errOut = QString("LED_* GPIO commands require an STM32-family board "
+                              "(profile %1 has base 0x%2, connection '%3').")
+                          .arg(bp.name)
+                          .arg(bp.gpioBase, 0, 16)
+                          .arg(bp.connectionType);
+        }
+        return false;
+    }
+    *outAddress = bp.gpioBase + 0x18;
+    return true;
+}
+
+QString OcdTelnetManager::sendCommandInternal(const QString& cmd) {
     QString trimmed = cmd.trimmed();
     qDebug() << "[OcdTelnetManager] Sending command:" << trimmed;
 
-    // 1. High-Level GPIO Control Commands
+    // 1. High-Level GPIO Control Commands. R1.e: transport is the single
+    // writeMemoryWord path (telnet socket when connected, else the bridge's
+    // OpenOCD manager channel / simulated cache) with a profile-derived
+    // address, and responses state the outcome instead of a fake ack.
+    QString ledErr;
+    quint32 bsrrAddress = 0;
+    const bool ledCommandOk = ledBsrrAddress(&bsrrAddress, &ledErr);
+
     if (trimmed.compare("LED_ON", Qt::CaseInsensitive) == 0) {
+        if (!ledCommandOk) {
+            m_lastResponse = QString("ERR: %1").arg(ledErr);
+            emit responseReceived(m_lastResponse);
+            return m_lastResponse;
+        }
         m_ledState = true;
-        // STM32 GPIOA BSRR: Bit 4 (PA4) and Bit 5 (PA5 / Nucleo LD2)
-        writeMemoryWord(0x48000018, (1u << 4) | (1u << 5));
+        const bool wrote = writeMemoryWord(bsrrAddress, (1u << 4) | (1u << 5));
         HardwareBridge::instance().setDigitalOut("PA4", true);
         HardwareBridge::instance().setDigitalOut("PA5", true);
         emit gpioStateChanged("PA4", true);
-        m_lastResponse = "OK: PA4 LED ON";
+        m_lastResponse = wrote ? "OK: PA4/PA5 set (BSRR write accepted)"
+                               : "ERR: BSRR write rejected or transport unavailable";
         emit responseReceived(m_lastResponse);
         return m_lastResponse;
     }
 
     if (trimmed.compare("LED_OFF", Qt::CaseInsensitive) == 0) {
+        if (!ledCommandOk) {
+            m_lastResponse = QString("ERR: %1").arg(ledErr);
+            emit responseReceived(m_lastResponse);
+            return m_lastResponse;
+        }
         m_ledState = false;
-        // STM32 GPIOA BSRR: Reset bits (16+4 and 16+5)
-        writeMemoryWord(0x48000018, (1u << (4 + 16)) | (1u << (5 + 16)));
+        const bool wrote = writeMemoryWord(bsrrAddress, (1u << (4 + 16)) | (1u << (5 + 16)));
         HardwareBridge::instance().setDigitalOut("PA4", false);
         HardwareBridge::instance().setDigitalOut("PA5", false);
         emit gpioStateChanged("PA4", false);
-        m_lastResponse = "OK: PA4 LED OFF";
+        m_lastResponse = wrote ? "OK: PA4/PA5 cleared (BSRR write accepted)"
+                               : "ERR: BSRR write rejected or transport unavailable";
         emit responseReceived(m_lastResponse);
         return m_lastResponse;
     }
 
     if (trimmed.compare("LED_TOGGLE", Qt::CaseInsensitive) == 0) {
-        m_ledState = !m_ledState;
-        if (m_ledState) {
-            writeMemoryWord(0x48000018, (1u << 4) | (1u << 5));
-        } else {
-            writeMemoryWord(0x48000018, (1u << (4 + 16)) | (1u << (5 + 16)));
+        if (!ledCommandOk) {
+            m_lastResponse = QString("ERR: %1").arg(ledErr);
+            emit responseReceived(m_lastResponse);
+            return m_lastResponse;
         }
+        m_ledState = !m_ledState;
+        const quint32 bsrrValue = m_ledState ? ((1u << 4) | (1u << 5))
+                                             : ((1u << (4 + 16)) | (1u << (5 + 16)));
+        const bool wrote = writeMemoryWord(bsrrAddress, bsrrValue);
         HardwareBridge::instance().setDigitalOut("PA4", m_ledState);
         HardwareBridge::instance().setDigitalOut("PA5", m_ledState);
         emit gpioStateChanged("PA4", m_ledState);
-        m_lastResponse = m_ledState ? "OK: PA4 LED ON" : "OK: PA4 LED OFF";
+        m_lastResponse = wrote ? (m_ledState ? "OK: PA4/PA5 set (BSRR write accepted)"
+                                             : "OK: PA4/PA5 cleared (BSRR write accepted)")
+                               : "ERR: BSRR write rejected or transport unavailable";
         emit responseReceived(m_lastResponse);
         return m_lastResponse;
     }
@@ -289,18 +385,15 @@ QString OcdTelnetManager::sendCommand(const QString& cmd) {
 
     qDebug() << "Sent to OpenOCD:" << trimmed.simplified();
 
-    // Wait for response (up to 2 seconds)
-    if (!m_telnetSocket->waitForReadyRead(2000)) {
-        qWarning() << "Timeout waiting for OpenOCD response";
+    // R1.e: wait for the prompt-terminated reply (chunked reads), not just
+    // the first packet - long "targets"-style output arrives in pieces.
+    const QByteArray reply = readPromptTerminated(2500);
+    if (reply.isEmpty() && !m_lastReadComplete) {
+        qWarning() << "Timeout waiting for OpenOCD prompt-terminated response";
         return "";
     }
 
-    // Read response
-    QString response;
-    while (m_telnetSocket->bytesAvailable() > 0) {
-        response += QString::fromUtf8(m_telnetSocket->read(4096));
-    }
-
+    QString response = QString::fromUtf8(reply);
     qDebug() << "OpenOCD response:" << response.simplified();
     m_lastResponse = response;
     emit responseReceived(response);
@@ -308,22 +401,58 @@ QString OcdTelnetManager::sendCommand(const QString& cmd) {
     return response;
 }
 
-bool OcdTelnetManager::sendCommand(const QString& cmd, QString* outResponse) {
-    QString resp = sendCommand(cmd);
-    if (outResponse) {
-        *outResponse = resp;
-    }
-    return !resp.isEmpty() && !resp.startsWith("ERR");
+QString OcdTelnetManager::readResponse() {
+    // R1.e: owner-thread marshal (see sendCommand).
+    return runOnOwner(this, [&]{
+        return readResponseInternal();
+    });
 }
 
-QString OcdTelnetManager::readResponse() {
+qsizetype OcdTelnetManager::completeReplyLength(const QByteArray& buffer) {
+    // An OpenOCD telnet reply ends with the prompt "> " on its own line:
+    // "<reply>\r\n> " or "<reply>\n> ". A complete reply exists when the
+    // buffer ends with "> " and there is newline content before it.
+    if (buffer.size() < 2 || !buffer.endsWith("> ")) {
+        return -1;
+    }
+    qsizetype promptStart = buffer.size() - 2;
+    // Strip at most one preceding CRLF/LF pair before the prompt.
+    qsizetype end = promptStart;
+    if (end > 0 && buffer.at(end - 1) == '\n') {
+        --end;
+        if (end > 0 && buffer.at(end - 1) == '\r') {
+            --end;
+        }
+    }
+    return end;
+}
+
+QByteArray OcdTelnetManager::readPromptTerminated(int timeoutMs) {
+    QByteArray buffer;
+    m_lastReadComplete = false;
+    const qint64 deadline = QDateTime::currentMSecsSinceEpoch() + timeoutMs;
+    while (true) {
+        const qint64 remaining = deadline - QDateTime::currentMSecsSinceEpoch();
+        if (remaining <= 0) {
+            break;
+        }
+        if (m_telnetSocket->waitForReadyRead(static_cast<int>(qMin<qint64>(200, remaining)))) {
+            buffer.append(m_telnetSocket->readAll());
+        }
+        const qsizetype complete = completeReplyLength(buffer);
+        if (complete >= 0) {
+            m_lastReadComplete = true;
+            buffer.resize(static_cast<int>(complete));
+            break;
+        }
+    }
+    return buffer;
+}
+
+QString OcdTelnetManager::readResponseInternal() {
     if (!m_telnetSocket) return m_lastResponse;
 
-    QByteArray response;
-    while (m_telnetSocket->waitForReadyRead(300)) {
-        response.append(m_telnetSocket->readAll());
-    }
-
+    const QByteArray response = readPromptTerminated(300);
     if (!response.isEmpty()) {
         m_lastResponse = QString::fromUtf8(response).trimmed();
     }
@@ -348,15 +477,29 @@ bool OcdTelnetManager::writeMemoryWord(quint32 address, quint32 value) {
         return false;
     }
     HardwareBridge::instance().logWrite(address, value, true, "OcdTelnetManager");
-    // Write via HardwareBridge OpenOcdManager
-    bool ok = HardwareBridge::instance().openOcdManager().writeMemoryWord(address, value);
 
-    // If Telnet socket connected directly, also send mww
+    // R1.e: SINGLE transport channel. The same daemon would otherwise
+    // receive the same mww twice (once over this telnet link, once over
+    // the bridge's TCL link). Prefer this class's telnet socket when it
+    // is connected and parse the daemon's verdict; otherwise rely on the
+    // bridge's OpenOCD manager (TCL socket or simulated cache).
     if (m_telnetSocket && m_telnetSocket->state() == QAbstractSocket::ConnectedState) {
-        QString cmd = QString("mww 0x%1 0x%2").arg(QString::number(address, 16).toUpper()).arg(QString::number(value, 16).toUpper());
-        sendCommand(cmd);
+        const QString cmd = QString("mww 0x%1 0x%2")
+                                .arg(QString::number(address, 16).toUpper())
+                                .arg(QString::number(value, 16).toUpper());
+        const QString response = sendCommand(cmd);
+        // A successful mww is silent apart from the daemon's prompt; the
+        // error path prints an Error/reason line in the reply.
+        const bool ok = !response.contains("Error", Qt::CaseInsensitive)
+                        && !response.contains("rejected", Qt::CaseInsensitive)
+                        && !response.contains("Fail", Qt::CaseInsensitive);
+        if (!ok) {
+            qWarning() << "[OcdTelnetManager] mww failed via telnet:" << response;
+        }
+        return ok;
     }
-    return ok;
+
+    return HardwareBridge::instance().openOcdManager().writeMemoryWord(address, value);
 }
 
 bool OcdTelnetManager::readMemoryWord(quint32 address, quint32* outValue) {
@@ -368,7 +511,14 @@ QString OcdTelnetManager::gpioStatus() const {
     quint32 odr = 0;
     bool high = false;
 
-    if (const_cast<OcdTelnetManager*>(this)->readMemoryWord(0x48000014, &odr)) {
+    // R1.e: ODR address derives from the board profile (GPIO base + 0x14),
+    // falling back to the F0-family address only when the profile carries
+    // no GPIO base (e.g. mock boards).
+    const BoardProfile bp = HardwareBridge::instance().currentBoard();
+    const quint32 odrAddress = bp.gpioBase != 0
+                                   ? bp.gpioBase + 0x14
+                                   : 0x48000014;
+    if (const_cast<OcdTelnetManager*>(this)->readMemoryWord(odrAddress, &odr)) {
         high = (odr & (1u << 4)) != 0;
     } else {
         high = m_ledState;

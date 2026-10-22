@@ -68,6 +68,12 @@ public:
     bool sendCommand(const QString& cmd, QString* outResponse);
     QString readResponse();
 
+    // R1.e: prompt-terminated reply frames. Public static so suites can
+    // exercise the parser offline. Returns the number of bytes BEFORE the
+    // OpenOCD telnet prompt ("> ") when the buffer holds a complete reply
+    // line/frame, -1 when the reply is not yet complete.
+    static qsizetype completeReplyLength(const QByteArray& buffer);
+
     // Direct Register / Memory Access for Cortex-M
     bool writeMemoryWord(quint32 address, quint32 value);
     bool readMemoryWord(quint32 address, quint32* outValue);
@@ -90,6 +96,19 @@ private:
     void handleSocketData();
     bool sendRawSocket(const QString& line);
 
+    // R1.e test hook: suites construct the manager to validate profile-driven
+    // LED addressing and the prompt parser offline. A nested friend would
+    // drag QObject friendship complexities; a targeted access stub is not
+    // worth it - the helper is const-clean and side-effect free.
+    friend class TestAllCases;
+
+    // R1.e: single-thread socket ownership + honest transport
+    QString sendCommandInternal(const QString& cmd);
+    QString readResponseInternal();
+    bool connectToTelnetInternal(const QString& host, int port);
+    QByteArray readPromptTerminated(int timeoutMs);
+    bool ledBsrrAddress(quint32* outAddress, QString* errOut);
+
     QTcpSocket* m_telnetSocket = nullptr;
     QString m_telnetHost = "127.0.0.1";
     int m_telnetPort = 4444;
@@ -102,6 +121,7 @@ private:
     bool m_connected = false;
     QString m_lastResponse;
     bool m_ledState = false;
+    bool m_lastReadComplete = false;
 
     // Board-specific HAL
     std::unique_ptr<BoardHAL> m_boardHAL;
