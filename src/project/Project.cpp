@@ -827,6 +827,104 @@ void Project::setFirmwareDirectory(const QString& dir) {
     }
 }
 
+bool Project::generatedOutputRoot(QString* rootOut, QString* rejectReason) const {
+    // 1. Explicitly configured firmware directory is authoritative.
+    if (!m_firmwareDir.isEmpty() && QDir(m_firmwareDir).exists()) {
+        if (rootOut) *rootOut = m_firmwareDir;
+        return true;
+    }
+
+    // 2. UI project root when the project has a real saved location.
+    if (!m_filePath.isEmpty() && !m_filePath.startsWith(":/")) {
+        const QString uiRoot = QFileInfo(m_filePath).absolutePath();
+        if (!uiRoot.isEmpty()) {
+            if (rootOut) *rootOut = uiRoot;
+            return true;
+        }
+    }
+    if (!m_uiProjectDir.isEmpty()) {
+        if (rootOut) *rootOut = m_uiProjectDir;
+        return true;
+    }
+
+    // 3. NO repository/working-directory fallback. Without a configured
+    //    location no generated-file write may happen at all.
+    if (rejectReason) {
+        *rejectReason = "No firmware or UI project directory configured; "
+                        "generated files must not be written (configure the "
+                        "project's firmware/output directory first).";
+    }
+    return false;
+}
+
+bool Project::isPathInsideRoot(const QString& candidate, const QString& rootPath, QString* rejectReason) {
+    auto fail = [rejectReason](const QString& why) {
+        if (rejectReason) *rejectReason = why;
+        return false;
+    };
+
+    if (rootPath.trimmed().isEmpty()) {
+        return fail("Path rejected: no configured output root.");
+    }
+    if (candidate.trimmed().isEmpty()) {
+        return fail("Path rejected: empty output path.");
+    }
+
+    // Canonicalize the root (resolves symlinks level-by-level) and the
+    // candidate directory. A symlink escaping the root therefore resolves
+    // OUTSIDE and is rejected.
+    const QFileInfo rootInfo(QDir::cleanPath(rootPath));
+    if (!rootInfo.exists()) {
+        return fail(QString("Path rejected: configured output root does not exist: %1").arg(rootPath));
+    }
+    const QString canonicalRoot = rootInfo.canonicalFilePath();
+    if (canonicalRoot.isEmpty()) {
+        return fail(QString("Path rejected: configured output root cannot be canonicalized: %1").arg(rootPath));
+    }
+
+    // Candidate may be a file that does not exist yet: canonicalize its
+    // directory, then compare the containing directory against the root.
+    QFileInfo candInfo(QDir::cleanPath(candidate));
+
+    QString dirToCheck = candInfo.isDir()
+        ? candInfo.absoluteFilePath()
+        : candInfo.absolutePath();
+
+    // Canonicalize the deepest EXISTING ancestor and re-attach the parts
+    // that do not exist yet (so fresh subdirectories are validated too).
+    QStringList freshParts;
+    QString canonicalDir;
+    QString current = QDir::cleanPath(dirToCheck);
+    while (true) {
+        const QString canon = QDir(current).canonicalPath();
+        if (!canon.isEmpty()) {
+            canonicalDir = freshParts.isEmpty()
+                ? canon
+                : canon + '/' + freshParts.join('/');
+            break;
+        }
+        freshParts.prepend(QDir(current).dirName());
+        const QString parent = QDir::cleanPath(current + "/..");
+        if (parent == current) {
+            return fail(QString("Path rejected: no existing ancestor directory for %1").arg(dirToCheck));
+        }
+        current = parent;
+    }
+
+    if (canonicalDir != canonicalRoot && !canonicalDir.startsWith(canonicalRoot + '/')) {
+        return fail(QString("Path rejected: %1 resolves outside the configured output root %2")
+                        .arg(candidate, canonicalRoot));
+    }
+
+    // A pre-existing symlink at the candidate itself: writing through it may
+    // replace content elsewhere; block it outright.
+    if (candInfo.isSymLink()) {
+        return fail(QString("Path rejected: %1 is a symlink.").arg(candidate));
+    }
+    if (rejectReason) rejectReason->clear();
+    return true;
+}
+
 QString Project::buildDirectory() const {
     if (!m_buildDir.isEmpty() && QDir(m_buildDir).exists()) {
         return m_buildDir;

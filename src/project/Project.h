@@ -50,6 +50,18 @@ public:
 
     bool syncFirmwareFiles(QString* errorMsg = nullptr);
 
+    // Generated-file write containment (CI-hygiene invariant):
+    // Every code path that writes generated artifacts (exports, codegen,
+    // CMake scaffolds, manifests) may only write inside the project's
+    // configured output root - the explicitly configured firmware directory,
+    // else the UI project directory *. Writes outside that root, through
+    // symlinks, or via relative escapes are rejected, and when no directory
+    // is configured nothing may be written (historically this fell back to
+    // the repository working directory and clobbered tracked files).
+    // * unlike firmwareDirectory(), this never falls back to currentPath().
+    bool generatedOutputRoot(QString* rootOut, QString* rejectReason = nullptr) const;
+    static bool isPathInsideRoot(const QString& candidate, const QString& rootPath, QString* rejectReason = nullptr);
+
     QString targetFramework() const { return m_targetFramework; }
     void setTargetFramework(const QString& target);
 
