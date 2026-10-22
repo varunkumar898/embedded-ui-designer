@@ -86,6 +86,22 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         return result;
     }
 
+    // CI-hygiene generated-write containment: the export may only write
+    // inside the project's configured output root (firmware directory, else
+    // UI project directory; never a working-directory/repo fallback).
+    QString allowedRoot;
+    QString sandboxReason;
+    if (!project->generatedOutputRoot(&allowedRoot, &sandboxReason)) {
+        result.success = false;
+        result.errorMessage = QString("Export blocked: %1").arg(sandboxReason);
+        return result;
+    }
+    if (!Project::isPathInsideRoot(options.outputDirectory, allowedRoot, &sandboxReason)) {
+        result.success = false;
+        result.errorMessage = sandboxReason;
+        return result;
+    }
+
     // Shared Pre-Export Resource Validation Hook
     ResourceEstimator estimator;
     DeviceProfile dev = project->getDeviceProfile();

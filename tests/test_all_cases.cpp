@@ -85,6 +85,7 @@
 #include "LayerPanel.h"
 #include "ColorPickerDialog.h"
 #include "Project.h"
+#include "codegen/FirmwareExportManager.h"
 #include "Screen.h"
 #include "DataSource.h"
 #include "DataBinding.h"
@@ -345,6 +346,10 @@ private slots:
     void testPhase6MCPFileSandboxEnforcement();
     void testPhase6McpTokenFileCanonicalPath();
     void testPhase6FirmwareSyncRequiresConfiguredDirectory();
+    // 34. CI hygiene: generated-file write containment
+    void testPhase8GeneratedWriteRootRequiresConfiguredDirectory();
+    void testPhase8PathInsideRootRejectsEscapes();
+    void testPhase8FirmwareExportRejectsUnconfiguredRoot();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -5862,6 +5867,109 @@ void TestAllCases::testPhase6McpTokenFileCanonicalPath() {
     }
 
     qunsetenv("EUIDESIGNER_MCP_TOKEN_FILE");
+}
+
+void TestAllCases::testPhase8GeneratedWriteRootRequiresConfiguredDirectory() {
+    // CI-hygiene: generated writes resolve to the configured output root
+    // ONLY - never a working-directory/repo fallback.
+    CanvasScene scene;
+    Project project(&scene);
+
+    QString root;
+    QString reason;
+    QVERIFY(!project.generatedOutputRoot(&root, &reason));
+    QVERIFY2(reason.contains("must not be written", Qt::CaseInsensitive),
+             qPrintable(QString("unexpected reason: %1").arg(reason)));
+
+    // With a saved .euiproj the UI project directory becomes the root.
+    const QString projDir = m_tempDir.filePath("p8_projdir");
+    QVERIFY(QDir().mkpath(projDir));
+    QVERIFY(project.saveToFile(projDir + "/design.euiproj"));
+    QVERIFY(project.generatedOutputRoot(&root, &reason));
+    QCOMPARE(QDir::cleanPath(root), QFileInfo(projDir).absoluteFilePath());
+}
+
+void TestAllCases::testPhase8PathInsideRootRejectsEscapes() {
+    const QString root = m_tempDir.filePath("p8_root");
+    QVERIFY(QDir().mkpath(root + "/sub"));
+    QVERIFY(QDir().mkpath(m_tempDir.filePath("p8_outside")));
+
+    QString reason;
+    // 1. Inside root (existing parent): accepted.
+    QVERIFY2(Project::isPathInsideRoot(root + "/sub/main.c", root, &reason),
+             qPrintable(reason));
+    // 2. Inside root (deep, ancestor chain creation): accepted.
+    QVERIFY2(Project::isPathInsideRoot(root + "/sub/deep/new/asset.h", root, &reason),
+             qPrintable(reason));
+    // 3. Outside the configured root entirely: rejected.
+    QVERIFY(!Project::isPathInsideRoot(m_tempDir.filePath("p8_outside/x.c"), root, &reason));
+    // 4. Relative escape: lexically inside, canonicalizes outside: rejected.
+    QVERIFY(!Project::isPathInsideRoot(root + "/sub/../../escape.c", root, &reason));
+    // 5. Symlinked subdirectory escaping the root: rejected.
+    const QString realDir = m_tempDir.filePath("p8_realdir");
+    QVERIFY(QDir().mkpath(realDir));
+    QString linkErr;
+    Q_UNUSED(linkErr);
+    const bool dirLinked = QFile::link(realDir, root + "/linkdir");
+    if (dirLinked && QFileInfo(root + "/linkdir").isSymLink()) {
+        QVERIFY(!Project::isPathInsideRoot(root + "/linkdir/evil.c", root, &reason));
+    }
+    // 6. Pre-existing symlink FILE: rejected outright.
+    QFile(root + "/sub/main.c").open(QIODevice::WriteOnly); // ensure link target exists
+    const bool fileLinked = QFile::link(root + "/sub/main.c", root + "/slink.txt");
+    if (fileLinked) {
+        QVERIFY(QFileInfo(root + "/slink.txt").isSymLink());
+        QVERIFY(!Project::isPathInsideRoot(root + "/slink.txt", root, &reason));
+    }
+    // 7. Unconfigured/blank root: rejected.
+    QVERIFY(!Project::isPathInsideRoot(root + "/x.c", "", &reason));
+}
+
+void TestAllCases::testPhase8FirmwareExportRejectsUnconfiguredRoot() {
+    // End-to-end: without a configured output root the exporter must refuse
+    // (including the historical repo-root/cwd target) and write NOTHING.
+    CanvasScene scene;
+    Project project(&scene);
+
+    const QString snapshotRoot = QDir::currentPath() + "/CMakeLists.txt";
+    const qint64 rootSizeBefore = QFileInfo(snapshotRoot).exists()
+        ? QFileInfo(snapshotRoot).size() : -1;
+
+    FirmwareExportManager mgr;
+    ExportOptions opts;
+    opts.outputDirectory = QDir::currentPath(); // working directory = repo root
+    opts.targetFramework = "ugfx";
+    opts.generateCmake = true;
+    opts.overwriteUserCode = false;
+    opts.optimizeAssets = true;
+
+    ExportResult res = mgr.exportProject(&project, opts);
+    QVERIFY2(!res.success, "export must refuse unconfigured output root");
+    QVERIFY2(res.errorMessage.contains("must not be written", Qt::CaseInsensitive),
+             qPrintable(QString("unexpected error: %1").arg(res.errorMessage)));
+
+    if (rootSizeBefore >= 0) {
+        QCOMPARE(QFileInfo(snapshotRoot).size(), rootSizeBefore);
+    }
+
+    // With an explicitly configured firmware dir, an export targeting a
+    // directory OUTSIDE that root is rejected; the root itself is allowed.
+    const QString fwDir = m_tempDir.filePath("p8_fwroot");
+    QVERIFY(QDir().mkpath(fwDir));
+    project.setFirmwareDirectory(fwDir);
+
+    ExportOptions hostage = opts;
+    hostage.outputDirectory = m_tempDir.filePath("p8_outside_export");
+    ExportResult res2 = mgr.exportProject(&project, hostage);
+    QVERIFY2(!res2.success, "export outside the configured root must fail");
+    QVERIFY2(res2.errorMessage.contains("outside the configured output root", Qt::CaseInsensitive),
+             qPrintable(QString("unexpected error: %1").arg(res2.errorMessage)));
+
+    ExportOptions inside = opts;
+    inside.outputDirectory = fwDir;
+    ExportResult res3 = mgr.exportProject(&project, inside);
+    QVERIFY2(res3.success, qPrintable(res3.errorMessage));
+    QVERIFY(QFileInfo::exists(fwDir + "/CMakeLists.txt"));
 }
 
 void TestAllCases::testPhase6FirmwareSyncRequiresConfiguredDirectory() {
