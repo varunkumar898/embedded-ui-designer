@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QMap>
 #include <QVector>
+#include <QSet>
 #include <cstdint>
 
 struct DeviceProfile {
@@ -74,7 +75,8 @@ public:
     bool supportsFramework(const QString& device, const QString& framework) const;
 
     // Mutation
-    void addDeviceProfile(const DeviceProfile& profile);
+    bool addDeviceProfile(const DeviceProfile& profile);
+    void removeDeviceProfile(const QString& device_name);
     void clear();
 
 private:
@@ -82,4 +84,5 @@ private:
     void loadShippedDeviceDatabase();   // Task 4: overlay resources/devices/*.json
 
     QMap<QString, DeviceProfile> m_devices;
+    QSet<QString> m_builtinDeviceNames;
 };

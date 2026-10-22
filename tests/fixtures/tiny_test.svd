@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device schemaVersion="1.1" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance">
+  <name>MyCustomMCU</name>
+  <version>1.0</version>
+  <description>Tiny hand-written SVD test fixture</description>
+  <vendor>AcmeSemi</vendor>
+  <cpu>
+    <name>CM4</name>
+    <revision>r0p1</revision>
+    <endian>little</endian>
+    <mpuPresent>true</mpuPresent>
+    <fpuPresent>true</fpuPresent>
+    <clockFrequency>80000000</clockFrequency>
+  </cpu>
+  <addressUnitBits>8</addressUnitBits>
+  <width>32</width>
+  <peripherals>
+    <peripheral>
+      <name>GPIOA</name>
+      <description>General Purpose I/O Port A</description>
+      <groupName>GPIO</groupName>
+      <baseAddress>0x40020000</baseAddress>
+      <registers>
+        <register>
+          <name>MODER</name>
+          <description>GPIO port mode register</description>
+          <addressOffset>0x00</addressOffset>
+          <resetValue>0x00000000</resetValue>
+        </register>
+        <register>
+          <name>ODR</name>
+          <description>GPIO port output data register</description>
+          <addressOffset>0x14</addressOffset>
+          <resetValue>0x00000000</resetValue>
+        </register>
+        <register>
+          <name>BSRR</name>
+          <description>GPIO port bit set/reset register</description>
+          <addressOffset>0x18</addressOffset>
+          <resetValue>0x00000000</resetValue>
+        </register>
+      </registers>
+    </peripheral>
+    <peripheral>
+      <name>USART1</name>
+      <description>Universal Synchronous Asynchronous Receiver Transmitter</description>
+      <groupName>USART</groupName>
+      <baseAddress>0x40013800</baseAddress>
+      <registers>
+        <register>
+          <name>CR1</name>
+          <description>Control register 1</description>
+          <addressOffset>0x00</addressOffset>
+          <resetValue>0x00000000</resetValue>
+        </register>
+        <register>
+          <name>TDR</name>
+          <description>Transmit data register</description>
+          <addressOffset>0x28</addressOffset>
+          <resetValue>0x00000000</resetValue>
+        </register>
+      </registers>
+    </peripheral>
+  </peripherals>
+</device>

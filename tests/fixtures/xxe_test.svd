@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE device [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<device>
+  <name>&xxe;</name>
+  <peripherals>
+    <peripheral>
+      <name>GPIOA</name>
+      <baseAddress>0x40020000</baseAddress>
+    </peripheral>
+  </peripherals>
+</device>

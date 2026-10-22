@@ -69,13 +69,20 @@
 #include "HardwareTarget.h"
 #include "HardwareConnection.h"
 #include "HardwareBackend.h"
+#include "FlashController.h"
+#include <QSignalSpy>
 #include "STM32Backend.h"
 #include "ESP32Backend.h"
 #include "RaspberryPiBackend.h"
 #include "MockBackend.h"
 #include "HardwareManager.h"
 #include "BoardConfigParser.h"
+#include "OcdTelnetManager.h"
+#include "OpenOcdDeviceLink.h"
 #include "QmlImporter.h"
+#include <QEventLoop>
+#include <QTimer>
+#include <atomic>
 #include "DeviceManager.h"
 #include "hardware/BoardRegistry.h"
 #include "MainWindow.h"
@@ -345,6 +352,22 @@ private slots:
     void testPhase6MCPFileSandboxEnforcement();
     void testPhase6McpTokenFileCanonicalPath();
     void testPhase6FirmwareSyncRequiresConfiguredDirectory();
+    // 31. Phase 7: R1.b transport from board catalog (adapter identity on profiles, tty matching)
+    void testPhase7AdapterTransportFromCatalog();
+    void testPhase7SerialPortMatchNormalization();
+    void testPhase7ConnectRequiresMatchingAdapterPort();
+    // 32. Phase 7/R1.c: honesty of connection claims (no probe/gated claims)
+    void testPhase7LinuxGpioRequiresOpenableChipDevice();
+    void testPhase7SerialConnectionOpensOrFails();
+    void testPhase7FlashRefusesUntargetedPort();
+    void testPhase7DetectorAdapterOnlyWithoutCatalog();
+    // 33. Phase 7/R1.e: telnet prompt parse, single-thread socket, honest LED
+    void testPhase7TelnetPromptTerminatedParse();
+    void testPhase7TelnetForeignThreadMarshal();
+    void testPhase7LedCommandHonorsProfile();
+    // 34. Phase 7/R1.d: profile-driven chip identity (DBGMCU_IDCODE per family)
+    void testPhase7ChipIdentityProfileTables();
+    void testPhase7EsptoolChipNameParse();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -2016,7 +2039,7 @@ void TestAllCases::testBoardConfigImportIoc() {
     BoardProfile bp = res.toBoardProfile();
     QVERIFY(HardwareBridge::instance().addBoard(bp));
     QVERIFY(HardwareBridge::instance().setBoard(bp.id));
-    QCOMPARE(HardwareBridge::instance().currentBoardId(), bp.id);
+    QCOMPARE(HardwareBridge::instance().currentBoard().id, bp.id);
 
     // Verify in PinBindingDialog UI & Capture Screenshot
     CanvasScene scene;
@@ -2089,7 +2112,7 @@ void TestAllCases::testBoardConfigImportSdkConfig() {
     BoardProfile bp = res.toBoardProfile();
     QVERIFY(HardwareBridge::instance().addBoard(bp));
     QVERIFY(HardwareBridge::instance().setBoard(bp.id));
-    QCOMPARE(HardwareBridge::instance().currentBoardId(), bp.id);
+    QCOMPARE(HardwareBridge::instance().currentBoard().id, bp.id);
 
     // Verify in PinBindingDialog UI & Capture Screenshot
     CanvasScene scene;
@@ -4146,11 +4169,10 @@ void TestAllCases::testPhase4TargetHalAndBindingLayerGeneration() {
     Project proj(&scene);
     proj.newProject("HalGenApp", 480, 320);
 
-    // 1. STM32 HAL Adapter Generation
+    // 1. STM32 HAL Adapter Generation (verified device: STM32F030R8)
     Hardware::HardwareConfig hwStm;
     hwStm.family = "STM32";
-    hwStm.deviceId = "STM32F407VG";
-    hwStm.boardId = "STM32F407G-DISC1";
+    hwStm.deviceId = "STM32F030R8";
     proj.setHardwareConfig(hwStm);
 
     QString halH = TargetHalGenerator::generateHalHeader(&proj);
@@ -4159,6 +4181,15 @@ void TestAllCases::testPhase4TargetHalAndBindingLayerGeneration() {
     QVERIFY(halH.contains("hal_read_adc_normalized"));
     QVERIFY(halC.contains("STM32"));
     QVERIFY(halC.contains("BSRR"));
+
+    // 1b. Unverified STM32F407VG: native HAL stays blocked until data is sourced
+    Hardware::HardwareConfig hwF407;
+    hwF407.family = "STM32";
+    hwF407.deviceId = "STM32F407VG";
+    hwF407.boardId = "STM32F407G-DISC1";
+    proj.setHardwareConfig(hwF407);
+    QVERIFY(TargetHalGenerator::generateHalHeader(&proj).isEmpty());
+    QVERIFY(TargetHalGenerator::generateHalSource(&proj).isEmpty());
 
     // 2. ESP32 HAL Adapter Generation
     Hardware::HardwareConfig hwEsp;
@@ -5834,6 +5865,405 @@ void TestAllCases::testPhase6MCPAuthenticationAndTokens() {
 // Regression: the MCP token file location is canonical, overridable via
 // EUIDESIGNER_MCP_TOKEN_FILE, and owner-only — and the Python proxy reads the
 // same location (mcp/embedded_ui_mcp.py::load_mcp_token).
+void TestAllCases::testPhase7AdapterTransportFromCatalog() {
+    // R1.b: every board profile carries an adapter identity sourced from the
+    // board catalog (config/boards/boards.json "usb_adapter"), with
+    // deterministic family fallbacks for profiles without a catalog row.
+    HardwareBridge& bridge = HardwareBridge::instance();
+
+    bool foundF030 = false, foundStmFallback = false, foundEspFallback = false, foundCatalogJoin = false;
+    const auto boards = bridge.availableBoards();
+    // Catalog rows are the golden source: assert the profile values against
+    // the resolved catalog entry rather than guessed string literals
+    // (kind strings differ per board row, e.g. "ST-Link" vs "ST-Link/V2-1").
+    auto expectedFromCatalog = [](const BoardProfile& bp, BoardSpec* out) {
+        BoardSpec row = BoardDatabase::instance().findBoardById(bp.id);
+        if (!row.isValid()) {
+            auto skim = [](const QString& raw) {
+                return raw.toLower().remove(' ').remove('-').remove('/')
+                          .remove('(').remove(')');
+            };
+            const QString norm = skim(bp.name);
+            for (const BoardSpec& cand : BoardDatabase::instance().allBoards()) {
+                const QString rowNorm = skim(cand.name);
+                if (rowNorm == norm || norm.startsWith(rowNorm)) {
+                    row = cand;
+                    break;
+                }
+            }
+        }
+        *out = row;
+    };
+    BoardSpec catalogRow;
+    for (const auto& bp : boards) {
+        if (bp.id == "stm32f030r8") {
+            // Built-in id differs from the catalog row ("nucleo_f030r8");
+            // adapter identity must still resolve via the catalog.
+            expectedFromCatalog(bp, &catalogRow);
+            QVERIFY2(catalogRow.isValid() && !catalogRow.vid.isEmpty(),
+                     "catalog join failed for stm32f030r8");
+            QCOMPARE(bp.adapterVid, HardwareBridge::normalizeUsbId(catalogRow.vid));
+            QCOMPARE(bp.adapterPid, HardwareBridge::normalizeUsbId(catalogRow.pid));
+            if (!catalogRow.usbAdapterType.isEmpty()) {
+                QCOMPARE(bp.adapterKind, catalogRow.usbAdapterType);
+            }
+            foundF030 = true;
+        } else if (bp.id == "nucleo_f401re") {
+            // Exact-id catalog join: profile id matches the boards.json row.
+            expectedFromCatalog(bp, &catalogRow);
+            QVERIFY2(catalogRow.isValid() && !catalogRow.vid.isEmpty(),
+                     "catalogjoin failed for nucleo_f401re");
+            QCOMPARE(bp.adapterVid, HardwareBridge::normalizeUsbId(catalogRow.vid));
+            QCOMPARE(bp.adapterPid, HardwareBridge::normalizeUsbId(catalogRow.pid));
+            if (!catalogRow.usbAdapterType.isEmpty()) {
+                QCOMPARE(bp.adapterKind, catalogRow.usbAdapterType);
+            }
+            foundCatalogJoin = true;
+        } else if (bp.id == "stm32f469i" || bp.id == "stm32h747i") {
+            // No catalog row; family fallback must still resolve.
+            QCOMPARE(bp.connectionType, QString("openocd"));
+            QVERIFY(bp.adapterKind.contains("ST-Link"));
+            QCOMPARE(bp.adapterVid, QString("0483"));
+            QCOMPARE(bp.adapterPid, QString("374b"));
+            foundStmFallback = true;
+        } else if (bp.id == "esp32_devkitc") {
+            QCOMPARE(bp.adapterKind, QString("esptool"));
+            QCOMPARE(bp.adapterVid, QString("10c4"));
+            QCOMPARE(bp.adapterPid, QString("ea60"));
+            foundEspFallback = true;
+        }
+    }
+    QVERIFY2(foundF030, "stm32f030r8 profile missing (catalog-driven adapter test)");
+    QVERIFY2(foundCatalogJoin, "nucleo_f401re profile missing (catalog exact-id join test)");
+    QVERIFY2(foundStmFallback, "STM32 fallback profiles missing");
+    QVERIFY2(foundEspFallback, "ESP32 fallback profile missing");
+
+    // Imported boards: an ESP32 board config parser result must select the
+    // serial connection kind, carry the family adapter fallback through
+    // addBoard, and join the catalog when the parsed name rows a row.
+    const QString sdk = "CONFIG_IDF_TARGET=\"esp32\"\nCONFIG_GPIO_LED_PIN=2\n";
+    BoardConfigParser::ParseResult parsed = BoardConfigParser::parseContent(sdk, "sdkconfig");
+    QVERIFY2(parsed.success, qPrintable(parsed.errorMessage));
+    BoardProfile imported = parsed.toBoardProfile();
+    QCOMPARE(imported.connectionType, QString("serial"));
+
+    HardwareBridge& importedBridge = HardwareBridge::instance();
+    QVERIFY(importedBridge.addBoard(imported));
+    // Board profiles added through the bridge resolve the esptool family
+    // fallback when the join finds no catalog row.
+    BoardProfile stored;
+    bool storedFound = false;
+    for (const BoardProfile& b : importedBridge.availableBoards()) {
+        if (b.id == imported.id) {
+            stored = b;
+            storedFound = true;
+            break;
+        }
+    }
+    QVERIFY2(storedFound, "imported board not registered in hardware bridge");
+    QCOMPARE(stored.connectionType, QString("serial"));
+    QCOMPARE(stored.adapterKind, QString("esptool"));
+    QCOMPARE(stored.adapterVid, QString("10c4"));
+}
+
+void TestAllCases::testPhase7SerialPortMatchNormalization() {
+    // Pure matcher: accepts the catalog pair, alternates, case/0x format
+    // variance, and rejects non-matching ports (never "first tty wins").
+    BoardProfile bp;
+    bp.adapterKind = "esptool";
+    bp.adapterVid = "10c4";
+    bp.adapterPid = "ea60";
+    bp.adapterAltVidPids << "1a86:7523";
+
+    using Ports = QList<QPair<QPair<QString,QString>,QString>>;
+    Ports none = { {{ "0483","374b" }, "ttyACM0"}, {{ "0a5c","2763" }, "hci0"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, none), QString(""));
+
+    Ports mixed = { {{ "0x0A5C","2763" }, "hci"}, {{ "10C4","0x0EA60" }, "ttyUSB2"}, {{ "1A86","7523" }, "ttyUSB9"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, mixed), QString("ttyUSB2"));
+
+    Ports alt = { {{ "1a86","7523" }, "ttyUSB_CH340"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, alt), QString("ttyUSB_CH340"));
+
+    QString adapter;
+    Ports exact = { {{ "10c4","ea60" }, "ttyUSB0"} };
+    QCOMPARE(HardwareBridge::matchSerialPort(bp, exact, &adapter), QString("ttyUSB0"));
+    QCOMPARE(adapter, QString("10c4:ea60"));
+}
+
+void TestAllCases::testPhase7ConnectRequiresMatchingAdapterPort() {
+    // connectHardware (serial esp32 flow) is accepted only when a USB tty
+    // matches the board catalog adapter; no "/dev tty exists => connected".
+    HardwareBridge& bridge = HardwareBridge::instance();
+    const QString prevBoardId = bridge.currentBoard().id;
+    const bool prevSim = bridge.isSimulationMode();
+    QVERIFY(bridge.setBoard("esp32_devkitc"));
+    const BoardProfile bp = bridge.currentBoard();
+    QCOMPARE(bp.adapterKind, QString("esptool"));
+
+    // 1. Only a mismatched probe attached -> connect must FAIL with an
+    //    actionable adapter-mismatch error (not "Connected via ...").
+    bridge.setTestSerialPorts({ {{ "0483","374b" }, "ttyACM0"} });
+    bridge.setSimulationMode(false);
+    bridge.disconnectHardware();
+    QVERIFY(!bridge.connectHardware());
+    QVERIFY(bridge.lastConnectionError().contains("matching the board profile"));
+
+    // 2. Matched CP210x adapter -> connected + paired port recorded.
+    bridge.setTestSerialPorts({ {{ "0a5c","2763" }, "hci"}, {{ "10c4","ea60" }, "ttyUSB3"} });
+    QVERIFY(bridge.connectHardware());
+    QCOMPARE(bridge.lastSerialPortName(), QString("ttyUSB3"));
+    QVERIFY(bridge.isSerialPortMatched());
+    // 3. CH340 alt pair matches as well (disconnect first: connectHardware()
+    //    short-circuits while Connected - revalidation is R1.c C16).
+    bridge.disconnectHardware();
+    bridge.setTestSerialPorts({ {{ "1a86","7523" }, "ttyUSB7"} });
+    QVERIFY(bridge.connectHardware());
+    QCOMPARE(bridge.lastSerialPortName(), QString("ttyUSB7"));
+
+    bridge.disconnectHardware();
+    bridge.clearTestSerialPorts();
+    // Restore singleton state for later suite slots.
+    bridge.setBoard(prevBoardId);
+    bridge.setSimulationMode(prevSim);
+}
+
+void TestAllCases::testPhase7LinuxGpioRequiresOpenableChipDevice() {
+    // R1.c/C1: /sys/class/gpio presence is an environment property, not a
+    // transport. A connection claim requires an OPENABLE GPIO character
+    // device; the resolver accepts an injectable directory for offline
+    // verification (any openable node named gpiochip* qualifies).
+    const QString chipDir = m_tempDir.filePath("p7_chips");
+    QVERIFY(QDir().mkpath(chipDir));
+    QCOMPARE(HardwareBridge::firstOpenableGpioChip(chipDir), QString()); // empty dir
+
+    QVERIFY(QFile(chipDir + "/gpiochip0").open(QIODevice::WriteOnly));
+    QCOMPARE(HardwareBridge::firstOpenableGpioChip(chipDir), chipDir + "/gpiochip0");
+
+    QVERIFY(QFile(chipDir + "/notachip").open(QIODevice::WriteOnly));
+    QCOMPARE(HardwareBridge::firstOpenableGpioChip(chipDir), chipDir + "/gpiochip0");
+
+    // End-to-end honesty on the linux branch: Connected iff a chip device
+    // opens on THIS host (environment-tolerant assertion).
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("raspberrypi_4b"));
+    bridge.disconnectHardware();
+    const bool chipAvailable = !HardwareBridge::firstOpenableGpioChip().isEmpty();
+    const bool claimed = bridge.connectHardware();
+    QCOMPARE(claimed, chipAvailable);
+    if (chipAvailable) {
+        QVERIFY(bridge.isHardwareConnected());
+        QVERIFY(bridge.lastConnectionError().isEmpty());
+    } else {
+        QVERIFY(!bridge.isHardwareConnected());
+        QVERIFY2(bridge.lastConnectionError().contains("gpiochip", Qt::CaseInsensitive),
+                 qPrintable(bridge.lastConnectionError()));
+    }
+    bridge.disconnectHardware();
+}
+
+void TestAllCases::testPhase7SerialConnectionOpensOrFails() {
+    // R1.c/C5: picking a port name is not a claim - the port must open.
+    Hardware::SerialConnection conn;
+    QSignalSpy errorSpy(&conn, &Hardware::SerialConnection::errorOccurred);
+
+    QVERIFY(!conn.connectToTarget());
+    QVERIFY(errorSpy.count() >= 1);
+    QCOMPARE(conn.lastError(), QString("No serial port selected"));
+
+    const bool serialBuilt = Hardware::SerialConnection::serialTransportAvailable();
+    if (serialBuilt) {
+        conn.setPortName("/dev/nonexistent-tty-r1c");
+        conn.setBaudRate(115200);
+        QVERIFY(!conn.connectToTarget());
+        QVERIFY2(conn.lastError().contains("could not be opened", Qt::CaseInsensitive),
+                 qPrintable(conn.lastError()));
+        QVERIFY(!conn.isConnected());
+    } else {
+        conn.setPortName("/dev/nonexistent-tty-r1c");
+        conn.setBaudRate(115200);
+        QVERIFY(!conn.connectToTarget());
+        QVERIFY2(conn.lastError().contains("unavailable", Qt::CaseInsensitive),
+                 qPrintable(conn.lastError()));
+    }
+}
+
+void TestAllCases::testPhase7FlashRefusesUntargetedPort() {
+    // R1.c/C11: esptool must never run without an explicit or catalog-matched
+    // port (no "-p" would let it autodetect ANY serial device on the host).
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setTestSerialPorts({}); // active with no candidates: no matched port
+
+    FlashController controller(nullptr);
+    QSignalSpy finishedSpy(&controller, &FlashController::flashingFinished);
+    QString console;
+    QObject::connect(&controller, &FlashController::consoleOutputUpdate, [&console](const QString& line) {
+        console += line;
+    });
+
+    const QString binPath = m_tempDir.filePath("p7fw.bin");
+    QVERIFY(QFile(binPath).open(QIODevice::WriteOnly));
+
+    QVERIFY(!controller.flashESP32(binPath));
+    QCOMPARE(finishedSpy.count(), 1);
+    QCOMPARE(finishedSpy.first().at(0).toBool(), false);
+    QVERIFY2(console.contains("refusing an untargeted flash", Qt::CaseInsensitive),
+             qPrintable(console));
+}
+
+void TestAllCases::testPhase7DetectorAdapterOnlyWithoutCatalog() {
+    // R1.c/C10 (portable non-Linux dispatch path): when only the VID is
+    // known, the detector reports an ADAPTER (detected=false), never a
+    // concrete board claim. Executed through the public dispatcher so it
+    // runs on every host.
+    BoardDetector detector;
+    const auto devices = detector.getConnectedDevices();
+    // Only assert invariants for adapters actually present on this host;
+    // on headless CI hosts the list is empty and the invariant is vacuous.
+    for (const auto& dev : devices) {
+        QString vid = dev.vendorId.toLower();
+        QString pid = dev.productId.toLower();
+        if (vid.isEmpty() || pid.isEmpty()) continue;
+        const BoardSpec spec = BoardDatabase::instance().findBoardByUsb(vid, pid);
+        if (!spec.isValid() || spec.vid.isEmpty()) {
+            // No catalog row: detectConnectedBoard must not claim a board.
+            const DetectedBoardInfo info = detector.detectConnectedBoard();
+            if (vid == "0483") {
+                QCOMPARE(info.detected, false);
+                QCOMPARE(info.adapterType, QString("ST-Link"));
+            }
+        }
+    }
+    QVERIFY(true);
+}
+
+void TestAllCases::testPhase7TelnetPromptTerminatedParse() {
+    // R1.e: an OpenOCD telnet reply is complete only with the trailing prompt.
+    const QByteArray mdwReply = "0x40015800: 0x00000440\n> ";
+    const qsizetype mdwLen = OcdTelnetManager::completeReplyLength(mdwReply);
+    QVERIFY2(mdwLen == qsizetype(22), qPrintable(QString("len=%1").arg(mdwLen)));
+
+    const QByteArray crlfReply = "0x40015800: 0x00000440\r\n> ";
+    QCOMPARE(OcdTelnetManager::completeReplyLength(crlfReply), qsizetype(22));
+
+    const QByteArray multiLine = "1\n2\n> ";
+    QCOMPARE(OcdTelnetManager::completeReplyLength(multiLine), qsizetype(3));
+
+    const QByteArray promptOnly = "> ";
+    QCOMPARE(OcdTelnetManager::completeReplyLength(promptOnly), qsizetype(0));
+
+    // Not complete: no trailing prompt yet (first-chunk case of the old bug).
+    QVERIFY(OcdTelnetManager::completeReplyLength(QByteArray("0x40015800: 0x000")) < 0);
+    QVERIFY(OcdTelnetManager::completeReplyLength(QByteArray("targets\nstm32f0x.cpu")) < 0);
+}
+
+void TestAllCases::testPhase7TelnetForeignThreadMarshal() {
+    // R1.e: foreign threads must not touch the socket runtime. The manager
+    // marshals to its owning thread (BlockingQueuedConnection) and the result
+    // depends on the owning thread's event loop serving the queued call -
+    // which is exactly how OpenOCDWorker behaves in production while the
+    // UI loop keeps running.
+    OcdTelnetManager manager;
+    std::atomic<bool> done{false};
+    QString recordedResponse;
+    QThread* worker = new QThread;
+    QObject::connect(worker, &QThread::started, [&]{
+        recordedResponse = manager.sendCommand("targets");
+        done.store(true);
+    });
+    worker->start();
+
+    // Pump the manager's (owner/main) event loop so the queued invocation
+    // is served while the worker blocks on the marshal.
+    QEventLoop loop;
+    for (int i = 0; i < 20 && !done.load(); ++i) {
+        QTimer::singleShot(100, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+    QVERIFY2(done.load(), "queued marshal must be served by the owner thread");
+    QVERIFY(recordedResponse.isEmpty()); // no socket -> honest empty reply
+
+    worker->quit(); // QThread::run's default exec() needs an explicit quit
+    QVERIFY(worker->wait(2000));
+    delete worker;
+}
+
+void TestAllCases::testPhase7ChipIdentityProfileTables() {
+    // R1.d: identity registers per family, sourced from verified references.
+    // Unverified families carry 0/0 and identify() must fail honestly.
+    HardwareBridge& bridge = HardwareBridge::instance();
+
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+    BoardProfile bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0x40015800)); // RM0360 rev.5 §30.6.1
+    QCOMPARE(bp.expectedDevId, quint32(0x440));
+
+    QVERIFY(bridge.setBoard("stm32f407g_disc1"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0xE0042000)); // RM0090
+    QCOMPARE(bp.expectedDevId, quint32(0x413));
+
+    QVERIFY(bridge.setBoard("stm32f469i"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0xE0042000));
+    QCOMPARE(bp.expectedDevId, quint32(0x434)); // RM0386
+
+    QVERIFY(bridge.setBoard("stm32h747i"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0));     // H7: pending hardware capture
+    QCOMPARE(bp.expectedDevId, quint32(0));
+
+    QVERIFY(bridge.setBoard("esp32_devkitc"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0));     // ESP32: esptool path, no DBGMCU
+
+    // OpenOcdDeviceLink offline: without a connection identify fails honestly.
+    Hardware::OpenOcdDeviceLink link("stm32f030r8");
+    const Hardware::DeviceIdentity none = link.identify();
+    QVERIFY(none.family.isEmpty());
+    QCOMPARE(link.state(), Hardware::DeviceLinkState::Error);
+}
+
+void TestAllCases::testPhase7EsptoolChipNameParse() {
+    // R1.d: esptool chip_id reply parsing (fixture from hardware captures).
+    const QByteArray capture =
+        QByteArray("esptool.py v4.5.1\n") +
+        "Serial port /dev/ttyUSB0\n" +
+        "Connecting....\n" +
+        "Chip is ESP32-D0WD-V3 (revision v3.0)\n" +
+        "Features: WiFi, BT, Dual Core, 240MHz\n";
+    QCOMPARE(Hardware::OpenOcdDeviceLink::parseEsptoolChipName(capture),
+             QString("ESP32-D0WD-V3"));
+
+    // No revision suffix variant.
+    QCOMPARE(Hardware::OpenOcdDeviceLink::parseEsptoolChipName(QByteArray("Chip is ESP32-S3\n")),
+             QString("ESP32-S3"));
+
+    // Missing line -> empty chip name (honest identify failure).
+    QVERIFY(Hardware::OpenOcdDeviceLink::parseEsptoolChipName(QByteArray("connecting failed\n")).isEmpty());
+}
+
+void TestAllCases::testPhase7LedCommandHonorsProfile() {
+    // R1.e/C13: the LED_* address is profile-driven and non-STM32 profiles
+    // fail honestly; a plain ESP32 profile must NOT be written with an
+    // STM32 BSRR.
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("esp32_devkitc"));
+    OcdTelnetManager manager;
+    const QString resp = manager.sendCommand("LED_ON");
+    QVERIFY2(resp.startsWith("ERR", Qt::CaseInsensitive), qPrintable(resp));
+    QVERIFY2(resp.contains("STM32"), qPrintable(resp));
+
+    // STM32 profile: F0 GPIO base + BSRR offset consistent with the write
+    // guard history recorded from the (simulated) accepted write.
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+    const BoardProfile bp = bridge.currentBoard();
+    quint32 ledAddress = 0;
+    QString negErr;
+    QVERIFY(manager.ledBsrrAddress(&ledAddress, &negErr));
+    QCOMPARE(ledAddress, quint32(0x48000018)); // 0x48000000 + 0x18 for F0
+}
+
 void TestAllCases::testPhase6McpTokenFileCanonicalPath() {
     const QString tokenPath = m_tempDir.filePath("canonical/mcp_token");
     QVERIFY(QFile::remove(tokenPath) || !QFile::exists(tokenPath));
@@ -6178,10 +6608,10 @@ void TestAllCases::testUniversalPinConfigurationTaskAAndB() {
     QVERIFY(!savedState.isEmpty());
 
     bridge.setBoard("esp32s3_devkitc1");
-    QCOMPARE(bridge.currentBoardId(), QString("esp32s3_devkitc1"));
+    QCOMPARE(bridge.currentBoard().id, QString("esp32s3_devkitc1"));
 
     QVERIFY(bridge.loadHardwareStateFromJson(savedState));
-    QCOMPARE(bridge.currentBoardId(), QString("stm32f030r8"));
+    QCOMPARE(bridge.currentBoard().id, QString("stm32f030r8"));
     QCOMPARE(bridge.taskPinMode("PA0", "Task A"), PinMode::AnalogIn);
     QCOMPARE(bridge.taskPinMode("PA1", "Task B"), PinMode::DigitalOut);
 }
@@ -7757,11 +8187,19 @@ void TestAllCases::testPhase4BoardPinBindingAndDiffPreview() {
     QVERIFY(resolved2[0].keepAsCustom);
     QCOMPARE(resolved2[0].remappedPin, QString("PA0"));
 
-    // 5. Generated code uses active board's pin map and protocol selections
+    // 5. Generated code follows the project's hardware configuration, not the
+    //    registry's active board. An empty project yields the F030 baseline.
     Project prj(&scene);
+    QString halEmpty = CodeGen::TargetHalGenerator::generateHalHeader(&prj);
+    QVERIFY(halEmpty.contains("NUCLEO-F030R8"));
+    QVERIFY(!halEmpty.contains("ESP32"));
+
+    Hardware::HardwareConfig hwEspProj;
+    hwEspProj.family = "ESP32";
+    hwEspProj.deviceId = "ESP32-S3";
+    prj.setHardwareConfig(hwEspProj);
     QString halH = CodeGen::TargetHalGenerator::generateHalHeader(&prj);
     QVERIFY(halH.contains("ESP32"));
-    QVERIFY(halH.contains("PIN_GPIO15"));
 
     QString halC = CodeGen::TargetHalGenerator::generateHalSource(&prj);
     QVERIFY(halC.contains("ESP32"));

@@ -39,10 +39,13 @@ void Stm32DriverPack::initializeDevices() {
     f030.deviceHeaderName = "STM32F030x8.h";
     f030.startupFileName = "startup.s";
     f030.linkerFileName = "linker.ld";
-    f030.sourceProvenance = "STMicroelectronics RM0360 Reference Manual Rev 5, Datasheet DS9773 Rev 4";
+    f030.sourceProvenance = "STMicroelectronics RM0360 Reference Manual Rev 5, Datasheet DS9773 Rev 5";
     devices.push_back(f030);
 
     // STM32F401RE (ARM Cortex-M4F, 512KB Flash, 96KB RAM, 84MHz)
+    // DOWNGRADED: register/AF data below is hand-written and known to be wrong
+    // (e.g. GPIO base, shared headers with F030). Native HAL generation stays
+    // blocked until every value is re-sourced from vendor documents/SVD.
     McuDeviceSpec f401;
     f401.partNumber = "STM32F401RE";
     f401.family = "STM32F4";
@@ -66,6 +69,8 @@ void Stm32DriverPack::initializeDevices() {
     f401.startupFileName = "startup.s";
     f401.linkerFileName = "linker.ld";
     f401.sourceProvenance = "STMicroelectronics RM0368 Reference Manual Rev 5";
+    f401.driverDataVerified = false;
+    f401.driverDataNote = "register, alternate-function and IRQ data not yet verified against vendor documents";
     devices.push_back(f401);
 }
 

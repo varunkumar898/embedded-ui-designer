@@ -8,6 +8,8 @@
 #include "codegen/EmbedWebGenerator.h"
 #include "analyzer/ResourceEstimator.h"
 #include "driverpack/DriverPackRegistry.h"
+#include "driverpack/CustomPackManager.h"
+#include "driverpack/CustomDriverPack.h"
 #include "hardware/BoardRegistry.h"
 #include <QFile>
 #include <QTextStream>
@@ -103,12 +105,6 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
 
     // Target device and driver pack validation
     QString boardId = project->hardwareConfig().boardId.trimmed();
-    if (boardId.isEmpty()) {
-        BoardPreset preset = BoardRegistry::instance().activePreset();
-        if (!preset.boardId.isEmpty()) {
-            boardId = preset.boardId;
-        }
-    }
     QString deviceId = project->hardwareConfig().deviceId.trimmed();
     if (deviceId.isEmpty()) {
         deviceId = dev.name.trimmed();
@@ -138,6 +134,11 @@ ExportResult FirmwareExportManager::exportProject(const Project* project, const 
         if (!pack) {
             result.warnings.append(QString("No driver pack for %1; import one").arg(targetDevice));
             result.warnings.append(QString("Native HAL export blocked for unsupported device %1; UI export proceeding.").arg(targetDevice));
+        } else {
+            const auto* devSpec = pack->findDevice(targetDevice.toStdString());
+            if (devSpec && !devSpec->driverDataVerified) {
+                result.warnings.append(QString("%1: driver data unverified; native HAL export blocked. UI export proceeding.").arg(targetDevice));
+            }
         }
     }
 
@@ -452,8 +453,26 @@ bool FirmwareExportManager::generateGeneratedFiles(const Project* project, const
     }
 
     QString halCContent = CodeGen::TargetHalGenerator::generateHalSource(project, options.targetMcu);
+    // Phase C1: surface plan-driven diagnostics (skipped pins/peripherals,
+    // clock assumptions) in the export result.
+    for (const QString& diagnostic : CodeGen::TargetHalGenerator::planDiagnostics()) {
+        result.warnings.append(diagnostic);
+    }
     if (!halCContent.isEmpty()) {
         if (!writeGeneratedFile("generated/target/target_hal.c", halCContent, rootDir, oldManifest, backupTimestamp, result)) return false;
+    }
+
+    const QString effectiveDev = !options.targetMcu.isEmpty() ? options.targetMcu : (project ? project->hardwareConfig().deviceId : QString());
+    if (driverpack::CustomPackManager::instance().isCustomDevice(effectiveDev)) {
+        driverpack::CustomPackDef customPack = driverpack::CustomPackManager::instance().getPack(effectiveDev);
+        driverpack::CustomDriverPack customDriver(customPack);
+        driverpack::GeneratedProject proj = customDriver.generateProjectTree(customDriver.supportedDevices().front(), {}, "Export");
+        std::string regRelPath = "Drivers/Inc/" + customPack.name.toLower().toStdString() + "_registers.h";
+        if (proj.hasFile(regRelPath)) {
+            QString regContent = QString::fromStdString(proj.getFileContent(regRelPath));
+            QString regTargetFile = QString("generated/target/%1_registers.h").arg(customPack.name.toLower());
+            if (!writeGeneratedFile(regTargetFile, regContent, rootDir, oldManifest, backupTimestamp, result)) return false;
+        }
     }
 
     // 4. Generate Assets Header (generated/assets/)

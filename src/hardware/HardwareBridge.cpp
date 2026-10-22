@@ -6,10 +6,12 @@
 #include "SwitchComponent.h"
 #include "CheckboxComponent.h"
 #include "DeviceDatabase.h"
+#include "BoardDatabase.h"
 #include <QDebug>
 #include <QFile>
 #include <QDir>
 #include <QStandardPaths>
+#include <QSerialPortInfo>
 #include <algorithm>
 
 QString pinModeToString(PinMode mode) {
@@ -523,6 +525,129 @@ void HardwareBridge::initializeDefaultBoards() {
         custom.pins[name] = makePin(name, "GPIO", (i < 4), i, 12, (i >= 4 && i < 8), "TIM1", i - 3, 1, false, "", 0);
     }
     m_boards[custom.id] = custom;
+
+    // R1.b: every built-in profile inherits its adapter/transport identity
+    // from the board catalog (config/boards/board-specs/*.json "usb_adapter"),
+    // with deterministic family-level fallbacks when no catalog row exists.
+    for (auto it = m_boards.begin(); it != m_boards.end(); ++it) {
+        applyCatalogAdapter(it.value());
+    }
+}
+
+void HardwareBridge::applyCatalogAdapter(BoardProfile& profile) {
+    // R1.d first pass: family chip-identity registers (every branch exits,
+    // so run this before the adapter branches).
+    applyChipIdentity(profile);
+
+    // 1. Catalog rows are authoritative when present (usb_adapter section).
+    //    Join by exact id first, then by normalized board name - built-in
+    //    profile ids may differ from catalog ids (e.g. profile
+    //    "stm32f030r8" vs catalog "nucleo_f030r8"), and built-in names may
+    //    carry suffixes ("STM32 Nucleo-F030R8 (STM32F030R8)").
+    BoardSpec spec = BoardDatabase::instance().findBoardById(profile.id);
+    if (!spec.isValid()) {
+        auto skim = [](const QString& raw) {
+            return raw.toLower().remove(' ').remove('-').remove('/')
+                      .remove('(').remove(')');
+        };        const QString normName = skim(profile.name);
+        for (const BoardSpec& row : BoardDatabase::instance().allBoards()) {
+            const QString rowNorm = skim(row.name);
+            if (rowNorm == normName || normName.startsWith(rowNorm)) {
+                spec = row;
+                break;
+            }
+        }
+    }
+    if (spec.isValid() && !spec.vid.isEmpty()) {
+        profile.adapterVid = normalizeUsbId(spec.vid);
+        profile.adapterPid = normalizeUsbId(spec.pid);
+        profile.adapterKind = spec.usbAdapterType.isEmpty() ? "stlink" : spec.usbAdapterType;
+        return;
+    }
+
+    // 2. Family fallbacks (built-in profiles without a catalog row):
+    if (profile.mcuFamily.startsWith("RP2")) {
+        // RP2040/RP2350 debug via CMSIS-DAP probe or BOOTSEL native USB
+        profile.adapterKind = "cmsis-dap";
+        profile.adapterVid = "0d28";
+        profile.adapterPid = "0204";
+        profile.adapterAltVidPids << "2e8a:0009" // RPi Debug Probe
+                                  << "2e8a:0003"; // Pico BOOTSEL (USB mass-storage)
+        return;
+    }
+    if (profile.mcuFamily.startsWith("STM32") ||
+        profile.connectionType == "openocd") {
+        profile.adapterKind = "ST-Link";
+        profile.adapterVid = "0483";
+        profile.adapterPid = "374b";
+        profile.adapterAltVidPids << "0483:3748";
+        return;
+    }
+    if (profile.mcuFamily.startsWith("ESP")) {
+        profile.adapterKind = "esptool";
+        // Accepted USB-to-UART bridges for the ESP32 dev-kit family
+        profile.adapterVid = "10c4";
+        profile.adapterPid = "ea60";
+        profile.adapterAltVidPids << "303a:1001" // ESP32-S3/C3 native USB-JTAG
+                                  << "1a86:7523" // CH340 variants
+                                  << "10c4:ea60";
+        return;
+    }
+    if (profile.id.startsWith("stc") || profile.connectionType == "stcisp") {
+        profile.adapterKind = "stc-isp";
+        profile.adapterVid = "1a86";
+        profile.adapterPid = "7523"; // CH340
+        return;
+    }
+    if (profile.connectionType == "linux") {
+        profile.adapterKind = "linux-gpio"; // no USB adapter: GPIO character device
+        return;
+    }
+    if (profile.connectionType == "linkserver") {
+        profile.adapterKind = "linkserver";
+        return;
+    }
+    profile.adapterKind = "mock";
+}
+
+void HardwareBridge::setTestSerialPorts(const QList<QPair<QPair<QString,QString>,QString>>& ports) {
+    m_testSerialPorts = ports;
+    m_testPortsActive = true;
+}
+
+QString HardwareBridge::normalizeUsbId(const QString& raw) {
+    QString v = raw.trimmed();
+    if (v.startsWith("0x", Qt::CaseInsensitive)) v.remove(0, 2);
+    bool ok = false;
+    quint32 num = v.toUInt(&ok, 16);
+    if (!ok || num > 0xFFFF) return v.toLower(); // leave as-is if not 16-bit hex
+    return QString::number(num, 16).rightJustified(4, u'0');
+}
+
+QString HardwareBridge::matchSerialPort(const BoardProfile& profile,
+                                        const QList<QPair<QPair<QString,QString>,QString>>& usbSerialPorts,
+                                        QString* matchedAdapter) {
+    if (matchedAdapter) matchedAdapter->clear();
+    QString primaryVid = normalizeUsbId(profile.adapterVid);
+    QString primaryPid = normalizeUsbId(profile.adapterPid);
+
+    QSet<QString> accepted;
+    if (!primaryVid.isEmpty() && !primaryPid.isEmpty()) accepted.insert(primaryVid + ':' + primaryPid);
+    for (const QString& alt : profile.adapterAltVidPids) {
+        const int colon = alt.indexOf(':');
+        if (colon <= 0 || colon + 1 >= alt.length()) continue;
+        accepted.insert(normalizeUsbId(alt.left(colon)) + ':' + normalizeUsbId(alt.mid(colon + 1)));
+    }
+    if (accepted.isEmpty()) return QString();
+
+    for (const auto& entry : usbSerialPorts) {
+        QString key = normalizeUsbId(entry.first.first) + ':' + normalizeUsbId(entry.first.second);
+        if (accepted.contains(key)) {
+            if (matchedAdapter) *matchedAdapter = key;
+            return entry.second;
+        }
+    }
+    return QString();
 }
 
 QList<BoardProfile> HardwareBridge::availableBoards() const {
@@ -549,9 +674,48 @@ bool HardwareBridge::setBoard(const QString& boardId) {
     return true;
 }
 
+void HardwareBridge::applyChipIdentity(BoardProfile& profile) {
+    // R1.d: identity registers only for families with documented, verified
+    // values. Unverified families stay 0/0 and identify() fails honestly
+    // ("pending verification") instead of guessing an address.
+    if (profile.dbgmcuAddress != 0) {
+        return; // imported profiles may carry explicit identity data
+    }
+    if (profile.mcuFamily.startsWith("STM32F0", Qt::CaseInsensitive)) {
+        // RM0360 rev.5 §30.6.1: DBGMCU_IDCODE 0x40015800, DEV_ID 0x440
+        profile.dbgmcuAddress = 0x40015800;
+        profile.expectedDevId = 0x440;
+        return;
+    }
+    if (profile.mcuFamily.startsWith("STM32F4", Qt::CaseInsensitive)) {
+        profile.dbgmcuAddress = 0xE0042000;
+        const QString id = profile.id.toLower();
+        if (id.contains("f469") || id.contains("f479") || profile.name.contains("F469") || profile.name.contains("F479")) {
+            // RM0386: F469/F479 DEV_ID 0x434
+            profile.expectedDevId = 0x434;
+        } else if (id.contains("f407") || profile.name.contains("F407")) {
+            // RM0090: F407 DEV_ID 0x413
+            profile.expectedDevId = 0x413;
+        } else {
+            profile.expectedDevId = 0; // other F4 members pending capture confirm
+        }
+        return;
+    }
+    // STM32F1/H7/L*, RP2, ESP, BCM: leave 0/0 - identity needs references
+    // that must be captured from hardware before they are trusted.
+}
+
 bool HardwareBridge::addBoard(const BoardProfile& profile) {
     if (profile.id.isEmpty()) return false;
-    m_boards[profile.id] = profile;
+    // Imported/custom boards receive the same catalog-driven adapter
+    // identity as built-ins: exact-id/name join via BoardDatabase, else
+    // deterministic family fallback. Boards carrying explicit adapter
+    // data keep it (applyCatalogAdapter is not called for those).
+    BoardProfile enriched = profile;
+    if (enriched.adapterVid.isEmpty()) {
+        applyCatalogAdapter(enriched);
+    }
+    m_boards[enriched.id] = enriched;
     return true;
 }
 
@@ -900,11 +1064,17 @@ void HardwareBridge::rescan() {
 }
 
 bool HardwareBridge::connectHardware() {
-    if (m_connectionState == ConnectionState::Connected) {
+    const BoardProfile bp = currentBoard();
+    const bool wasConnected = (m_connectionState == ConnectionState::Connected);
+
+    // R1.c: for the serial/esptool branch we fall through to re-match even
+    // while Connected (the paired adapter may have been unplugged); all
+    // other branches keep the fast connected short-circuit.
+    if (wasConnected && !(bp.connectionType == "serial" || bp.mcuFamily.contains("ESP32") ||
+                          bp.adapterKind.compare("esptool", Qt::CaseInsensitive) == 0)) {
         return true;
     }
 
-    const BoardProfile bp = currentBoard();
     m_lastConnectionError.clear();
     updateConnectionState(ConnectionState::Connecting);
 
@@ -930,10 +1100,17 @@ bool HardwareBridge::connectHardware() {
             return true;
         }
 
-        // If probe is detected or physical connect requested
+        // R1.c: a detected probe is NOT a connection. Claiming transport
+        // from USB presence alone is the phantom-connect bug - report the
+        // probe fact and fail with an actionable reason instead.
         if (m_openOcd.isProbeDetected()) {
-            updateConnectionState(ConnectionState::Connected, m_openOcd.detectedBoardName());
-            return true;
+            m_lastConnectionError = QString(
+                "ST-Link probe present (%1) but the target cannot be reached "
+                "(openocd daemon/target init failed). Check the target wiring, "
+                "port conflicts, and openocd output.")
+                .arg(m_openOcd.detectedBoardName().isEmpty() ? "probe" : m_openOcd.detectedBoardName());
+            updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
+            return false;
         }
 
         // Actionable error for disconnected physical probe
@@ -942,29 +1119,61 @@ bool HardwareBridge::connectHardware() {
         return false;
     }
 
-    // 2. ESP32 / Serial Workflow
-    if (bp.connectionType == "serial" || bp.mcuFamily.contains("ESP32")) {
-        // Check if USB serial port exists
-        QDir devDir("/dev");
-        QStringList ttyPorts = devDir.entryList(QStringList() << "ttyUSB*" << "ttyACM*", QDir::System);
-        if (!ttyPorts.isEmpty()) {
-            updateConnectionState(ConnectionState::Connected, QString("ESP32 via /dev/%1").arg(ttyPorts.first()));
+    // 2. ESP32 / Serial Workflow (R1.b: transport comes from the board catalog)
+    if (bp.connectionType == "serial" || bp.mcuFamily.contains("ESP32") || bp.adapterKind.compare("esptool", Qt::CaseInsensitive) == 0) {
+        if (m_simulationMode) {
+            updateConnectionState(ConnectionState::Connected, "Simulated ESP32 (Virtual Target)");
             return true;
         }
-        m_lastConnectionError = "No ESP32 USB-Serial / JTAG device found (/dev/ttyUSB*, /dev/ttyACM*).";
-        updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
-        return false;
+        // Enumerate USB serial adapters and keep the ONE whose VID:PID matches
+        // the board profile's adapter identity. A bare "/dev/ttyUSB*" listing
+        // is never a connection.
+        QList<QPair<QPair<QString,QString>,QString>> usbSerial;
+        if (m_testPortsActive) {
+            usbSerial = m_testSerialPorts;
+        } else {
+            const auto portList = QSerialPortInfo::availablePorts();
+            for (const QSerialPortInfo& info : portList) {
+                if (!info.hasVendorIdentifier() || !info.hasProductIdentifier()) continue;
+                usbSerial.append({{QString::number(info.vendorIdentifier(), 16).rightJustified(4, u'0'),
+                                   QString::number(info.productIdentifier(), 16).rightJustified(4, u'0')},
+                                  info.portName()});
+            }
+        }
+
+        QString matchedAdapter;
+        const QString matchedPort = matchSerialPort(bp, usbSerial, &matchedAdapter);
+        if (matchedPort.isEmpty()) {
+            m_lastSerialPortName.clear(); // R1.c: a failed match invalidates any earlier pairing
+            m_lastConnectionError = QString(
+                "No ESP32 USB-Serial adapter matching the board profile (%1 %2:%3) found. "
+                "Connect the adapter for %4 or select a different board.")
+                .arg(bp.adapterKind, bp.adapterVid, bp.adapterPid, bp.name);
+            updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
+            return false;
+        }
+        m_lastSerialPortName = matchedPort;
+        updateConnectionState(ConnectionState::Connected,
+                              QString("ESP32 via %1 (adapter %2 matched)").arg(matchedPort, matchedAdapter));
+        return true;
     }
 
-    // 3. Linux GPIO SBC Workflow
+    // 3. Linux GPIO SBC Workflow (R1.c: an existing /sys/class/gpio is an
+    // environment property; a transport claim requires an openable GPIO
+    // character device - /dev/gpiochipN).
     if (bp.connectionType == "linux") {
-        if (QDir("/sys/class/gpio").exists() || QFile::exists("/dev/gpiochip0")) {
-            updateConnectionState(ConnectionState::Connected, "Linux GPIO Subsystem (/dev/gpiochip)");
-            return true;
+        const QString gpioChip = firstOpenableGpioChip();
+        if (gpioChip.isEmpty()) {
+            m_lastConnectionError =
+                "No GPIO character device available (/dev/gpiochip*). "
+                "Connect the target board or run on the SBC itself.";
+            updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
+            return false;
         }
-        m_lastConnectionError = "Linux GPIO sysfs/gpiod interface unavailable.";
-        updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
-        return false;
+        m_lastSerialPortName.clear(); // non-serial transport: no paired tty
+        updateConnectionState(ConnectionState::Connected,
+                              QString("Linux GPIO via %1").arg(gpioChip));
+        return true;
     }
 
     // 4. Fallback / Custom / Simulation
@@ -978,10 +1187,31 @@ bool HardwareBridge::connectHardware() {
     return false;
 }
 
+QString HardwareBridge::firstOpenableGpioChip(const QString& devDir) {
+    // R1.c: /sys/class/gpio merely signals kernel sub-system presence
+    // (nearly every Linux host has it). A connection must open an actual
+    // GPIO character device. devDir is injectable for offline tests.
+    QDir dir(devDir);
+    // QDir::System covers real device nodes (char devices); QDir::Files
+    // lets offline tests inject regular files named gpiochip*.
+    const QStringList chips = dir.entryList(QStringList() << "gpiochip*",
+                                            QDir::Files | QDir::System, QDir::Name);
+    for (const QString& chip : chips) {
+        QFile chipDev(dir.filePath(chip));
+        if (chipDev.open(QIODevice::ReadOnly)) {
+            chipDev.close();
+            return dir.filePath(chip); // e.g. /dev/gpiochip0
+        }
+    }
+    return QString();
+}
+
 bool HardwareBridge::disconnectHardware() {
     if (m_openOcd.isConnected()) {
         m_openOcd.disconnectTarget();
     }
+    // R1.c: session over - the previously matched serial pairing is stale.
+    m_lastSerialPortName.clear();
     updateConnectionState(ConnectionState::Disconnected);
     return true;
 }
@@ -1364,4 +1594,34 @@ bool HardwareBridge::loadHardwareStateFromJson(const QJsonObject& json) {
         }
     }
     return true;
+}
+
+bool HardwareBridge::isLiveWriteAllowed() const {
+    return m_currentBoardId == "stm32f030r8" || m_currentBoardId.contains("f030", Qt::CaseInsensitive);
+}
+
+QSet<quint32> HardwareBridge::allowedWriteAddresses() const {
+    QSet<quint32> s;
+    if (!m_boards.contains(m_currentBoardId)) return s;
+    const BoardProfile& bp = m_boards[m_currentBoardId];
+    s.insert(bp.gpioBase + bp.bsrrOffset);
+    for (auto it = bp.pins.begin(); it != bp.pins.end(); ++it) {
+        const PinProfile& p = it.value();
+        if (p.adc.available) { if (p.adc.dataReg) s.insert(p.adc.dataReg); if (p.adc.triggerReg) s.insert(p.adc.triggerReg); }
+        if (p.pwm.available) { if (p.pwm.ccrReg) s.insert(p.pwm.ccrReg); }
+        if (p.spi.available) { if (p.spi.cr1Reg) s.insert(p.spi.cr1Reg); if (p.spi.drReg) s.insert(p.spi.drReg); if (p.spi.srReg) s.insert(p.spi.srReg); }
+    }
+    return s;
+}
+
+void HardwareBridge::logWrite(quint32 address, quint32 value, bool ok, const QString& trigger) {
+    QDir dir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+    dir.mkpath(".");
+    QFile f(dir.filePath("write_log.txt"));
+    if (f.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream ts(&f);
+        ts << QDateTime::currentDateTime().toString(Qt::ISODate) << " addr=0x" << QString::number(address, 16)
+           << " value=0x" << QString::number(value, 16) << " result=" << (ok ? "OK" : "REJECTED")
+           << " trigger=" << trigger << "\n";
+    }
 }

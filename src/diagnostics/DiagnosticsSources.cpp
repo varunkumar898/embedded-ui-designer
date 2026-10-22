@@ -13,6 +13,8 @@
 #include "models/DiagnosticsEngine.h"
 #include "driverpack/DriverPackRegistry.h"
 #include "hardware/BoardRegistry.h"
+#include "hardware/PinCapabilities.h"
+#include "hardware/PinsValidator.h"
 
 #include <QFileInfo>
 #include <QCryptographicHash>
@@ -276,6 +278,57 @@ QVector<Diagnostic> driverPackSource(const Project* project) {
         diagnostic.message = QString("No driver pack for %1; import one").arg(devName);
         diagnostic.source = QStringLiteral("DriverPack");
         out.append(diagnostic);
+    } else {
+        const auto* spec = pack->findDevice(devName.toStdString());
+        if (spec && !spec->driverDataVerified) {
+            Diagnostic diagnostic;
+            diagnostic.severity = Diagnostic::Severity::Error;
+            diagnostic.message = QString("%1: driver data unverified — native HAL generation is disabled until every value is sourced from vendor documents/SVD.").arg(devName);
+            diagnostic.source = QStringLiteral("DriverPack");
+            out.append(diagnostic);
+        }
+    }
+    return out;
+}
+
+QVector<Diagnostic> pinsSource(const Project* project) {
+    QVector<Diagnostic> out;
+    if (!project) return out;
+
+    const Hardware::HardwareConfig cfg = project->hardwareConfig();
+
+    // Resolve the same device name the DriverPack source uses, so both agree
+    // on which pack the configuration refers to.
+    QString boardId = cfg.boardId.trimmed();
+    QString deviceId = cfg.deviceId.trimmed();
+    QString devName;
+    if (!boardId.isEmpty()) {
+        BoardDef bd = BoardRegistry::instance().board(boardId);
+        if (bd.isValid()) {
+            devName = !bd.mcu.isEmpty() ? bd.mcu : boardId;
+        } else {
+            devName = boardId;
+        }
+    } else if (!deviceId.isEmpty()) {
+        devName = deviceId;
+    } else {
+        devName = project->getDeviceProfile().name.trimmed();
+    }
+
+    const Hardware::PinCapabilities* caps =
+        Hardware::PinCapabilityDatabase::instance().forDevice(devName);
+    const QVector<Hardware::PinIssue> issues = Hardware::PinsValidator::validate(cfg, caps);
+
+    for (const Hardware::PinIssue& issue : issues) {
+        Diagnostic diagnostic;
+        switch (issue.severity) {
+            case Hardware::PinIssue::Severity::Error:   diagnostic.severity = Diagnostic::Severity::Error; break;
+            case Hardware::PinIssue::Severity::Warning: diagnostic.severity = Diagnostic::Severity::Warning; break;
+            case Hardware::PinIssue::Severity::Info:    diagnostic.severity = Diagnostic::Severity::Info; break;
+        }
+        diagnostic.message = issue.message;
+        diagnostic.source = QStringLiteral("Pins");
+        out.append(diagnostic);
     }
     return out;
 }
@@ -339,6 +392,7 @@ void registerBuiltinSources(DiagnosticsService& service) {
     service.registerSource(QStringLiteral("BoardDisplay"), boardDisplaySource);
     service.registerSource(QStringLiteral("Backend"), backendSource);
     service.registerSource(QStringLiteral("DriverPack"), driverPackSource);
+    service.registerSource(QStringLiteral("Pins"), pinsSource);
     service.registerSource(QStringLiteral("Manifest"), manifestSource);
 }
 

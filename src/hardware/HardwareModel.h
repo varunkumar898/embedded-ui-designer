@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <QList>
 #include <QMap>
+#include <QVector>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
@@ -167,6 +168,20 @@ struct ToolchainConfiguration {
     static ToolchainConfiguration fromJson(const QJsonObject& obj);
 };
 
+struct Signal {
+    QString id;            // stable id, e.g. "sig_PA5" or user-provided
+    QString name;          // user-editable, e.g. "LED1"
+    QString pin;           // MCU pin, e.g. "PA5"
+    QString direction;     // "in", "out", "inout"
+    QString kind;          // "digital", "adc", "pwm", "bus"
+    QString peripheral;    // e.g. "SPI1", "USART1", or ""
+    QString instance;      // e.g. "SPI1", or ""
+    QString source;        // "derived" or "user"
+
+    QJsonObject toJson() const;
+    static Signal fromJson(const QJsonObject& obj);
+};
+
 struct HardwareConfig {
     QString targetType = "device"; // "device", "board", "custom"
     QString vendor;
@@ -182,11 +197,16 @@ struct HardwareConfig {
 
     QMap<QString, PinConfiguration> pins;
     QMap<QString, PeripheralConfiguration> peripherals;
+    QVector<Signal> signalList;   // H1: derived from pins+peripherals; persisted (additive)
     ClockConfiguration clock;
     ToolchainConfiguration toolchain;
 
     bool isValid() const { return !deviceId.isEmpty() || !vendor.isEmpty(); }
     void clear();
+    // Derive signals from pins+peripherals when none are persisted.
+    void deriveSignals();
+    Signal signalById(const QString& id) const;
+    bool hasSignal(const QString& id) const;
 
     QJsonObject toJson() const;
     static HardwareConfig fromJson(const QJsonObject& obj);

@@ -19,6 +19,8 @@
 #include "codegen/BackendRegistry.h"
 #include "hardware/BoardRegistry.h"
 #include "theme/Theme.h"
+#include "driverpack/CustomPackManager.h"
+#include "dialogs/CustomPackImportDialog.h"
 
 namespace {
 
@@ -28,6 +30,7 @@ CapabilityDatabase& deviceDb() {
     static bool loaded = false;
     if (!loaded) {
         db.loadBuiltinDatabase();
+        driverpack::CustomPackManager::instance().loadInstalledPacks(&db);
         loaded = true;
     }
     return db;
@@ -92,12 +95,19 @@ void BoardDisplayPanel::setupUi() {
     tgl->addWidget(m_backendCombo);
 
     tgl->addWidget(new QLabel("Microcontroller (MCU):", targetGroup));
+    auto* mcuRow = new QHBoxLayout();
     m_mcuCombo = new QComboBox(targetGroup);
     m_mcuCombo->setObjectName("bdMcuCombo");
     populateMcuCombo();
     connect(m_mcuCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &BoardDisplayPanel::onMcuChanged);
-    tgl->addWidget(m_mcuCombo);
+    m_importPackBtn = new QPushButton("Import pack...", targetGroup);
+    m_importPackBtn->setObjectName("bdImportPackBtn");
+    m_importPackBtn->setToolTip("Import custom board or MCU pack from CMSIS-SVD and Pin CSV");
+    connect(m_importPackBtn, &QPushButton::clicked, this, &BoardDisplayPanel::openImportPackDialog);
+    mcuRow->addWidget(m_mcuCombo, 1);
+    mcuRow->addWidget(m_importPackBtn);
+    tgl->addLayout(mcuRow);
 
     tgl->addWidget(new QLabel("Board:", targetGroup));
     m_boardCombo = new QComboBox(targetGroup);
@@ -319,7 +329,11 @@ void BoardDisplayPanel::populateMcuCombo() {
     m_mcuCombo->addItem("Select target MCU...", QString());
     const QStringList devices = deviceDb().listAllDevices();
     for (const QString& d : devices) {
-        m_mcuCombo->addItem(d, d);
+        if (driverpack::CustomPackManager::instance().isCustomDevice(d)) {
+            m_mcuCombo->addItem(d + " [Custom]", d);
+        } else {
+            m_mcuCombo->addItem(d, d);
+        }
     }
 
     const QString current = m_project ? m_project->hardwareConfig().deviceId : QString();
@@ -330,6 +344,10 @@ void BoardDisplayPanel::populateMcuCombo() {
         m_mcuCombo->addItem(QString("Keep current (%1)").arg(current), current);
         index = m_mcuCombo->count() - 1;
     }
+
+    // Action row to import pack
+    m_mcuCombo->addItem("➕ Import pack...", "__action_import_pack__");
+
     m_mcuCombo->setCurrentIndex(index >= 0 ? index : 0);
 }
 
@@ -631,11 +649,34 @@ void BoardDisplayPanel::onBackendChanged(int index) {
     emit settingsChanged();
 }
 
+void BoardDisplayPanel::openImportPackDialog() {
+    CustomPackImportDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        driverpack::CustomPackManager::instance().loadInstalledPacks(&deviceDb());
+        populateMcuCombo();
+        const QString newName = dlg.importedPack().name;
+        int idx = m_mcuCombo->findData(newName);
+        if (idx >= 0) {
+            m_mcuCombo->setCurrentIndex(idx);
+        }
+    } else {
+        const QString current = m_project ? m_project->hardwareConfig().deviceId : QString();
+        int idx = current.isEmpty() ? 0 : m_mcuCombo->findData(current);
+        QSignalBlocker blocker(m_mcuCombo);
+        m_mcuCombo->setCurrentIndex(idx >= 0 ? idx : 0);
+    }
+}
+
 void BoardDisplayPanel::onMcuChanged(int index) {
     Q_UNUSED(index);
     if (m_updating || !m_project) return;
     const QString name = m_mcuCombo->currentData().toString();
     if (name.isEmpty()) return; // placeholder row
+
+    if (name == "__action_import_pack__") {
+        openImportPackDialog();
+        return;
+    }
 
     Hardware::HardwareConfig hw = m_project->hardwareConfig();
     if (hw.deviceId == name) return;

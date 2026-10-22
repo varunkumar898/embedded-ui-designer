@@ -118,6 +118,21 @@ struct BoardProfile {
     QMap<QString, PinProfile> pins;
     QStringList spiBusses;
     QStringList portGroups;
+
+    // R1.b: adapter/transport identity sourced from the board catalog
+    // (config/boards/board-specs/*.json "usb_adapter"). A serial transport is
+    // selected ONLY when a device with these USB ids is attached - never by
+    // "some tty exists".
+    QString adapterKind;             // "stlink", "esptool", "linux-gpio", "mock", "picotool", ...
+    QString adapterVid;              // normalized 4-hex, e.g. "0483"
+    QString adapterPid;              // e.g. "374b"
+    QStringList adapterAltVidPids;   // extra accepted "vid:pid" pairs
+
+    // R1.d: chip identity (DBGMCU_IDCODE family registers). Both zero means
+    // "no verified identity register for this family yet" -> identify() must
+    // fail honestly instead of guessing.
+    quint32 dbgmcuAddress = 0;       // e.g. F0: 0x40015800, F4: 0xE0042000
+    quint32 expectedDevId = 0;       // e.g. 0x440 (F030x8/x9), 0x413 (F407)
 };
 
 class HardwareBridge : public QObject {
@@ -132,7 +147,29 @@ public:
     bool setBoard(const QString& boardId);
     bool addBoard(const BoardProfile& profile);
     bool hasBoard(const QString& boardId) const;
-    QString currentBoardId() const { return m_currentBoardId; }
+
+    // R1.b: catalog-driven transport/adapter selection (unit-testable helpers)
+    static QString normalizeUsbId(const QString& raw); // "0x0483"|"483"|"0483" -> "0483"
+    static QString firstOpenableGpioChip(const QString& devDir = QStringLiteral("/dev"));
+    // R1.d: family chip-identity registers (DBGMCU_IDCODE address + expected
+    // DEV_ID); pure function of the profile.
+    static void applyChipIdentity(BoardProfile& profile);
+    // ports: list of ((vid,pid), portName). Returns the name of the FIRST port
+    // whose vid:pid matches the profile's adapter ids, or "" when none does.
+    static QString matchSerialPort(const BoardProfile& profile,
+                                   const QList<QPair<QPair<QString,QString>,QString>>& usbSerialPorts,
+                                   QString* matchedAdapter = nullptr);
+    // Serial port paired by catalog match during connectHardware(). Port that
+    // downstream consumers (telemetry, flashing) must use: never the first tty.
+    QString lastSerialPortName() const { return m_lastSerialPortName; }
+    bool isSerialPortMatched() const { return !m_lastSerialPortName.isEmpty(); }
+    void setTestSerialPorts(const QList<QPair<QPair<QString,QString>,QString>>& ports);
+    void clearTestSerialPorts() { m_testPortsActive = false; m_testSerialPorts.clear(); }
+    bool isLiveWriteAllowed() const;
+    QSet<quint32> allowedWriteAddresses() const;
+    bool writeOverride() const { return m_writeOverride; }
+    void setWriteOverride(bool on) { m_writeOverride = on; }
+    void logWrite(quint32 address, quint32 value, bool ok, const QString& trigger);
 
     // Pin Capability & Mode Inspection
     QStringList availablePins() const;
@@ -245,6 +282,7 @@ private:
     void updateConnectionState(ConnectionState state, const QString& info = QString());
 
     QString m_currentBoardId = "stm32f030r8";
+    bool m_writeOverride = false;
     QString m_activeTask = "Task A"; // "Task A", "Task B", "All Tasks"
     QMap<QString, BoardProfile> m_boards;
 
@@ -271,4 +309,10 @@ private:
     QTimer m_pollTimer;
     QElapsedTimer m_pwmThrottleTimer;
     double m_lastPwmDutyWritten = -1.0;
+
+    // R1.b: catalog-adapter probing state (see applyCatalogAdapter / matchSerialPort)
+    QList<QPair<QPair<QString,QString>,QString>> m_testSerialPorts;
+    bool m_testPortsActive = false;
+    QString m_lastSerialPortName;
+    void applyCatalogAdapter(BoardProfile& profile);
 };

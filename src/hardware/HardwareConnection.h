@@ -74,7 +74,14 @@ public:
 
     void setPortName(const QString& port) { m_portName = port; }
     QString portName() const { return m_portName; }
-    void setBaudRate(int baud) { m_baudRate = baud; }
+    void setBaudRate(const int baud) { m_baudRate = baud; }
+    static bool serialTransportAvailable() {
+#ifdef HAVE_QT_SERIALPORT
+        return true;
+#else
+        return false;
+#endif
+    }
 
 private:
     QString m_portName;

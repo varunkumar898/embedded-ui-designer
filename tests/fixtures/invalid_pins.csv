@@ -1,0 +1,3 @@
+Pin,Function,Peripheral
+PA0,GPIO_Output,GPIOA
+PA1,ADC_IN,UNKNOWN_PERIPHERAL_XYZ
