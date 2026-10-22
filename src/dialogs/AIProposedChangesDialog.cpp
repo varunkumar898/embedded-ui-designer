@@ -1,6 +1,10 @@
 #include "AIProposedChangesDialog.h"
 #include "theme/Theme.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QJsonArray>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>

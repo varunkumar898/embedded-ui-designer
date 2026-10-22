@@ -92,6 +92,12 @@ else()
     set(JSONCPP_TARGET jsoncpp_lib)
 endif()
 
+# Stable alias: consumers (tests/CMakeLists.txt) link target name "jsoncpp"
+# regardless of whether it came from a system find_package or FetchContent.
+if(NOT TARGET jsoncpp)
+    add_library(jsoncpp ALIAS ${JSONCPP_TARGET})
+endif()
+
 link_libraries(${JSONCPP_TARGET})
 
 # Optional Qt6 detection for Desktop GUI and Qt unit tests
