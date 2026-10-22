@@ -1,5 +1,6 @@
 #include "OpenOcdManager.h"
 #include "HardwareBridge.h"
+#include "BoardDatabase.h"
 #include "WriteGuard.h"
 
 #include <QDir>
@@ -59,6 +60,33 @@ void OpenOcdManager::scheduleNextPoll(bool probeFound) {
     }
 }
 
+namespace {
+// R1.c: an adapter VID:PID identifies a concrete BOARD only through the
+// catalog (usb_adapter rows). Without a row, the probe is reported as an
+// adapter - never as a guessed board.
+DiscoveredProbe decorateProbe(DiscoveredProbe p, const QString& adapterKind,
+                              const QString& defaultInterface) {
+    p.vendorId = HardwareBridge::normalizeUsbId(p.vendorId);
+    p.productId = HardwareBridge::normalizeUsbId(p.productId);
+    const QString descriptionBackedName = p.name;
+    const BoardSpec spec = BoardDatabase::instance().findBoardByUsb(p.vendorId, p.productId);
+    if (spec.isValid() && !spec.vid.isEmpty()) {
+        p.name = QString("%1 via %2")
+                     .arg(spec.name,
+                          spec.usbAdapterType.isEmpty() ? adapterKind : spec.usbAdapterType);
+        if (!spec.openocdInterface.isEmpty()) {
+            p.suggestedInterface = spec.openocdInterface;
+        }
+    } else if (descriptionBackedName.isEmpty()) {
+        p.name = QString("%1 (board not identified)").arg(adapterKind);
+    }
+    if (p.suggestedInterface.isEmpty()) {
+        p.suggestedInterface = defaultInterface;
+    }
+    return p;
+}
+} // namespace
+
 DiscoveredProbe OpenOcdManager::scanUsbProbes() {
     DiscoveredProbe found;
 
@@ -73,42 +101,43 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
 
         if (vid == 0x0483 || desc.contains("stlink") || mfg.contains("stmicroelectronics")) {
             found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = "STM32F030R8 via ST-Link";
-            found.suggestedInterface = "interface/stlink.cfg";
+            found.vendorId = QString::number(vid, 16).rightJustified(4, u'0');
+            found.productId = QString::number(pid, 16).rightJustified(4, u'0');
+            found = decorateProbe(found, "ST-Link", "interface/stlink.cfg");
             return found;
         }
         if (vid == 0x2e8a || desc.contains("picoprobe") || desc.contains("rp2040")) {
             found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = p.description().isEmpty() ? "Raspberry Pi Debug Probe" : p.description();
-            found.suggestedInterface = "interface/cmsis-dap.cfg";
+            found.vendorId = QString::number(vid, 16).rightJustified(4, u'0');
+            found.productId = QString::number(pid, 16).rightJustified(4, u'0');
+            found.name = p.description(); // real adapter description when present
+            found = decorateProbe(found, "Raspberry Pi Debug Probe", "interface/cmsis-dap.cfg");
             return found;
         }
         if (vid == 0x0d28 || desc.contains("daplink") || desc.contains("cmsis-dap")) {
             found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = p.description().isEmpty() ? "CMSIS-DAP Debugger" : p.description();
-            found.suggestedInterface = "interface/cmsis-dap.cfg";
+            found.vendorId = QString::number(vid, 16).rightJustified(4, u'0');
+            found.productId = QString::number(pid, 16).rightJustified(4, u'0');
+            found.name = p.description(); // real adapter description when present
+            found = decorateProbe(found, "CMSIS-DAP Debugger", "interface/cmsis-dap.cfg");
             return found;
         }
         if (vid == 0x10c4 || desc.contains("cp210") || desc.contains("esp32")) {
             found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = "ESP32 DEVKIT V1 via CP210x";
-            found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+            found.vendorId = QString::number(vid, 16).rightJustified(4, u'0');
+            found.productId = QString::number(pid, 16).rightJustified(4, u'0');
+            // R1.c: CP210x bridges do not map to an OpenOCD wakeup config by
+            // themselves; ESP32 transport is esptool, config only via catalog.
+            found = decorateProbe(found, "CP210x USB-serial", QString());
             return found;
         }
         if (vid == 0x1a86 || desc.contains("ch340") || desc.contains("ch341")) {
             found.detected = true;
-            found.vendorId = QString::number(vid, 16);
-            found.productId = QString::number(pid, 16);
-            found.name = "ESP32 DEVKIT V1 via CH340";
-            found.suggestedInterface = "config/openocd/esp32-devkitv1-cp210x.cfg";
+            found.vendorId = QString::number(vid, 16).rightJustified(4, u'0');
+            found.productId = QString::number(pid, 16).rightJustified(4, u'0');
+            // R1.c: a CH340 adapter no longer claims "ESP32 DEVKIT V1" - and
+            // the previously copy-pasted cp210x .cfg was wrong for this chip.
+            found = decorateProbe(found, "CH340/CH341 USB-serial", QString());
             return found;
         }
     }
@@ -168,9 +197,8 @@ DiscoveredProbe OpenOcdManager::scanUsbProbes() {
                             if (vid == 0x0483) {
                                 found.detected = true;
                                 found.vendorId = "0483";
-                                found.productId = QString::number(pid, 16);
-                                found.name = "STM32F030R8 via ST-Link";
-                                found.suggestedInterface = "interface/stlink.cfg";
+                                found.productId = QString::number(pid, 16).rightJustified(4, u'0');
+                                found = decorateProbe(found, "ST-Link", "interface/stlink.cfg");
                                 break;
                             } else if (vid == 0x2e8a) {
                                 found.detected = true;

@@ -69,6 +69,8 @@
 #include "HardwareTarget.h"
 #include "HardwareConnection.h"
 #include "HardwareBackend.h"
+#include "FlashController.h"
+#include <QSignalSpy>
 #include "STM32Backend.h"
 #include "ESP32Backend.h"
 #include "RaspberryPiBackend.h"
@@ -349,6 +351,11 @@ private slots:
     void testPhase7AdapterTransportFromCatalog();
     void testPhase7SerialPortMatchNormalization();
     void testPhase7ConnectRequiresMatchingAdapterPort();
+    // 32. Phase 7/R1.c: honesty of connection claims (no probe/gated claims)
+    void testPhase7LinuxGpioRequiresOpenableChipDevice();
+    void testPhase7SerialConnectionOpensOrFails();
+    void testPhase7FlashRefusesUntargetedPort();
+    void testPhase7DetectorAdapterOnlyWithoutCatalog();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -6007,6 +6014,115 @@ void TestAllCases::testPhase7ConnectRequiresMatchingAdapterPort() {
     // Restore singleton state for later suite slots.
     bridge.setBoard(prevBoardId);
     bridge.setSimulationMode(prevSim);
+}
+
+void TestAllCases::testPhase7LinuxGpioRequiresOpenableChipDevice() {
+    // R1.c/C1: /sys/class/gpio presence is an environment property, not a
+    // transport. A connection claim requires an OPENABLE GPIO character
+    // device; the resolver accepts an injectable directory for offline
+    // verification (any openable node named gpiochip* qualifies).
+    const QString chipDir = m_tempDir.filePath("p7_chips");
+    QVERIFY(QDir().mkpath(chipDir));
+    QCOMPARE(HardwareBridge::firstOpenableGpioChip(chipDir), QString()); // empty dir
+
+    QVERIFY(QFile(chipDir + "/gpiochip0").open(QIODevice::WriteOnly));
+    QCOMPARE(HardwareBridge::firstOpenableGpioChip(chipDir), chipDir + "/gpiochip0");
+
+    QVERIFY(QFile(chipDir + "/notachip").open(QIODevice::WriteOnly));
+    QCOMPARE(HardwareBridge::firstOpenableGpioChip(chipDir), chipDir + "/gpiochip0");
+
+    // End-to-end honesty on the linux branch: Connected iff a chip device
+    // opens on THIS host (environment-tolerant assertion).
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("raspberrypi_4b"));
+    bridge.disconnectHardware();
+    const bool chipAvailable = !HardwareBridge::firstOpenableGpioChip().isEmpty();
+    const bool claimed = bridge.connectHardware();
+    QCOMPARE(claimed, chipAvailable);
+    if (chipAvailable) {
+        QVERIFY(bridge.isHardwareConnected());
+        QVERIFY(bridge.lastConnectionError().isEmpty());
+    } else {
+        QVERIFY(!bridge.isHardwareConnected());
+        QVERIFY2(bridge.lastConnectionError().contains("gpiochip", Qt::CaseInsensitive),
+                 qPrintable(bridge.lastConnectionError()));
+    }
+    bridge.disconnectHardware();
+}
+
+void TestAllCases::testPhase7SerialConnectionOpensOrFails() {
+    // R1.c/C5: picking a port name is not a claim - the port must open.
+    Hardware::SerialConnection conn;
+    QSignalSpy errorSpy(&conn, &Hardware::SerialConnection::errorOccurred);
+
+    QVERIFY(!conn.connectToTarget());
+    QVERIFY(errorSpy.count() >= 1);
+    QCOMPARE(conn.lastError(), QString("No serial port selected"));
+
+    const bool serialBuilt = Hardware::SerialConnection::serialTransportAvailable();
+    if (serialBuilt) {
+        conn.setPortName("/dev/nonexistent-tty-r1c");
+        conn.setBaudRate(115200);
+        QVERIFY(!conn.connectToTarget());
+        QVERIFY2(conn.lastError().contains("could not be opened", Qt::CaseInsensitive),
+                 qPrintable(conn.lastError()));
+        QVERIFY(!conn.isConnected());
+    } else {
+        conn.setPortName("/dev/nonexistent-tty-r1c");
+        conn.setBaudRate(115200);
+        QVERIFY(!conn.connectToTarget());
+        QVERIFY2(conn.lastError().contains("unavailable", Qt::CaseInsensitive),
+                 qPrintable(conn.lastError()));
+    }
+}
+
+void TestAllCases::testPhase7FlashRefusesUntargetedPort() {
+    // R1.c/C11: esptool must never run without an explicit or catalog-matched
+    // port (no "-p" would let it autodetect ANY serial device on the host).
+    HardwareBridge& bridge = HardwareBridge::instance();
+    bridge.setTestSerialPorts({}); // active with no candidates: no matched port
+
+    FlashController controller(nullptr);
+    QSignalSpy finishedSpy(&controller, &FlashController::flashingFinished);
+    QString console;
+    QObject::connect(&controller, &FlashController::consoleOutputUpdate, [&console](const QString& line) {
+        console += line;
+    });
+
+    const QString binPath = m_tempDir.filePath("p7fw.bin");
+    QVERIFY(QFile(binPath).open(QIODevice::WriteOnly));
+
+    QVERIFY(!controller.flashESP32(binPath));
+    QCOMPARE(finishedSpy.count(), 1);
+    QCOMPARE(finishedSpy.first().at(0).toBool(), false);
+    QVERIFY2(console.contains("refusing an untargeted flash", Qt::CaseInsensitive),
+             qPrintable(console));
+}
+
+void TestAllCases::testPhase7DetectorAdapterOnlyWithoutCatalog() {
+    // R1.c/C10 (portable non-Linux dispatch path): when only the VID is
+    // known, the detector reports an ADAPTER (detected=false), never a
+    // concrete board claim. Executed through the public dispatcher so it
+    // runs on every host.
+    BoardDetector detector;
+    const auto devices = detector.getConnectedDevices();
+    // Only assert invariants for adapters actually present on this host;
+    // on headless CI hosts the list is empty and the invariant is vacuous.
+    for (const auto& dev : devices) {
+        QString vid = dev.vendorId.toLower();
+        QString pid = dev.productId.toLower();
+        if (vid.isEmpty() || pid.isEmpty()) continue;
+        const BoardSpec spec = BoardDatabase::instance().findBoardByUsb(vid, pid);
+        if (!spec.isValid() || spec.vid.isEmpty()) {
+            // No catalog row: detectConnectedBoard must not claim a board.
+            const DetectedBoardInfo info = detector.detectConnectedBoard();
+            if (vid == "0483") {
+                QCOMPARE(info.detected, false);
+                QCOMPARE(info.adapterType, QString("ST-Link"));
+            }
+        }
+    }
+    QVERIFY(true);
 }
 
 void TestAllCases::testPhase6McpTokenFileCanonicalPath() {

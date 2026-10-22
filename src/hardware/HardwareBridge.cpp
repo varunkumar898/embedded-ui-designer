@@ -1029,11 +1029,17 @@ void HardwareBridge::rescan() {
 }
 
 bool HardwareBridge::connectHardware() {
-    if (m_connectionState == ConnectionState::Connected) {
+    const BoardProfile bp = currentBoard();
+    const bool wasConnected = (m_connectionState == ConnectionState::Connected);
+
+    // R1.c: for the serial/esptool branch we fall through to re-match even
+    // while Connected (the paired adapter may have been unplugged); all
+    // other branches keep the fast connected short-circuit.
+    if (wasConnected && !(bp.connectionType == "serial" || bp.mcuFamily.contains("ESP32") ||
+                          bp.adapterKind.compare("esptool", Qt::CaseInsensitive) == 0)) {
         return true;
     }
 
-    const BoardProfile bp = currentBoard();
     m_lastConnectionError.clear();
     updateConnectionState(ConnectionState::Connecting);
 
@@ -1059,10 +1065,17 @@ bool HardwareBridge::connectHardware() {
             return true;
         }
 
-        // If probe is detected or physical connect requested
+        // R1.c: a detected probe is NOT a connection. Claiming transport
+        // from USB presence alone is the phantom-connect bug - report the
+        // probe fact and fail with an actionable reason instead.
         if (m_openOcd.isProbeDetected()) {
-            updateConnectionState(ConnectionState::Connected, m_openOcd.detectedBoardName());
-            return true;
+            m_lastConnectionError = QString(
+                "ST-Link probe present (%1) but the target cannot be reached "
+                "(openocd daemon/target init failed). Check the target wiring, "
+                "port conflicts, and openocd output.")
+                .arg(m_openOcd.detectedBoardName().isEmpty() ? "probe" : m_openOcd.detectedBoardName());
+            updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
+            return false;
         }
 
         // Actionable error for disconnected physical probe
@@ -1096,6 +1109,7 @@ bool HardwareBridge::connectHardware() {
         QString matchedAdapter;
         const QString matchedPort = matchSerialPort(bp, usbSerial, &matchedAdapter);
         if (matchedPort.isEmpty()) {
+            m_lastSerialPortName.clear(); // R1.c: a failed match invalidates any earlier pairing
             m_lastConnectionError = QString(
                 "No ESP32 USB-Serial adapter matching the board profile (%1 %2:%3) found. "
                 "Connect the adapter for %4 or select a different board.")
@@ -1109,15 +1123,22 @@ bool HardwareBridge::connectHardware() {
         return true;
     }
 
-    // 3. Linux GPIO SBC Workflow
+    // 3. Linux GPIO SBC Workflow (R1.c: an existing /sys/class/gpio is an
+    // environment property; a transport claim requires an openable GPIO
+    // character device - /dev/gpiochipN).
     if (bp.connectionType == "linux") {
-        if (QDir("/sys/class/gpio").exists() || QFile::exists("/dev/gpiochip0")) {
-            updateConnectionState(ConnectionState::Connected, "Linux GPIO Subsystem (/dev/gpiochip)");
-            return true;
+        const QString gpioChip = firstOpenableGpioChip();
+        if (gpioChip.isEmpty()) {
+            m_lastConnectionError =
+                "No GPIO character device available (/dev/gpiochip*). "
+                "Connect the target board or run on the SBC itself.";
+            updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
+            return false;
         }
-        m_lastConnectionError = "Linux GPIO sysfs/gpiod interface unavailable.";
-        updateConnectionState(ConnectionState::ConnectionFailed, m_lastConnectionError);
-        return false;
+        m_lastSerialPortName.clear(); // non-serial transport: no paired tty
+        updateConnectionState(ConnectionState::Connected,
+                              QString("Linux GPIO via %1").arg(gpioChip));
+        return true;
     }
 
     // 4. Fallback / Custom / Simulation
@@ -1131,10 +1152,31 @@ bool HardwareBridge::connectHardware() {
     return false;
 }
 
+QString HardwareBridge::firstOpenableGpioChip(const QString& devDir) {
+    // R1.c: /sys/class/gpio merely signals kernel sub-system presence
+    // (nearly every Linux host has it). A connection must open an actual
+    // GPIO character device. devDir is injectable for offline tests.
+    QDir dir(devDir);
+    // QDir::System covers real device nodes (char devices); QDir::Files
+    // lets offline tests inject regular files named gpiochip*.
+    const QStringList chips = dir.entryList(QStringList() << "gpiochip*",
+                                            QDir::Files | QDir::System, QDir::Name);
+    for (const QString& chip : chips) {
+        QFile chipDev(dir.filePath(chip));
+        if (chipDev.open(QIODevice::ReadOnly)) {
+            chipDev.close();
+            return dir.filePath(chip); // e.g. /dev/gpiochip0
+        }
+    }
+    return QString();
+}
+
 bool HardwareBridge::disconnectHardware() {
     if (m_openOcd.isConnected()) {
         m_openOcd.disconnectTarget();
     }
+    // R1.c: session over - the previously matched serial pairing is stale.
+    m_lastSerialPortName.clear();
     updateConnectionState(ConnectionState::Disconnected);
     return true;
 }

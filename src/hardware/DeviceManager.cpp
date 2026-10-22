@@ -1,4 +1,6 @@
 #include "DeviceManager.h"
+#include "HardwareBridge.h"
+#include "BoardConfigParser.h"
 #include <QDebug>
 
 DeviceManager::DeviceManager(QObject* parent)
@@ -48,6 +50,7 @@ void DeviceManager::onPollTimer() {
 void DeviceManager::updatePortsList(const QList<QSerialPortInfo>& portList) {
     QStringList newNames;
     QVariantList newPorts;
+    QList<QPair<QPair<QString,QString>,QString>> usbSerial;
 
     for (const QSerialPortInfo& info : portList) {
         newNames.append(info.portName());
@@ -62,14 +65,36 @@ void DeviceManager::updatePortsList(const QList<QSerialPortInfo>& portList) {
         portMap["productId"] = info.hasProductIdentifier() ? QString::number(info.productIdentifier(), 16).toUpper() : "";
         portMap["detectedBoard"] = detectBoardType(info.portName());
 
+        if (info.hasVendorIdentifier() && info.hasProductIdentifier()) {
+            usbSerial.append({{QString::number(info.vendorIdentifier(), 16).rightJustified(4, u'0'),
+                               QString::number(info.productIdentifier(), 16).rightJustified(4, u'0')},
+                              info.portName()});
+        }
         newPorts.append(portMap);
     }
 
+    // R1.c: a "selected" transport follows the board catalog, not the first
+    // tty in the list. Auto-select ONLY the port whose VID:PID matches the
+    // current board profile's adapter; otherwise clear the selection and
+    // let the user choose explicitly.
     m_portNames = newNames;
     m_ports = newPorts;
 
-    if (!m_portNames.contains(m_selectedPort) && !m_portNames.isEmpty()) {
-        setSelectedPort(m_portNames.first());
+    QString matched;
+    if (!usbSerial.isEmpty()) {
+        const BoardProfile profile = HardwareBridge::instance().currentBoard();
+        matched = HardwareBridge::matchSerialPort(profile, usbSerial);
+    }
+    if (matched.isEmpty() && !newNames.isEmpty()) {
+        // Never auto-select an arbitrary tty. Callers must handle an empty
+        // selection ("no adapter matched") explicitly.
+        if (m_portNames.contains(m_selectedPort)) {
+            setSelectedPort(m_selectedPort); // preserve an explicit user pick
+        } else {
+            setSelectedPort(QString());
+        }
+    } else if (!matched.isEmpty()) {
+        setSelectedPort(matched);
     }
 
     emit portsChanged();
@@ -153,9 +178,6 @@ QString DeviceManager::getFlashCommand(const QString& boardType, const QString& 
     }
     return QString("// Select specific device profile to generate flash command");
 }
-
-#include "HardwareBridge.h"
-#include "BoardConfigParser.h"
 
 QStringList DeviceManager::availablePins() const {
     return HardwareBridge::instance().availablePins();

@@ -144,6 +144,7 @@ public:
 
     // R1.b: catalog-driven transport/adapter selection (unit-testable helpers)
     static QString normalizeUsbId(const QString& raw); // "0x0483"|"483"|"0483" -> "0483"
+    static QString firstOpenableGpioChip(const QString& devDir = QStringLiteral("/dev"));
     // ports: list of ((vid,pid), portName). Returns the name of the FIRST port
     // whose vid:pid matches the profile's adapter ids, or "" when none does.
     static QString matchSerialPort(const BoardProfile& profile,

@@ -1,4 +1,5 @@
 #include "FlashController.h"
+#include "HardwareBridge.h"
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QDebug>
@@ -144,15 +145,29 @@ bool FlashController::flashESP32(const QString& binaryPath) {
     }
 
     QString normalizedBin = QDir::toNativeSeparators(binaryPath);
+
+    // R1.c: never let esptool auto-pick "any port on the system". With no
+    // explicit selection, use the adapter-matched port recorded by the
+    // hardware bridge; refuse otherwise - a wrong-board flash bricks it.
+    if (m_selectedPort.isEmpty()) {
+        m_selectedPort = HardwareBridge::instance().lastSerialPortName();
+    }
+    if (m_selectedPort.isEmpty()) {
+        emit consoleOutputUpdate(
+            "[FlashController] Error: no serial port matched the board's USB "
+            "adapter. Connect the board (or pick the port explicitly) and "
+            "retry - refusing an untargeted flash.\n");
+        emit flashingFinished(false, -1);
+        return false;
+    }
+
     emit consoleOutputUpdate(QString("[FlashController] Initiating ESP32 flash via esptool.py...\n"));
-    emit consoleOutputUpdate(QString("[FlashController] Target Port: %1\n").arg(m_selectedPort.isEmpty() ? "Auto-detect" : m_selectedPort));
+    emit consoleOutputUpdate(QString("[FlashController] Target Port: %1\n").arg(m_selectedPort));
     emit consoleOutputUpdate(QString("[FlashController] Binary: %1\n").arg(normalizedBin));
 
     QString program = "esptool.py";
     QStringList args;
-    if (!m_selectedPort.isEmpty()) {
-        args << "-p" << m_selectedPort;
-    }
+    args << "-p" << m_selectedPort;
     args << "-b" << "921600" << "write_flash" << "0x0" << normalizedBin;
 
     emit consoleOutputUpdate(QString("[FlashController] Executing command: %1 %2\n")

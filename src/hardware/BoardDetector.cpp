@@ -5,6 +5,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QDebug>
+#ifdef HAVE_QT_SERIALPORT
+#include <QSerialPortInfo>
+#endif
 
 const std::map<QString, QString> BoardDetector::ADAPTER_VIDS = {
     {"ST-Link", "0483"},
@@ -178,11 +181,30 @@ std::vector<UsbDevice> BoardDetector::parseLsusbOutput(const QString& output) {
 }
 
 std::vector<UsbDevice> BoardDetector::detectUsbDevices_Windows() {
+#ifdef HAVE_QT_SERIALPORT
+    // Portable USB-serial enumeration: QSerialPortInfo reports VID:PID and
+    // description for the adapters we own the catalog rows for (CP210x, CH340,
+    // ST-Link, native USB). Works identically on Windows and macOS.
+    std::vector<UsbDevice> devices;
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& info : ports) {
+        if (!info.hasVendorIdentifier() || !info.hasProductIdentifier()) continue;
+        UsbDevice dev;
+        dev.vendorId = QString::number(info.vendorIdentifier(), 16).rightJustified(4, u'0');
+        dev.productId = QString::number(info.productIdentifier(), 16).rightJustified(4, u'0');
+        dev.manufacturer = info.manufacturer();
+        dev.description = info.description().isEmpty() ? QString("USB serial device") : info.description();
+        dev.serialNumber = info.serialNumber();
+        devices.push_back(dev);
+    }
+    return devices;
+#else
     return {};
+#endif
 }
 
 std::vector<UsbDevice> BoardDetector::detectUsbDevices_Mac() {
-    return {};
+    return detectUsbDevices_Windows(); // identical portable QSerialPortInfo path
 }
 
 QString BoardDetector::identifyBoardType(const UsbDevice& device) {
@@ -276,22 +298,38 @@ DetectedBoardInfo BoardDetector::detectConnectedBoard() {
 
     return scanLsusb();
 #else
-    auto devices = detectUsbDevices();
+    // Portable path (macOS/Windows/other): drive the shared per-OS dispatcher
+    // and match the adapter against the catalog the same way Linux does.
+    const auto devices = getConnectedDevices();
     for (const auto& dev : devices) {
-        if ((dev.vendorId == "0483" && (dev.productId == "374b" || dev.productId == "3748")) ||
-            dev.productName.contains("ST-LINK", Qt::CaseInsensitive)) {
+        const BoardSpec spec = BoardDatabase::instance().findBoardByUsb(
+            dev.vendorId.toLower(), dev.productId.toLower());
+        if (spec.isValid() && !spec.vid.isEmpty()) {
             DetectedBoardInfo info;
             info.detected = true;
-            info.boardId = "nucleo_f030r8";
-            info.boardName = "STM32 NUCLEO-F030R8";
-            info.mcu = "STM32F030R8";
-            info.adapterType = "ST-Link/V2-1";
-            info.vid = dev.vendorId;
-            info.pid = dev.productId;
-            info.openocdConfig = "config/openocd/stm32f030r8.cfg";
-            info.suggestedInterface = "interface/stlink.cfg";
-            info.spec = BoardDatabase::instance().findBoardById(info.boardId);
+            info.boardId = spec.id;
+            info.boardName = spec.name;
+            info.mcu = spec.mcu;
+            info.adapterType = spec.usbAdapterType;
+            info.vid = dev.vendorId.toLower();
+            info.pid = dev.productId.toLower();
+            info.serial = dev.serialNumber;
+            info.openocdConfig = spec.openocdConfigFile;
+            info.suggestedInterface = spec.openocdInterface;
+            info.spec = spec;
             return info;
+        }
+        // R1.c: a VID-only match is an ADAPTER identification, never a
+        // concrete board identity (any 0483 ST-Link is not "NUCLEO-F030R8").
+        if (dev.vendorId.toLower() == "0483" ||
+            dev.description.contains("ST-LINK", Qt::CaseInsensitive)) {
+            DetectedBoardInfo adapterOnly;
+            adapterOnly.detected = false; // board unknown until the target is identified
+            adapterOnly.adapterType = "ST-Link";
+            adapterOnly.vid = dev.vendorId.toLower();
+            adapterOnly.pid = dev.productId.toLower();
+            adapterOnly.serial = dev.serialNumber;
+            return adapterOnly;
         }
     }
     return DetectedBoardInfo();

@@ -1,7 +1,12 @@
 #include "HardwareConnection.h"
 #include "OpenOcdManager.h"
+#include "HardwareBridge.h"
 #include <QFile>
 #include <QDir>
+#ifdef HAVE_QT_SERIALPORT
+#include <QSerialPort>
+#include <QSerialPortInfo>
+#endif
 
 namespace Hardware {
 
@@ -24,9 +29,22 @@ bool OpenOcdConnection::isConnected() const {
 }
 
 bool OpenOcdConnection::connectToTarget() {
-    m_connected = true;
-    emit connected();
-    return true;
+    // R1.c: no unconditional transport claim - reflect the real OpenOCD
+    // daemon session managed by the bridge (executable present, socket and
+    // target handshake).
+    HardwareBridge& bridge = HardwareBridge::instance();
+    const BoardProfile bp = bridge.currentBoard();
+    const bool ok = bridge.openOcdManager().connectToTarget(bp.openocdInterface, bp.openocdTarget);
+    if (ok) {
+        m_connected = true;
+        emit connected();
+    } else {
+        m_lastError = bridge.lastConnectionError().isEmpty()
+                          ? "OpenOCD daemon/target not reachable"
+                          : bridge.lastConnectionError();
+        emit errorOccurred(m_lastError);
+    }
+    return ok;
 }
 
 bool OpenOcdConnection::disconnectFromTarget() {
@@ -54,14 +72,31 @@ bool SerialConnection::isConnected() const {
 }
 
 bool SerialConnection::connectToTarget() {
+    // R1.c: selecting a COM port name is not a transport claim - the port
+    // must actually open.
     if (m_portName.isEmpty()) {
         m_lastError = "No serial port selected";
         emit errorOccurred(m_lastError);
         return false;
     }
+#ifdef HAVE_QT_SERIALPORT
+    QSerialPort port(m_portName);
+    port.setBaudRate(m_baudRate);
+    if (!port.open(QIODevice::ReadWrite)) {
+        m_lastError = QString("Serial port %1 could not be opened: %2")
+                          .arg(m_portName, port.errorString());
+        emit errorOccurred(m_lastError);
+        return false;
+    }
+    port.close(); // real sessions (telemetry/DeviceMonitor) own the port
     m_connected = true;
     emit connected();
     return true;
+#else
+    m_lastError = "Serial transport unavailable (Qt SerialPort not built in).";
+    emit errorOccurred(m_lastError);
+    return false;
+#endif
 }
 
 bool SerialConnection::disconnectFromTarget() {
@@ -89,16 +124,25 @@ bool LinuxSysfsConnection::isConnected() const {
 }
 
 bool LinuxSysfsConnection::connectToTarget() {
-    // Check if Linux gpio or i2c paths exist
-    bool hasGpio = QFile::exists("/sys/class/gpio") || QFile::exists("/dev/gpiochip0");
-    if (hasGpio) {
-        m_connected = true;
-        emit connected();
-        return true;
+    // R1.c: subsystem PATH presence (/sys/class/gpio) is not a connection;
+    // require an openable GPIO character device like the bridge does.
+    QDir devDir("/dev");
+    // Same filter as HardwareBridge::firstOpenableGpioChip: device nodes plus
+    // regular files (for offline tests).
+    const QStringList chips = devDir.entryList(QStringList() << "gpiochip*",
+                                               QDir::Files | QDir::System, QDir::Name);
+    for (const QString& chip : chips) {
+        QFile chipDev(devDir.filePath(chip));
+        if (chipDev.open(QIODevice::ReadOnly)) {
+            chipDev.close();
+            m_connected = true;
+            emit connected();
+            return true;
+        }
     }
-    // Simulation / graceful fallback
     m_connected = false;
-    m_lastError = "Host is not a native Linux Raspberry Pi / SBC hardware target";
+    m_lastError = "Host is not a native Linux Raspberry Pi / SBC hardware target "
+                  "(no openable /dev/gpiochip*).";
     return false;
 }
 
