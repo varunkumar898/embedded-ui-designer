@@ -468,6 +468,14 @@ bool OcdTelnetManager::sendRawSocket(const QString& line) {
 }
 
 bool OcdTelnetManager::writeMemoryWord(quint32 address, quint32 value) {
+    // R1.e: foreign threads must not read the socket state directly either;
+    // marshal the memory-write decision onto the owning thread.
+    return runOnOwner(this, [&]{
+        return writeMemoryWordInternal(address, value);
+    });
+}
+
+bool OcdTelnetManager::writeMemoryWordInternal(quint32 address, quint32 value) {
     QString reason;
     if (!Hardware::WriteGuard::allow(address, HardwareBridge::instance().allowedWriteAddresses(),
                                     HardwareBridge::instance().isLiveWriteAllowed(),
@@ -504,7 +512,9 @@ bool OcdTelnetManager::writeMemoryWord(quint32 address, quint32 value) {
 
 bool OcdTelnetManager::readMemoryWord(quint32 address, quint32* outValue) {
     if (!outValue) return false;
-    return HardwareBridge::instance().openOcdManager().readMemoryWord(address, outValue);
+    return runOnOwner(this, [&]{
+        return HardwareBridge::instance().openOcdManager().readMemoryWord(address, outValue);
+    });
 }
 
 QString OcdTelnetManager::gpioStatus() const {

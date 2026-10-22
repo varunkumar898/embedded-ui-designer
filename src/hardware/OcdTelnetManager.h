@@ -105,6 +105,7 @@ private:
     QString sendCommandInternal(const QString& cmd);
     QString readResponseInternal();
     bool connectToTelnetInternal(const QString& host, int port);
+    bool writeMemoryWordInternal(quint32 address, quint32 value);
     QByteArray readPromptTerminated(int timeoutMs);
     bool ledBsrrAddress(quint32* outAddress, QString* errOut);
 
