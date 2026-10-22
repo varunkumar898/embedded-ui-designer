@@ -55,6 +55,11 @@ jobs:
           # The default MSVC-built Qt imports yield undefined
           # qRegisterResourceData/qResourceFeatureZlib at link time.
           arch: 'win64_mingw'
+          # Qt 6.7 mingw binaries are built against MinGW-w64 13.1; the
+          # runner's gcc 15.2 runtime lacks __imp___argc, which breaks the
+          # Qt entrypoint link. Install the matching MinGW and prepend its
+          # bin (add-tools-to-path) so CMake picks the ABI-matched toolchain.
+          tools: 'tools_mingw1310'
           modules: 'qtserialport'
           setup-python: false
           cache: true
