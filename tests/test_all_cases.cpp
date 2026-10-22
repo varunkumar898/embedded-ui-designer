@@ -77,7 +77,12 @@
 #include "MockBackend.h"
 #include "HardwareManager.h"
 #include "BoardConfigParser.h"
+#include "OcdTelnetManager.h"
+#include "OpenOcdDeviceLink.h"
 #include "QmlImporter.h"
+#include <QEventLoop>
+#include <QTimer>
+#include <atomic>
 #include "DeviceManager.h"
 #include "hardware/BoardRegistry.h"
 #include "MainWindow.h"
@@ -356,6 +361,13 @@ private slots:
     void testPhase7SerialConnectionOpensOrFails();
     void testPhase7FlashRefusesUntargetedPort();
     void testPhase7DetectorAdapterOnlyWithoutCatalog();
+    // 33. Phase 7/R1.e: telnet prompt parse, single-thread socket, honest LED
+    void testPhase7TelnetPromptTerminatedParse();
+    void testPhase7TelnetForeignThreadMarshal();
+    void testPhase7LedCommandHonorsProfile();
+    // 34. Phase 7/R1.d: profile-driven chip identity (DBGMCU_IDCODE per family)
+    void testPhase7ChipIdentityProfileTables();
+    void testPhase7EsptoolChipNameParse();
     void testPhase6SecureCredentialManagerVault();
     void testPhase6DiagnosticsEngineAndCategories();
     void testPhase6GitServiceAndSafetyPolicy();
@@ -6123,6 +6135,133 @@ void TestAllCases::testPhase7DetectorAdapterOnlyWithoutCatalog() {
         }
     }
     QVERIFY(true);
+}
+
+void TestAllCases::testPhase7TelnetPromptTerminatedParse() {
+    // R1.e: an OpenOCD telnet reply is complete only with the trailing prompt.
+    const QByteArray mdwReply = "0x40015800: 0x00000440\n> ";
+    const qsizetype mdwLen = OcdTelnetManager::completeReplyLength(mdwReply);
+    QVERIFY2(mdwLen == qsizetype(22), qPrintable(QString("len=%1").arg(mdwLen)));
+
+    const QByteArray crlfReply = "0x40015800: 0x00000440\r\n> ";
+    QCOMPARE(OcdTelnetManager::completeReplyLength(crlfReply), qsizetype(22));
+
+    const QByteArray multiLine = "1\n2\n> ";
+    QCOMPARE(OcdTelnetManager::completeReplyLength(multiLine), qsizetype(3));
+
+    const QByteArray promptOnly = "> ";
+    QCOMPARE(OcdTelnetManager::completeReplyLength(promptOnly), qsizetype(0));
+
+    // Not complete: no trailing prompt yet (first-chunk case of the old bug).
+    QVERIFY(OcdTelnetManager::completeReplyLength(QByteArray("0x40015800: 0x000")) < 0);
+    QVERIFY(OcdTelnetManager::completeReplyLength(QByteArray("targets\nstm32f0x.cpu")) < 0);
+}
+
+void TestAllCases::testPhase7TelnetForeignThreadMarshal() {
+    // R1.e: foreign threads must not touch the socket runtime. The manager
+    // marshals to its owning thread (BlockingQueuedConnection) and the result
+    // depends on the owning thread's event loop serving the queued call -
+    // which is exactly how OpenOCDWorker behaves in production while the
+    // UI loop keeps running.
+    OcdTelnetManager manager;
+    std::atomic<bool> done{false};
+    QString recordedResponse;
+    QThread* worker = new QThread;
+    QObject::connect(worker, &QThread::started, [&]{
+        recordedResponse = manager.sendCommand("targets");
+        done.store(true);
+    });
+    worker->start();
+
+    // Pump the manager's (owner/main) event loop so the queued invocation
+    // is served while the worker blocks on the marshal.
+    QEventLoop loop;
+    for (int i = 0; i < 20 && !done.load(); ++i) {
+        QTimer::singleShot(100, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+    QVERIFY2(done.load(), "queued marshal must be served by the owner thread");
+    QVERIFY(recordedResponse.isEmpty()); // no socket -> honest empty reply
+
+    worker->quit(); // QThread::run's default exec() needs an explicit quit
+    QVERIFY(worker->wait(2000));
+    delete worker;
+}
+
+void TestAllCases::testPhase7ChipIdentityProfileTables() {
+    // R1.d: identity registers per family, sourced from verified references.
+    // Unverified families carry 0/0 and identify() must fail honestly.
+    HardwareBridge& bridge = HardwareBridge::instance();
+
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+    BoardProfile bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0x40015800)); // RM0360 rev.5 §30.6.1
+    QCOMPARE(bp.expectedDevId, quint32(0x440));
+
+    QVERIFY(bridge.setBoard("stm32f407g_disc1"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0xE0042000)); // RM0090
+    QCOMPARE(bp.expectedDevId, quint32(0x413));
+
+    QVERIFY(bridge.setBoard("stm32f469i"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0xE0042000));
+    QCOMPARE(bp.expectedDevId, quint32(0x434)); // RM0386
+
+    QVERIFY(bridge.setBoard("stm32h747i"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0));     // H7: pending hardware capture
+    QCOMPARE(bp.expectedDevId, quint32(0));
+
+    QVERIFY(bridge.setBoard("esp32_devkitc"));
+    bp = bridge.currentBoard();
+    QCOMPARE(bp.dbgmcuAddress, quint32(0));     // ESP32: esptool path, no DBGMCU
+
+    // OpenOcdDeviceLink offline: without a connection identify fails honestly.
+    Hardware::OpenOcdDeviceLink link("stm32f030r8");
+    const Hardware::DeviceIdentity none = link.identify();
+    QVERIFY(none.family.isEmpty());
+    QCOMPARE(link.state(), Hardware::DeviceLinkState::Error);
+}
+
+void TestAllCases::testPhase7EsptoolChipNameParse() {
+    // R1.d: esptool chip_id reply parsing (fixture from hardware captures).
+    const QByteArray capture =
+        QByteArray("esptool.py v4.5.1\n") +
+        "Serial port /dev/ttyUSB0\n" +
+        "Connecting....\n" +
+        "Chip is ESP32-D0WD-V3 (revision v3.0)\n" +
+        "Features: WiFi, BT, Dual Core, 240MHz\n";
+    QCOMPARE(Hardware::OpenOcdDeviceLink::parseEsptoolChipName(capture),
+             QString("ESP32-D0WD-V3"));
+
+    // No revision suffix variant.
+    QCOMPARE(Hardware::OpenOcdDeviceLink::parseEsptoolChipName(QByteArray("Chip is ESP32-S3\n")),
+             QString("ESP32-S3"));
+
+    // Missing line -> empty chip name (honest identify failure).
+    QVERIFY(Hardware::OpenOcdDeviceLink::parseEsptoolChipName(QByteArray("connecting failed\n")).isEmpty());
+}
+
+void TestAllCases::testPhase7LedCommandHonorsProfile() {
+    // R1.e/C13: the LED_* address is profile-driven and non-STM32 profiles
+    // fail honestly; a plain ESP32 profile must NOT be written with an
+    // STM32 BSRR.
+    HardwareBridge& bridge = HardwareBridge::instance();
+    QVERIFY(bridge.setBoard("esp32_devkitc"));
+    OcdTelnetManager manager;
+    const QString resp = manager.sendCommand("LED_ON");
+    QVERIFY2(resp.startsWith("ERR", Qt::CaseInsensitive), qPrintable(resp));
+    QVERIFY2(resp.contains("STM32"), qPrintable(resp));
+
+    // STM32 profile: F0 GPIO base + BSRR offset consistent with the write
+    // guard history recorded from the (simulated) accepted write.
+    QVERIFY(bridge.setBoard("stm32f030r8"));
+    const BoardProfile bp = bridge.currentBoard();
+    quint32 ledAddress = 0;
+    QString negErr;
+    QVERIFY(manager.ledBsrrAddress(&ledAddress, &negErr));
+    QCOMPARE(ledAddress, quint32(0x48000018)); // 0x48000000 + 0x18 for F0
 }
 
 void TestAllCases::testPhase6McpTokenFileCanonicalPath() {

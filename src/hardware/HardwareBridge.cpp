@@ -535,6 +535,10 @@ void HardwareBridge::initializeDefaultBoards() {
 }
 
 void HardwareBridge::applyCatalogAdapter(BoardProfile& profile) {
+    // R1.d first pass: family chip-identity registers (every branch exits,
+    // so run this before the adapter branches).
+    applyChipIdentity(profile);
+
     // 1. Catalog rows are authoritative when present (usb_adapter section).
     //    Join by exact id first, then by normalized board name - built-in
     //    profile ids may differ from catalog ids (e.g. profile
@@ -668,6 +672,37 @@ bool HardwareBridge::setBoard(const QString& boardId) {
         emit boardChanged(boardId);
     }
     return true;
+}
+
+void HardwareBridge::applyChipIdentity(BoardProfile& profile) {
+    // R1.d: identity registers only for families with documented, verified
+    // values. Unverified families stay 0/0 and identify() fails honestly
+    // ("pending verification") instead of guessing an address.
+    if (profile.dbgmcuAddress != 0) {
+        return; // imported profiles may carry explicit identity data
+    }
+    if (profile.mcuFamily.startsWith("STM32F0", Qt::CaseInsensitive)) {
+        // RM0360 rev.5 §30.6.1: DBGMCU_IDCODE 0x40015800, DEV_ID 0x440
+        profile.dbgmcuAddress = 0x40015800;
+        profile.expectedDevId = 0x440;
+        return;
+    }
+    if (profile.mcuFamily.startsWith("STM32F4", Qt::CaseInsensitive)) {
+        profile.dbgmcuAddress = 0xE0042000;
+        const QString id = profile.id.toLower();
+        if (id.contains("f469") || id.contains("f479") || profile.name.contains("F469") || profile.name.contains("F479")) {
+            // RM0386: F469/F479 DEV_ID 0x434
+            profile.expectedDevId = 0x434;
+        } else if (id.contains("f407") || profile.name.contains("F407")) {
+            // RM0090: F407 DEV_ID 0x413
+            profile.expectedDevId = 0x413;
+        } else {
+            profile.expectedDevId = 0; // other F4 members pending capture confirm
+        }
+        return;
+    }
+    // STM32F1/H7/L*, RP2, ESP, BCM: leave 0/0 - identity needs references
+    // that must be captured from hardware before they are trusted.
 }
 
 bool HardwareBridge::addBoard(const BoardProfile& profile) {

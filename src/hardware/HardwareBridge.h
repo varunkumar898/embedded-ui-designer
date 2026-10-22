@@ -127,6 +127,12 @@ struct BoardProfile {
     QString adapterVid;              // normalized 4-hex, e.g. "0483"
     QString adapterPid;              // e.g. "374b"
     QStringList adapterAltVidPids;   // extra accepted "vid:pid" pairs
+
+    // R1.d: chip identity (DBGMCU_IDCODE family registers). Both zero means
+    // "no verified identity register for this family yet" -> identify() must
+    // fail honestly instead of guessing.
+    quint32 dbgmcuAddress = 0;       // e.g. F0: 0x40015800, F4: 0xE0042000
+    quint32 expectedDevId = 0;       // e.g. 0x440 (F030x8/x9), 0x413 (F407)
 };
 
 class HardwareBridge : public QObject {
@@ -145,6 +151,9 @@ public:
     // R1.b: catalog-driven transport/adapter selection (unit-testable helpers)
     static QString normalizeUsbId(const QString& raw); // "0x0483"|"483"|"0483" -> "0483"
     static QString firstOpenableGpioChip(const QString& devDir = QStringLiteral("/dev"));
+    // R1.d: family chip-identity registers (DBGMCU_IDCODE address + expected
+    // DEV_ID); pure function of the profile.
+    static void applyChipIdentity(BoardProfile& profile);
     // ports: list of ((vid,pid), portName). Returns the name of the FIRST port
     // whose vid:pid matches the profile's adapter ids, or "" when none does.
     static QString matchSerialPort(const BoardProfile& profile,

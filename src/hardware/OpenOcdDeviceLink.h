@@ -29,6 +29,10 @@ public:
     void setWriteOverride(bool on) override { m_writeOverride = on; }
     bool writeOverride() const override { return m_writeOverride; }
 
+    // R1.d test hook: parse the "Chip is ESP32-D0WD-V3 (revision v3.0)" line
+    // of an esptool chip_id reply. Empty when the reply has no such line.
+    static QString parseEsptoolChipName(const QByteArray& output);
+
 private:
     QString m_selectedBoardId;
     DeviceLinkState m_state = DeviceLinkState::NoDevice;
