@@ -109,3 +109,18 @@ jobs:
         run: |
           cd build
           ctest -C Release --verbose --output-on-failure
+
+      - name: CI Hygiene - Tests Must Not Modify Tracked Files
+        if: always()
+        shell: bash
+        run: |
+          # Generated-file authors must stay inside the project's configured
+          # firmware/output directory. If any tracked file changed while the
+          # suites ran, fail loudly with the diff for debugging.
+          DIRTY="$(git status --porcelain)"
+          if [ -n "$DIRTY" ]; then
+            echo "::error::Test execution modified tracked files (generated-file containment violated):"
+            echo "$DIRTY"
+            git -c core.pager=cat --no-pager diff --stat
+            exit 1
+          fi
